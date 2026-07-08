@@ -1,0 +1,5 @@
+'use client';
+import { useState } from 'react';
+import api from '@/lib/api';
+import { Button, Form, Input, Modal, SimpleTablePage, StatusTag, message } from '@/components/PageTools';
+export default function WebhooksPage(){const[open,setOpen]=useState(false);const[refresh,setRefresh]=useState(0);const[form]=Form.useForm();const columns=[{title:'URL',dataIndex:'url'},{title:'Status',dataIndex:'status',render:v=><StatusTag value={v}/>}];async function submit(values){await api.post('/merchant/webhooks',values);message.success('Webhook saved');setOpen(false);setRefresh(Date.now());}return <><SimpleTablePage title="Webhooks" endpoint="/merchant/webhooks" columns={columns} reloadKey={refresh} extra={<Button type="primary" onClick={()=>setOpen(true)}>Add Webhook</Button>}/><Modal open={open} title="Add Webhook" onCancel={()=>setOpen(false)} onOk={()=>form.submit()}><Form form={form} layout="vertical" onFinish={submit}><Form.Item name="url" label="Webhook URL" rules={[{required:true}]}><Input/></Form.Item></Form></Modal></>;}

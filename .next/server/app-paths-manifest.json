@@ -1,0 +1,8 @@
+{
+  "/merchant/onboarding/page": "app/merchant/onboarding/page.js",
+  "/merchant/pickups/page": "app/merchant/pickups/page.js",
+  "/merchant/shipments/[id]/page": "app/merchant/shipments/[id]/page.js",
+  "/admin/shipments/page": "app/admin/shipments/page.js",
+  "/admin/shipments/[id]/page": "app/admin/shipments/[id]/page.js",
+  "/admin/pickups/page": "app/admin/pickups/page.js"
+}
