@@ -22,15 +22,32 @@ export function getEcho() {
 
   const token = getAuthToken();
 
+  const reverbHost =
+    process.env.NEXT_PUBLIC_REVERB_HOST || "ws.tukaatuexpress.com";
+
+  const reverbPort = Number(process.env.NEXT_PUBLIC_REVERB_PORT || 443);
+
+  const reverbScheme =
+    process.env.NEXT_PUBLIC_REVERB_SCHEME || "https";
+
+  const apiOrigin =
+    process.env.NEXT_PUBLIC_API_ORIGIN || "https://api.tukaatuexpress.com";
+
   echo = new Echo({
     broadcaster: "reverb",
     key: process.env.NEXT_PUBLIC_REVERB_APP_KEY,
-    wsHost: process.env.NEXT_PUBLIC_REVERB_HOST || "127.0.0.1",
-    wsPort: Number(process.env.NEXT_PUBLIC_REVERB_PORT || 8080),
-    wssPort: Number(process.env.NEXT_PUBLIC_REVERB_PORT || 8080),
-    forceTLS: process.env.NEXT_PUBLIC_REVERB_SCHEME === "https",
+
+    wsHost: reverbHost,
+    wsPort: reverbPort,
+    wssPort: reverbPort,
+
+    forceTLS: reverbScheme === "https",
+    encrypted: reverbScheme === "https",
+
     enabledTransports: ["ws", "wss"],
-    authEndpoint: `${process.env.NEXT_PUBLIC_API_ORIGIN || "http://164.68.109.98:8081"}/broadcasting/auth`,
+
+    authEndpoint: `${apiOrigin}/broadcasting/auth`,
+
     auth: {
       headers: {
         Authorization: token ? `Bearer ${token}` : "",
