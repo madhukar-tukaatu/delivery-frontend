@@ -25,7 +25,6 @@ import {
   ExclamationCircleOutlined,
 } from "@ant-design/icons";
 
-import CoordinatePicker from "@/components/maps/CoordinatePicker";
 import {
   getMerchantOnboarding,
   saveBusinessProfile,
@@ -34,8 +33,17 @@ import {
   uploadMerchantDocument,
   submitMerchantForReview,
 } from "@/services/merchantOnboardingService";
+import dynamic from "next/dynamic";
 
 const { Title, Text } = Typography;
+
+const CoordinatePicker = dynamic(
+  () => import("@/components/maps/CoordinatePicker"),
+  {
+    ssr: false,
+    loading: () => <div style={{ padding: 16 }}>Loading map...</div>,
+  }
+);
 
 function normalizeError(error) {
   if (error?.errors || error?.message) {

@@ -3,26 +3,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { Alert, Button, Input, Space, Typography, message } from "antd";
 import { EnvironmentOutlined, SearchOutlined } from "@ant-design/icons";
-import { MapContainer, Marker, Popup, TileLayer, useMap, useMapEvents } from "react-leaflet";
-import L from "leaflet";
 
 const { Text } = Typography;
-
-const deliveryIcon = new L.Icon({
-  iconUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png",
-  iconRetinaUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png",
-  shadowUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png",
-  iconSize: [25, 41],
-  iconAnchor: [12, 41],
-});
-
-const pickupIcon = new L.Icon({
-  iconUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png",
-  iconRetinaUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png",
-  shadowUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png",
-  iconSize: [25, 41],
-  iconAnchor: [12, 41],
-});
 
 function toNumber(value) {
   const number = Number(value);
@@ -34,15 +16,30 @@ function extractLocation(place) {
 
   return {
     address: place?.display_name || "",
-    city: address.city || address.town || address.municipality || address.village || address.county || "",
-    area: address.suburb || address.neighbourhood || address.quarter || address.city_district || address.road || "",
+    city:
+      address.city ||
+      address.town ||
+      address.municipality ||
+      address.village ||
+      address.county ||
+      "",
+    area:
+      address.suburb ||
+      address.neighbourhood ||
+      address.quarter ||
+      address.road ||
+      "",
   };
 }
 
 async function reverseGeocode(latitude, longitude) {
   try {
-    const response = await fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${latitude}&lon=${longitude}`);
+    const response = await fetch(
+      `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${latitude}&lon=${longitude}`
+    );
+
     if (!response.ok) return {};
+
     return extractLocation(await response.json());
   } catch {
     return {};
@@ -50,10 +47,16 @@ async function reverseGeocode(latitude, longitude) {
 }
 
 async function searchAddress(query) {
-  const response = await fetch(`https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&q=${encodeURIComponent(query)}`);
+  const response = await fetch(
+    `https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&q=${encodeURIComponent(
+      query
+    )}`
+  );
+
   if (!response.ok) throw new Error("Address search failed.");
 
   const rows = await response.json();
+
   if (!rows?.length) throw new Error("No location found.");
 
   const first = rows[0];
@@ -65,20 +68,25 @@ async function searchAddress(query) {
   };
 }
 
-function MapClickHandler({ onPick }) {
+function MapClickHandler({ useMapEvents, onPick }) {
   useMapEvents({
-    async click(event) {
-      const latitude = Number(event.latlng.lat.toFixed(6));
-      const longitude = Number(event.latlng.lng.toFixed(6));
-      const address = await reverseGeocode(latitude, longitude);
-      onPick({ latitude, longitude, ...address });
+    async click(e) {
+      const lat = Number(e.latlng.lat.toFixed(6));
+      const lng = Number(e.latlng.lng.toFixed(6));
+      const address = await reverseGeocode(lat, lng);
+
+      onPick({
+        latitude: lat,
+        longitude: lng,
+        ...address,
+      });
     },
   });
 
   return null;
 }
 
-function MapUpdater({ latitude, longitude }) {
+function MapUpdater({ useMap, latitude, longitude }) {
   const map = useMap();
 
   useEffect(() => {
@@ -86,29 +94,96 @@ function MapUpdater({ latitude, longitude }) {
       map.setView([latitude, longitude], 15);
     }
 
-    setTimeout(() => map.invalidateSize(), 150);
+    const timer = setTimeout(() => {
+      map.invalidateSize();
+    }, 150);
+
+    return () => clearTimeout(timer);
   }, [latitude, longitude, map]);
 
   return null;
 }
 
-export default function DeliveryLocationPicker({ value, pickupLocation, onChange }) {
+export default function DeliveryLocationPicker({
+  value,
+  pickupLocation,
+  onChange,
+}) {
   const [mounted, setMounted] = useState(false);
+  const [mapTools, setMapTools] = useState(null);
   const [searchText, setSearchText] = useState("");
   const [searching, setSearching] = useState(false);
 
-  useEffect(() => setMounted(true), []);
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+
+    async function loadMapLibraries() {
+      try {
+        const [reactLeaflet, leafletModule] = await Promise.all([
+          import("react-leaflet"),
+          import("leaflet"),
+        ]);
+
+        const L = leafletModule.default || leafletModule;
+
+        if (typeof window !== "undefined" && L?.Icon?.Default) {
+          delete L.Icon.Default.prototype._getIconUrl;
+
+          L.Icon.Default.mergeOptions({
+            iconRetinaUrl:
+              "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png",
+            iconUrl:
+              "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png",
+            shadowUrl:
+              "https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png",
+          });
+        }
+
+        if (!active) return;
+
+        setMapTools({
+          MapContainer: reactLeaflet.MapContainer,
+          Marker: reactLeaflet.Marker,
+          Popup: reactLeaflet.Popup,
+          TileLayer: reactLeaflet.TileLayer,
+          useMap: reactLeaflet.useMap,
+          useMapEvents: reactLeaflet.useMapEvents,
+        });
+      } catch (error) {
+        console.error(error);
+        message.error("Could not load map.");
+      }
+    }
+
+    if (mounted) {
+      loadMapLibraries();
+    }
+
+    return () => {
+      active = false;
+    };
+  }, [mounted]);
 
   const latitude = toNumber(value?.latitude);
   const longitude = toNumber(value?.longitude);
-  const pickupLatitude = toNumber(pickupLocation?.latitude);
-  const pickupLongitude = toNumber(pickupLocation?.longitude);
+  const pickupLat = toNumber(pickupLocation?.latitude);
+  const pickupLng = toNumber(pickupLocation?.longitude);
 
   const center = useMemo(() => {
-    if (Number.isFinite(latitude) && Number.isFinite(longitude)) return [latitude, longitude];
-    if (Number.isFinite(pickupLatitude) && Number.isFinite(pickupLongitude)) return [pickupLatitude, pickupLongitude];
+    if (Number.isFinite(latitude) && Number.isFinite(longitude)) {
+      return [latitude, longitude];
+    }
+
+    if (Number.isFinite(pickupLat) && Number.isFinite(pickupLng)) {
+      return [pickupLat, pickupLng];
+    }
+
     return [27.7172, 85.324];
-  }, [latitude, longitude, pickupLatitude, pickupLongitude]);
+  }, [latitude, longitude, pickupLat, pickupLng]);
 
   async function handleSearch() {
     if (!searchText.trim()) {
@@ -128,73 +203,116 @@ export default function DeliveryLocationPicker({ value, pickupLocation, onChange
     }
   }
 
-  if (!mounted) {
-    return <div style={{ height: 360, borderRadius: 12, background: "#f5f5f5" }} />;
+  if (!mounted || !mapTools) {
+    return (
+      <div
+        style={{
+          height: 380,
+          borderRadius: 12,
+          border: "1px solid #e5e7eb",
+          background: "#f5f5f5",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+        }}
+      >
+        Loading map...
+      </div>
+    );
   }
 
+  const {
+    MapContainer,
+    Marker,
+    Popup,
+    TileLayer,
+    useMap,
+    useMapEvents,
+  } = mapTools;
+
   return (
-    <Space direction="vertical" size={10} style={{ width: "100%" }}>
+    <Space direction="vertical" size={12} style={{ width: "100%" }}>
       <Alert
         type="info"
         showIcon
         message="Select delivery location"
-        description="The map is centered around the selected merchant pickup location. Search an address or click on the map to choose the customer delivery coordinates."
+        description="Search an address or click on the map to choose delivery location."
       />
 
       <Space.Compact style={{ width: "100%" }}>
         <Input
           value={searchText}
-          onChange={(event) => setSearchText(event.target.value)}
-          placeholder="Search address, area, landmark, city..."
+          onChange={(e) => setSearchText(e.target.value)}
+          placeholder="Search address, area, landmark..."
           onPressEnter={handleSearch}
         />
-        <Button icon={<SearchOutlined />} loading={searching} onClick={handleSearch}>Search</Button>
+
+        <Button
+          icon={<SearchOutlined />}
+          loading={searching}
+          onClick={handleSearch}
+        >
+          Search
+        </Button>
       </Space.Compact>
 
-      <div style={{ height: 360, width: "100%", borderRadius: 12, overflow: "hidden", border: "1px solid #e5e7eb" }}>
+      <div
+        style={{
+          height: 380,
+          borderRadius: 12,
+          overflow: "hidden",
+          border: "1px solid #e5e7eb",
+        }}
+      >
         <MapContainer
-          key={`delivery-location-picker-map-${pickupLocation?.id || "default"}`}
           center={center}
           zoom={14}
-          scrollWheelZoom
           style={{ height: "100%", width: "100%" }}
         >
-          <TileLayer attribution="&copy; OpenStreetMap contributors" url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
-          <MapClickHandler onPick={(location) => {
-            onChange?.(location);
-            message.success("Delivery location selected from map.");
-          }} />
-          <MapUpdater latitude={latitude} longitude={longitude} />
+          <TileLayer
+            attribution="&copy; OpenStreetMap contributors"
+            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+          />
 
-          {Number.isFinite(pickupLatitude) && Number.isFinite(pickupLongitude) && (
-            <Marker position={[pickupLatitude, pickupLongitude]} icon={pickupIcon}>
-              <Popup>
-                <strong>Merchant Pickup Location</strong><br />
-                {pickupLocation?.name || "Merchant pickup"}<br />
-                {pickupLocation?.address || "-"}<br />
-                {pickupLatitude}, {pickupLongitude}
-              </Popup>
+          <MapClickHandler
+            useMapEvents={useMapEvents}
+            onPick={(location) => {
+              onChange?.(location);
+              message.success("Location selected from map.");
+            }}
+          />
+
+          <MapUpdater
+            useMap={useMap}
+            latitude={latitude}
+            longitude={longitude}
+          />
+
+          {Number.isFinite(pickupLat) && Number.isFinite(pickupLng) && (
+            <Marker position={[pickupLat, pickupLng]}>
+              <Popup>Pickup Location</Popup>
             </Marker>
           )}
 
           {Number.isFinite(latitude) && Number.isFinite(longitude) && (
-            <Marker position={[latitude, longitude]} icon={deliveryIcon}>
-              <Popup>
-                <strong>Customer Delivery Location</strong><br />
-                {value?.address || "Selected location"}<br />
-                {latitude}, {longitude}
-              </Popup>
+            <Marker position={[latitude, longitude]}>
+              <Popup>Delivery Location</Popup>
             </Marker>
           )}
         </MapContainer>
       </div>
 
-      <Space wrap>
-        <Text><EnvironmentOutlined /> Selected delivery:</Text>
+      <Space>
+        <Text>
+          <EnvironmentOutlined /> Selected:
+        </Text>
+
         {Number.isFinite(latitude) && Number.isFinite(longitude) ? (
-          <Text strong>{latitude}, {longitude}</Text>
+          <Text strong>
+            {latitude}, {longitude}
+          </Text>
         ) : (
-          <Text type="secondary">No delivery location selected yet</Text>
+          <Text type="secondary">No location selected</Text>
         )}
       </Space>
     </Space>
