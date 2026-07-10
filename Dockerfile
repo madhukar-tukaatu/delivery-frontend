@@ -1,4 +1,4 @@
-FROM node:20-alpine AS base
+FROM node:22-alpine AS base
 
 WORKDIR /app
 
@@ -41,7 +41,7 @@ RUN if [ -f pnpm-lock.yaml ]; then pnpm build; \
     elif [ -f yarn.lock ]; then yarn build; \
     else npm run build; fi
 
-FROM node:20-alpine AS runner
+FROM node:22-alpine AS runner
 
 WORKDIR /app
 
