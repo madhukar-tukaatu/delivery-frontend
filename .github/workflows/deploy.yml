@@ -1,4 +1,4 @@
-name: Deploy Delivery App
+name: Deploy Frontend
 
 on:
   push:
@@ -7,17 +7,37 @@ on:
 
 jobs:
   deploy:
-    name: Deploy to VPS
     runs-on: ubuntu-latest
 
     steps:
-      - name: Deploy through SSH
+      - name: Deploy frontend to VPS
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.VPS_HOST }}
-          port: ${{ secrets.VPS_PORT }}
           username: ${{ secrets.VPS_USERNAME }}
           password: ${{ secrets.VPS_PASSWORD }}
+          port: 22
           script: |
+            set -e
+
+            echo "Moving to frontend repo..."
             cd /var/www/delivery/delivery-frontend
-            bash scripts/deploy.sh
+
+            echo "Fixing frontend git remote..."
+            git remote set-url origin git@github.com:madhukar-tukaatu/delivery-frontend.git || true
+
+            echo "Pulling latest frontend code..."
+            git fetch origin main
+            git reset --hard origin/main
+            git clean -fd
+
+            echo "Moving to deployment repo..."
+            cd /var/www/delivery/delivery-deployment
+
+            echo "Building frontend..."
+            docker compose --env-file .env.production build --no-cache frontend
+
+            echo "Starting frontend..."
+            docker compose --env-file .env.production up -d frontend
+
+            echo "Frontend deploy completed."
