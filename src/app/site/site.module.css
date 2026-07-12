@@ -133,6 +133,30 @@
   line-height: 1.75;
 }
 
+.status {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: #64748b;
+  font-weight: 800;
+}
+
+.status span {
+  width: 14px;
+  height: 14px;
+  border-radius: 999px;
+  background: #e5e7eb;
+}
+
+.status.active {
+  color: #0f172a;
+}
+
+.status.active span {
+  background: #006f8a;
+  box-shadow: 0 0 0 6px rgba(0, 111, 138, 0.14);
+}
+
 .badge {
   display: inline-flex;
   margin-bottom: 20px;

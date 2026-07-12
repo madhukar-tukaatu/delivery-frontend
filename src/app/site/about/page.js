@@ -1,10 +1,12 @@
-// app/about/page.js
-import Navbar from "../../components/Navbar";
+
+
+import Header from "../components/header";
+
 
 export default function About() {
   return (
     <>
-      <Navbar />
+     <Header />
       <div className="pt-24 pb-20 max-w-7xl mx-auto px-6">
         <h1 className="text-6xl font-bold text-center mb-12">About Tukaatu Express</h1>
 
