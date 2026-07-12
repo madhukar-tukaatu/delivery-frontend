@@ -17,11 +17,22 @@ jobs:
           username: ${{ secrets.VPS_USERNAME }}
           password: ${{ secrets.VPS_PASSWORD }}
           port: 22
+          command_timeout: 30m
+          script_stop: true
           script: |
             set -e
 
             echo "Moving to frontend repo..."
             cd /var/www/delivery/delivery-frontend
+
+            echo "Fixing root-owned frontend files..."
+            DEPLOY_UID=$(id -u)
+            DEPLOY_GID=$(id -g)
+
+            docker run --rm \
+              -v /var/www/delivery/delivery-frontend:/app \
+              alpine:3.20 \
+              sh -c "chown -R ${DEPLOY_UID}:${DEPLOY_GID} /app && rm -rf /app/.pnpm-store /app/node_modules /app/.next"
 
             echo "Fixing frontend git remote..."
             git remote set-url origin git@github.com:madhukar-tukaatu/delivery-frontend.git || true
@@ -39,5 +50,8 @@ jobs:
 
             echo "Starting frontend..."
             docker compose --env-file .env.production up -d frontend
+
+            echo "Checking frontend container..."
+            docker ps --filter "name=delivery-frontend"
 
             echo "Frontend deploy completed."
