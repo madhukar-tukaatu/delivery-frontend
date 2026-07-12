@@ -195,7 +195,7 @@ export default function SiteClient() {
 
           <div className={styles.logoOrb}>
             <Image
-              src="/images/tukaatu-logo.png"
+              src="https://localhost:3000/images/tukaatu-logo.png"
               alt="Tukaatu Express Logo"
               width={270}
               height={270}
@@ -431,7 +431,7 @@ function Header() {
     <header className={styles.header}>
       <Link href="/" className={styles.logoWrap}>
         <Image
-          src="/images/tukaatu-logo.png"
+          src="http://localhost:3000/images/tukaatu-logo.png"
           alt="Tukaatu Express"
           width={46}
           height={46}
