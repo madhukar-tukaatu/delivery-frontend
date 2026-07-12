@@ -28,7 +28,7 @@ export default function LoginPage() {
       <Card className="login-card">
         <Typography.Title level={3}>Courier Delivery Gateway</Typography.Title>
         <Typography.Paragraph type="secondary">
-          Demo: admin@example.com / password
+          Demo:
         </Typography.Paragraph>
         {error && (
           <Alert type="error" message={error} style={{ marginBottom: 16 }} />
@@ -36,7 +36,7 @@ export default function LoginPage() {
         <Form
           layout="vertical"
           onFinish={onFinish}
-          initialValues={{ email: "admin@example.com", password: "password" }}
+          initialValues={{ email: "", password: "" }}
         >
           <Form.Item
             name="email"
