@@ -46,9 +46,9 @@ const MERCHANT_STATS = [
 ];
 
 const GALLERY_DATA = [
-  { src: '/images/pasted-1783839887256-0.png', caption: 'rider with parcel on scooter' },
-  { src: '/images/pasted-1783840291977-0.png', caption: 'branch sorting warehouse' },
-  { src: '/images/pasted-1783840770443-0.png', caption: 'delivery confirmation at doorstep' },
+  { src: '/images/delivey.png', caption: 'rider with parcel on scooter' },
+  { src: '/images/wharehouse.png', caption: 'branch sorting warehouse' },
+  { src: '/images/door.png', caption: 'delivery confirmation at doorstep' },
 ];
 
 const CITIES_DATA = ['Kathmandu', 'Lalitpur', 'Bhaktapur', 'Pokhara', 'Chitwan', 'Biratnagar', 'Butwal', 'Nepalgunj'];
@@ -222,20 +222,20 @@ export default function SiteClient() {
       {/* HEADER / NAVIGATION */}
       <header className={styles.header} style={{ padding: "14px 64px" }}>
         <Link href="/" className={styles.logoWrap} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "0px", textDecoration: "none", lineHeight: 1 }}>
-          <div style={{ 
-            height: "38px", 
-            width: "170px", 
-            overflow: "hidden", 
+          <div style={{
+            height: "38px",
+            width: "170px",
+            overflow: "hidden",
             position: "relative",
             display: "flex",
             alignItems: "center",
             justifyContent: "center"
           }}>
-            <img 
-              src="/images/logo.png" 
-              alt="Tukaatu Logo" 
-              style={{ 
-                width: "200px", 
+            <img
+              src="/images/logo.png"
+              alt="Tukaatu Logo"
+              style={{
+                width: "200px",
                 height: "auto",
                 position: "absolute",
                 top: "50%",
@@ -243,14 +243,14 @@ export default function SiteClient() {
                 transform: "translate(-50%, -50%)",
                 mixBlendMode: "multiply",
                 display: "block"
-              }} 
+              }}
             />
           </div>
-          <span style={{ 
-            fontSize: "11px", 
-            fontWeight: "900", 
-            letterSpacing: "0.24em", 
-            textTransform: "uppercase", 
+          <span style={{
+            fontSize: "11px",
+            fontWeight: "900",
+            letterSpacing: "0.24em",
+            textTransform: "uppercase",
             color: "var(--primary)",
             marginTop: "1px",
             textAlign: "center",
@@ -666,20 +666,20 @@ export default function SiteClient() {
           <footer className={styles.footer}>
             <div className={styles.footerInner}>
               <div className={styles.footerBrandCol} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "0px" }}>
-                <div style={{ 
-                  height: "28px", 
-                  width: "130px", 
-                  overflow: "hidden", 
+                <div style={{
+                  height: "28px",
+                  width: "130px",
+                  overflow: "hidden",
                   position: "relative",
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center"
                 }}>
-                  <img 
-                    src="/images/logo.png" 
-                    alt="Tukaatu Logo" 
-                    style={{ 
-                      width: "150px", 
+                  <img
+                    src="/images/logo.png"
+                    alt="Tukaatu Logo"
+                    style={{
+                      width: "150px",
                       height: "auto",
                       position: "absolute",
                       top: "50%",
@@ -687,7 +687,7 @@ export default function SiteClient() {
                       transform: "translate(-50%, -50%)",
                       mixBlendMode: "multiply",
                       display: "block"
-                    }} 
+                    }}
                   />
                 </div>
                 <span style={{ fontSize: "9px", fontWeight: "900", letterSpacing: "0.22em", textTransform: "uppercase", color: "var(--accent)", marginTop: "1px", display: "block" }}>Express</span>
