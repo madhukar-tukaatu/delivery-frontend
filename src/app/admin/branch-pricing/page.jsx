@@ -1,0 +1,3 @@
+"use client";
+import {useEffect,useState} from "react"; import api from "@/lib/api"; import {AdminPage,AdminTable} from "@/components/admin/AdminUI";
+export default function Page(){ const [rows,setRows]=useState([]); async function load(){ const r=await api.get('/admin/branch-pricing-rules'); setRows(r.data.data.data || []); } useEffect(()=>{load()},[]); return <AdminPage title="Branch Pricing"><AdminTable rows={rows} columns=[{key:'id',label:'ID'},{key:'branch_name',label:'Branch'},{key:'service_type_code',label:'Service'},{key:'base_radius_km',label:'Radius'},{key:'base_pickup_fee',label:'Pickup'},{key:'base_delivery_fee',label:'Delivery'},{key:'is_active',label:'Active'}]/></AdminPage> }
