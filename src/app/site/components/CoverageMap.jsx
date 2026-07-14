@@ -1,7 +1,7 @@
 "use client";
 
-import { useMemo } from "react";
-import { MapContainer, Marker, TileLayer, Polyline, Popup } from "react-leaflet";
+import { useMemo, useEffect, useRef } from "react";
+import { MapContainer, Marker, TileLayer, Polyline, Popup, useMap, useMapEvents } from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 
@@ -59,6 +59,40 @@ function createHubIcon(name) {
   });
 }
 
+// Map click handler to zoom in on click and reset after 2 seconds
+function MapClickHandler() {
+  const map = useMap();
+  const timeoutRef = useRef(null);
+
+  useMapEvents({
+    click(e) {
+      // Zoom in to the clicked location
+      map.setView(e.latlng, map.getZoom() + 2, { animate: true });
+
+      // Clear any existing reset timeout
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+      }
+
+      // Reset the map view after 2 seconds (2000 ms)
+      timeoutRef.current = setTimeout(() => {
+        map.setView([28.0, 84.2], 7, { animate: true });
+      }, 2000);
+    }
+  });
+
+  // Cleanup timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+      }
+    };
+  }, []);
+
+  return null;
+}
+
 export default function CoverageMap() {
   const routeLines = useMemo(() => {
     return HUB_ROUTES.map(([from, to]) => {
@@ -77,7 +111,7 @@ export default function CoverageMap() {
         style={{ height: "100%", width: "100%", background: "#0C1420" }}
       >
         <TileLayer
-          url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
+          url="https://basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
         />
 
@@ -103,6 +137,8 @@ export default function CoverageMap() {
             </Popup>
           </Marker>
         ))}
+
+        <MapClickHandler />
       </MapContainer>
     </div>
   );

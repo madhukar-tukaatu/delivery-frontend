@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useMemo } from "react";
-import { MapContainer, Marker, TileLayer, Polyline, useMap } from "react-leaflet";
+import { useEffect, useMemo, useRef } from "react";
+import { MapContainer, Marker, TileLayer, Polyline, useMap, useMapEvents } from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 
@@ -72,6 +72,43 @@ function MapBoundsUpdater({ points }) {
   return null;
 }
 
+// Map click handler to zoom in on click and reset after 2 seconds
+function MapClickHandler({ points }) {
+  const map = useMap();
+  const timeoutRef = useRef(null);
+
+  useMapEvents({
+    click(e) {
+      // Zoom in to the clicked location
+      map.setView(e.latlng, map.getZoom() + 2, { animate: true });
+
+      // Clear any existing reset timeout
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+      }
+
+      // Reset the map bounds after 2 seconds (2000 ms)
+      timeoutRef.current = setTimeout(() => {
+        if (points && points.length > 0) {
+          const bounds = L.latLngBounds(points);
+          map.fitBounds(bounds, { padding: [50, 50], animate: true });
+        }
+      }, 2000);
+    }
+  });
+
+  // Cleanup timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+      }
+    };
+  }, []);
+
+  return null;
+}
+
 export default function TrackingMap({ fromCity = "Bhaktapur", toCity = "Lalitpur" }) {
   const fromLatLng = CITY_COORDS[fromCity] || CITY_COORDS["Bhaktapur"];
   const toLatLng = CITY_COORDS[toCity] || CITY_COORDS["Lalitpur"];
@@ -81,17 +118,13 @@ export default function TrackingMap({ fromCity = "Bhaktapur", toCity = "Lalitpur
   const fromIcon = useMemo(() => createMarkerIcon(fromCity, "#2A6FDB"), [fromCity]);
   const toIcon = useMemo(() => createMarkerIcon(toCity, "#F4B740"), [toCity]);
 
-  // Center point calculation
-  const center = [
-    (fromLatLng[0] + toLatLng[0]) / 2,
-    (fromLatLng[1] + toLatLng[1]) / 2
-  ];
+  const bounds = useMemo(() => L.latLngBounds(points), [points]);
 
   return (
     <div style={{ width: "100%", height: "100%", position: "absolute", inset: 0, zIndex: 1 }}>
       <MapContainer
-        center={center}
-        zoom={11}
+        bounds={bounds}
+        boundsOptions={{ padding: [50, 50] }}
         scrollWheelZoom={false}
         zoomControl={false}
         attributionControl={false}
@@ -99,7 +132,7 @@ export default function TrackingMap({ fromCity = "Bhaktapur", toCity = "Lalitpur
       >
         {/* Light-themed Map Tiles */}
         <TileLayer
-          url="https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png"
+          url="https://basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png"
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
         />
 
@@ -118,6 +151,7 @@ export default function TrackingMap({ fromCity = "Bhaktapur", toCity = "Lalitpur
         <Marker position={toLatLng} icon={toIcon} />
 
         <MapBoundsUpdater points={points} />
+        <MapClickHandler points={points} />
       </MapContainer>
     </div>
   );

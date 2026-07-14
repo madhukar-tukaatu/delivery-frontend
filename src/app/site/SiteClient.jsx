@@ -235,7 +235,7 @@ export default function SiteClient() {
   return (
     <main className={styles.site}>
       {/* HEADER / NAVIGATION */}
-      <header className={styles.header} style={{ padding: "14px 64px" }}>
+      <header className={styles.header}>
         <Link href="/" className={styles.logoWrap} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "0px", textDecoration: "none", lineHeight: 1 }}>
           <div style={{
             height: "38px",

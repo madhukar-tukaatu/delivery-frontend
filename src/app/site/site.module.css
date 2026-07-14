@@ -62,7 +62,7 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 22px 64px;
+  padding: 14px 64px;
   background: rgba(255, 255, 255, 0.55);
   backdrop-filter: blur(20px) saturate(1.6);
   -webkit-backdrop-filter: blur(20px) saturate(1.6);
@@ -1293,16 +1293,53 @@
     grid-template-columns: 1fr;
   }
 
+  .ctaSlide {
+    padding: 60px 16px 0;
+  }
+
   .ctaPanel {
     padding: 32px 20px;
+    margin: 0 8px;
   }
 
   .ctaHeading {
-    font-size: 28px;
+    font-size: 26px;
+  }
+
+  .ctaCopy {
+    font-size: 15px;
+    margin-bottom: 24px;
+  }
+
+  .ctaButtons {
+    flex-direction: column;
+    gap: 12px;
+    width: 100%;
+  }
+
+  .ctaPrimaryBtn,
+  .ctaSecondaryBtn {
+    width: 100%;
+    padding: 12px 20px;
+    font-size: 14px;
+    text-align: center;
+    box-sizing: border-box;
+  }
+
+  .footer {
+    padding: 24px 16px;
   }
 
   .footerInner {
     flex-direction: column;
-    align-items: flex-start;
+    align-items: center;
+    text-align: center;
+    gap: 20px;
+  }
+
+  .footerLinks {
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 12px 20px;
   }
 }
