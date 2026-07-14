@@ -22,6 +22,21 @@ const SERVICES_DATA = [
   { title: 'Live Tracking', desc: 'Keep customers updated with clear parcel status.' },
 ];
 
+const SERVICE_ICONS = [
+  // Express Delivery – rocket / fast
+  <svg key="svc-0" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#2A6FDB" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" /></svg>,
+  // Merchant Logistics – storefront
+  <svg key="svc-1" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#2A6FDB" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" /><polyline points="9 22 9 12 15 12 15 22" /></svg>,
+  // POD Collection – wallet/cash
+  <svg key="svc-2" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#2A6FDB" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="6" width="20" height="14" rx="2" /><path d="M2 10h20" /><path d="M6 14h4" /></svg>,
+  // Pickup Management – package/box
+  <svg key="svc-3" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#2A6FDB" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" /><polyline points="3.27 6.96 12 12.01 20.73 6.96" /><line x1="12" y1="22.08" x2="12" y2="12" /></svg>,
+  // Branch Dispatch – truck
+  <svg key="svc-4" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#2A6FDB" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="1" y="3" width="15" height="13" rx="1" /><polygon points="16 8 20 8 23 11 23 16 16 16 16 8" /><circle cx="5.5" cy="18.5" r="2.5" /><circle cx="18.5" cy="18.5" r="2.5" /></svg>,
+  // Live Tracking – map pin
+  <svg key="svc-5" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#2A6FDB" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s-8-4.5-8-11.8A8 8 0 0 1 12 2a8 8 0 0 1 8 8.2c0 7.3-8 11.8-8 11.8z" /><circle cx="12" cy="10" r="3" /></svg>,
+];
+
 const FLOW_DATA = [
   { num: '01', title: 'Create Shipment', desc: 'Customer or merchant creates a parcel request.' },
   { num: '02', title: 'Pickup', desc: 'Parcel is collected from sender or merchant.' },
@@ -365,21 +380,37 @@ export default function SiteClient() {
               </form>
               <div className={styles.heroStatsRow} style={heroStyle(0.32)}>
                 <div className={styles.heroStatItem}>
-                  <div className={styles.heroStatIcon} style={{ backgroundColor: "#E8F0FE" }}></div>
+                  <div className={styles.heroStatIcon} style={{ backgroundColor: "#E8F0FE" }}>
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#2A6FDB" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M12 22s-8-4.5-8-11.8A8 8 0 0 1 12 2a8 8 0 0 1 8 8.2c0 7.3-8 11.8-8 11.8z" />
+                      <circle cx="12" cy="10" r="3" />
+                    </svg>
+                  </div>
                   <div className={styles.heroStatLabel}>
                     Real-time<br />
                     <span className={styles.heroStatSub}>shipment tracking</span>
                   </div>
                 </div>
                 <div className={styles.heroStatItem}>
-                  <div className={styles.heroStatIcon} style={{ backgroundColor: "#FFF6DE" }}></div>
+                  <div className={styles.heroStatIcon} style={{ backgroundColor: "#FFF6DE" }}>
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#D4A017" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <rect x="2" y="6" width="20" height="14" rx="2" />
+                      <path d="M2 10h20" />
+                      <path d="M6 14h4" />
+                    </svg>
+                  </div>
                   <div className={styles.heroStatLabel}>
                     POD<br />
                     <span className={styles.heroStatSub}>collection support</span>
                   </div>
                 </div>
                 <div className={styles.heroStatItem}>
-                  <div className={styles.heroStatIcon} style={{ backgroundColor: "#E8F0FE" }}></div>
+                  <div className={styles.heroStatIcon} style={{ backgroundColor: "#E8F0FE" }}>
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#2A6FDB" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+                      <polyline points="9 22 9 12 15 12 15 22" />
+                    </svg>
+                  </div>
                   <div className={styles.heroStatLabel}>
                     Merchant<br />
                     <span className={styles.heroStatSub}>delivery dashboard</span>
@@ -472,7 +503,7 @@ export default function SiteClient() {
                   style={getRevealStyle(`service-${i}`, (i % 3) * 0.08)}
                 >
                   <div className={styles.serviceIconBox}>
-                    <div className={styles.serviceIconDot}></div>
+                    {SERVICE_ICONS[i] || <div className={styles.serviceIconDot}></div>}
                   </div>
                   <h3 className={styles.serviceCardTitle}>{svc.title}</h3>
                   <p className={styles.serviceCardDesc}>{svc.desc}</p>
