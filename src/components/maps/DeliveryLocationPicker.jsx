@@ -28,6 +28,7 @@ function extractLocation(place) {
       address.neighbourhood ||
       address.quarter ||
       address.road ||
+      address.city_district ||
       "",
   };
 }
@@ -48,7 +49,7 @@ async function reverseGeocode(latitude, longitude) {
 
 async function searchAddress(query) {
   const response = await fetch(
-    `https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&q=${encodeURIComponent(
+    `https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&countrycodes=np&q=${encodeURIComponent(
       query
     )}`
   );
@@ -62,22 +63,22 @@ async function searchAddress(query) {
   const first = rows[0];
 
   return {
-    latitude: Number(first.lat),
-    longitude: Number(first.lon),
+    latitude: Number(Number(first.lat).toFixed(7)),
+    longitude: Number(Number(first.lon).toFixed(7)),
     ...extractLocation(first),
   };
 }
 
 function MapClickHandler({ useMapEvents, onPick }) {
   useMapEvents({
-    async click(e) {
-      const lat = Number(e.latlng.lat.toFixed(6));
-      const lng = Number(e.latlng.lng.toFixed(6));
-      const address = await reverseGeocode(lat, lng);
+    async click(event) {
+      const latitude = Number(event.latlng.lat.toFixed(7));
+      const longitude = Number(event.latlng.lng.toFixed(7));
+      const address = await reverseGeocode(latitude, longitude);
 
       onPick({
-        latitude: lat,
-        longitude: lng,
+        latitude,
+        longitude,
         ...address,
       });
     },
@@ -90,16 +91,20 @@ function MapUpdater({ useMap, latitude, longitude }) {
   const map = useMap();
 
   useEffect(() => {
-    if (Number.isFinite(latitude) && Number.isFinite(longitude)) {
-      map.setView([latitude, longitude], 15);
-    }
+    const timers = [150, 400, 800].map((delay) =>
+      setTimeout(() => {
+        map.invalidateSize();
 
-    const timer = setTimeout(() => {
-      map.invalidateSize();
-    }, 150);
+        if (Number.isFinite(latitude) && Number.isFinite(longitude)) {
+          map.setView([latitude, longitude], 15);
+        }
+      }, delay)
+    );
 
-    return () => clearTimeout(timer);
-  }, [latitude, longitude, map]);
+    return () => {
+      timers.forEach(clearTimeout);
+    };
+  }, [map, latitude, longitude]);
 
   return null;
 }
@@ -108,6 +113,7 @@ export default function DeliveryLocationPicker({
   value,
   pickupLocation,
   onChange,
+  height = 380,
 }) {
   const [mounted, setMounted] = useState(false);
   const [mapTools, setMapTools] = useState(null);
@@ -134,6 +140,7 @@ export default function DeliveryLocationPicker({
           delete L.Icon.Default.prototype._getIconUrl;
 
           L.Icon.Default.mergeOptions({
+            
             iconRetinaUrl:
               "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png",
             iconUrl:
@@ -174,11 +181,11 @@ export default function DeliveryLocationPicker({
   const pickupLng = toNumber(pickupLocation?.longitude);
 
   const center = useMemo(() => {
-    if (Number.isFinite(latitude) && Number.isFinite(longitude)) {
+    if (latitude !== null && longitude !== null) {
       return [latitude, longitude];
     }
 
-    if (Number.isFinite(pickupLat) && Number.isFinite(pickupLng)) {
+    if (pickupLat !== null && pickupLng !== null) {
       return [pickupLat, pickupLng];
     }
 
@@ -193,8 +200,11 @@ export default function DeliveryLocationPicker({
 
     try {
       setSearching(true);
+
       const location = await searchAddress(searchText.trim());
+
       onChange?.(location);
+
       message.success("Delivery location selected.");
     } catch (error) {
       message.error(error?.message || "Could not search location.");
@@ -207,7 +217,7 @@ export default function DeliveryLocationPicker({
     return (
       <div
         style={{
-          height: 380,
+          height,
           borderRadius: 12,
           border: "1px solid #e5e7eb",
           background: "#f5f5f5",
@@ -221,14 +231,8 @@ export default function DeliveryLocationPicker({
     );
   }
 
-  const {
-    MapContainer,
-    Marker,
-    Popup,
-    TileLayer,
-    useMap,
-    useMapEvents,
-  } = mapTools;
+  const { MapContainer, Marker, Popup, TileLayer, useMap, useMapEvents } =
+    mapTools;
 
   return (
     <Space direction="vertical" size={12} style={{ width: "100%" }}>
@@ -236,13 +240,13 @@ export default function DeliveryLocationPicker({
         type="info"
         showIcon
         message="Select delivery location"
-        description="Search an address or click on the map to choose delivery location."
+        description="Search an address or click on the map to choose exact delivery location."
       />
 
       <Space.Compact style={{ width: "100%" }}>
         <Input
           value={searchText}
-          onChange={(e) => setSearchText(e.target.value)}
+          onChange={(event) => setSearchText(event.target.value)}
           placeholder="Search address, area, landmark..."
           onPressEnter={handleSearch}
         />
@@ -258,7 +262,7 @@ export default function DeliveryLocationPicker({
 
       <div
         style={{
-          height: 380,
+          height,
           borderRadius: 12,
           overflow: "hidden",
           border: "1px solid #e5e7eb",
@@ -267,6 +271,7 @@ export default function DeliveryLocationPicker({
         <MapContainer
           center={center}
           zoom={14}
+          scrollWheelZoom
           style={{ height: "100%", width: "100%" }}
         >
           <TileLayer
@@ -288,15 +293,19 @@ export default function DeliveryLocationPicker({
             longitude={longitude}
           />
 
-          {Number.isFinite(pickupLat) && Number.isFinite(pickupLng) && (
+          {pickupLat !== null && pickupLng !== null && (
             <Marker position={[pickupLat, pickupLng]}>
               <Popup>Pickup Location</Popup>
             </Marker>
           )}
 
-          {Number.isFinite(latitude) && Number.isFinite(longitude) && (
+          {latitude !== null && longitude !== null && (
             <Marker position={[latitude, longitude]}>
-              <Popup>Delivery Location</Popup>
+              <Popup>
+                Delivery Location
+                <br />
+                {latitude}, {longitude}
+              </Popup>
             </Marker>
           )}
         </MapContainer>
@@ -307,7 +316,7 @@ export default function DeliveryLocationPicker({
           <EnvironmentOutlined /> Selected:
         </Text>
 
-        {Number.isFinite(latitude) && Number.isFinite(longitude) ? (
+        {latitude !== null && longitude !== null ? (
           <Text strong>
             {latitude}, {longitude}
           </Text>
