@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import dynamic from "next/dynamic";
 
 import {
   Alert,
@@ -22,6 +23,8 @@ import {
 import {
   CalculatorOutlined,
   CheckCircleOutlined,
+  DeleteOutlined,
+  PlusOutlined,
 } from "@ant-design/icons";
 
 import {
@@ -29,6 +32,27 @@ import {
   merchantCreateShipment,
   merchantQuoteShipment,
 } from "@/services/deliveryOperationsApi";
+
+const DeliveryLocationPicker = dynamic(
+  () => import("@/components/maps/DeliveryLocationPicker"),
+  {
+    ssr: false,
+    loading: () => (
+      <div
+        style={{
+          height: 380,
+          borderRadius: 12,
+          background: "#f5f5f5",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+        }}
+      >
+        Loading map...
+      </div>
+    ),
+  }
+);
 
 const { Title, Text } = Typography;
 
@@ -42,13 +66,9 @@ function clean(value) {
 
 function normalizeList(response) {
   if (Array.isArray(response)) return response;
-
   if (Array.isArray(response?.data)) return response.data;
-
   if (Array.isArray(response?.data?.data)) return response.data.data;
-
   if (Array.isArray(response?.pickup_locations)) return response.pickup_locations;
-
   if (Array.isArray(response?.data?.pickup_locations)) {
     return response.data.pickup_locations;
   }
@@ -58,6 +78,16 @@ function normalizeList(response) {
 
 function extractApiData(response) {
   return response?.data?.data || response?.data || response;
+}
+
+function toNumberOrNull(value) {
+  if (value === undefined || value === null || value === "") {
+    return null;
+  }
+
+  const number = Number(value);
+
+  return Number.isFinite(number) ? number : null;
 }
 
 export default function CreateShipmentForm() {
@@ -74,11 +104,33 @@ export default function CreateShipmentForm() {
   const paymentType = Form.useWatch("payment_type", form);
   const selfDrop = Form.useWatch("self_drop", form);
 
+  const deliveryLatitude = Form.useWatch("delivery_latitude", form);
+  const deliveryLongitude = Form.useWatch("delivery_longitude", form);
+  const deliveryAddress = Form.useWatch("delivery_address", form);
+  const deliveryCity = Form.useWatch("delivery_city", form);
+  const deliveryArea = Form.useWatch("delivery_area", form);
+
   const selectedPickupLocation = useMemo(() => {
     return pickupLocations.find(
       (item) => String(item.id) === String(selectedPickupLocationId)
     );
   }, [pickupLocations, selectedPickupLocationId]);
+
+  const deliveryLocationValue = useMemo(() => {
+    return {
+      latitude: deliveryLatitude,
+      longitude: deliveryLongitude,
+      address: deliveryAddress,
+      city: deliveryCity,
+      area: deliveryArea,
+    };
+  }, [
+    deliveryLatitude,
+    deliveryLongitude,
+    deliveryAddress,
+    deliveryCity,
+    deliveryArea,
+  ]);
 
   useEffect(() => {
     async function loadPickupLocations() {
@@ -109,10 +161,38 @@ export default function CreateShipmentForm() {
     loadPickupLocations();
   }, [form]);
 
+  function updateDeliveryLocation(location) {
+    form.setFieldsValue({
+      delivery_address: location.address || form.getFieldValue("delivery_address"),
+      delivery_city: location.city || form.getFieldValue("delivery_city"),
+      delivery_area: location.area || form.getFieldValue("delivery_area"),
+      delivery_latitude: location.latitude,
+      delivery_longitude: location.longitude,
+    });
+
+    setQuote(null);
+  }
+
   function buildPayload() {
     const values = form.getFieldsValue(true);
 
+    const items = (values.items || [])
+      .filter((item) => item?.name)
+      .map((item) => ({
+        name: item.name,
+        quantity: Number(item.quantity || 1),
+        value: Number(item.value || 0),
+      }));
+
+    const packageWeight = Number(values.package_weight || 0);
+    const packageValue = Number(values.package_value || 0);
+    const codAmount =
+      values.payment_type === "cod" ? Number(values.cod_amount || 0) : 0;
+
     return {
+      merchant_order_id: clean(values.merchant_order_id),
+      order_source: clean(values.order_source),
+
       pickup_location_id: clean(values.pickup_location_id),
 
       sender_name: clean(values.sender_name),
@@ -124,16 +204,22 @@ export default function CreateShipmentForm() {
       delivery_address: clean(values.delivery_address),
       delivery_city: clean(values.delivery_city),
       delivery_area: clean(values.delivery_area),
-      delivery_latitude: clean(values.delivery_latitude),
-      delivery_longitude: clean(values.delivery_longitude),
+      delivery_latitude: toNumberOrNull(values.delivery_latitude),
+      delivery_longitude: toNumberOrNull(values.delivery_longitude),
+
+      service_type: clean(values.service_type),
+
+      items,
 
       package_description: clean(values.package_description),
-      package_weight: clean(values.package_weight),
-      package_value: clean(values.package_value),
+      package_weight: packageWeight,
+      package_value: packageValue,
+
+      parcel_weight: packageWeight,
+      parcel_value: packageValue,
 
       payment_type: clean(values.payment_type),
-      cod_amount:
-        values.payment_type === "cod" ? clean(values.cod_amount) : 0,
+      cod_amount: codAmount,
 
       self_drop: Boolean(values.self_drop),
       special_instructions: clean(values.special_instructions),
@@ -143,12 +229,16 @@ export default function CreateShipmentForm() {
   async function calculateFare() {
     try {
       await form.validateFields([
+        "merchant_order_id",
         "pickup_location_id",
         "receiver_name",
         "receiver_phone",
         "delivery_address",
         "delivery_city",
         "delivery_area",
+        "delivery_latitude",
+        "delivery_longitude",
+        "service_type",
         "package_weight",
         "payment_type",
       ]);
@@ -213,8 +303,9 @@ export default function CreateShipmentForm() {
         <Title level={3} style={{ marginBottom: 0 }}>
           Create Shipment
         </Title>
+
         <Text type="secondary">
-          Production-safe version without map. Enter delivery location manually.
+          Create a delivery shipment for your customer order.
         </Text>
       </Card>
 
@@ -226,13 +317,56 @@ export default function CreateShipmentForm() {
               layout="vertical"
               onValuesChange={() => setQuote(null)}
               initialValues={{
+                order_source: "manual",
                 payment_type: "prepaid",
                 self_drop: false,
                 package_weight: 1,
                 package_value: 0,
                 cod_amount: 0,
+                service_type: "standard",
+                items: [
+                  {
+                    name: "",
+                    quantity: 1,
+                    value: 0,
+                  },
+                ],
               }}
             >
+              <Divider orientation="left">Order Details</Divider>
+
+              <Row gutter={16}>
+                <Col xs={24} md={12}>
+                  <Form.Item
+                    label="Merchant Order ID"
+                    name="merchant_order_id"
+                    rules={[
+                      {
+                        required: true,
+                        message: "Please enter merchant order ID.",
+                      },
+                    ]}
+                  >
+                    <Input placeholder="Example: ORD-10045" />
+                  </Form.Item>
+                </Col>
+
+                <Col xs={24} md={12}>
+                  <Form.Item label="Order Source" name="order_source">
+                    <Select
+                      options={[
+                        { value: "manual", label: "Manual Order" },
+                        { value: "website", label: "Website" },
+                        { value: "facebook", label: "Facebook" },
+                        { value: "instagram", label: "Instagram" },
+                        { value: "whatsapp", label: "WhatsApp" },
+                        { value: "other", label: "Other" },
+                      ]}
+                    />
+                  </Form.Item>
+                </Col>
+              </Row>
+
               <Divider orientation="left">Pickup Location</Divider>
 
               <Form.Item
@@ -274,22 +408,6 @@ export default function CreateShipmentForm() {
                 />
               )}
 
-              <Divider orientation="left">Sender Details</Divider>
-
-              <Row gutter={16}>
-                <Col xs={24} md={12}>
-                  <Form.Item label="Sender Name" name="sender_name">
-                    <Input placeholder="Sender name" />
-                  </Form.Item>
-                </Col>
-
-                <Col xs={24} md={12}>
-                  <Form.Item label="Sender Phone" name="sender_phone">
-                    <Input placeholder="Sender phone" />
-                  </Form.Item>
-                </Col>
-              </Row>
-
               <Divider orientation="left">Receiver Details</Divider>
 
               <Row gutter={16}>
@@ -326,12 +444,10 @@ export default function CreateShipmentForm() {
 
               <Divider orientation="left">Delivery Location</Divider>
 
-              <Alert
-                type="warning"
-                showIcon
-                style={{ marginBottom: 16 }}
-                message="Map temporarily disabled for production build"
-                description="Enter delivery address manually. Latitude and longitude are optional unless your backend requires them."
+              <DeliveryLocationPicker
+                value={deliveryLocationValue}
+                pickupLocation={selectedPickupLocation}
+                onChange={updateDeliveryLocation}
               />
 
               <Form.Item
@@ -344,10 +460,7 @@ export default function CreateShipmentForm() {
                   },
                 ]}
               >
-                <Input.TextArea
-                  rows={3}
-                  placeholder="Full delivery address"
-                />
+                <Input.TextArea rows={3} placeholder="Full delivery address" />
               </Form.Item>
 
               <Row gutter={16}>
@@ -384,7 +497,16 @@ export default function CreateShipmentForm() {
 
               <Row gutter={16}>
                 <Col xs={24} md={12}>
-                  <Form.Item label="Delivery Latitude" name="delivery_latitude">
+                  <Form.Item
+                    label="Delivery Latitude"
+                    name="delivery_latitude"
+                    rules={[
+                      {
+                        required: true,
+                        message: "Please select delivery location on map.",
+                      },
+                    ]}
+                  >
                     <InputNumber
                       style={{ width: "100%" }}
                       placeholder="Example: 27.7172"
@@ -397,6 +519,12 @@ export default function CreateShipmentForm() {
                   <Form.Item
                     label="Delivery Longitude"
                     name="delivery_longitude"
+                    rules={[
+                      {
+                        required: true,
+                        message: "Please select delivery location on map.",
+                      },
+                    ]}
                   >
                     <InputNumber
                       style={{ width: "100%" }}
@@ -407,16 +535,111 @@ export default function CreateShipmentForm() {
                 </Col>
               </Row>
 
-              <Divider orientation="left">Package Details</Divider>
+              <Divider orientation="left">Ordered Products</Divider>
+
+              <Form.List name="items">
+                {(fields, { add, remove }) => (
+                  <Space direction="vertical" style={{ width: "100%" }} size={12}>
+                    {fields.map(({ key, name, ...restField }) => (
+                      <Card key={key} size="small">
+                        <Row gutter={16} align="middle">
+                          <Col xs={24} md={10}>
+                            <Form.Item
+                              {...restField}
+                              label="Product Name"
+                              name={[name, "name"]}
+                              rules={[
+                                {
+                                  required: true,
+                                  message: "Product name is required.",
+                                },
+                              ]}
+                            >
+                              <Input placeholder="Product name" />
+                            </Form.Item>
+                          </Col>
+
+                          <Col xs={12} md={4}>
+                            <Form.Item
+                              {...restField}
+                              label="Qty"
+                              name={[name, "quantity"]}
+                              rules={[
+                                {
+                                  required: true,
+                                  message: "Qty required.",
+                                },
+                              ]}
+                            >
+                              <InputNumber
+                                min={1}
+                                style={{ width: "100%" }}
+                              />
+                            </Form.Item>
+                          </Col>
+
+                          <Col xs={12} md={5}>
+                            <Form.Item
+                              {...restField}
+                              label="Value"
+                              name={[name, "value"]}
+                            >
+                              <InputNumber
+                                min={0}
+                                style={{ width: "100%" }}
+                              />
+                            </Form.Item>
+                          </Col>
+
+                          <Col xs={24} md={5}>
+                            <Button
+                              danger
+                              icon={<DeleteOutlined />}
+                              onClick={() => remove(name)}
+                            >
+                              Remove
+                            </Button>
+                          </Col>
+                        </Row>
+                      </Card>
+                    ))}
+
+                    <Button
+                      type="dashed"
+                      icon={<PlusOutlined />}
+                      onClick={() => add({ name: "", quantity: 1, value: 0 })}
+                    >
+                      Add Product
+                    </Button>
+                  </Space>
+                )}
+              </Form.List>
+
+              <Divider orientation="left">Delivery Service</Divider>
 
               <Form.Item
-                label="Package Description"
-                name="package_description"
+                label="Delivery Service"
+                name="service_type"
+                rules={[
+                  {
+                    required: true,
+                    message: "Please select delivery service.",
+                  },
+                ]}
               >
-                <Input.TextArea
-                  rows={2}
-                  placeholder="Describe package contents"
+                <Select
+                  options={[
+                    { value: "standard", label: "Standard Delivery" },
+                    { value: "express", label: "Express Delivery" },
+                    { value: "same_day", label: "Same Day Delivery" },
+                  ]}
                 />
+              </Form.Item>
+
+              <Divider orientation="left">Package Details</Divider>
+
+              <Form.Item label="Package Description" name="package_description">
+                <Input.TextArea rows={2} placeholder="Describe package contents" />
               </Form.Item>
 
               <Row gutter={16}>
@@ -505,10 +728,7 @@ export default function CreateShipmentForm() {
                 />
               )}
 
-              <Form.Item
-                label="Special Instructions"
-                name="special_instructions"
-              >
+              <Form.Item label="Special Instructions" name="special_instructions">
                 <Input.TextArea
                   rows={2}
                   placeholder="Any special delivery instructions"
@@ -544,7 +764,9 @@ export default function CreateShipmentForm() {
                 <Text>
                   Fare:{" "}
                   <strong>
-                    {quote.fare ||
+                    NPR{" "}
+                    {quote.final_delivery_fee ||
+                      quote.fare ||
                       quote.total_fare ||
                       quote.amount ||
                       quote.delivery_charge ||
@@ -552,15 +774,27 @@ export default function CreateShipmentForm() {
                   </strong>
                 </Text>
 
-                {quote.distance && (
+                {quote.service_type?.name && (
                   <Text>
-                    Distance: <strong>{quote.distance}</strong>
+                    Service: <strong>{quote.service_type.name}</strong>
                   </Text>
                 )}
 
-                {quote.estimated_delivery_time && (
+                {quote.estimated_hours && (
                   <Text>
-                    ETA: <strong>{quote.estimated_delivery_time}</strong>
+                    ETA: <strong>{quote.estimated_hours} hours</strong>
+                  </Text>
+                )}
+
+                {quote.pickup_branch?.name && (
+                  <Text>
+                    Pickup Branch: <strong>{quote.pickup_branch.name}</strong>
+                  </Text>
+                )}
+
+                {quote.delivery_branch?.name && (
+                  <Text>
+                    Delivery Branch: <strong>{quote.delivery_branch.name}</strong>
                   </Text>
                 )}
 
@@ -572,9 +806,7 @@ export default function CreateShipmentForm() {
                 />
               </Space>
             ) : (
-              <Text type="secondary">
-                Fill the form and click Check Fare.
-              </Text>
+              <Text type="secondary">Fill the form and click Check Fare.</Text>
             )}
           </Card>
         </Col>
