@@ -41,7 +41,7 @@ export default function ContactPage() {
 
           <div className={styles.serviceCard}>
             <h3>Merchant Support</h3>
-            <p>Contact us for business delivery and COD settlement support.</p>
+            <p>Contact us for business delivery and POD settlement support.</p>
           </div>
 
           <div className={styles.serviceCard}>

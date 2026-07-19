@@ -202,7 +202,7 @@ export default function BranchListPage() {
           <Space wrap size={4}>
             {row.pickup_enabled ? <Tag color="green">Pickup</Tag> : null}
             {row.delivery_enabled ? <Tag color="blue">Delivery</Tag> : null}
-            {row.cod_enabled ? <Tag color="purple">COD</Tag> : null}
+            {row.pod_enabled ? <Tag color="purple">POD</Tag> : null}
             {row.return_enabled ? <Tag color="orange">Return</Tag> : null}
           </Space>
         ),

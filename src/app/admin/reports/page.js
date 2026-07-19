@@ -21,7 +21,7 @@ import { StatusTag } from "@/components/PageTools";
 const reportTypes = [
   { key: "shipments", label: "Shipments", icon: <CarOutlined /> },
   { key: "revenue", label: "Revenue", icon: <DollarOutlined /> },
-  { key: "cod", label: "COD Settlements", icon: <WalletOutlined /> },
+  { key: "pod", label: "POD Settlements", icon: <WalletOutlined /> },
   { key: "merchants", label: "Merchants", icon: <ShopOutlined /> },
   { key: "branches", label: "Branches", icon: <BranchesOutlined /> },
   { key: "staff", label: "Staff Performance", icon: <UserOutlined /> },
@@ -147,7 +147,7 @@ export default function ReportsPage() {
           </Col>
           <Col xs={24} sm={12} lg={6}>
             <Card bordered={false} style={{ background: "#e6f7ff" }}>
-              <Statistic title="COD Share Earnings" value={data.cod_charges || 0} precision={2} prefix="Rs. " />
+              <Statistic title="POD Share Earnings" value={data.pod_charges || 0} precision={2} prefix="Rs. " />
             </Card>
           </Col>
           <Col xs={24} sm={12} lg={6}>
@@ -174,7 +174,7 @@ export default function ReportsPage() {
     );
   };
 
-  // ================= 3. COD SETTLEMENTS TAB RENDER =================
+  // ================= 3. POD SETTLEMENTS TAB RENDER =================
   const renderCodReport = (data) => {
     if (!data) return null;
     return (
@@ -182,7 +182,7 @@ export default function ReportsPage() {
         <Row gutter={[16, 16]}>
           <Col xs={24} sm={12} lg={6}>
             <Card bordered={false} style={{ background: "#f5f5f5" }}>
-              <Statistic title="Total COD Scope" value={data.total_cod || 0} precision={2} prefix="Rs. " />
+              <Statistic title="Total POD Scope" value={data.total_cod || 0} precision={2} prefix="Rs. " />
             </Card>
           </Col>
           <Col xs={24} sm={12} lg={6}>
@@ -202,7 +202,7 @@ export default function ReportsPage() {
           </Col>
         </Row>
 
-        <Card title="COD Flow Status Breakdown" size="small">
+        <Card title="POD Flow Status Breakdown" size="small">
           <Table dataSource={data.by_status || []} rowKey="status" pagination={false}
             columns={[
               { title: "Status Layer", dataIndex: "status", render: (v) => <StatusTag value={v} /> },
@@ -236,7 +236,7 @@ export default function ReportsPage() {
                 columns={[
                   { title: "Merchant Profile", dataIndex: ["merchant", "name"], render: (v, r) => v || `ID: ${r.merchant_id}` },
                   { title: "Scoped Shipments", dataIndex: "total" },
-                  { title: "Accumulated COD", dataIndex: "cod_total", align: "right", render: (v) => `Rs. ${Number(v || 0).toFixed(2)}` }
+                  { title: "Accumulated POD", dataIndex: "pod_total", align: "right", render: (v) => `Rs. ${Number(v || 0).toFixed(2)}` }
                 ]}
               />
             </Card>
@@ -336,7 +336,7 @@ export default function ReportsPage() {
     switch (key) {
       case "shipments": return renderShipmentsReport(currentTabDataset);
       case "revenue": return renderRevenueReport(currentTabDataset);
-      case "cod": return renderCodReport(currentTabDataset);
+      case "pod": return renderCodReport(currentTabDataset);
       case "merchants": return renderMerchantsReport(currentTabDataset);
       case "branches": return renderBranchesReport(currentTabDataset);
       case "staff": return renderStaffReport(currentTabDataset);

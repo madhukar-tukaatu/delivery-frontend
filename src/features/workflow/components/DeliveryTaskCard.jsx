@@ -37,7 +37,7 @@ export default function DeliveryTaskCard({ delivery, onOutForDelivery, onDeliver
               </Descriptions.Item>
               <Descriptions.Item label="City">{shipment.receiver_city || '-'}</Descriptions.Item>
               <Descriptions.Item label="Area">{shipment.receiver_area || '-'}</Descriptions.Item>
-              <Descriptions.Item label="COD">{formatMoney(shipment.cod_amount)}</Descriptions.Item>
+              <Descriptions.Item label="POD">{formatMoney(shipment.pod_amount)}</Descriptions.Item>
               <Descriptions.Item label="Total Collectable">{formatMoney(shipment.total_collectable_amount)}</Descriptions.Item>
               <Descriptions.Item label="Delivery Charge">{formatMoney(shipment.delivery_charge)}</Descriptions.Item>
               <Descriptions.Item label="Payment Type">{shipment.payment_type || '-'}</Descriptions.Item>
@@ -91,7 +91,7 @@ export default function DeliveryTaskCard({ delivery, onOutForDelivery, onDeliver
           <Form.Item name="receiver_name" label="Received By" initialValue={shipment.receiver_name}>
             <Input />
           </Form.Item>
-          <Form.Item name="cod_collected" label="COD Collected Amount" initialValue={shipment.total_collectable_amount || shipment.cod_amount}>
+          <Form.Item name="pod_collected" label="POD Collected Amount" initialValue={shipment.total_collectable_amount || shipment.pod_amount}>
             <Input type="number" />
           </Form.Item>
           <Form.Item name="remarks" label="Remarks">

@@ -45,7 +45,7 @@ export default function Pricing() {
             </p>
             <ul className="mt-8 space-y-4">
               <li>✓ Same Day Delivery</li>
-              <li>✓ COD Settlement</li>
+              <li>✓ POD Settlement</li>
               <li>✓ Priority Support</li>
               <li>✓ Bulk Discounts</li>
             </ul>

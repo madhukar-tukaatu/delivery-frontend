@@ -115,12 +115,12 @@ export async function staffMarkFailed(id, reason) {
 }
 
 export async function accountsGetCodPending() {
-  const response = await api.get("/admin/accounts/cod-pending");
+  const response = await api.get("/admin/accounts/pod-pending");
   return unwrap(response);
 }
 
 export async function accountsConfirmCodDeposit(codId, payload) {
-  const response = await api.post(`/admin/accounts/cod/${codId}/confirm-deposit`, payload);
+  const response = await api.post(`/admin/accounts/pod/${codId}/confirm-deposit`, payload);
   return unwrap(response);
 }
 
