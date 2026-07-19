@@ -102,7 +102,7 @@ export async function markDeliveryFailed(deliveryId, payload) {
 }
 
 export async function getCodCollections() {
-  const { data } = await api.get("/admin/accounts/cod-collections");
+  const { data } = await api.get("/admin/accounts/pod-collections");
   return data.data;
 }
 

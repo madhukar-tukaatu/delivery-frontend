@@ -161,7 +161,7 @@ export default function AdminShipmentsPage() {
       dataIndex: 'payment_type',
       key: 'payment_type',
       render: (value) => (
-        <Tag color={value === 'cod' ? 'orange' : 'green'}>
+        <Tag color={value === 'pod' ? 'orange' : 'green'}>
           {value || '-'}
         </Tag>
       ),
@@ -176,10 +176,10 @@ export default function AdminShipmentsPage() {
         ),
     },
     {
-      title: 'COD',
-      key: 'cod_amount',
+      title: 'POD',
+      key: 'pod_amount',
       align: 'right',
-      render: (_, record) => formatMoney(Number(record.cod_amount || 0)),
+      render: (_, record) => formatMoney(Number(record.pod_amount || 0)),
     },
     {
       title: 'Status',
@@ -277,7 +277,7 @@ export default function AdminShipmentsPage() {
               value={filters.payment_type || undefined}
               onChange={(value) => setFilters({ ...filters, payment_type: value || '' })}
               options={[
-                { label: 'COD', value: 'cod' },
+                { label: 'POD', value: 'pod' },
                 { label: 'Prepaid', value: 'prepaid' },
               ]}
             />

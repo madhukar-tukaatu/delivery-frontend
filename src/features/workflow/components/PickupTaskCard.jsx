@@ -37,7 +37,7 @@ export default function PickupTaskCard({ pickup, onPickedUp, onFailed }) {
             <Descriptions.Item label="Receiver">{shipment.receiver_name || '-'}</Descriptions.Item>
             <Descriptions.Item label="Delivery City">{shipment.receiver_city || '-'}</Descriptions.Item>
             <Descriptions.Item label="Weight">{shipment.weight || 0} kg</Descriptions.Item>
-            <Descriptions.Item label="COD">{formatMoney(shipment.cod_amount)}</Descriptions.Item>
+            <Descriptions.Item label="POD">{formatMoney(shipment.pod_amount)}</Descriptions.Item>
             <Descriptions.Item label="Total Collectable">{formatMoney(shipment.total_collectable_amount)}</Descriptions.Item>
             <Descriptions.Item label="Coordinates">
               {pickup.pickup_lat && pickup.pickup_lng ? `${pickup.pickup_lat}, ${pickup.pickup_lng}` : '-'}

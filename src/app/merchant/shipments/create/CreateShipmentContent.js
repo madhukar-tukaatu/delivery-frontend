@@ -78,7 +78,7 @@
 //   const pieces = cleanNumber(values.pieces) || 1;
 //   const declaredValue = cleanNumber(values.declared_value) || 0;
 
-//   const codAmount = paymentType === "cod" ? cleanNumber(values.cod_amount) || 0 : 0;
+//   const codAmount = paymentType === "pod" ? cleanNumber(values.pod_amount) || 0 : 0;
 //   const deliveryChargePaidBy = values.delivery_charge_paid_by || "merchant";
 
 //   return {
@@ -108,7 +108,7 @@
 //     declared_value: declaredValue,
 
 //     payment_type: paymentType,
-//     cod_amount: codAmount,
+//     pod_amount: codAmount,
 //     delivery_charge_paid_by: deliveryChargePaidBy,
 
 //     special_instruction: cleanString(values.special_instruction) || null,
@@ -116,7 +116,7 @@
 //     customer: { name: customerName, phone: customerPhone, email: customerEmail },
 //     delivery: { address: deliveryAddress, city: deliveryCity, area: deliveryArea, latitude: deliveryLat, longitude: deliveryLng },
 //     package: { type: packageType, description: packageDescription, weight, length_cm: lengthCm, width_cm: widthCm, height_cm: heightCm, pieces, value: declaredValue },
-//     payment: { type: paymentType, cod_amount: codAmount, delivery_charge_paid_by: deliveryChargePaidBy },
+//     payment: { type: paymentType, pod_amount: codAmount, delivery_charge_paid_by: deliveryChargePaidBy },
 //   };
 // }
 

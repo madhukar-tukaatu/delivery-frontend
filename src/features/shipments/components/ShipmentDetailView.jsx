@@ -188,8 +188,8 @@ export default function ShipmentDetailView({ shipment, onUpdateStatus }) {
         <Col xs={24} md={6}>
           <Card>
             <Statistic
-              title="COD Amount"
-              value={Number(shipment.cod_amount || 0)}
+              title="POD Amount"
+              value={Number(shipment.pod_amount || 0)}
               prefix="NPR"
               precision={2}
             />
@@ -337,7 +337,7 @@ export default function ShipmentDetailView({ shipment, onUpdateStatus }) {
           <Descriptions.Item label="Route Fee">{formatMoney(charge.route_fee)}</Descriptions.Item>
           <Descriptions.Item label="Delivery Fee">{formatMoney(charge.delivery_fee)}</Descriptions.Item>
           <Descriptions.Item label="Weight Fee">{formatMoney(charge.weight_fee)}</Descriptions.Item>
-          <Descriptions.Item label="COD Fee">{formatMoney(charge.cod_fee)}</Descriptions.Item>
+          <Descriptions.Item label="POD Fee">{formatMoney(charge.pod_fee)}</Descriptions.Item>
           <Descriptions.Item label="Remote Area Fee">{formatMoney(charge.remote_area_fee)}</Descriptions.Item>
           <Descriptions.Item label="Total Delivery Charge">
             <strong>{formatMoney(charge.total || shipment.delivery_charge)}</strong>

@@ -78,7 +78,7 @@ export default function AdminShipmentLifecyclePage() {
           <Tag color={statusColor(shipment.status)}>{shipment.status}</Tag>
           <Tag>Pickup: {shipment.pickup_status}</Tag>
           <Tag>Delivery: {shipment.delivery_status}</Tag>
-          <Tag>COD: {shipment.cod_status}</Tag>
+          <Tag>POD: {shipment.pod_status}</Tag>
         </Space>
       </Card>
 
@@ -91,7 +91,7 @@ export default function AdminShipmentLifecyclePage() {
           <Descriptions.Item label="Address">{shipment.receiver_address}</Descriptions.Item>
           <Descriptions.Item label="City/Area">{shipment.receiver_city} / {shipment.receiver_area}</Descriptions.Item>
           <Descriptions.Item label="Delivery Charge">{shipment.delivery_charge}</Descriptions.Item>
-          <Descriptions.Item label="COD Amount">{shipment.cod_amount}</Descriptions.Item>
+          <Descriptions.Item label="POD Amount">{shipment.pod_amount}</Descriptions.Item>
           <Descriptions.Item label="Total Collectable">{shipment.total_collectable}</Descriptions.Item>
           <Descriptions.Item label="Current Branch">{shipment.current_branch_id} / {shipment.current_sub_branch_id}</Descriptions.Item>
         </Descriptions>
@@ -144,15 +144,15 @@ export default function AdminShipmentLifecyclePage() {
         />
       </Card>
 
-      <Card title="Payment / COD">
-        {data.cod ? (
+      <Card title="Payment / POD">
+        {data.pod ? (
           <Descriptions bordered column={2} size="small">
-            <Descriptions.Item label="COD Amount">{data.cod.cod_amount}</Descriptions.Item>
-            <Descriptions.Item label="Delivery Charge Collected">{data.cod.delivery_charge_collected}</Descriptions.Item>
-            <Descriptions.Item label="Total Collected">{data.cod.total_collected}</Descriptions.Item>
-            <Descriptions.Item label="Status"><Tag>{data.cod.status}</Tag></Descriptions.Item>
+            <Descriptions.Item label="POD Amount">{data.pod.pod_amount}</Descriptions.Item>
+            <Descriptions.Item label="Delivery Charge Collected">{data.pod.delivery_charge_collected}</Descriptions.Item>
+            <Descriptions.Item label="Total Collected">{data.pod.total_collected}</Descriptions.Item>
+            <Descriptions.Item label="Status"><Tag>{data.pod.status}</Tag></Descriptions.Item>
           </Descriptions>
-        ) : <Alert message="No COD for this shipment." />}
+        ) : <Alert message="No POD for this shipment." />}
       </Card>
 
       <Modal title="Create Transfer Batch" open={transferOpen} onCancel={() => setTransferOpen(false)} onOk={async () => {

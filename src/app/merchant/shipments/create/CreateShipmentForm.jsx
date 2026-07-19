@@ -187,7 +187,7 @@ export default function CreateShipmentForm() {
     const packageWeight = Number(values.package_weight || 0);
     const packageValue = Number(values.package_value || 0);
     const codAmount =
-      values.payment_type === "cod" ? Number(values.cod_amount || 0) : 0;
+      values.payment_type === "pod" ? Number(values.pod_amount || 0) : 0;
 
     return {
       merchant_order_id: clean(values.merchant_order_id),
@@ -219,7 +219,7 @@ export default function CreateShipmentForm() {
       parcel_value: packageValue,
 
       payment_type: clean(values.payment_type),
-      cod_amount: codAmount,
+      pod_amount: codAmount,
 
       self_drop: Boolean(values.self_drop),
       special_instructions: clean(values.special_instructions),
@@ -322,7 +322,7 @@ export default function CreateShipmentForm() {
                 self_drop: false,
                 package_weight: 1,
                 package_value: 0,
-                cod_amount: 0,
+                pod_amount: 0,
                 service_type: "standard",
                 items: [
                   {
@@ -691,19 +691,19 @@ export default function CreateShipmentForm() {
                     <Select
                       options={[
                         { value: "prepaid", label: "Prepaid" },
-                        { value: "cod", label: "Cash on Delivery" },
+                        { value: "pod", label: "Cash on Delivery" },
                       ]}
                     />
                   </Form.Item>
                 </Col>
 
                 <Col xs={24} md={12}>
-                  <Form.Item label="COD Amount" name="cod_amount">
+                  <Form.Item label="POD Amount" name="pod_amount">
                     <InputNumber
                       style={{ width: "100%" }}
                       min={0}
-                      disabled={paymentType !== "cod"}
-                      placeholder="COD amount"
+                      disabled={paymentType !== "pod"}
+                      placeholder="POD amount"
                     />
                   </Form.Item>
                 </Col>

@@ -53,7 +53,7 @@ const iconMap = {
   deliveries: <CarOutlined />,
   delivery: <CarOutlined />,
   truck: <CarOutlined />,
-  cod: <DollarOutlined />,
+  pod: <DollarOutlined />,
   money: <DollarOutlined />,
   settlements: <DollarOutlined />,
   invoices: <FileTextOutlined />,

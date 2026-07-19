@@ -7,7 +7,7 @@ import styles from "./site.module.css"; // Double-check if the file name is site
 export const metadata = {
   title: "Tukaatu Express | Courier Delivery Across Nepal",
   description:
-    "Fast, reliable courier delivery, shipment tracking, merchant delivery support and COD settlement across Nepal.",
+    "Fast, reliable courier delivery, shipment tracking, merchant delivery support and POD settlement across Nepal.",
 };
 
 function Status({ text, active }) {
@@ -79,7 +79,7 @@ export default function SiteHomePage() {
         <Stat title="Fast Pickup" text="Quick parcel collection and delivery workflow." />
         <Stat title="Live Tracking" text="Track shipment status from pickup to delivery." />
         <Stat title="Merchant Support" text="Built for sellers, stores and businesses." />
-        <Stat title="COD Ready" text="Manage cash collection and settlement." />
+        <Stat title="POD Ready" text="Manage cash collection and settlement." />
       </section>
 
       <section id="services" className={styles.section}>
@@ -96,7 +96,7 @@ export default function SiteHomePage() {
           <Service title="Express Delivery" text="Fast delivery support for urgent parcels and customer orders." />
           <Service title="Merchant Parcel Delivery" text="Delivery workflow for online sellers and retail businesses." />
           <Service title="Branch Dispatch" text="Move parcels between branches, hubs and delivery zones." />
-          <Service title="COD Collection" text="Track cash collection, confirmation and merchant settlement." />
+          <Service title="POD Collection" text="Track cash collection, confirmation and merchant settlement." />
           <Service title="Pickup Management" text="Create and manage pickup requests from customers and merchants." />
           <Service title="Shipment Tracking" text="Keep customers informed with clear delivery status updates." />
         </div>
@@ -112,7 +112,7 @@ export default function SiteHomePage() {
           <Step number="01" title="Create Shipment" text="Customer or merchant creates a parcel request." />
           <Step number="02" title="Pickup or Drop" text="Parcel is collected or dropped at a branch." />
           <Step number="03" title="Dispatch & Track" text="Shipment is dispatched and tracked in real time." />
-          <Step number="04" title="Deliver & Settle" text="Delivery is completed and COD is settled." />
+          <Step number="04" title="Deliver & Settle" text="Delivery is completed and POD is settled." />
         </div>
       </section>
 
@@ -122,13 +122,13 @@ export default function SiteHomePage() {
           <h2>Built for online sellers and growing businesses</h2>
           <p>
             Tukaatu Express gives merchants a simple dashboard to create
-            shipments, request pickups, track COD, view invoices and manage
+            shipments, request pickups, track POD, view invoices and manage
             delivery operations from one place.
           </p>
 
           <ul>
             <li>Bulk shipment creation</li>
-            <li>COD tracking and settlement</li>
+            <li>POD tracking and settlement</li>
             <li>Pickup request management</li>
             <li>Invoices and delivery reports</li>
             <li>Delivery status updates</li>
@@ -151,7 +151,7 @@ export default function SiteHomePage() {
             <strong>86</strong>
           </div>
           <div className={styles.panelRow}>
-            <span>COD Pending</span>
+            <span>POD Pending</span>
             <strong>NPR 245,000</strong>
           </div>
           <div className={styles.panelRow}>
@@ -191,7 +191,7 @@ export default function SiteHomePage() {
         <h2>Ready to manage deliveries smarter?</h2>
         <p>
           Login to the Tukaatu Express dashboard to manage shipments, merchants,
-          riders, COD and delivery operations.
+          riders, POD and delivery operations.
         </p>
 
         <div className={styles.heroActions}>

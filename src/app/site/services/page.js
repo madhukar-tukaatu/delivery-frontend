@@ -3,7 +3,7 @@ import styles from "../page.module.css";
 
 export const metadata = {
   title: "Courier Services | Tukaatu Express",
-  description: "Courier, merchant delivery, COD and parcel tracking services.",
+  description: "Courier, merchant delivery, POD and parcel tracking services.",
 };
 
 export default function ServicesPage() {
@@ -29,7 +29,7 @@ export default function ServicesPage() {
           <h2>Delivery services for customers and businesses</h2>
           <p>
             Tukaatu Express supports parcel delivery, pickup requests, merchant
-            logistics, COD collection and branch dispatch operations.
+            logistics, POD collection and branch dispatch operations.
           </p>
         </div>
 
@@ -45,7 +45,7 @@ export default function ServicesPage() {
           </div>
 
           <div className={styles.serviceCard}>
-            <h3>COD Collection</h3>
+            <h3>POD Collection</h3>
             <p>Cash collection, tracking and merchant settlement support.</p>
           </div>
 

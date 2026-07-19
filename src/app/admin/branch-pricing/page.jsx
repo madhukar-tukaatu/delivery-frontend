@@ -30,7 +30,7 @@ export default function Page() {
           { key: 'pickup_extra_per_km', label: 'Pickup Extra/KM' },
           { key: 'delivery_extra_per_km', label: 'Delivery Extra/KM' },
           { key: 'extra_weight_per_kg', label: 'Weight/KG' },
-          { key: 'cod_fee_fixed', label: 'COD Fee' },
+          { key: 'pod_fee_fixed', label: 'POD Fee' },
           { key: 'is_active', label: 'Active' },
         ]}
       />

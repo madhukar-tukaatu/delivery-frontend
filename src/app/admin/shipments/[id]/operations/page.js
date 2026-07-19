@@ -71,7 +71,7 @@ export default function AdminShipmentOperationsPage() {
         <Space wrap>
           <Tag color={statusColor(s.status)}>{s.status}</Tag>
           {s.requires_transfer ? <Tag color="orange">Transfer Required</Tag> : <Tag color="green">Local Delivery</Tag>}
-          <Tag>COD: {s.cod_amount}</Tag>
+          <Tag>POD: {s.pod_amount}</Tag>
         </Space>
       </Card>
 
@@ -92,7 +92,7 @@ export default function AdminShipmentOperationsPage() {
             <Descriptions bordered size="small" column={1}>
               <Descriptions.Item label="Pickup">{data.pickup?.status || "not created"}</Descriptions.Item>
               <Descriptions.Item label="Delivery">{data.delivery?.status || "not assigned"}</Descriptions.Item>
-              <Descriptions.Item label="COD">{data.cod?.status || "-"}</Descriptions.Item>
+              <Descriptions.Item label="POD">{data.pod?.status || "-"}</Descriptions.Item>
               <Descriptions.Item label="Origin">{s.origin_sub_branch_id || s.origin_branch_id}</Descriptions.Item>
               <Descriptions.Item label="Destination">{s.destination_sub_branch_id || s.destination_branch_id}</Descriptions.Item>
             </Descriptions>

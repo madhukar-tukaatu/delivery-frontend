@@ -18,7 +18,7 @@ export default function About() {
           </p>
           <p>
             Our mission is to simplify logistics in Nepal by combining local knowledge with 
-            modern technology — offering real-time tracking, Cash on Delivery (COD), and a 
+            modern technology — offering real-time tracking, Cash on Delivery (POD), and a 
             powerful merchant dashboard.
           </p>
 

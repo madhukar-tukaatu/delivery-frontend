@@ -24,12 +24,12 @@ export default function AdminCodAccountsPage() {
   }
 
   return <Space direction="vertical" size={16} style={{ width: "100%" }}>
-    <Card title="Pending COD Deposits">
+    <Card title="Pending POD Deposits">
       <Table rowKey="id" dataSource={codRows} columns={[
         { title: "Tracking", dataIndex: "tracking_number" },
         { title: "Customer", dataIndex: "customer_name" },
         { title: "Rider", dataIndex: "rider_id" },
-        { title: "COD", dataIndex: "cod_amount" },
+        { title: "POD", dataIndex: "pod_amount" },
         { title: "Collect", dataIndex: "total_collected" },
         { title: "Status", dataIndex: "status", render: (v) => <Tag>{v}</Tag> },
         { title: "Action", render: (_, r) => <Button type="primary" onClick={() => run(() => accountsConfirmCodDeposit(r.id, { amount: r.total_collected }), "Deposit confirmed")}>Confirm Deposit</Button> },
@@ -41,7 +41,7 @@ export default function AdminCodAccountsPage() {
         { title: "Number", dataIndex: "settlement_number" },
         { title: "Merchant", dataIndex: "merchant_id" },
         { title: "Shipments", dataIndex: "shipment_count" },
-        { title: "COD Total", dataIndex: "cod_total" },
+        { title: "POD Total", dataIndex: "pod_total" },
         { title: "Charges", dataIndex: "delivery_charge_total" },
         { title: "Payable", dataIndex: "payable_amount" },
         { title: "Status", dataIndex: "status", render: (v) => <Tag>{v}</Tag> },

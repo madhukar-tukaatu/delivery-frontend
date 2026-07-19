@@ -17,7 +17,7 @@ export default function DashboardPage() {
     ["Today", stats.today_shipments],
     ["Delivered", stats.delivered_shipments],
     ["Pending", stats.pending_shipments],
-    ["COD Pending", stats.cod_pending],
+    ["POD Pending", stats.pod_pending],
     ["Assignments", stats.delivery_assignments],
   ];
   return (

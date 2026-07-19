@@ -175,8 +175,8 @@ export default function AdminShipmentDetailPage() {
         <Col xs={24} md={6}>
           <Card>
             <Statistic
-              title="COD Amount"
-              value={Number(shipment.cod_amount || 0)}
+              title="POD Amount"
+              value={Number(shipment.pod_amount || 0)}
               precision={2}
               prefix="NPR"
             />
@@ -189,7 +189,7 @@ export default function AdminShipmentDetailPage() {
               title="Collectable"
               value={Number(
                 shipment.total_collectable_amount ||
-                  shipment.cod_amount ||
+                  shipment.pod_amount ||
                   0
               )}
               precision={2}
@@ -326,8 +326,8 @@ export default function AdminShipmentDetailPage() {
             <Descriptions.Item label="Weight Charge">
               {formatMoney(Number(priceBreakdown.weight_charge || 0))}
             </Descriptions.Item>
-            <Descriptions.Item label="COD Fee">
-              {formatMoney(Number(priceBreakdown.cod_fee || 0))}
+            <Descriptions.Item label="POD Fee">
+              {formatMoney(Number(priceBreakdown.pod_fee || 0))}
             </Descriptions.Item>
             <Descriptions.Item label="Final Price">
               <strong>{formatMoney(Number(priceBreakdown.final_price || shipment.delivery_fee || shipment.delivery_charge || 0))}</strong>

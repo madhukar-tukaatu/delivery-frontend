@@ -103,7 +103,7 @@ function normalizeShipmentResponse(data) {
     shipment: data?.shipment || data || null,
     pickup: data?.pickup || data?.pickup_request || null,
     delivery: data?.delivery || data?.delivery_assignment || null,
-    cod: data?.cod || data?.payment || null,
+    pod: data?.pod || data?.payment || null,
     charge: data?.charge || data?.fare || null,
     route: data?.route || null,
     tracking: data?.tracking || data?.history || data?.tracking_history || [],
@@ -138,7 +138,7 @@ export default function MerchantShipmentViewPage() {
   const shipment = data?.shipment;
   const pickup = data?.pickup;
   const delivery = data?.delivery;
-  const cod = data?.cod;
+  const pod = data?.pod;
   const charge = data?.charge;
   const route = data?.route;
   const tracking = data?.tracking || [];
@@ -413,10 +413,10 @@ export default function MerchantShipmentViewPage() {
         </Col>
 
         <Col xs={24} lg={8}>
-          <Card title={<Space><CreditCardOutlined /> Payment / COD</Space>}>
+          <Card title={<Space><CreditCardOutlined /> Payment / POD</Space>}>
             <Descriptions bordered column={1} size="small">
               <Descriptions.Item label="Payment Type">
-                <Tag color={shipment.payment_type === "cod" ? "orange" : "green"}>
+                <Tag color={shipment.payment_type === "pod" ? "orange" : "green"}>
                   {shipment.payment_type || "prepaid"}
                 </Tag>
               </Descriptions.Item>
@@ -429,8 +429,8 @@ export default function MerchantShipmentViewPage() {
                 {money(charge?.delivery_charge ?? shipment.delivery_charge)}
               </Descriptions.Item>
 
-              <Descriptions.Item label="COD Amount">
-                {money(cod?.cod_amount ?? shipment.cod_amount)}
+              <Descriptions.Item label="POD Amount">
+                {money(pod?.pod_amount ?? shipment.pod_amount)}
               </Descriptions.Item>
 
               <Descriptions.Item label="Total Collectable">
@@ -439,9 +439,9 @@ export default function MerchantShipmentViewPage() {
                 </Text>
               </Descriptions.Item>
 
-              <Descriptions.Item label="COD Status">
-                <Tag color={statusColor(cod?.status)}>
-                  {cod?.status || "-"}
+              <Descriptions.Item label="POD Status">
+                <Tag color={statusColor(pod?.status)}>
+                  {pod?.status || "-"}
                 </Tag>
               </Descriptions.Item>
             </Descriptions>
@@ -481,8 +481,8 @@ export default function MerchantShipmentViewPage() {
                 {money(chargeBreakdown?.weight_fee ?? charge?.weight_fee)}
               </Descriptions.Item>
 
-              <Descriptions.Item label="COD Fee">
-                {money(chargeBreakdown?.cod_fee ?? charge?.cod_fee)}
+              <Descriptions.Item label="POD Fee">
+                {money(chargeBreakdown?.pod_fee ?? charge?.pod_fee)}
               </Descriptions.Item>
 
               <Descriptions.Item label="Final Delivery Charge">
