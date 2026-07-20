@@ -6,8 +6,8 @@ import { useParams, useRouter } from "next/navigation";
 
 import CoverageLocationForm from "../../components/CoverageLocationForm";
 import {
-  getCoverageLocation,
   getCoverageLocations,
+  getCoverageLocation,
   updateCoverageLocation,
 } from "@/services/branchAllocationApi";
 

@@ -5,6 +5,12 @@ export async function getCoverageLocations(params = {}) {
   return response.data;
 }
 
+// Added single location fetcher
+export async function getCoverageLocation(id) {
+  const response = await api.get(`/admin/coverage-locations/${id}`);
+  return response.data;
+}
+
 export async function getCoverageMap(params = {}) {
   const response = await api.get("/admin/coverage-locations/map", { params });
   return response.data;
