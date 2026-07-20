@@ -5,14 +5,8 @@ export async function getCoverageLocations(params = {}) {
   return response.data;
 }
 
-// Added single location fetcher
 export async function getCoverageLocation(id) {
   const response = await api.get(`/admin/coverage-locations/${id}`);
-  return response.data;
-}
-
-export async function getCoverageMap(params = {}) {
-  const response = await api.get("/admin/coverage-locations/map", { params });
   return response.data;
 }
 
@@ -36,13 +30,81 @@ export async function getBranches(params = {}) {
   return response.data;
 }
 
+export async function getBranch(id) {
+  const response = await api.get(`/admin/branches/${id}`);
+  return response.data;
+}
+
+function buildBranchPayload(payload) {
+  const documents = payload.documents || [];
+  const cleanPayload = { ...payload };
+
+  delete cleanPayload.documents;
+
+  const formData = new FormData();
+
+  Object.entries(cleanPayload).forEach(([key, value]) => {
+    if (value === undefined || value === null) return;
+
+    if (Array.isArray(value)) {
+      value.forEach((item) => {
+        formData.append(`${key}[]`, item);
+      });
+
+      return;
+    }
+
+    if (typeof value === "boolean") {
+      formData.append(key, value ? "1" : "0");
+      return;
+    }
+
+    formData.append(key, value);
+  });
+
+  documents.forEach((document, index) => {
+    if (!document?.file) return;
+
+    formData.append(
+      `documents[${index}][document_type]`,
+      document.document_type || "other"
+    );
+    formData.append(`documents[${index}][title]`, document.title || "");
+    formData.append(`documents[${index}][notes]`, document.notes || "");
+    formData.append(`documents[${index}][file]`, document.file);
+  });
+
+  return formData;
+}
+
 export async function createBranch(payload) {
-  const response = await api.post("/admin/branches", payload);
+  const response = await api.post(
+    "/admin/branches",
+    buildBranchPayload(payload),
+    {
+      headers: {
+        "Content-Type": "multipart/form-data",
+      },
+    }
+  );
+
   return response.data;
 }
 
 export async function updateBranch(id, payload) {
-  const response = await api.put(`/admin/branches/${id}`, payload);
+  const response = await api.post(
+    `/admin/branches/${id}`,
+    buildBranchPayload({
+      ...payload,
+      _method: "PUT",
+    }),
+    {
+      headers: {
+        "Content-Type": "multipart/form-data",
+      },
+    }
+  );
+
   return response.data;
 }
 
