@@ -9,7 +9,7 @@ import s from "./login.module.css";
 
 export default function LoginPage() {
   const router = useRouter();
-  const [email, setEmail] = useState("");
+  const [login, setLogin] = useState("");        // Changed from email
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -19,13 +19,18 @@ export default function LoginPage() {
     e.preventDefault();
     setLoading(true);
     setError(null);
+
     try {
-      const res = await api.post("/auth/login", { email, password });
+      const res = await api.post("/auth/login", { 
+        login,      // ← Now sends "login" instead of "email"
+        password 
+      });
+      
       const { token, user } = res.data.data;
       saveAuth(token, user);
       router.push(routeForRole(user.role, user));
     } catch (err) {
-      setError(err?.response?.data?.message || "Invalid email or password.");
+      setError(err?.response?.data?.message || "Invalid login credentials.");
     } finally {
       setLoading(false);
     }
@@ -55,16 +60,18 @@ export default function LoginPage() {
 
         <form onSubmit={handleSubmit}>
           <div className={s.field}>
-            <label className={s.label} htmlFor="login-email">Email</label>
+            <label className={s.label} htmlFor="login-input">
+              Email or Phone
+            </label>
             <input
-              id="login-email"
+              id="login-input"
               className={s.input}
-              type="email"
-              placeholder="Enter your email address"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              type="text"                    // Changed from email type
+              placeholder="Enter your email or phone number"
+              value={login}
+              onChange={(e) => setLogin(e.target.value)}
               required
-              autoComplete="email"
+              autoComplete="username"
               autoFocus
             />
           </div>
