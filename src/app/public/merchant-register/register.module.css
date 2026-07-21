@@ -1,0 +1,204 @@
+.page {
+  min-height: 100vh;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  background: #f5f5f5;
+  padding: 40px 20px 60px;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  box-sizing: border-box;
+}
+
+.card {
+  background: #fff;
+  border-radius: 12px;
+  box-shadow: 0 2px 16px rgba(0,0,0,.08);
+  padding: 36px 36px 28px;
+  width: 100%;
+  max-width: 560px;
+}
+
+/* Logo row */
+.logoRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 24px;
+}
+.logo { border-radius: 8px; }
+.appName {
+  font-size: 15px;
+  font-weight: 700;
+  color: #111827;
+  line-height: 1.2;
+}
+.appSub {
+  font-size: 11px;
+  color: #9ca3af;
+  margin-top: 1px;
+}
+
+/* Heading */
+.title {
+  font-size: 19px;
+  font-weight: 700;
+  color: #111827;
+  margin: 0 0 6px;
+}
+.subtitle {
+  font-size: 13px;
+  color: #6b7280;
+  line-height: 1.6;
+  margin: 0 0 22px;
+}
+
+/* Error */
+.errorBox {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  border-radius: 8px;
+  padding: 10px 12px;
+  margin-bottom: 18px;
+  font-size: 13px;
+  color: #dc2626;
+}
+
+/* Group label */
+.groupLabel {
+  font-size: 11px;
+  font-weight: 600;
+  color: #9ca3af;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  margin: 0 0 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #f3f4f6;
+}
+
+/* Grid */
+.grid2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+/* Field */
+.field { margin-bottom: 14px; }
+.label {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  color: #374151;
+  margin-bottom: 5px;
+}
+.ast { color: #ef4444; margin-left: 2px; }
+.opt { font-weight: 400; color: #9ca3af; font-size: 12px; }
+
+/* Input */
+.input {
+  width: 100%;
+  padding: 9px 12px;
+  border: 1.5px solid #d1d5db;
+  border-radius: 8px;
+  font-size: 13px;
+  color: #111827;
+  background: #fff;
+  outline: none;
+  transition: border-color .15s, box-shadow .15s;
+  box-sizing: border-box;
+}
+.input::placeholder { color: #9ca3af; }
+.input:focus {
+  border-color: #2563eb;
+  box-shadow: 0 0 0 3px rgba(37,99,235,.1);
+}
+
+/* Password */
+.pwWrap { position: relative; }
+.eye {
+  position: absolute;
+  right: 10px; top: 50%;
+  transform: translateY(-50%);
+  background: none; border: none;
+  cursor: pointer; padding: 0;
+  color: #9ca3af;
+  display: flex; align-items: center;
+}
+.eye:hover { color: #374151; }
+
+/* Note */
+.note {
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+  border-left: 3px solid #2563eb;
+  border-radius: 6px;
+  padding: 10px 12px;
+  font-size: 12px;
+  color: #4b5563;
+  line-height: 1.6;
+  margin: 4px 0 20px;
+}
+
+/* Button */
+.btn {
+  width: 100%;
+  padding: 11px;
+  background: #2563eb;
+  color: #fff;
+  font-size: 14px;
+  font-weight: 600;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background .15s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+.btn:hover:not(:disabled) { background: #1d4ed8; }
+.btn:disabled { opacity: .6; cursor: not-allowed; }
+
+.spinner {
+  width: 15px; height: 15px;
+  border: 2px solid rgba(255,255,255,.35);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: spin .7s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* Login line */
+.loginLine {
+  text-align: center;
+  font-size: 13px;
+  color: #6b7280;
+  margin: 0 0 20px;
+}
+.loginLink {
+  background: none; border: none;
+  color: #2563eb; font-weight: 600;
+  cursor: pointer; font-size: 13px; padding: 0;
+}
+.loginLink:hover { text-decoration: underline; }
+
+/* Footer */
+.footer {
+  text-align: center;
+  font-size: 11px;
+  color: #9ca3af;
+  padding-top: 16px;
+  border-top: 1px solid #f3f4f6;
+  margin: 0;
+}
+
+/* Responsive */
+@media (max-width: 560px) {
+  .card { padding: 28px 20px 24px; }
+  .grid2 { grid-template-columns: 1fr; }
+  .title { font-size: 17px; }
+}
