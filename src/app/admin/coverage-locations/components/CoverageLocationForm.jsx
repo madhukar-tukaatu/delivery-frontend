@@ -14,10 +14,7 @@ import {
   Select,
   Space,
 } from "antd";
-import {
-  EnvironmentOutlined,
-  SaveOutlined,
-} from "@ant-design/icons";
+import { EnvironmentOutlined, SaveOutlined } from "@ant-design/icons";
 
 const CoverageRadiusMap = dynamic(
   () => import("@/components/maps/CoverageRadiusMap"),
@@ -38,7 +35,7 @@ const CoverageRadiusMap = dynamic(
         Loading map...
       </div>
     ),
-  }
+  },
 );
 
 function makeCode(name, type) {
@@ -77,7 +74,7 @@ export default function CoverageLocationForm({
       latitude,
       longitude,
     }),
-    [latitude, longitude]
+    [latitude, longitude],
   );
 
   useEffect(() => {
@@ -136,9 +133,10 @@ export default function CoverageLocationForm({
               label="Allocation Type"
               name="type"
               rules={[{ required: true }]}
+              style={{ display:"none" }}
             >
               <Select
-                disabled={mode === "edit"}
+                disabled={true}
                 options={[
                   {
                     value: "main_branch_zone",
@@ -202,56 +200,57 @@ export default function CoverageLocationForm({
                 </Form.Item>
               </Col>
             </Row>
+            <div style={{ display: "none" }}>
+              <Row gutter={12}>
+                <Col xs={24} md={12}>
+                  <Form.Item label="Country" name="country">
+                    <Input placeholder="Nepal" />
+                  </Form.Item>
+                </Col>
 
-            <Row gutter={12}>
-              <Col xs={24} md={12}>
-                <Form.Item label="Country" name="country">
-                  <Input placeholder="Nepal" />
-                </Form.Item>
-              </Col>
+                <Col xs={24} md={12}>
+                  <Form.Item label="Province" name="province">
+                    <Input placeholder="Province" />
+                  </Form.Item>
+                </Col>
+              </Row>
 
-              <Col xs={24} md={12}>
-                <Form.Item label="Province" name="province">
-                  <Input placeholder="Province" />
-                </Form.Item>
-              </Col>
-            </Row>
+              <Row gutter={12}>
+                <Col xs={24} md={12}>
+                  <Form.Item label="District" name="district">
+                    <Input placeholder="District" />
+                  </Form.Item>
+                </Col>
 
-            <Row gutter={12}>
-              <Col xs={24} md={12}>
-                <Form.Item label="District" name="district">
-                  <Input placeholder="District" />
-                </Form.Item>
-              </Col>
+                <Col xs={24} md={12}>
+                  <Form.Item label="City" name="city">
+                    <Input placeholder="City" />
+                  </Form.Item>
+                </Col>
+              </Row>
 
-              <Col xs={24} md={12}>
-                <Form.Item label="City" name="city">
-                  <Input placeholder="City" />
-                </Form.Item>
-              </Col>
-            </Row>
+              <Row gutter={12}>
+                <Col xs={24} md={12}>
+                  <Form.Item label="Area" name="area">
+                    <Input placeholder="Area" />
+                  </Form.Item>
+                </Col>
 
-            <Row gutter={12}>
-              <Col xs={24} md={12}>
-                <Form.Item label="Area" name="area">
-                  <Input placeholder="Area" />
-                </Form.Item>
-              </Col>
+                <Col xs={24} md={12}>
+                  <Form.Item label="Street" name="street">
+                    <Input placeholder="Street / road" />
+                  </Form.Item>
+                </Col>
+              </Row>
 
-              <Col xs={24} md={12}>
-                <Form.Item label="Street" name="street">
-                  <Input placeholder="Street / road" />
-                </Form.Item>
-              </Col>
-            </Row>
+              <Form.Item label="Landmark" name="landmark">
+                <Input placeholder="Landmark" />
+              </Form.Item>
 
-            <Form.Item label="Landmark" name="landmark">
-              <Input placeholder="Landmark" />
-            </Form.Item>
-
-            <Form.Item label="Address" name="address">
-              <Input.TextArea rows={2} placeholder="Full address" />
-            </Form.Item>
+              <Form.Item label="Address" name="address">
+                <Input.TextArea rows={2} placeholder="Full address" />
+              </Form.Item>
+            </div>
 
             <Row gutter={12}>
               <Col xs={24} md={12}>
@@ -288,18 +287,20 @@ export default function CoverageLocationForm({
               />
             </Form.Item>
 
-            <Form.Item label="Status" name="status">
-              <Select
-                options={[
-                  { value: "active", label: "Active" },
-                  { value: "inactive", label: "Inactive" },
-                ]}
-              />
-            </Form.Item>
+            <div style={{ display:"none" }}>
+              <Form.Item label="Status" name="status">
+                <Select
+                  options={[
+                    { value: "active", label: "Active" },
+                    { value: "inactive", label: "Inactive" },
+                  ]}
+                />
+              </Form.Item>
 
-            <Form.Item label="Notes" name="notes">
-              <Input.TextArea rows={2} />
-            </Form.Item>
+              <Form.Item label="Notes" name="notes">
+                <Input.TextArea rows={2} />
+              </Form.Item>
+            </div>
 
             <Space style={{ width: "100%", justifyContent: "flex-end" }}>
               <Button onClick={onCancel}>Cancel</Button>

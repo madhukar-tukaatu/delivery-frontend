@@ -22,9 +22,13 @@ import {
   message,
 } from "antd";
 import {
+  BankOutlined,
+  CheckCircleFilled,
   EnvironmentOutlined,
   FileTextOutlined,
+  PlusOutlined,
   SaveOutlined,
+  ShopOutlined,
   UploadOutlined,
 } from "@ant-design/icons";
 
@@ -36,25 +40,33 @@ const CoverageRadiusMap = dynamic(
       <div
         style={{
           height: 420,
-          background: "#ffffff",
-          border: "1px solid #e5e7eb",
-          borderRadius: 12,
+          background: "#f8fafc",
+          border: "1px dashed #cbd5e1",
+          borderRadius: 18,
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
+          color: "#64748b",
+          fontWeight: 500,
         }}
       >
         Loading map...
       </div>
     ),
-  }
+  },
 );
 
 const { Text, Title } = Typography;
 
 const BRANCH_TYPE_OPTIONS = [
-  { value: "franchise_branch", label: "Franchise / Main Branch" },
-  { value: "sub_branch", label: "Sub-Branch" },
+  {
+    value: "franchise_branch",
+    label: "Franchise / Main Branch",
+  },
+  {
+    value: "sub_branch",
+    label: "Sub-Branch",
+  },
 ];
 
 const STATUS_OPTIONS = [
@@ -86,7 +98,7 @@ const DOCUMENT_TYPE_OPTIONS = [
   {
     value: "company_registration",
     label: "Company Registration Certificate",
-    requiredFor: ["franchise_branch"],
+    requiredFor: [],
   },
   {
     value: "owner_id",
@@ -110,6 +122,102 @@ const DOCUMENT_TYPE_OPTIONS = [
   },
 ];
 
+const pageStyles = {
+  page: {
+    minHeight: "100vh",
+    background: "#f4f7fb",
+    padding: "20px",
+  },
+
+  headerCard: {
+    borderRadius: 20,
+    border: "1px solid #e6ebf1",
+    boxShadow: "0 8px 30px rgba(15, 23, 42, 0.06)",
+    overflow: "hidden",
+  },
+
+  mainCard: {
+    borderRadius: 20,
+    border: "1px solid #e6ebf1",
+    boxShadow: "0 8px 30px rgba(15, 23, 42, 0.05)",
+    overflow: "hidden",
+  },
+
+  mapCard: {
+    borderRadius: 20,
+    border: "1px solid #e6ebf1",
+    boxShadow: "0 8px 30px rgba(15, 23, 42, 0.05)",
+    overflow: "hidden",
+  },
+
+  section: {
+    border: "1px solid #e8edf3",
+    borderRadius: 18,
+    padding: 18,
+    background: "#ffffff",
+  },
+
+  sectionHeader: {
+    display: "flex",
+    alignItems: "flex-start",
+    gap: 12,
+    marginBottom: 20,
+  },
+
+  sectionNumber: {
+    width: 34,
+    height: 34,
+    borderRadius: 10,
+    background: "#eef4ff",
+    color: "#2563eb",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    fontSize: 14,
+    fontWeight: 700,
+    flexShrink: 0,
+  },
+
+  infoPanel: {
+    background: "linear-gradient(135deg, #f8fbff 0%, #f4f8ff 100%)",
+    border: "1px solid #dbe8ff",
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 20,
+  },
+
+  serviceCard: {
+    height: "100%",
+    border: "1px solid #e5eaf0",
+    borderRadius: 14,
+    padding: "14px 14px 10px",
+    background: "#fbfcfe",
+  },
+
+  documentCard: {
+    background: "#fbfcfe",
+    border: "1px solid #e5eaf0",
+    borderRadius: 16,
+    overflow: "hidden",
+  },
+
+  actionBar: {
+    position: "sticky",
+    bottom: 12,
+    zIndex: 10,
+    border: "1px solid #e5eaf0",
+    borderRadius: 16,
+    padding: 12,
+    background: "rgba(255,255,255,0.94)",
+    backdropFilter: "blur(12px)",
+    boxShadow: "0 10px 30px rgba(15, 23, 42, 0.10)",
+  },
+
+  input: {
+    borderRadius: 10,
+  },
+};
+
 function isMainBranch(type) {
   return type === "franchise_branch";
 }
@@ -129,7 +237,7 @@ function makeCode(name, type) {
 
 function getRequiredDocumentTypes(type) {
   return DOCUMENT_TYPE_OPTIONS.filter((item) =>
-    item.requiredFor.includes(type)
+    item.requiredFor.includes(type),
   ).map((item) => item.value);
 }
 
@@ -151,6 +259,81 @@ function makeDocumentRow(documentType, required = false) {
   };
 }
 
+function SectionHeader({ number, title, description, icon }) {
+  return (
+    <div style={pageStyles.sectionHeader}>
+      <div style={pageStyles.sectionNumber}>{number}</div>
+
+      <div style={{ flex: 1 }}>
+        <Space size={8} align="center">
+          {icon}
+
+          <Title
+            level={5}
+            style={{
+              margin: 0,
+              color: "#0f172a",
+              fontSize: 16,
+            }}
+          >
+            {title}
+          </Title>
+        </Space>
+
+        {description && (
+          <Text
+            type="secondary"
+            style={{
+              display: "block",
+              marginTop: 4,
+              lineHeight: 1.6,
+            }}
+          >
+            {description}
+          </Text>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function ServiceSwitchCard({ label, name, description }) {
+  return (
+    <div style={pageStyles.serviceCard}>
+      <Form.Item
+        name={name}
+        valuePropName="checked"
+        style={{ marginBottom: 0 }}
+      >
+        <Switch />
+      </Form.Item>
+
+      <Text
+        strong
+        style={{
+          display: "block",
+          marginTop: 10,
+          color: "#0f172a",
+        }}
+      >
+        {label}
+      </Text>
+
+      <Text
+        type="secondary"
+        style={{
+          display: "block",
+          marginTop: 3,
+          fontSize: 12,
+          lineHeight: 1.5,
+        }}
+      >
+        {description}
+      </Text>
+    </div>
+  );
+}
+
 export default function BranchAssignmentForm({
   mode = "create",
   initialValues,
@@ -163,6 +346,7 @@ export default function BranchAssignmentForm({
   onCancel,
 }) {
   const [form] = Form.useForm();
+
   const [manualAssignedAddress, setManualAssignedAddress] = useState(false);
   const [documents, setDocuments] = useState([]);
 
@@ -173,20 +357,18 @@ export default function BranchAssignmentForm({
 
   const selectedCoverageLocation = useMemo(() => {
     return coverageLocations.find(
-      (item) => Number(item.id) === Number(coverageLocationId)
+      (item) => Number(item.id) === Number(coverageLocationId),
     );
   }, [coverageLocations, coverageLocationId]);
 
   const filteredCoverageLocations = useMemo(() => {
     if (isMainBranch(type)) {
       return coverageLocations.filter(
-        (item) => item.type === "main_branch_zone"
+        (item) => item.type === "main_branch_zone",
       );
     }
 
-    return coverageLocations.filter(
-      (item) => item.type === "sub_branch_zone"
-    );
+    return coverageLocations.filter((item) => item.type === "sub_branch_zone");
   }, [coverageLocations, type]);
 
   const officeMapValue = useMemo(
@@ -194,15 +376,15 @@ export default function BranchAssignmentForm({
       latitude: officeLatitude,
       longitude: officeLongitude,
     }),
-    [officeLatitude, officeLongitude]
+    [officeLatitude, officeLongitude],
   );
 
   function syncRequiredDocuments(nextType) {
     const requiredTypes = getRequiredDocumentTypes(nextType);
 
-    setDocuments((prev) => {
-      const keptRows = prev.filter(
-        (item) => !item.required || requiredTypes.includes(item.document_type)
+    setDocuments((previousDocuments) => {
+      const keptRows = previousDocuments.filter(
+        (item) => !item.required || requiredTypes.includes(item.document_type),
       );
 
       const normalizedRows = keptRows.map((item) => {
@@ -223,7 +405,15 @@ export default function BranchAssignmentForm({
         .filter((documentType) => !existingTypes.includes(documentType))
         .map((documentType) => makeDocumentRow(documentType, true));
 
-      return [...normalizedRows, ...missingRows];
+      const hasCompanyRegistration = normalizedRows.some(
+        (item) => item.document_type === "company_registration",
+      );
+
+      const companyRegistrationRow = hasCompanyRegistration
+        ? []
+        : [makeDocumentRow("company_registration", false)];
+
+      return [...normalizedRows, ...missingRows, ...companyRegistrationRow];
     });
   }
 
@@ -254,23 +444,28 @@ export default function BranchAssignmentForm({
   }, [form, initialValues]);
 
   function addDocumentRow(documentType = "other") {
-    setDocuments((prev) => [...prev, makeDocumentRow(documentType, false)]);
+    setDocuments((previousDocuments) => [
+      ...previousDocuments,
+      makeDocumentRow(documentType, false),
+    ]);
   }
 
   function removeDocumentRow(uid) {
-    setDocuments((prev) => prev.filter((item) => item.uid !== uid));
+    setDocuments((previousDocuments) =>
+      previousDocuments.filter((item) => item.uid !== uid),
+    );
   }
 
   function updateDocumentRow(uid, changes) {
-    setDocuments((prev) =>
-      prev.map((item) =>
+    setDocuments((previousDocuments) =>
+      previousDocuments.map((item) =>
         item.uid === uid
           ? {
               ...item,
               ...changes,
             }
-          : item
-      )
+          : item,
+      ),
     );
   }
 
@@ -278,20 +473,27 @@ export default function BranchAssignmentForm({
     form.setFieldsValue({
       office_latitude:
         location.latitude ?? form.getFieldValue("office_latitude"),
+
       office_longitude:
         location.longitude ?? form.getFieldValue("office_longitude"),
-      office_address:
-        location.address || form.getFieldValue("office_address"),
+
+      office_address: location.address || form.getFieldValue("office_address"),
+
       office_city: location.city || form.getFieldValue("office_city"),
+
       office_area: location.area || form.getFieldValue("office_area"),
+
       office_street: location.street || form.getFieldValue("office_street"),
+
       office_landmark:
         location.landmark || form.getFieldValue("office_landmark"),
     });
   }
 
   function applyCoverageAddressToBranch() {
-    if (!selectedCoverageLocation) return;
+    if (!selectedCoverageLocation) {
+      return;
+    }
 
     form.setFieldsValue({
       country: selectedCoverageLocation.country || "Nepal",
@@ -302,6 +504,8 @@ export default function BranchAssignmentForm({
       address: selectedCoverageLocation.address,
       landmark: selectedCoverageLocation.landmark,
     });
+
+    message.success("Allocation address applied successfully.");
   }
 
   async function handleSubmit() {
@@ -311,25 +515,28 @@ export default function BranchAssignmentForm({
       const requiredTypes = getRequiredDocumentTypes(values.type);
 
       const missingDocuments = requiredTypes.filter((documentType) => {
-        const match = documents.find(
-          (item) => item.document_type === documentType
+        const matchingDocument = documents.find(
+          (item) => item.document_type === documentType,
         );
 
-        return !match?.file && mode === "create";
+        return !matchingDocument?.file && mode === "create";
       });
 
       if (missingDocuments.length) {
         message.error(
           `Please upload required documents: ${missingDocuments
             .map(documentLabel)
-            .join(", ")}`
+            .join(", ")}`,
         );
+
         return;
       }
 
       const payload = {
         ...values,
+
         code: values.code || makeCode(values.name, values.type),
+
         documents: documents
           .filter((item) => item.file)
           .map((item) => ({
@@ -346,712 +553,1246 @@ export default function BranchAssignmentForm({
 
       await onSubmit(payload);
     } catch (error) {
-      if (error?.errorFields) return;
+      if (error?.errorFields) {
+        message.warning("Please complete the required fields.");
+        return;
+      }
 
       message.error(error?.message || "Please check the form.");
     }
   }
 
   return (
-    <Row gutter={[16, 16]}>
-      <Col xs={24} xl={10}>
-        <Space direction="vertical" size={16} style={{ width: "100%" }}>
-          <Card>
-            <Space direction="vertical" size={4}>
-              <Title level={4} style={{ margin: 0 }}>
-                Branch Assignment Form
-              </Title>
-
-              <Text type="secondary">
-                Assign a franchise/main branch or sub-branch to a service
-                allocation. Pickup and delivery use the physical office location.
-              </Text>
-            </Space>
-          </Card>
-
-          <Card title="1. Assignment Setup">
-            <Form form={form} layout="vertical">
-              <Form.Item
-                label="Branch Type"
-                name="type"
-                rules={[{ required: true, message: "Branch type is required." }]}
-              >
-                <Select
-                  disabled={mode === "edit"}
-                  options={BRANCH_TYPE_OPTIONS}
-                  onChange={(nextType) => {
-                    if (typeof onTypeChange === "function") {
-                      onTypeChange(nextType);
-                    }
-
-                    syncRequiredDocuments(nextType);
-
-                    if (nextType === "franchise_branch") {
-                      form.setFieldsValue({
-                        parent_id: null,
-                        coverage_location_id: null,
-                      });
-                    } else {
-                      form.setFieldsValue({
-                        coverage_location_id: null,
-                      });
-                    }
-                  }}
-                />
-              </Form.Item>
-
-              {!isMainBranch(type) && (
-                <Form.Item
-                  label="Parent Franchise / Main Branch"
-                  name="parent_id"
-                  rules={[
-                    {
-                      required: true,
-                      message: "Parent franchise/main branch is required.",
-                    },
-                  ]}
-                >
-                  <Select
-                    showSearch
-                    placeholder="Select parent franchise/main branch"
-                    optionFilterProp="label"
-                    options={parentOptions.map((item) => ({
-                      value: item.id,
-                      label:
-                        item.label ||
-                        `${item.name} (${item.code || item.type})`,
-                    }))}
-                  />
-                </Form.Item>
-              )}
-
-              <Form.Item
-                label={
-                  isMainBranch(type)
-                    ? "Assigned Main Branch Allocation"
-                    : "Assigned Sub-Branch Allocation"
-                }
-                name="coverage_location_id"
-                rules={[
-                  {
-                    required: true,
-                    message: "Assigned allocation is required.",
-                  },
-                ]}
-              >
-                <Select
-                  showSearch
-                  placeholder="Select assigned allocation"
-                  optionFilterProp="label"
-                  options={filteredCoverageLocations.map((item) => ({
-                    value: item.id,
-                    label: `${item.name} (${item.code})`,
-                  }))}
-                />
-              </Form.Item>
-
-              {selectedCoverageLocation && (
-                <Card
-                  size="small"
+    <div style={pageStyles.page}>
+      <Space
+        direction="vertical"
+        size={18}
+        style={{
+          width: "100%",
+          maxWidth: 1600,
+          margin: "0 auto",
+        }}
+      >
+        <Card
+          style={pageStyles.headerCard}
+          styles={{
+            body: {
+              padding: "22px 24px",
+              background: "linear-gradient(135deg, #ffffff 0%, #f4f8ff 100%)",
+            },
+          }}
+        >
+          <Row gutter={[16, 16]} align="middle">
+            <Col flex="auto">
+              <Space align="start" size={14}>
+                <div
                   style={{
-                    background: "#fafafa",
-                    border: "1px solid #e5e7eb",
-                    marginBottom: 16,
+                    width: 46,
+                    height: 46,
+                    borderRadius: 14,
+                    background: "#2563eb",
+                    color: "#ffffff",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    fontSize: 20,
+                    boxShadow: "0 8px 20px rgba(37, 99, 235, 0.25)",
                   }}
                 >
-                  <Descriptions
-                    size="small"
-                    column={1}
-                    items={[
-                      {
-                        key: "allocation_type",
-                        label: "Allocation Type",
-                        children:
-                          selectedCoverageLocation.type === "main_branch_zone"
-                            ? "Main Branch Allocation"
-                            : "Sub-Branch Allocation",
-                      },
-                      {
-                        key: "radius",
-                        label: "Coverage Radius",
-                        children: `${selectedCoverageLocation.coverage_radius_km} km`,
-                      },
-                      {
-                        key: "point",
-                        label: "Allocation Latitude / Longitude",
-                        children: `${selectedCoverageLocation.latitude}, ${selectedCoverageLocation.longitude}`,
-                      },
-                      {
-                        key: "area",
-                        label: "Area",
-                        children: `${selectedCoverageLocation.city || "-"} / ${
-                          selectedCoverageLocation.area || "-"
-                        }`,
-                      },
-                    ]}
-                  />
+                  <ShopOutlined />
+                </div>
 
-                  <Button
-                    size="small"
-                    style={{ marginTop: 12 }}
-                    onClick={applyCoverageAddressToBranch}
-                  >
-                    Use allocation address for branch
-                  </Button>
-                </Card>
-              )}
-
-              <Divider orientation="left">2. Business Details</Divider>
-
-              <Row gutter={12}>
-                <Col xs={24} md={12}>
-                  <Form.Item
-                    label="Branch / Franchise Name"
-                    name="name"
-                    rules={[{ required: true, message: "Name is required." }]}
-                  >
-                    <Input placeholder="Example: Pokhara Franchise Branch" />
-                  </Form.Item>
-                </Col>
-
-                <Col xs={24} md={12}>
-                  <Form.Item label="Code" name="code">
-                    <Input placeholder="Auto or custom code" />
-                  </Form.Item>
-                </Col>
-              </Row>
-
-              <Form.Item
-                label="Legal Business Name"
-                name="legal_name"
-                rules={[
-                  {
-                    required: isMainBranch(type),
-                    message: "Legal business name is required for franchise.",
-                  },
-                ]}
-              >
-                <Input placeholder="Registered business name" />
-              </Form.Item>
-
-              <Row gutter={12}>
-                <Col xs={24} md={12}>
-                  <Form.Item
-                    label="Owner Name"
-                    name="owner_name"
-                    rules={[
-                      {
-                        required: isMainBranch(type),
-                        message: "Owner name is required for franchise.",
-                      },
-                    ]}
-                  >
-                    <Input placeholder="Owner full name" />
-                  </Form.Item>
-                </Col>
-
-                <Col xs={24} md={12}>
-                  <Form.Item label="Contact Person" name="contact_person">
-                    <Input placeholder="Contact person" />
-                  </Form.Item>
-                </Col>
-              </Row>
-
-              <Row gutter={12}>
-                <Col xs={24} md={12}>
-                  <Form.Item
-                    label="Email"
-                    name="email"
-                    rules={[{ type: "email", message: "Enter valid email." }]}
-                  >
-                    <Input placeholder="branch@example.com" />
-                  </Form.Item>
-                </Col>
-
-                <Col xs={24} md={12}>
-                  <Form.Item
-                    label="Primary Phone"
-                    name="phone"
-                    rules={[
-                      {
-                        required: true,
-                        message: "Primary phone is required.",
-                      },
-                    ]}
-                  >
-                    <Input placeholder="98XXXXXXXX" />
-                  </Form.Item>
-                </Col>
-              </Row>
-
-              <Row gutter={12}>
-                <Col xs={24} md={12}>
-                  <Form.Item label="Alternative Phone" name="alternative_phone">
-                    <Input placeholder="Optional" />
-                  </Form.Item>
-                </Col>
-
-                <Col xs={24} md={12}>
-                  <Form.Item label="Business Type" name="business_type">
-                    <Input placeholder="Courier franchise / branch office" />
-                  </Form.Item>
-                </Col>
-              </Row>
-
-              <Row gutter={12}>
-                <Col xs={24} md={12}>
-                  <Form.Item
-                    label="PAN / VAT Number"
-                    name="pan_vat_number"
-                    rules={[
-                      {
-                        required: isMainBranch(type),
-                        message: "PAN/VAT is required for franchise branch.",
-                      },
-                    ]}
-                  >
-                    <Input placeholder="PAN / VAT number" />
-                  </Form.Item>
-                </Col>
-
-                <Col xs={24} md={12}>
-                  <Form.Item
-                    label="Registration Number"
-                    name="registration_number"
-                  >
-                    <Input placeholder="Optional registration number" />
-                  </Form.Item>
-                </Col>
-              </Row>
-
-              <Form.Item label="Status" name="status">
-                <Select options={STATUS_OPTIONS} />
-              </Form.Item>
-
-              <Divider orientation="left">
-                3. Assigned Service Area Address
-              </Divider>
-
-              <Alert
-                type="info"
-                showIcon
-                style={{ marginBottom: 16 }}
-                message="Assigned address is normally copied from selected allocation."
-                description="This is the service area/address. The physical pickup and delivery point is selected below."
-              />
-
-              <Form.Item>
-                <Switch
-                  checked={manualAssignedAddress}
-                  onChange={setManualAssignedAddress}
-                />{" "}
-                <Text>Manually edit assigned branch address</Text>
-              </Form.Item>
-
-              {manualAssignedAddress && (
-                <>
-                  <Row gutter={12}>
-                    <Col xs={24} md={12}>
-                      <Form.Item label="Country" name="country">
-                        <Input />
-                      </Form.Item>
-                    </Col>
-
-                    <Col xs={24} md={12}>
-                      <Form.Item label="Province" name="province">
-                        <Input />
-                      </Form.Item>
-                    </Col>
-                  </Row>
-
-                  <Row gutter={12}>
-                    <Col xs={24} md={12}>
-                      <Form.Item label="District" name="district">
-                        <Input />
-                      </Form.Item>
-                    </Col>
-
-                    <Col xs={24} md={12}>
-                      <Form.Item label="City" name="city">
-                        <Input />
-                      </Form.Item>
-                    </Col>
-                  </Row>
-
-                  <Row gutter={12}>
-                    <Col xs={24} md={12}>
-                      <Form.Item label="Area" name="area">
-                        <Input />
-                      </Form.Item>
-                    </Col>
-
-                    <Col xs={24} md={12}>
-                      <Form.Item label="Landmark" name="landmark">
-                        <Input />
-                      </Form.Item>
-                    </Col>
-                  </Row>
-
-                  <Form.Item label="Address" name="address">
-                    <Input.TextArea rows={2} />
-                  </Form.Item>
-                </>
-              )}
-
-              <Divider orientation="left">4. Operation Settings</Divider>
-
-              <Row gutter={12}>
-                <Col xs={24} md={12}>
-                  <Form.Item label="Opening Time" name="opening_time">
-                    <Input type="time" />
-                  </Form.Item>
-                </Col>
-
-                <Col xs={24} md={12}>
-                  <Form.Item label="Closing Time" name="closing_time">
-                    <Input type="time" />
-                  </Form.Item>
-                </Col>
-              </Row>
-
-              <Form.Item label="Operating Days" name="operating_days">
-                <Select
-                  mode="multiple"
-                  allowClear
-                  options={OPERATING_DAY_OPTIONS}
-                />
-              </Form.Item>
-
-              <Form.Item label="Covered Areas" name="covered_areas">
-                <Select
-                  mode="tags"
-                  allowClear
-                  placeholder="Add areas covered by this branch"
-                />
-              </Form.Item>
-
-              <Form.Item
-                label="Daily Shipment Capacity"
-                name="daily_shipment_capacity"
-              >
-                <InputNumber min={0} style={{ width: "100%" }} />
-              </Form.Item>
-
-              <Row gutter={12}>
-                <Col xs={12} md={6}>
-                  <Form.Item
-                    label="Pickup"
-                    name="pickup_enabled"
-                    valuePropName="checked"
-                  >
-                    <Switch />
-                  </Form.Item>
-                </Col>
-
-                <Col xs={12} md={6}>
-                  <Form.Item
-                    label="Delivery"
-                    name="delivery_enabled"
-                    valuePropName="checked"
-                  >
-                    <Switch />
-                  </Form.Item>
-                </Col>
-
-                <Col xs={12} md={6}>
-                  <Form.Item
-                    label="POD"
-                    name="pod_enabled"
-                    valuePropName="checked"
-                  >
-                    <Switch />
-                  </Form.Item>
-                </Col>
-
-                <Col xs={12} md={6}>
-                  <Form.Item
-                    label="Return"
-                    name="return_enabled"
-                    valuePropName="checked"
-                  >
-                    <Switch />
-                  </Form.Item>
-                </Col>
-              </Row>
-
-              <Divider orientation="left">
-                5. Physical Office / Pickup Location
-              </Divider>
-
-              <Alert
-                type="warning"
-                showIcon
-                style={{ marginBottom: 16 }}
-                message="Pickup and delivery will use this physical office location."
-                description="This latitude and longitude is stored as office_latitude and office_longitude."
-              />
-
-              <Form.Item
-                label="Office / Pickup Address"
-                name="office_address"
-                rules={[
-                  {
-                    required: true,
-                    message: "Physical office address is required.",
-                  },
-                ]}
-              >
-                <Input.TextArea rows={2} />
-              </Form.Item>
-
-              <Row gutter={12}>
-                <Col xs={24} md={12}>
-                  <Form.Item label="Office City" name="office_city">
-                    <Input />
-                  </Form.Item>
-                </Col>
-
-                <Col xs={24} md={12}>
-                  <Form.Item label="Office Area" name="office_area">
-                    <Input />
-                  </Form.Item>
-                </Col>
-              </Row>
-
-              <Row gutter={12}>
-                <Col xs={24} md={12}>
-                  <Form.Item label="Office Street" name="office_street">
-                    <Input />
-                  </Form.Item>
-                </Col>
-
-                <Col xs={24} md={12}>
-                  <Form.Item label="Office Landmark" name="office_landmark">
-                    <Input />
-                  </Form.Item>
-                </Col>
-              </Row>
-
-              <Row gutter={12}>
-                <Col xs={24} md={12}>
-                  <Form.Item
-                    label="Office / Pickup Latitude"
-                    name="office_latitude"
-                    rules={[
-                      {
-                        required: true,
-                        message: "Latitude is required.",
-                      },
-                    ]}
-                  >
-                    <InputNumber style={{ width: "100%" }} stringMode />
-                  </Form.Item>
-                </Col>
-
-                <Col xs={24} md={12}>
-                  <Form.Item
-                    label="Office / Pickup Longitude"
-                    name="office_longitude"
-                    rules={[
-                      {
-                        required: true,
-                        message: "Longitude is required.",
-                      },
-                    ]}
-                  >
-                    <InputNumber style={{ width: "100%" }} stringMode />
-                  </Form.Item>
-                </Col>
-              </Row>
-
-              <Divider orientation="left">
-                6. Required Documents Upload
-              </Divider>
-
-              <Alert
-                type="info"
-                showIcon
-                style={{ marginBottom: 16 }}
-                message="Upload branch documents before saving."
-                description="Franchise/main branch needs PAN/VAT, company registration, owner ID, agreement, and office photo. Sub-branch needs agreement and office photo."
-              />
-
-              <Space direction="vertical" size={12} style={{ width: "100%" }}>
-                {documents.map((document) => (
-                  <Card
-                    key={document.uid}
-                    size="small"
-                    title={
-                      <Space>
-                        <FileTextOutlined />
-                        <span>{documentLabel(document.document_type)}</span>
-                        {document.required && <Tag color="red">Required</Tag>}
-                      </Space>
-                    }
-                    extra={
-                      !document.required && (
-                        <Button
-                          danger
-                          size="small"
-                          onClick={() => removeDocumentRow(document.uid)}
-                        >
-                          Remove
-                        </Button>
-                      )
-                    }
+                <div>
+                  <Title
+                    level={3}
                     style={{
-                      background: "#fafafa",
-                      border: "1px solid #e5e7eb",
+                      margin: 0,
+                      color: "#0f172a",
                     }}
                   >
-                    <Row gutter={[12, 12]}>
-                      <Col xs={24} md={8}>
-                        <Text type="secondary">Document Type</Text>
+                    {mode === "edit"
+                      ? "Update Branch Assignment"
+                      : "Create Branch Assignment"}
+                  </Title>
 
+                  <Text
+                    type="secondary"
+                    style={{
+                      display: "block",
+                      marginTop: 5,
+                      lineHeight: 1.6,
+                    }}
+                  >
+                    Configure business details, service allocation, office
+                    location and supporting documents.
+                  </Text>
+                </div>
+              </Space>
+            </Col>
+
+            <Col>
+              <Tag
+                icon={<CheckCircleFilled />}
+                color="blue"
+                style={{
+                  borderRadius: 999,
+                  padding: "5px 12px",
+                  fontWeight: 600,
+                  margin: 0,
+                }}
+              >
+                {isMainBranch(type) ? "Main Branch" : "Sub-Branch"}
+              </Tag>
+            </Col>
+          </Row>
+        </Card>
+
+        <Form
+          form={form}
+          layout="vertical"
+          requiredMark="optional"
+          size="large"
+        >
+          <Row gutter={[18, 18]} align="top">
+            <Col xs={24} xl={14}>
+              <Space direction="vertical" size={18} style={{ width: "100%" }}>
+                <Card
+                  style={pageStyles.mainCard}
+                  styles={{
+                    body: {
+                      padding: 20,
+                    },
+                  }}
+                >
+                  <Space
+                    direction="vertical"
+                    size={18}
+                    style={{ width: "100%" }}
+                  >
+                    <div style={pageStyles.section}>
+                      <SectionHeader
+                        number="1"
+                        icon={
+                          <EnvironmentOutlined style={{ color: "#2563eb" }} />
+                        }
+                        title="Assignment Setup"
+                        description="Select the service allocation assigned to this branch."
+                      />
+
+                      <Form.Item
+                        label="Branch Type"
+                        name="type"
+                        hidden
+                        rules={[
+                          {
+                            required: true,
+                            message: "Branch type is required.",
+                          },
+                        ]}
+                      >
                         <Select
-                          style={{ width: "100%", marginTop: 6 }}
-                          value={document.document_type}
-                          disabled={document.required}
-                          options={DOCUMENT_TYPE_OPTIONS.map((item) => ({
-                            value: item.value,
-                            label: item.label,
-                          }))}
-                          onChange={(value) =>
-                            updateDocumentRow(document.uid, {
-                              document_type: value,
-                              title: document.title || documentLabel(value),
-                            })
-                          }
-                        />
-                      </Col>
+                          disabled
+                          options={BRANCH_TYPE_OPTIONS}
+                          onChange={(nextType) => {
+                            if (typeof onTypeChange === "function") {
+                              onTypeChange(nextType);
+                            }
 
-                      <Col xs={24} md={8}>
-                        <Text type="secondary">Document Title</Text>
+                            syncRequiredDocuments(nextType);
 
-                        <Input
-                          style={{ marginTop: 6 }}
-                          value={document.title}
-                          placeholder="Document title"
-                          onChange={(event) =>
-                            updateDocumentRow(document.uid, {
-                              title: event.target.value,
-                            })
-                          }
-                        />
-                      </Col>
-
-                      <Col xs={24} md={8}>
-                        <Text type="secondary">File</Text>
-
-                        <div style={{ marginTop: 6 }}>
-                          <Upload
-                            beforeUpload={() => false}
-                            maxCount={1}
-                            fileList={document.fileList}
-                            accept=".pdf,.jpg,.jpeg,.png,.webp,.doc,.docx"
-                            onChange={({ fileList }) => {
-                              const nextFileList = fileList.slice(-1);
-
-                              updateDocumentRow(document.uid, {
-                                fileList: nextFileList,
-                                file:
-                                  nextFileList?.[0]?.originFileObj || null,
+                            if (nextType === "franchise_branch") {
+                              form.setFieldsValue({
+                                parent_id: null,
+                                coverage_location_id: null,
                               });
+                            } else {
+                              form.setFieldsValue({
+                                coverage_location_id: null,
+                              });
+                            }
+                          }}
+                        />
+                      </Form.Item>
+
+                      {!isMainBranch(type) && (
+                        <Form.Item
+                          label="Parent Franchise / Main Branch"
+                          name="parent_id"
+                          rules={[
+                            {
+                              required: true,
+                              message:
+                                "Parent franchise/main branch is required.",
+                            },
+                          ]}
+                        >
+                          <Select
+                            showSearch
+                            placeholder="Select parent franchise/main branch"
+                            optionFilterProp="label"
+                            style={pageStyles.input}
+                            options={parentOptions.map((item) => ({
+                              value: item.id,
+                              label:
+                                item.label ||
+                                `${item.name} (${item.code || item.type})`,
+                            }))}
+                          />
+                        </Form.Item>
+                      )}
+
+                      <Form.Item
+                        label={
+                          isMainBranch(type)
+                            ? "Assigned Main Branch Allocation"
+                            : "Assigned Sub-Branch Allocation"
+                        }
+                        name="coverage_location_id"
+                        rules={[
+                          {
+                            required: true,
+                            message: "Assigned allocation is required.",
+                          },
+                        ]}
+                      >
+                        <Select
+                          showSearch
+                          allowClear
+                          placeholder="Search and select an allocation"
+                          optionFilterProp="label"
+                          options={filteredCoverageLocations.map((item) => ({
+                            value: item.id,
+                            label: `${item.name} (${item.code})`,
+                          }))}
+                        />
+                      </Form.Item>
+
+                      {selectedCoverageLocation && (
+                        <div
+                          style={{
+                            background: "#f8fbff",
+                            border: "1px solid #dbe8ff",
+                            borderRadius: 16,
+                            padding: 16,
+                            marginBottom: 20,
+                          }}
+                        >
+                          <Row gutter={[16, 16]}>
+                            <Col xs={24} sm={12}>
+                              <Text
+                                type="secondary"
+                                style={{
+                                  display: "block",
+                                  marginBottom: 6,
+                                  fontSize: 13,
+                                }}
+                              >
+                                Allocation Type
+                              </Text>
+
+                              <Tag
+                                color="blue"
+                                style={{
+                                  margin: 0,
+                                  borderRadius: 6,
+                                  padding: "3px 9px",
+                                  whiteSpace: "normal",
+                                }}
+                              >
+                                {selectedCoverageLocation.type ===
+                                "main_branch_zone"
+                                  ? "Main Branch Allocation"
+                                  : "Sub-Branch Allocation"}
+                              </Tag>
+                            </Col>
+
+                            <Col xs={24} sm={12}>
+                              <Text
+                                type="secondary"
+                                style={{
+                                  display: "block",
+                                  marginBottom: 6,
+                                  fontSize: 13,
+                                }}
+                              >
+                                Coverage Radius
+                              </Text>
+
+                              <Text
+                                strong
+                                style={{
+                                  display: "block",
+                                  color: "#0f172a",
+                                  fontSize: 14,
+                                }}
+                              >
+                                {selectedCoverageLocation.coverage_radius_km ||
+                                  0}{" "}
+                                km
+                              </Text>
+                            </Col>
+
+                            <Col xs={24}>
+                              <Text
+                                type="secondary"
+                                style={{
+                                  display: "block",
+                                  marginBottom: 6,
+                                  fontSize: 13,
+                                }}
+                              >
+                                Coordinates
+                              </Text>
+
+                              <div
+                                style={{
+                                  display: "flex",
+                                  alignItems: "center",
+                                  justifyContent: "space-between",
+                                  gap: 12,
+                                  flexWrap: "wrap",
+                                  background: "#ffffff",
+                                  border: "1px solid #e2e8f0",
+                                  borderRadius: 10,
+                                  padding: "10px 12px",
+                                }}
+                              >
+                                <Text
+                                  style={{
+                                    color: "#334155",
+                                    wordBreak: "break-word",
+                                    minWidth: 0,
+                                  }}
+                                >
+                                  {selectedCoverageLocation.latitude || "-"},{" "}
+                                  {selectedCoverageLocation.longitude || "-"}
+                                </Text>
+
+                                <Button
+                                  type="text"
+                                  size="small"
+                                  icon={<EnvironmentOutlined />}
+                                  onClick={() => {
+                                    navigator.clipboard?.writeText(
+                                      `${selectedCoverageLocation.latitude}, ${selectedCoverageLocation.longitude}`,
+                                    );
+
+                                    message.success("Coordinates copied.");
+                                  }}
+                                >
+                                  Copy
+                                </Button>
+                              </div>
+                            </Col>
+
+                            <Col xs={24}>
+                              <Text
+                                type="secondary"
+                                style={{
+                                  display: "block",
+                                  marginBottom: 6,
+                                  fontSize: 13,
+                                }}
+                              >
+                                Service Area
+                              </Text>
+
+                              <Text
+                                strong
+                                style={{
+                                  display: "block",
+                                  color: "#0f172a",
+                                  lineHeight: 1.5,
+                                }}
+                              >
+                                {selectedCoverageLocation.city || "-"}
+                                {selectedCoverageLocation.area
+                                  ? ` / ${selectedCoverageLocation.area}`
+                                  : ""}
+                              </Text>
+                            </Col>
+
+                            <Col xs={24}>
+                              <Button
+                                block
+                                icon={<EnvironmentOutlined />}
+                                onClick={applyCoverageAddressToBranch}
+                                style={{
+                                  height: 40,
+                                  borderRadius: 10,
+                                  fontWeight: 500,
+                                }}
+                              >
+                                Apply Allocation Address
+                              </Button>
+                            </Col>
+                          </Row>
+                        </div>
+                      )}
+                    </div>
+
+                    <div style={pageStyles.section}>
+                      <SectionHeader
+                        number="2"
+                        icon={<BankOutlined style={{ color: "#2563eb" }} />}
+                        title="Business Details"
+                        description="Enter the registered business and contact information."
+                      />
+
+                      <Row gutter={[14, 0]}>
+                        <Col xs={24} style={{ display: "none" }}>
+                          <Form.Item
+                            label="Branch / Franchise Name"
+                            name="name"
+                          >
+                            <Input placeholder="Example: Pokhara Franchise Branch" />
+                          </Form.Item>
+                        </Col>
+
+                        <Col xs={24} md={12} style={{ display: "none" }}>
+                          <Form.Item label="Code" name="code" hidden>
+                            <Input disabled placeholder="Auto or custom code" />
+                          </Form.Item>
+                        </Col>
+                      </Row>
+
+                      <Form.Item
+                        label="Legal Business Name"
+                        name="legal_name"
+                        rules={[
+                          {
+                            required: isMainBranch(type),
+                            message:
+                              "Legal business name is required for franchise.",
+                          },
+                        ]}
+                      >
+                        <Input placeholder="Enter registered business name" />
+                      </Form.Item>
+
+                      <Row gutter={[14, 0]}>
+                        <Col xs={24} md={12}>
+                          <Form.Item
+                            label="Owner Name"
+                            name="owner_name"
+                            rules={[
+                              {
+                                required: isMainBranch(type),
+                                message:
+                                  "Owner name is required for franchise.",
+                              },
+                            ]}
+                          >
+                            <Input placeholder="Enter owner full name" />
+                          </Form.Item>
+                        </Col>
+
+                        <Col xs={24} md={12}>
+                          <Form.Item
+                            label="Contact Person"
+                            name="contact_person"
+                          >
+                            <Input placeholder="Enter contact person name" />
+                          </Form.Item>
+                        </Col>
+                      </Row>
+
+                      <Row gutter={[14, 0]}>
+                        <Col xs={24} md={12}>
+                          <Form.Item
+                            label="Email Address"
+                            name="email"
+                            rules={[
+                              {
+                                type: "email",
+                                message: "Enter a valid email address.",
+                              },
+                            ]}
+                          >
+                            <Input placeholder="branch@example.com" />
+                          </Form.Item>
+                        </Col>
+
+                        <Col xs={24} md={12}>
+                          <Form.Item
+                            label="Primary Phone"
+                            name="phone"
+                            rules={[
+                              {
+                                required: true,
+                                message: "Primary phone is required.",
+                              },
+                            ]}
+                          >
+                            <Input placeholder="98XXXXXXXX" />
+                          </Form.Item>
+                        </Col>
+                      </Row>
+
+                      <Row gutter={[14, 0]}>
+                        <Col xs={24} md={12}>
+                          <Form.Item
+                            label="Alternative Phone"
+                            name="alternative_phone"
+                          >
+                            <Input placeholder="Optional phone number" />
+                          </Form.Item>
+                        </Col>
+
+                        <Col xs={24} md={12} style={{ display: "none" }}>
+                          <Form.Item label="Business Type" name="business_type">
+                            <Input placeholder="Courier franchise / branch office" />
+                          </Form.Item>
+                        </Col>
+
+                        <Col xs={24} md={12}>
+                          <Form.Item
+                            label="PAN / VAT Number"
+                            name="pan_vat_number"
+                            rules={[
+                              {
+                                required: isMainBranch(type),
+                                message:
+                                  "PAN/VAT is required for franchise branch.",
+                              },
+                            ]}
+                          >
+                            <Input placeholder="Enter PAN / VAT number" />
+                          </Form.Item>
+                        </Col>
+                      </Row>
+
+                      <Form.Item
+                        label="Registration Number"
+                        name="registration_number"
+                      >
+                        <Input placeholder="Enter registration number if available" />
+                      </Form.Item>
+
+                      <Form.Item label="Status" name="status" hidden>
+                        <Select disabled options={STATUS_OPTIONS} />
+                      </Form.Item>
+
+                      <div style={{ display: "none" }}>
+                        <Form.Item>
+                          <Switch
+                            checked={manualAssignedAddress}
+                            onChange={setManualAssignedAddress}
+                          />{" "}
+                          <Text>Manually edit assigned branch address</Text>
+                        </Form.Item>
+
+                        <Row gutter={12}>
+                          <Col xs={24} md={12}>
+                            <Form.Item label="Country" name="country">
+                              <Input />
+                            </Form.Item>
+                          </Col>
+
+                          <Col xs={24} md={12}>
+                            <Form.Item label="Province" name="province">
+                              <Input />
+                            </Form.Item>
+                          </Col>
+                        </Row>
+
+                        <Row gutter={12}>
+                          <Col xs={24} md={12}>
+                            <Form.Item label="District" name="district">
+                              <Input />
+                            </Form.Item>
+                          </Col>
+
+                          <Col xs={24} md={12}>
+                            <Form.Item label="City" name="city">
+                              <Input />
+                            </Form.Item>
+                          </Col>
+                        </Row>
+
+                        <Row gutter={12}>
+                          <Col xs={24} md={12}>
+                            <Form.Item label="Area" name="area">
+                              <Input />
+                            </Form.Item>
+                          </Col>
+
+                          <Col xs={24} md={12}>
+                            <Form.Item label="Landmark" name="landmark">
+                              <Input />
+                            </Form.Item>
+                          </Col>
+                        </Row>
+
+                        <Form.Item label="Address" name="address">
+                          <Input.TextArea rows={2} />
+                        </Form.Item>
+                      </div>
+                    </div>
+
+                    <div style={pageStyles.section}>
+                      <SectionHeader
+                        number="3"
+                        icon={<ShopOutlined style={{ color: "#2563eb" }} />}
+                        title="Operation Settings"
+                        description="Set operating hours, working days and enabled services."
+                      />
+
+                      <Row gutter={[14, 0]}>
+                        <Col xs={24} md={12}>
+                          <Form.Item label="Opening Time" name="opening_time">
+                            <Input type="time" />
+                          </Form.Item>
+                        </Col>
+
+                        <Col xs={24} md={12}>
+                          <Form.Item label="Closing Time" name="closing_time">
+                            <Input type="time" />
+                          </Form.Item>
+                        </Col>
+                      </Row>
+
+                      <Form.Item label="Operating Days" name="operating_days">
+                        <Select
+                          mode="multiple"
+                          allowClear
+                          placeholder="Select operating days"
+                          options={OPERATING_DAY_OPTIONS}
+                          maxTagCount="responsive"
+                        />
+                      </Form.Item>
+
+                      <Form.Item
+                        label="Covered Areas"
+                        name="covered_areas"
+                        hidden
+                      >
+                        <Select
+                          mode="tags"
+                          allowClear
+                          placeholder="Add areas covered by this branch"
+                        />
+                      </Form.Item>
+
+                      <Form.Item
+                        label="Daily Shipment Capacity"
+                        name="daily_shipment_capacity"
+                        hidden
+                      >
+                        <InputNumber min={0} style={{ width: "100%" }} />
+                      </Form.Item>
+
+                      <Text
+                        strong
+                        style={{
+                          display: "block",
+                          marginBottom: 10,
+                          color: "#334155",
+                        }}
+                      >
+                        Enabled Services
+                      </Text>
+
+                      <Row gutter={[12, 12]}>
+                        <Col xs={12} md={6}>
+                          <ServiceSwitchCard
+                            label="Pickup"
+                            name="pickup_enabled"
+                            description="Accept pickup requests."
+                          />
+                        </Col>
+
+                        <Col xs={12} md={6}>
+                          <ServiceSwitchCard
+                            label="Delivery"
+                            name="delivery_enabled"
+                            description="Handle parcel delivery."
+                          />
+                        </Col>
+
+                        <Col xs={12} md={6}>
+                          <ServiceSwitchCard
+                            label="POD"
+                            name="pod_enabled"
+                            description="Proof of delivery."
+                          />
+                        </Col>
+
+                        <Col xs={12} md={6}>
+                          <ServiceSwitchCard
+                            label="Return"
+                            name="return_enabled"
+                            description="Process return parcels."
+                          />
+                        </Col>
+                      </Row>
+                    </div>
+
+                    <div style={pageStyles.section}>
+                      <SectionHeader
+                        number="4"
+                        icon={
+                          <EnvironmentOutlined style={{ color: "#2563eb" }} />
+                        }
+                        title="Physical Office / Pickup Location"
+                        description="This location will be used for pickups, delivery routing and branch operations."
+                      />
+
+                      <Alert
+                        type="info"
+                        showIcon
+                        style={{
+                          marginBottom: 18,
+                          borderRadius: 12,
+                          border: "1px solid #bfdbfe",
+                          background: "#eff6ff",
+                        }}
+                        message="Select the exact physical office location"
+                        description="You can enter the address manually or click on the map. Latitude and longitude will be stored automatically."
+                      />
+
+                      <Form.Item
+                        label="Office / Pickup Address"
+                        name="office_address"
+                        rules={[
+                          {
+                            required: true,
+                            message: "Physical office address is required.",
+                          },
+                        ]}
+                      >
+                        <Input.TextArea
+                          rows={3}
+                          placeholder="Enter complete office or pickup address"
+                        />
+                      </Form.Item>
+
+                      <Row gutter={[14, 0]}>
+                        <Col xs={24} md={12}>
+                          <Form.Item label="Office City" name="office_city">
+                            <Input placeholder="Enter city" />
+                          </Form.Item>
+                        </Col>
+
+                        <Col xs={24} md={12}>
+                          <Form.Item label="Office Area" name="office_area">
+                            <Input placeholder="Enter area" />
+                          </Form.Item>
+                        </Col>
+                      </Row>
+
+                      <Row gutter={[14, 0]}>
+                        <Col xs={24} md={12}>
+                          <Form.Item label="Office Street" name="office_street">
+                            <Input placeholder="Enter street name" />
+                          </Form.Item>
+                        </Col>
+
+                        <Col xs={24} md={12}>
+                          <Form.Item
+                            label="Office Landmark"
+                            name="office_landmark"
+                          >
+                            <Input placeholder="Nearby landmark" />
+                          </Form.Item>
+                        </Col>
+                      </Row>
+
+                      <Row gutter={[14, 0]}>
+                        <Col xs={24} md={12}>
+                          <Form.Item
+                            label="Office / Pickup Latitude"
+                            name="office_latitude"
+                            rules={[
+                              {
+                                required: true,
+                                message: "Latitude is required.",
+                              },
+                            ]}
+                          >
+                            <InputNumber
+                              style={{ width: "100%" }}
+                              stringMode
+                              placeholder="Example: 27.7172"
+                            />
+                          </Form.Item>
+                        </Col>
+
+                        <Col xs={24} md={12}>
+                          <Form.Item
+                            label="Office / Pickup Longitude"
+                            name="office_longitude"
+                            rules={[
+                              {
+                                required: true,
+                                message: "Longitude is required.",
+                              },
+                            ]}
+                          >
+                            <InputNumber
+                              style={{ width: "100%" }}
+                              stringMode
+                              placeholder="Example: 85.3240"
+                            />
+                          </Form.Item>
+                        </Col>
+                      </Row>
+                    </div>
+
+                    <div style={pageStyles.section}>
+                      <SectionHeader
+                        number="5"
+                        icon={<FileTextOutlined style={{ color: "#2563eb" }} />}
+                        title="Supporting Documents"
+                        description="Upload the required branch documents. Company registration is visible but optional."
+                      />
+
+                      <Alert
+                        type="warning"
+                        showIcon
+                        style={{
+                          marginBottom: 18,
+                          borderRadius: 12,
+                        }}
+                        message="Required documents must be uploaded before saving"
+                        description={
+                          isMainBranch(type)
+                            ? "Required: PAN/VAT certificate, owner ID, agreement and office photo. Company registration certificate is optional."
+                            : "Required: branch agreement and office photo. Company registration certificate is optional."
+                        }
+                      />
+
+                      <Space
+                        direction="vertical"
+                        size={14}
+                        style={{ width: "100%" }}
+                      >
+                        {documents.map((document) => {
+                          const isCompanyRegistration =
+                            document.document_type === "company_registration";
+
+                          return (
+                            <Card
+                              key={document.uid}
+                              size="small"
+                              style={pageStyles.documentCard}
+                              styles={{
+                                header: {
+                                  minHeight: 52,
+                                  padding: "0 16px",
+                                  background: isCompanyRegistration
+                                    ? "#f8fbff"
+                                    : "#ffffff",
+                                },
+                                body: {
+                                  padding: 16,
+                                },
+                              }}
+                              title={
+                                <Space size={9} wrap>
+                                  <div
+                                    style={{
+                                      width: 30,
+                                      height: 30,
+                                      borderRadius: 9,
+                                      background: "#eef4ff",
+                                      color: "#2563eb",
+                                      display: "flex",
+                                      alignItems: "center",
+                                      justifyContent: "center",
+                                    }}
+                                  >
+                                    <FileTextOutlined />
+                                  </div>
+
+                                  <Text strong>
+                                    {documentLabel(document.document_type)}
+                                  </Text>
+
+                                  {document.required ? (
+                                    <Tag color="red">Required</Tag>
+                                  ) : (
+                                    <Tag color="default">Optional</Tag>
+                                  )}
+                                </Space>
+                              }
+                              extra={
+                                !document.required &&
+                                !isCompanyRegistration && (
+                                  <Button
+                                    danger
+                                    type="text"
+                                    size="small"
+                                    onClick={() =>
+                                      removeDocumentRow(document.uid)
+                                    }
+                                  >
+                                    Remove
+                                  </Button>
+                                )
+                              }
+                            >
+                              <Row gutter={[14, 14]} align="bottom">
+                                <Col xs={24} md={8}>
+                                  <Text
+                                    type="secondary"
+                                    style={{
+                                      display: "block",
+                                      marginBottom: 7,
+                                      fontSize: 13,
+                                    }}
+                                  >
+                                    Document Type
+                                  </Text>
+
+                                  <Select
+                                    style={{ width: "100%" }}
+                                    value={document.document_type}
+                                    disabled={
+                                      document.required || isCompanyRegistration
+                                    }
+                                    options={DOCUMENT_TYPE_OPTIONS.map(
+                                      (item) => ({
+                                        value: item.value,
+                                        label: item.label,
+                                      }),
+                                    )}
+                                    onChange={(value) =>
+                                      updateDocumentRow(document.uid, {
+                                        document_type: value,
+                                        title:
+                                          document.title ||
+                                          documentLabel(value),
+                                      })
+                                    }
+                                  />
+                                </Col>
+
+                                <Col xs={24} md={8}>
+                                  <Text
+                                    type="secondary"
+                                    style={{
+                                      display: "block",
+                                      marginBottom: 7,
+                                      fontSize: 13,
+                                    }}
+                                  >
+                                    Document Title
+                                  </Text>
+
+                                  <Input
+                                    value={document.title}
+                                    placeholder="Enter document title"
+                                    onChange={(event) =>
+                                      updateDocumentRow(document.uid, {
+                                        title: event.target.value,
+                                      })
+                                    }
+                                  />
+                                </Col>
+
+                                <Col xs={24} md={8}>
+                                  <Text
+                                    type="secondary"
+                                    style={{
+                                      display: "block",
+                                      marginBottom: 7,
+                                      fontSize: 13,
+                                    }}
+                                  >
+                                    Upload File
+                                  </Text>
+
+                                  <Upload
+                                    beforeUpload={() => false}
+                                    maxCount={1}
+                                    fileList={document.fileList}
+                                    accept=".pdf,.jpg,.jpeg,.png,.webp,.doc,.docx"
+                                    onChange={({ fileList }) => {
+                                      const nextFileList = fileList.slice(-1);
+
+                                      updateDocumentRow(document.uid, {
+                                        fileList: nextFileList,
+                                        file:
+                                          nextFileList?.[0]?.originFileObj ||
+                                          null,
+                                      });
+                                    }}
+                                  >
+                                    <Button block icon={<UploadOutlined />}>
+                                      Select File
+                                    </Button>
+                                  </Upload>
+                                </Col>
+
+                                <Col xs={24}>
+                                  <Text
+                                    type="secondary"
+                                    style={{
+                                      display: "block",
+                                      marginBottom: 7,
+                                      fontSize: 13,
+                                    }}
+                                  >
+                                    Notes
+                                  </Text>
+
+                                  <Input.TextArea
+                                    rows={2}
+                                    value={document.notes}
+                                    placeholder="Add optional document notes"
+                                    onChange={(event) =>
+                                      updateDocumentRow(document.uid, {
+                                        notes: event.target.value,
+                                      })
+                                    }
+                                  />
+                                </Col>
+                              </Row>
+                            </Card>
+                          );
+                        })}
+
+                        <Button
+                          type="dashed"
+                          block
+                          icon={<PlusOutlined />}
+                          onClick={() => addDocumentRow("other")}
+                          style={{
+                            height: 46,
+                            borderRadius: 12,
+                          }}
+                        >
+                          Add Another Supporting Document
+                        </Button>
+                      </Space>
+                    </div>
+                  </Space>
+                </Card>
+
+                <div style={pageStyles.actionBar}>
+                  <Row justify="space-between" align="middle" gutter={[12, 12]}>
+                    <Col xs={24} sm="auto">
+                      <Text type="secondary">
+                        Review all required information before saving.
+                      </Text>
+                    </Col>
+
+                    <Col xs={24} sm="auto">
+                      <Space
+                        style={{
+                          width: "100%",
+                          justifyContent: "flex-end",
+                        }}
+                      >
+                        <Button onClick={onCancel}>Cancel</Button>
+
+                        <Button
+                          type="primary"
+                          icon={<SaveOutlined />}
+                          loading={loading}
+                          onClick={handleSubmit}
+                          style={{
+                            minWidth: 150,
+                            boxShadow: "0 8px 18px rgba(37, 99, 235, 0.22)",
+                          }}
+                        >
+                          {mode === "edit" ? "Update Branch" : "Save Branch"}
+                        </Button>
+                      </Space>
+                    </Col>
+                  </Row>
+                </div>
+              </Space>
+            </Col>
+
+            <Col xs={24} xl={10}>
+              <div
+                style={{
+                  position: "sticky",
+                  top: 18,
+                }}
+              >
+                <Space direction="vertical" size={18} style={{ width: "100%" }}>
+                  <Card
+                    style={pageStyles.mapCard}
+                    styles={{
+                      header: {
+                        padding: "0 18px",
+                        minHeight: 56,
+                      },
+                      body: {
+                        padding: 14,
+                      },
+                    }}
+                    title={
+                      <Space>
+                        <div
+                          style={{
+                            width: 30,
+                            height: 30,
+                            borderRadius: 9,
+                            background: "#eef4ff",
+                            color: "#2563eb",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                          }}
+                        >
+                          <EnvironmentOutlined />
+                        </div>
+
+                        <span>Assigned Allocation Preview</span>
+                      </Space>
+                    }
+                  >
+                    {selectedCoverageLocation ? (
+                      <>
+                        <div
+                          style={{
+                            marginBottom: 12,
+                            padding: "10px 12px",
+                            borderRadius: 12,
+                            background: "#f8fafc",
+                            border: "1px solid #e5eaf0",
+                          }}
+                        >
+                          <Text strong style={{ color: "#0f172a" }}>
+                            {selectedCoverageLocation.name}
+                          </Text>
+
+                          <Text
+                            type="secondary"
+                            style={{
+                              display: "block",
+                              marginTop: 3,
                             }}
                           >
-                            <Button icon={<UploadOutlined />}>
-                              Select File
-                            </Button>
-                          </Upload>
+                            Radius:{" "}
+                            {selectedCoverageLocation.coverage_radius_km} km
+                          </Text>
                         </div>
-                      </Col>
 
-                      <Col xs={24}>
-                        <Text type="secondary">Notes</Text>
-
-                        <Input.TextArea
-                          rows={2}
-                          style={{ marginTop: 6 }}
-                          value={document.notes}
-                          placeholder="Optional notes"
-                          onChange={(event) =>
-                            updateDocumentRow(document.uid, {
-                              notes: event.target.value,
-                            })
+                        <CoverageRadiusMap
+                          value={{
+                            latitude: selectedCoverageLocation.latitude,
+                            longitude: selectedCoverageLocation.longitude,
+                          }}
+                          radiusKm={
+                            selectedCoverageLocation.coverage_radius_km || 5
                           }
+                          existingLocations={[selectedCoverageLocation]}
+                          existingBranches={existingBranches}
+                          showBranches={false}
+                          height={340}
+                          clickable={false}
+                          showSearch={false}
+                          onChange={() => {}}
                         />
-                      </Col>
-                    </Row>
+                      </>
+                    ) : (
+                      <div
+                        style={{
+                          minHeight: 340,
+                          borderRadius: 16,
+                          border: "1px dashed #cbd5e1",
+                          background: "#f8fafc",
+                          display: "flex",
+                          flexDirection: "column",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          textAlign: "center",
+                          padding: 24,
+                        }}
+                      >
+                        <EnvironmentOutlined
+                          style={{
+                            fontSize: 34,
+                            color: "#94a3b8",
+                          }}
+                        />
+
+                        <Text
+                          strong
+                          style={{
+                            display: "block",
+                            marginTop: 12,
+                            color: "#475569",
+                          }}
+                        >
+                          No allocation selected
+                        </Text>
+
+                        <Text
+                          type="secondary"
+                          style={{
+                            display: "block",
+                            marginTop: 4,
+                          }}
+                        >
+                          Select an allocation to preview its coverage area.
+                        </Text>
+                      </div>
+                    )}
                   </Card>
-                ))}
 
-                <Button onClick={() => addDocumentRow("other")}>
-                  Add Other Document
-                </Button>
-              </Space>
+                  <Card
+                    style={pageStyles.mapCard}
+                    styles={{
+                      header: {
+                        padding: "0 18px",
+                        minHeight: 56,
+                      },
+                      body: {
+                        padding: 14,
+                      },
+                    }}
+                    title={
+                      <Space>
+                        <div
+                          style={{
+                            width: 30,
+                            height: 30,
+                            borderRadius: 9,
+                            background: "#ecfdf5",
+                            color: "#059669",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                          }}
+                        >
+                          <ShopOutlined />
+                        </div>
 
-              <Divider />
-
-              <Space style={{ width: "100%", justifyContent: "flex-end" }}>
-                <Button onClick={onCancel}>Cancel</Button>
-
-                <Button
-                  type="primary"
-                  icon={<SaveOutlined />}
-                  loading={loading}
-                  onClick={handleSubmit}
-                >
-                  {mode === "edit" ? "Update Branch" : "Save Branch"}
-                </Button>
-              </Space>
-            </Form>
-          </Card>
-        </Space>
-      </Col>
-
-      <Col xs={24} xl={14}>
-        <Space direction="vertical" size={16} style={{ width: "100%" }}>
-          <Card
-            title={
-              <Space>
-                <EnvironmentOutlined />
-                <span>Physical Office / Pickup Location</span>
-              </Space>
-            }
-          >
-            <CoverageRadiusMap
-              value={officeMapValue}
-              radiusKm={0.5}
-              showExisting={false}
-              showBranches={false}
-              onChange={onOfficeMapChange}
-            />
-          </Card>
-
-          <Card title="Assigned Allocation Preview">
-            <CoverageRadiusMap
-              value={
-                selectedCoverageLocation
-                  ? {
-                      latitude: selectedCoverageLocation.latitude,
-                      longitude: selectedCoverageLocation.longitude,
+                        <span>Physical Office Location</span>
+                      </Space>
                     }
-                  : {}
-              }
-              radiusKm={selectedCoverageLocation?.coverage_radius_km || 5}
-              existingLocations={
-                selectedCoverageLocation ? [selectedCoverageLocation] : []
-              }
-              existingBranches={existingBranches}
-              showBranches={false}
-              height={360}
-              clickable={false}
-              showSearch={false}
-              onChange={() => {}}
-            />
-          </Card>
-        </Space>
-      </Col>
-    </Row>
+                  >
+                    <Alert
+                      type="success"
+                      showIcon
+                      style={{
+                        marginBottom: 12,
+                        borderRadius: 12,
+                      }}
+                      message="Click on the map to set the office location"
+                    />
+
+                    <CoverageRadiusMap
+                      value={officeMapValue}
+                      radiusKm={0.5}
+                      showExisting={false}
+                      showBranches={false}
+                      height={420}
+                      onChange={onOfficeMapChange}
+                    />
+                  </Card>
+                </Space>
+              </div>
+            </Col>
+          </Row>
+        </Form>
+      </Space>
+    </div>
   );
 }
