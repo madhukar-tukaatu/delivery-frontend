@@ -3,48 +3,20 @@
 import dynamic from "next/dynamic";
 import { useEffect, useMemo, useState, useCallback } from "react";
 import {
-  Alert,
-  Button,
-  Card,
-  Col,
-  Descriptions,
-  Form,
-  Image,
-  Input,
-  Modal,
-  Row,
-  Select,
-  Space,
-  Table,
-  Tag,
-  Typography,
-  message,
-  Tooltip,
-  Divider,
+  Alert, Button, Card, Col, Form, Image, Input,
+  Modal, Row, Select, Space, Table, Tag, Tooltip, Typography, message,
 } from "antd";
 import {
-  ArrowLeftOutlined,
-  BankOutlined,
-  CheckCircleOutlined,
-  DownloadOutlined,
-  EnvironmentOutlined,
-  EyeOutlined,
-  FileDoneOutlined,
-  InfoCircleOutlined,
-  ShopOutlined,
-  StopOutlined,
-  CopyOutlined,
+  ArrowLeftOutlined, BankOutlined, CheckCircleOutlined,
+  CopyOutlined, DownloadOutlined, EnvironmentOutlined,
+  EyeOutlined, FileDoneOutlined, InfoCircleOutlined,
+  ShopOutlined, StopOutlined,
 } from "@ant-design/icons";
 import { useParams, useRouter } from "next/navigation";
-
 import {
-  approveMerchantApplication,
-  previewMerchantDocument,
-  downloadMerchantDocument,
-  getBranches,
-  getMerchantApplication,
-  rejectMerchantApplication,
-  requestMerchantMoreInfo,
+  approveMerchantApplication, previewMerchantDocument,
+  downloadMerchantDocument, getBranches, getMerchantApplication,
+  rejectMerchantApplication, requestMerchantMoreInfo,
 } from "@/services/adminMerchantApplicationService";
 
 const MerchantApplicationMap = dynamic(
@@ -52,979 +24,494 @@ const MerchantApplicationMap = dynamic(
   { ssr: false }
 );
 
+const { Text } = Typography;
 
-
-const { Title, Text } = Typography;
-
-const STATUS_COLORS = {
-  active: "green",
-  approved: "green",
-  rejected: "red",
-  pending: "blue",
-  pending_verification: "blue",
-  under_review: "blue",
-  more_info_required: "orange",
+const STATUS_CFG = {
+  active:               { bg: "#f0fdf4", color: "#15803d", label: "Active" },
+  approved:             { bg: "#f0fdf4", color: "#15803d", label: "Approved" },
+  rejected:             { bg: "#fef2f2", color: "#b91c1c", label: "Rejected" },
+  pending:              { bg: "#eff6ff", color: "#1d4ed8", label: "Pending" },
+  onboarding:           { bg: "#eff6ff", color: "#1d4ed8", label: "Onboarding" },
+  pending_verification: { bg: "#faf5ff", color: "#7c3aed", label: "Pending Verification" },
+  under_review:         { bg: "#ecfeff", color: "#0e7490", label: "Under Review" },
+  more_info_required:   { bg: "#fff7ed", color: "#c2410c", label: "Info Required" },
 };
 
-function getStatusColor(status) {
-  return STATUS_COLORS[String(status || "").toLowerCase()] || "default";
-}
-
-function formatValue(value) {
-  return value || "-";
-}
-
-function getFileExtension(name = "") {
-  return String(name).split(".").pop()?.toLowerCase() || "";
-}
-
-function isImageDocument(doc) {
-  const mime = String(doc?.mime_type || "").toLowerCase();
-  const ext = getFileExtension(doc?.original_name);
-
+function StatusPill({ status }) {
+  const norm = String(status || "").toLowerCase();
+  const cfg  = STATUS_CFG[norm] || { bg: "#f3f4f6", color: "#374151", label: status || "—" };
   return (
-    mime.startsWith("image/") ||
-    ["jpg", "jpeg", "png", "webp", "gif"].includes(ext)
+    <span style={{
+      display: "inline-flex", alignItems: "center", gap: 4,
+      padding: "2px 10px", borderRadius: 20, fontSize: 11, fontWeight: 600,
+      background: cfg.bg, color: cfg.color,
+    }}>
+      {cfg.label}
+    </span>
   );
 }
 
-function isPdfDocument(doc) {
-  const mime = String(doc?.mime_type || "").toLowerCase();
-  const ext = getFileExtension(doc?.original_name);
-
-  return mime === "application/pdf" || mime.includes("pdf") || ext === "pdf";
+function Field({ label, value, copy }) {
+  return (
+    <div style={{ marginBottom: 10 }}>
+      <div style={{ fontSize: 11, color: "#94a3b8", marginBottom: 2 }}>{label}</div>
+      <div style={{ fontSize: 13, color: "#1e293b", display: "flex", alignItems: "center", gap: 4 }}>
+        {value || <span style={{ color: "#cbd5e1" }}>—</span>}
+        {copy && value && (
+          <Tooltip title="Copy">
+            <CopyOutlined
+              style={{ fontSize: 11, color: "#94a3b8", cursor: "pointer" }}
+              onClick={() => { navigator.clipboard.writeText(value); message.success("Copied!"); }}
+            />
+          </Tooltip>
+        )}
+      </div>
+    </div>
+  );
 }
 
-function getBranchLabel(branch) {
-  if (!branch) return "-";
-  return [branch.name, branch.area, branch.city].filter(Boolean).join(", ");
+function SectionTitle({ icon, children }) {
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 12 }}>
+      <span style={{ color: "#6366f1", fontSize: 13 }}>{icon}</span>
+      <Text style={{ fontSize: 13, fontWeight: 600, color: "#0f172a" }}>{children}</Text>
+    </div>
+  );
 }
 
-const copyToClipboard = (text, label) => {
-  if (!text) return;
+function getBranchLabel(b) {
+  if (!b) return "—";
+  return [b.name, b.area, b.city].filter(Boolean).join(", ");
+}
 
-  navigator.clipboard.writeText(text);
-  message.success(`${label} copied!`);
-};
+function getFileExt(name = "") { return String(name).split(".").pop()?.toLowerCase() || ""; }
+function isImage(doc) {
+  const m = String(doc?.mime_type || "").toLowerCase();
+  return m.startsWith("image/") || ["jpg","jpeg","png","webp","gif"].includes(getFileExt(doc?.original_name));
+}
+function isPdf(doc) {
+  const m = String(doc?.mime_type || "").toLowerCase();
+  return m.includes("pdf") || getFileExt(doc?.original_name) === "pdf";
+}
 
-function DocumentImagePreview({ doc, onClick }) {
-  const [imageUrl, setImageUrl] = useState(null);
-  const [loading, setLoading] = useState(false);
+function DocThumb({ doc, onClick }) {
+  const [url, setUrl]       = useState(null);
+  const [busy, setBusy]     = useState(false);
   const [failed, setFailed] = useState(false);
 
   useEffect(() => {
-    let objectUrl = null;
-    let active = true;
+    if (!doc?.id || !isImage(doc)) return;
+    let obj = null; let active = true;
+    setBusy(true);
+    previewMerchantDocument(doc.id)
+      .then(blob => { obj = URL.createObjectURL(blob); if (active) setUrl(obj); })
+      .catch(() => { if (active) setFailed(true); })
+      .finally(() => { if (active) setBusy(false); });
+    return () => { active = false; if (obj) URL.revokeObjectURL(obj); };
+  }, [doc?.id]);
 
-    async function loadImage() {
-      if (!doc?.id || !isImageDocument(doc)) return;
+  const base = {
+    width: 44, height: 44, borderRadius: 6, border: "1px solid #e2e8f0",
+    display: "flex", alignItems: "center", justifyContent: "center",
+    cursor: "pointer", overflow: "hidden", flexShrink: 0,
+  };
 
-      try {
-        setLoading(true);
-        setFailed(false);
-
-        const blob = await previewMerchantDocument(doc.id);
-        objectUrl = URL.createObjectURL(blob);
-
-        if (active) {
-          setImageUrl(objectUrl);
-        }
-      } catch (error) {
-        console.error("Document image preview failed:", error);
-
-        if (active) {
-          setFailed(true);
-          setImageUrl(null);
-        }
-      } finally {
-        if (active) {
-          setLoading(false);
-        }
-      }
-    }
-
-    loadImage();
-
-    return () => {
-      active = false;
-
-      if (objectUrl) {
-        URL.revokeObjectURL(objectUrl);
-      }
-    };
-  }, [doc?.id, doc?.mime_type, doc?.original_name]);
-
-  if (loading) {
-    return (
-      <div
-        style={{
-          width: 64,
-          height: 64,
-          borderRadius: 8,
-          background: "#f5f5f5",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          fontSize: 11,
-          color: "#999",
-        }}
-      >
-        Loading
-      </div>
-    );
-  }
-
-  if (isImageDocument(doc) && imageUrl) {
-    return (
-      <button
-        type="button"
-        onClick={onClick}
-        style={{
-          width: 64,
-          height: 64,
-          border: "1px solid #e5e7eb",
-          borderRadius: 8,
-          padding: 0,
-          overflow: "hidden",
-          cursor: "pointer",
-          background: "#fff",
-        }}
-      >
-        <img
-          src={imageUrl}
-          alt={doc.original_name || doc.document_type}
-          style={{
-            width: "100%",
-            height: "100%",
-            objectFit: "cover",
-            display: "block",
-          }}
-        />
-      </button>
-    );
-  }
-
+  if (busy) return <div style={{ ...base, background: "#f8fafc", fontSize: 10, color: "#94a3b8" }}>…</div>;
+  if (isImage(doc) && url) return (
+    <button type="button" onClick={onClick} style={{ ...base, padding: 0, background: "#fff" }}>
+      <img src={url} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+    </button>
+  );
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      style={{
-        width: 64,
-        height: 64,
-        border: "1px solid #e5e7eb",
-        borderRadius: 8,
-        background: failed ? "#fff1f0" : "#f8fafc",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        cursor: "pointer",
-      }}
-    >
-      <FileDoneOutlined
-        style={{
-          fontSize: 24,
-          color: failed ? "#cf1322" : "#1890ff",
-        }}
-      />
+    <button type="button" onClick={onClick} style={{ ...base, background: failed ? "#fff1f0" : "#f8fafc" }}>
+      <FileDoneOutlined style={{ fontSize: 18, color: failed ? "#cf1322" : "#6366f1" }} />
     </button>
   );
 }
+
+const REQUIRED_DOCS = ["business_registration", "pan_vat", "owner_id", "bank_proof"];
 
 export default function AdminMerchantApplicationDetailPage() {
   const params = useParams();
   const router = useRouter();
 
-  const [merchant, setMerchant] = useState(null);
-  const [branches, setBranches] = useState([]);
-  const [loading, setLoading] = useState(false);
+  const [merchant, setMerchant]       = useState(null);
+  const [branches, setBranches]       = useState([]);
+  const [loading, setLoading]         = useState(false);
   const [pageLoading, setPageLoading] = useState(true);
 
-  const [previewOpen, setPreviewOpen] = useState(false);
-  const [previewDoc, setPreviewDoc] = useState(null);
-  const [previewUrl, setPreviewUrl] = useState(null);
+  const [previewOpen, setPreviewOpen]       = useState(false);
+  const [previewDoc, setPreviewDoc]         = useState(null);
+  const [previewUrl, setPreviewUrl]         = useState(null);
   const [previewLoading, setPreviewLoading] = useState(false);
 
-  const [rejectModalOpen, setRejectModalOpen] = useState(false);
-  const [moreInfoModalOpen, setMoreInfoModalOpen] = useState(false);
+  const [rejectOpen, setRejectOpen]     = useState(false);
+  const [moreInfoOpen, setMoreInfoOpen] = useState(false);
 
-  const [form] = Form.useForm();
-  const [rejectForm] = Form.useForm();
+  const [form]         = Form.useForm();
+  const [rejectForm]   = Form.useForm();
   const [moreInfoForm] = Form.useForm();
 
-  const cleanPreviewUrl = useCallback(() => {
-    if (previewUrl) {
-      URL.revokeObjectURL(previewUrl);
-      setPreviewUrl(null);
-    }
+  const cleanPreview = useCallback(() => {
+    if (previewUrl) { URL.revokeObjectURL(previewUrl); setPreviewUrl(null); }
   }, [previewUrl]);
 
   const load = useCallback(async () => {
     try {
       setPageLoading(true);
-
-      const [merchantData, branchRows] = await Promise.all([
-        getMerchantApplication(params.id),
-        getBranches(),
-      ]);
-
-      setMerchant(merchantData);
-      setBranches(branchRows || []);
-
+      const [m, b] = await Promise.all([getMerchantApplication(params.id), getBranches()]);
+      setMerchant(m);
+      setBranches(b || []);
       form.setFieldsValue({
-        branch_id:
-          merchantData?.default_branch_id ||
-          merchantData?.suggested_branch_id ||
-          undefined,
-        sub_branch_id:
-          merchantData?.default_sub_branch_id ||
-          merchantData?.suggested_sub_branch_id ||
-          undefined,
+        branch_id:     m?.default_branch_id     || m?.suggested_branch_id     || undefined,
+        sub_branch_id: m?.default_sub_branch_id || m?.suggested_sub_branch_id || undefined,
       });
-    } catch (error) {
-      console.error("Could not load merchant application:", error);
-      message.error("Could not load merchant application.");
-    } finally {
-      setPageLoading(false);
-    }
+    } catch { message.error("Could not load merchant application."); }
+    finally { setPageLoading(false); }
   }, [params.id, form]);
 
-  useEffect(() => {
-    load();
-  }, [load]);
-
-  useEffect(() => {
-    return () => {
-      if (previewUrl) {
-        URL.revokeObjectURL(previewUrl);
-      }
-    };
-  }, [previewUrl]);
+  useEffect(() => { load(); }, [load]);
+  useEffect(() => () => { if (previewUrl) URL.revokeObjectURL(previewUrl); }, [previewUrl]);
 
   const selectedBranchId = Form.useWatch("branch_id", form);
 
-  const branchOptions = useMemo(() => {
-    return branches
-      .filter((branch) => {
-        const type = String(branch.type || "").toLowerCase();
-        return type === "branch" || type === "main_branch" || !branch.parent_id;
+  const branchOptions = useMemo(() =>
+    branches
+      .filter(b => { const t = String(b.type||"").toLowerCase(); return t==="branch"||t==="main_branch"||!b.parent_id; })
+      .map(b => ({ value: b.id, label: getBranchLabel(b) })),
+  [branches]);
+
+  const subBranchOptions = useMemo(() =>
+    branches
+      .filter(b => {
+        const t = String(b.type||"").toLowerCase();
+        if (t && t !== "sub_branch") return false;
+        return selectedBranchId ? Number(b.parent_id) === Number(selectedBranchId) : (t==="sub_branch"||b.parent_id);
       })
-      .map((branch) => ({
-        value: branch.id,
-        label: getBranchLabel(branch),
-      }));
-  }, [branches]);
+      .map(b => ({ value: b.id, label: getBranchLabel(b) })),
+  [branches, selectedBranchId]);
 
-  const subBranchOptions = useMemo(() => {
-    return branches
-      .filter((branch) => {
-        const type = String(branch.type || "").toLowerCase();
+  const uploadedTypes  = useMemo(() => new Set((merchant?.documents||[]).map(d => d.document_type)), [merchant]);
+  const missingDocs    = REQUIRED_DOCS.filter(t => !uploadedTypes.has(t));
+  const canApprove     = missingDocs.length === 0 && merchant?.status !== "active" && merchant?.status !== "approved";
 
-        if (type && type !== "sub_branch") return false;
-
-        if (selectedBranchId) {
-          return Number(branch.parent_id) === Number(selectedBranchId);
-        }
-
-        return type === "sub_branch" || branch.parent_id;
-      })
-      .map((branch) => ({
-        value: branch.id,
-        label: getBranchLabel(branch),
-      }));
-  }, [branches, selectedBranchId]);
-
-  const requiredDocuments = [
-    "business_registration",
-    "pan_vat",
-    "owner_id",
-    "bank_proof",
-  ];
-
-  const uploadedTypes = useMemo(() => {
-    return new Set((merchant?.documents || []).map((doc) => doc.document_type));
-  }, [merchant]);
-
-  const missingDocuments = requiredDocuments.filter(
-    (type) => !uploadedTypes.has(type)
-  );
-
-  const canApprove =
-    missingDocuments.length === 0 &&
-    merchant?.status !== "active" &&
-    merchant?.status !== "approved";
-
-  const openDocument = async (doc) => {
+  const openDoc = async (doc) => {
     if (!doc?.id) return;
-
     try {
-      setPreviewLoading(true);
-      setPreviewDoc(doc);
-      cleanPreviewUrl();
-
+      setPreviewLoading(true); setPreviewDoc(doc); cleanPreview();
       const blob = await previewMerchantDocument(doc.id);
-      const objectUrl = URL.createObjectURL(blob);
-
-      setPreviewUrl(objectUrl);
+      setPreviewUrl(URL.createObjectURL(blob));
       setPreviewOpen(true);
-    } catch (error) {
-      console.error("Could not load document preview:", error);
-      message.error("Could not load document preview.");
-    } finally {
-      setPreviewLoading(false);
-    }
+    } catch { message.error("Could not load preview."); }
+    finally { setPreviewLoading(false); }
   };
 
-  const downloadDocument = async (doc) => {
+  const downloadDoc = async (doc) => {
     if (!doc?.id) return;
-
     try {
       const blob = await downloadMerchantDocument(doc.id);
-      const objectUrl = URL.createObjectURL(blob);
-
-      const link = document.createElement("a");
-      link.href = objectUrl;
-      link.download = doc.original_name || `${doc.document_type}.pdf`;
-
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-
-      URL.revokeObjectURL(objectUrl);
-    } catch (error) {
-      console.error("Could not download document:", error);
-      message.error("Could not download document.");
-    }
+      const url  = URL.createObjectURL(blob);
+      const a    = document.createElement("a");
+      a.href = url; a.download = doc.original_name || `${doc.document_type}.pdf`;
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch { message.error("Could not download document."); }
   };
-
-  const closePreviewModal = () => {
-    setPreviewOpen(false);
-    cleanPreviewUrl();
-  };
-
-  const documentColumns = [
-    {
-      title: "Preview",
-      key: "preview",
-      width: 90,
-      render: (_, doc) => (
-        <DocumentImagePreview doc={doc} onClick={() => openDocument(doc)} />
-      ),
-    },
-    {
-      title: "Document",
-      dataIndex: "document_type",
-      key: "document_type",
-      render: (value) => (
-        <Space direction="vertical" size={0}>
-          <Text strong>
-            {String(value || "")
-              .replaceAll("_", " ")
-              .replace(/\b\w/g, (char) => char.toUpperCase())}
-          </Text>
-
-          <Text type="secondary" style={{ fontSize: 12 }}>
-            {value}
-          </Text>
-        </Space>
-      ),
-    },
-    {
-      title: "File",
-      dataIndex: "original_name",
-      key: "original_name",
-      render: (value, row) => (
-        <Space direction="vertical" size={0}>
-          <Text ellipsis style={{ maxWidth: 280 }}>
-            {value || "-"}
-          </Text>
-
-          {row.mime_type && (
-            <Text type="secondary" style={{ fontSize: 11 }}>
-              {row.mime_type}
-            </Text>
-          )}
-        </Space>
-      ),
-    },
-    {
-      title: "Status",
-      dataIndex: "status",
-      key: "status",
-      width: 130,
-      render: (value) => (
-        <Tag color={getStatusColor(value)}>{value || "pending"}</Tag>
-      ),
-    },
-    {
-      title: "Actions",
-      key: "actions",
-      width: 180,
-      render: (_, row) => (
-        <Space>
-          <Tooltip title="Preview">
-            <Button
-              size="small"
-              icon={<EyeOutlined />}
-              loading={previewLoading && previewDoc?.id === row.id}
-              onClick={() => openDocument(row)}
-            />
-          </Tooltip>
-
-          <Tooltip title="Download">
-            <Button
-              size="small"
-              icon={<DownloadOutlined />}
-              onClick={() => downloadDocument(row)}
-            />
-          </Tooltip>
-        </Space>
-      ),
-    },
-  ];
 
   const handleApprove = async () => {
     try {
       const values = await form.validateFields();
-
       setLoading(true);
-
       await approveMerchantApplication(params.id, values);
-
-      message.success("Merchant approved and activated successfully.");
+      message.success("Merchant approved and activated.");
       await load();
-    } catch (error) {
-      if (error?.errorFields) return;
-
-      message.error(
-        error?.response?.data?.message || "Could not approve merchant."
-      );
-    } finally {
-      setLoading(false);
-    }
+    } catch (e) {
+      if (e?.errorFields) return;
+      message.error(e?.response?.data?.message || "Could not approve merchant.");
+    } finally { setLoading(false); }
   };
 
   const submitReject = async () => {
     try {
-      const values = await rejectForm.validateFields();
-
+      const { reason } = await rejectForm.validateFields();
       setLoading(true);
-
-      await rejectMerchantApplication(params.id, values.reason);
-
-      message.success("Merchant application has been rejected.");
-      setRejectModalOpen(false);
-      rejectForm.resetFields();
-      await load();
-    } catch (error) {
-      if (error?.errorFields) return;
-
-      message.error(
-        error?.response?.data?.message || "Could not reject merchant."
-      );
-    } finally {
-      setLoading(false);
-    }
+      await rejectMerchantApplication(params.id, reason);
+      message.success("Application rejected.");
+      setRejectOpen(false); rejectForm.resetFields(); await load();
+    } catch (e) {
+      if (e?.errorFields) return;
+      message.error(e?.response?.data?.message || "Could not reject.");
+    } finally { setLoading(false); }
   };
 
   const submitMoreInfo = async () => {
     try {
-      const values = await moreInfoForm.validateFields();
-
+      const { msg } = await moreInfoForm.validateFields();
       setLoading(true);
-
-      await requestMerchantMoreInfo(params.id, values.message);
-
-      message.success("Information request sent to merchant.");
-      setMoreInfoModalOpen(false);
-      moreInfoForm.resetFields();
-      await load();
-    } catch (error) {
-      if (error?.errorFields) return;
-
-      message.error(
-        error?.response?.data?.message || "Could not request more information."
-      );
-    } finally {
-      setLoading(false);
-    }
+      await requestMerchantMoreInfo(params.id, msg);
+      message.success("Information request sent.");
+      setMoreInfoOpen(false); moreInfoForm.resetFields(); await load();
+    } catch (e) {
+      if (e?.errorFields) return;
+      message.error(e?.response?.data?.message || "Could not send request.");
+    } finally { setLoading(false); }
   };
 
-  if (pageLoading) {
-    return <Card loading style={{ minHeight: "80vh" }} />;
-  }
+  if (pageLoading) return <Card loading style={{ minHeight: 400 }} />;
+  if (!merchant)   return <Card><Alert type="error" message="Application not found." showIcon /></Card>;
 
-  if (!merchant) {
-    return (
-      <Card>
-        <Alert type="error" message="Merchant application not found." showIcon />
-      </Card>
-    );
-  }
+  const docColumns = [
+    {
+      key: "thumb", width: 56,
+      render: (_, doc) => <DocThumb doc={doc} onClick={() => openDoc(doc)} />,
+    },
+    {
+      title: "Document", key: "doc",
+      render: (_, doc) => (
+        <div>
+          <div style={{ fontSize: 12, fontWeight: 600, color: "#1e293b" }}>
+            {String(doc.document_type||"").replace(/_/g," ").replace(/\b\w/g,c=>c.toUpperCase())}
+          </div>
+          <div style={{ fontSize: 11, color: "#94a3b8" }}>{doc.original_name || "—"}</div>
+        </div>
+      ),
+    },
+    {
+      title: "Type", dataIndex: "mime_type", width: 110,
+      render: v => <Text style={{ fontSize: 11, color: "#94a3b8" }}>{v || "—"}</Text>,
+    },
+    {
+      title: "Status", dataIndex: "status", width: 100,
+      render: v => <StatusPill status={v || "pending"} />,
+    },
+    {
+      key: "actions", width: 72, align: "center",
+      render: (_, doc) => (
+        <Space size={4}>
+          <Tooltip title="Preview">
+            <Button type="text" size="small" icon={<EyeOutlined />}
+              loading={previewLoading && previewDoc?.id === doc.id}
+              onClick={() => openDoc(doc)} style={{ color: "#6366f1" }} />
+          </Tooltip>
+          <Tooltip title="Download">
+            <Button type="text" size="small" icon={<DownloadOutlined />}
+              onClick={() => downloadDoc(doc)} style={{ color: "#64748b" }} />
+          </Tooltip>
+        </Space>
+      ),
+    },
+  ];
 
   return (
-    <Space direction="vertical" size={24} style={{ width: "100%" }}>
-      <Card bordered={false}>
-        <Row justify="space-between" align="middle" gutter={[16, 16]}>
-          <Col xs={24} md={16}>
-            <Space direction="vertical" size={8}>
-              <Button
-                icon={<ArrowLeftOutlined />}
-                onClick={() => router.back()}
-                type="text"
-              >
-                Back to Applications
-              </Button>
+    <Space direction="vertical" size={12} style={{ width: "100%" }}>
 
-              <Title level={3} style={{ margin: 0 }}>
-                {merchant.name}
-
-                {merchant.merchant_id && (
-                  <Text type="secondary" style={{ marginLeft: 12 }}>
-                    #{merchant.merchant_id}
+      {/* ── Sticky action bar ── */}
+      <Card bordered={false} styles={{ body: { padding: "10px 16px" } }}>
+        <Row justify="space-between" align="middle" gutter={[8, 8]}>
+          <Col>
+            <Space size={10} align="center">
+              <Button type="text" size="small" icon={<ArrowLeftOutlined />}
+                onClick={() => router.back()} style={{ color: "#64748b", padding: "0 4px" }} />
+              <div>
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <Text style={{ fontSize: 15, fontWeight: 700, color: "#0f172a" }}>{merchant.name}</Text>
+                  {merchant.merchant_id && <Text style={{ fontSize: 12, color: "#94a3b8" }}>#{merchant.merchant_id}</Text>}
+                  <StatusPill status={merchant.status} />
+                  {merchant.verification_status && (
+                    <StatusPill status={merchant.verification_status} />
+                  )}
+                </div>
+                {merchant.default_branch && (
+                  <Text style={{ fontSize: 11, color: "#94a3b8" }}>
+                    Branch: {merchant.default_branch.name}
                   </Text>
                 )}
-              </Title>
-
-              <Space wrap>
-                <Tag
-                  color={getStatusColor(merchant.status)}
-                  style={{ fontSize: 14, padding: "4px 12px" }}
-                >
-                  {merchant.status?.toUpperCase()}
-                </Tag>
-
-                <Tag color={getStatusColor(merchant.verification_status)}>
-                  Verification: {merchant.verification_status || "unverified"}
-                </Tag>
-
-                {merchant.default_branch && (
-                  <Tag color="cyan">Hub: {merchant.default_branch.name}</Tag>
-                )}
-              </Space>
+              </div>
             </Space>
           </Col>
-
-          <Col xs={24} md={8} style={{ textAlign: "right" }}>
-            <Space wrap>
-              <Button
-                onClick={() => setMoreInfoModalOpen(true)}
-                icon={<InfoCircleOutlined />}
-              >
+          <Col>
+            <Space size={6}>
+              <Button size="small" icon={<InfoCircleOutlined />} onClick={() => setMoreInfoOpen(true)}>
                 Request Info
               </Button>
-
-              <Button
-                danger
-                icon={<StopOutlined />}
-                onClick={() => setRejectModalOpen(true)}
-              >
+              <Button size="small" danger icon={<StopOutlined />} onClick={() => setRejectOpen(true)}>
                 Reject
               </Button>
-
-              <Button
-                type="primary"
-                icon={<CheckCircleOutlined />}
-                loading={loading}
-                disabled={!canApprove}
-                onClick={handleApprove}
-                size="large"
-              >
+              <Button size="small" type="primary" icon={<CheckCircleOutlined />}
+                loading={loading} disabled={!canApprove} onClick={handleApprove}>
                 Approve & Activate
               </Button>
             </Space>
           </Col>
         </Row>
 
+        {/* Inline alerts */}
         {merchant.more_info_message && (
-          <Alert
-            style={{ marginTop: 16 }}
-            type="warning"
-            showIcon
-            message="More Information Requested"
-            description={merchant.more_info_message}
-          />
+          <Alert type="warning" showIcon message={merchant.more_info_message} style={{ marginTop: 8 }} banner />
         )}
-
         {merchant.rejected_reason && (
-          <Alert
-            style={{ marginTop: 16 }}
-            type="error"
-            showIcon
-            message="Application Rejected"
-            description={merchant.rejected_reason}
-          />
+          <Alert type="error" showIcon message={merchant.rejected_reason} style={{ marginTop: 8 }} banner />
         )}
-
-        {missingDocuments.length > 0 && (
-          <Alert
-            style={{ marginTop: 16 }}
-            type="warning"
-            showIcon
-            message="Missing Mandatory Documents"
-            description={`Please upload: ${missingDocuments
-              .join(", ")
-              .replaceAll("_", " ")}`}
-          />
+        {missingDocs.length > 0 && (
+          <Alert type="warning" showIcon banner style={{ marginTop: 8 }}
+            message={`Missing docs: ${missingDocs.map(d => d.replace(/_/g," ")).join(", ")}`} />
         )}
       </Card>
 
-      <Row gutter={[24, 24]}>
+      {/* ── Business + Banking ── */}
+      <Row gutter={12}>
         <Col xs={24} lg={14}>
-          <Card
-            title={
-              <Space>
-                <ShopOutlined /> Business Profile
-              </Space>
-            }
-            bordered={false}
-          >
-            <Descriptions bordered column={1} size="middle">
-              <Descriptions.Item label="Legal Name">
-                {formatValue(merchant.name)}
-              </Descriptions.Item>
-
-              <Descriptions.Item label="Owner">
-                {formatValue(merchant.owner_name)}
-              </Descriptions.Item>
-
-              <Descriptions.Item label="Contact Person">
-                {formatValue(merchant.contact_person)}
-              </Descriptions.Item>
-
-              <Descriptions.Item label="Email">
-                <Space>
-                  {formatValue(merchant.email)}
-
-                  {merchant.email && (
-                    <Tooltip title="Copy Email">
-                      <Button
-                        type="text"
-                        size="small"
-                        icon={<CopyOutlined />}
-                        onClick={() => copyToClipboard(merchant.email, "Email")}
-                      />
-                    </Tooltip>
-                  )}
-                </Space>
-              </Descriptions.Item>
-
-              <Descriptions.Item label="Phone">
-                <Space>
-                  {formatValue(merchant.phone)}
-
-                  {merchant.phone && (
-                    <Tooltip title="Copy Phone">
-                      <Button
-                        type="text"
-                        size="small"
-                        icon={<CopyOutlined />}
-                        onClick={() => copyToClipboard(merchant.phone, "Phone")}
-                      />
-                    </Tooltip>
-                  )}
-                </Space>
-              </Descriptions.Item>
-
-              <Descriptions.Item label="Business Type">
-                {formatValue(merchant.business_type)}
-              </Descriptions.Item>
-
-              <Descriptions.Item label="PAN / VAT">
-                {formatValue(merchant.pan_vat_number)}
-              </Descriptions.Item>
-
-              <Descriptions.Item label="Address">
-                {formatValue(merchant.address)}
-              </Descriptions.Item>
-            </Descriptions>
+          <Card bordered={false} styles={{ body: { padding: "14px 16px" } }}>
+            <SectionTitle icon={<ShopOutlined />}>Business Profile</SectionTitle>
+            <Row gutter={[16, 0]}>
+              <Col span={12}><Field label="Legal Name"     value={merchant.name} /></Col>
+              <Col span={12}><Field label="Owner"          value={merchant.owner_name} /></Col>
+              <Col span={12}><Field label="Contact Person" value={merchant.contact_person} /></Col>
+              <Col span={12}><Field label="Business Type"  value={merchant.business_type} /></Col>
+              <Col span={12}><Field label="Email"  value={merchant.email}  copy /></Col>
+              <Col span={12}><Field label="Phone"  value={merchant.phone}  copy /></Col>
+              <Col span={12}><Field label="PAN / VAT" value={merchant.pan_vat_number} /></Col>
+              <Col span={12}><Field label="Address"   value={merchant.address} /></Col>
+            </Row>
           </Card>
         </Col>
-
         <Col xs={24} lg={10}>
-          <Card
-            title={
-              <Space>
-                <BankOutlined /> Banking Details
-              </Space>
-            }
-            bordered={false}
-            style={{ height: "100%" }}
-          >
-            <Descriptions bordered column={1} size="middle">
-              <Descriptions.Item label="Bank Name">
-                {formatValue(merchant.bank_name)}
-              </Descriptions.Item>
-
-              <Descriptions.Item label="Account Name">
-                {formatValue(merchant.bank_account_name)}
-              </Descriptions.Item>
-
-              <Descriptions.Item label="Account Number">
-                {formatValue(merchant.bank_account_number)}
-              </Descriptions.Item>
-
-              <Descriptions.Item label="Branch">
-                {formatValue(merchant.bank_branch)}
-              </Descriptions.Item>
-            </Descriptions>
+          <Card bordered={false} styles={{ body: { padding: "14px 16px" } }} style={{ height: "100%" }}>
+            <SectionTitle icon={<BankOutlined />}>Banking Details</SectionTitle>
+            <Field label="Bank Name"       value={merchant.bank_name} />
+            <Field label="Account Name"    value={merchant.bank_account_name} />
+            <Field label="Account Number"  value={merchant.bank_account_number} copy />
+            <Field label="Bank Branch"     value={merchant.bank_branch} />
           </Card>
         </Col>
       </Row>
 
-      <Card
-        title={
-          <Space>
-            <EnvironmentOutlined /> Logistics & Dispatch Hub
-          </Space>
-        }
-        bordered={false}
-      >
-        <Row gutter={[24, 24]}>
-          <Col xs={24} lg={10}>
-            <Descriptions bordered column={1} size="middle">
-              <Descriptions.Item label="Pickup Address">
-                {formatValue(
-                  merchant.pickup_location?.address || merchant.pickup_address
-                )}
-              </Descriptions.Item>
-
-              <Descriptions.Item label="Coordinates">
-                {merchant.pickup_location?.latitude
-                  ? `${merchant.pickup_location.latitude}, ${merchant.pickup_location.longitude}`
-                  : "-"}
-              </Descriptions.Item>
-
-              <Descriptions.Item label="Suggested Branch">
-                {getBranchLabel(merchant.suggested_branch)}
-              </Descriptions.Item>
-
-              <Descriptions.Item label="Suggested Sub-Branch">
-                {getBranchLabel(merchant.suggested_sub_branch)}
-              </Descriptions.Item>
-            </Descriptions>
+      {/* ── Logistics + Map ── */}
+      <Card bordered={false} styles={{ body: { padding: "14px 16px" } }}>
+        <SectionTitle icon={<EnvironmentOutlined />}>Logistics & Dispatch Hub</SectionTitle>
+        <Row gutter={12}>
+          <Col xs={24} lg={8}>
+            <Field label="Pickup Address"
+              value={merchant.pickup_location?.address || merchant.pickup_address} />
+            <Field label="Coordinates"
+              value={merchant.pickup_location?.latitude
+                ? `${merchant.pickup_location.latitude}, ${merchant.pickup_location.longitude}`
+                : null} />
+            <Field label="Suggested Branch"     value={getBranchLabel(merchant.suggested_branch)} />
+            <Field label="Suggested Sub-Branch" value={getBranchLabel(merchant.suggested_sub_branch)} />
           </Col>
-
-          <Col xs={24} lg={14} style={{ minHeight: 380 }}>
+          <Col xs={24} lg={16} style={{ minHeight: 280 }}>
             <MerchantApplicationMap
-              merchant={merchant}
-              branches={branches}
-              showMerchantPin={true}
-              showBranchPins={true}
+              merchant={merchant} branches={branches}
+              showMerchantPin showBranchPins
             />
           </Col>
         </Row>
       </Card>
 
-      <Card
-        title={
-          <Space>
-            <FileDoneOutlined /> KYC Documents
-          </Space>
-        }
-        bordered={false}
-        extra={
-          <Text type="secondary">
-            {merchant.documents?.length || 0} documents uploaded
-          </Text>
-        }
-      >
-        <Alert
-          type="info"
-          showIcon
-          style={{ marginBottom: 16 }}
-          message="Document preview"
-          description="Image documents are loaded securely from private storage and shown as thumbnails below. Click a thumbnail or preview icon to open the full document."
-        />
-
-        <Table
-          rowKey="id"
-          columns={documentColumns}
-          dataSource={merchant.documents || []}
-          pagination={false}
-          scroll={{ x: true }}
-        />
-      </Card>
-
-      <Card title="Branch & Sub-Branch Assignment" bordered={false}>
-        <Alert
-          type="info"
-          showIcon
-          message="Permanent Routing Configuration"
-          description="This assignment will be locked after approval."
-          style={{ marginBottom: 20 }}
-        />
-
-        <Form form={form} layout="vertical">
-          <Row gutter={24}>
+      {/* ── Branch assignment ── */}
+      <Card bordered={false} styles={{ body: { padding: "14px 16px" } }}>
+        <Row justify="space-between" align="middle" style={{ marginBottom: 10 }}>
+          <SectionTitle icon={<EnvironmentOutlined />}>Branch Assignment</SectionTitle>
+          <Text style={{ fontSize: 11, color: "#94a3b8" }}>Locked after approval</Text>
+        </Row>
+        <Form form={form} layout="vertical" size="small">
+          <Row gutter={12}>
             <Col xs={24} md={12}>
-              <Form.Item
-                name="branch_id"
-                label="Primary Branch"
-                rules={[
-                  { required: true, message: "Primary branch is required" },
-                ]}
-              >
-                <Select
-                  showSearch
-                  options={branchOptions}
-                  optionFilterProp="label"
+              <Form.Item name="branch_id" label="Primary Branch"
+                rules={[{ required: true, message: "Required" }]} style={{ marginBottom: 0 }}>
+                <Select showSearch options={branchOptions} optionFilterProp="label"
                   placeholder="Select primary branch"
-                  onChange={() =>
-                    form.setFieldsValue({ sub_branch_id: undefined })
-                  }
-                />
+                  onChange={() => form.setFieldsValue({ sub_branch_id: undefined })} />
               </Form.Item>
             </Col>
-
             <Col xs={24} md={12}>
-              <Form.Item name="sub_branch_id" label="Sub-Branch (Optional)">
-                <Select
-                  allowClear
-                  showSearch
-                  options={subBranchOptions}
-                  optionFilterProp="label"
-                  placeholder="Select sub-branch"
-                />
+              <Form.Item name="sub_branch_id" label="Sub-Branch (optional)" style={{ marginBottom: 0 }}>
+                <Select allowClear showSearch options={subBranchOptions}
+                  optionFilterProp="label" placeholder="Select sub-branch" />
               </Form.Item>
             </Col>
           </Row>
         </Form>
-
-        <Divider />
-
-        <Space>
-          <Button
-            type="primary"
-            icon={<CheckCircleOutlined />}
-            loading={loading}
-            disabled={!canApprove}
-            onClick={handleApprove}
-          >
-            Approve & Activate
-          </Button>
-
-          <Button onClick={() => setMoreInfoModalOpen(true)}>
-            Request More Info
-          </Button>
-
-          <Button danger onClick={() => setRejectModalOpen(true)}>
-            Reject Application
-          </Button>
-        </Space>
       </Card>
 
-      <Modal
+      {/* ── KYC Documents ── */}
+      <Card
+        bordered={false}
+        styles={{ body: { padding: 0 } }}
         title={
-          <Space direction="vertical" size={0}>
-            <Text strong>{previewDoc?.original_name || "Document Preview"}</Text>
-            <Text type="secondary" style={{ fontSize: 12 }}>
-              {previewDoc?.document_type} · {previewDoc?.mime_type}
-            </Text>
+          <Space size={6} style={{ fontSize: 13 }}>
+            <FileDoneOutlined style={{ color: "#6366f1" }} />
+            <Text style={{ fontSize: 13, fontWeight: 600 }}>KYC Documents</Text>
+            <Tag style={{ fontSize: 11 }}>{merchant.documents?.length || 0} uploaded</Tag>
           </Space>
         }
+      >
+        <Table
+          rowKey="id"
+          size="small"
+          columns={docColumns}
+          dataSource={merchant.documents || []}
+          pagination={false}
+          scroll={{ x: 600 }}
+          locale={{ emptyText: <Text type="secondary" style={{ fontSize: 12 }}>No documents uploaded</Text> }}
+        />
+      </Card>
+
+      {/* ── Document preview modal ── */}
+      <Modal
         open={previewOpen}
-        onCancel={closePreviewModal}
-        footer={[
-          <Button key="close" onClick={closePreviewModal}>
-            Close
-          </Button>,
-          <Button
-            key="download"
-            type="primary"
-            icon={<DownloadOutlined />}
-            onClick={() => downloadDocument(previewDoc)}
-          >
-            Download
-          </Button>,
-        ]}
-        width={1000}
-        destroyOnClose
-      >
-        {previewLoading || !previewUrl ? (
-          <Card loading />
-        ) : isImageDocument(previewDoc) ? (
-          <div
-            style={{
-              background: "#111",
-              padding: 16,
-              borderRadius: 12,
-              textAlign: "center",
-            }}
-          >
-            <Image
-              src={previewUrl}
-              alt={previewDoc?.original_name || "Document"}
-              style={{
-                width: "100%",
-                maxHeight: "75vh",
-                objectFit: "contain",
-              }}
-              preview={false}
-            />
+        onCancel={() => { setPreviewOpen(false); cleanPreview(); }}
+        title={
+          <div>
+            <div style={{ fontSize: 13, fontWeight: 600 }}>{previewDoc?.original_name || "Document Preview"}</div>
+            <div style={{ fontSize: 11, color: "#94a3b8" }}>{previewDoc?.document_type} · {previewDoc?.mime_type}</div>
           </div>
-        ) : isPdfDocument(previewDoc) ? (
-          <iframe
-            src={previewUrl}
-            title="PDF Preview"
-            style={{
-              width: "100%",
-              height: "75vh",
-              border: "none",
-            }}
-          />
-        ) : (
-          <Alert
-            type="info"
-            message="Preview not available"
-            description="Download the file to view."
-          />
-        )}
+        }
+        footer={[
+          <Button key="close" size="small" onClick={() => { setPreviewOpen(false); cleanPreview(); }}>Close</Button>,
+          <Button key="dl" size="small" type="primary" icon={<DownloadOutlined />}
+            onClick={() => downloadDoc(previewDoc)}>Download</Button>,
+        ]}
+        width={900} destroyOnClose
+      >
+        {previewLoading || !previewUrl ? <Card loading /> :
+          isImage(previewDoc) ? (
+            <div style={{ background: "#111", padding: 12, borderRadius: 8, textAlign: "center" }}>
+              <Image src={previewUrl} alt="" style={{ maxHeight: "70vh", objectFit: "contain" }} preview={false} />
+            </div>
+          ) : isPdf(previewDoc) ? (
+            <iframe src={previewUrl} title="PDF" style={{ width: "100%", height: "70vh", border: "none" }} />
+          ) : (
+            <Alert type="info" message="Preview not available — download to view." />
+          )
+        }
       </Modal>
 
-      <Modal
-        title="Reject Application"
-        open={rejectModalOpen}
-        onCancel={() => setRejectModalOpen(false)}
-        onOk={submitReject}
-        confirmLoading={loading}
-        okText="Confirm Rejection"
-        okButtonProps={{ danger: true }}
-      >
-        <Form form={rejectForm} layout="vertical">
-          <Form.Item
-            name="reason"
-            label="Rejection Reason"
-            rules={[{ required: true, message: "Please provide a reason" }]}
-          >
-            <Input.TextArea
-              rows={5}
-              placeholder="Provide detailed reason for rejection..."
-            />
+      {/* ── Reject modal ── */}
+      <Modal title="Reject Application" open={rejectOpen}
+        onCancel={() => setRejectOpen(false)} onOk={submitReject}
+        confirmLoading={loading} okText="Confirm Rejection" okButtonProps={{ danger: true }}>
+        <Form form={rejectForm} layout="vertical" size="small">
+          <Form.Item name="reason" label="Reason"
+            rules={[{ required: true, message: "Please provide a reason" }]}>
+            <Input.TextArea rows={4} placeholder="Detailed reason for rejection…" />
           </Form.Item>
         </Form>
       </Modal>
 
-      <Modal
-        title="Request More Information"
-        open={moreInfoModalOpen}
-        onCancel={() => setMoreInfoModalOpen(false)}
-        onOk={submitMoreInfo}
-        confirmLoading={loading}
-        okText="Send Request"
-      >
-        <Form form={moreInfoForm} layout="vertical">
-          <Form.Item
-            name="message"
-            label="Message to Merchant"
-            rules={[{ required: true, message: "Please enter your request" }]}
-          >
-            <Input.TextArea
-              rows={5}
-              placeholder="Specify which documents or details need correction..."
-            />
+      {/* ── More info modal ── */}
+      <Modal title="Request More Information" open={moreInfoOpen}
+        onCancel={() => setMoreInfoOpen(false)} onOk={submitMoreInfo}
+        confirmLoading={loading} okText="Send Request">
+        <Form form={moreInfoForm} layout="vertical" size="small">
+          <Form.Item name="msg" label="Message to Merchant"
+            rules={[{ required: true, message: "Please enter your message" }]}>
+            <Input.TextArea rows={4} placeholder="Specify what needs correction or clarification…" />
           </Form.Item>
         </Form>
       </Modal>
+
     </Space>
   );
 }
