@@ -9,7 +9,12 @@ export async function registerMerchant(formData) {
 
 export async function getMerchantApplications(params = {}) {
   const res = await api.get('/admin/merchant-applications', { params });
-  return res.data.data || res.data;
+  const payload = res.data?.data || res.data;
+  // paginated: { data: [...], total, per_page, ... }
+  if (Array.isArray(payload?.data)) {
+    return { list: payload.data, total: payload.total, per_page: payload.per_page };
+  }
+  return { list: Array.isArray(payload) ? payload : [], total: 0, per_page: 20 };
 }
 
 export async function getMerchantApplication(id) {
