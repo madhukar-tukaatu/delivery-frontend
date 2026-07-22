@@ -189,13 +189,13 @@ export default function DashboardLayout({ section = "admin", children }) {
           flexShrink: 0,
         }}>
           <div style={{
-            width: 34, height: 34, borderRadius: 8, overflow: "hidden",
+            width: "100%", height: 34, borderRadius: 8, overflow: "hidden",
             flexShrink: 0, background: "#1e293b",
             display: "flex", alignItems: "center", justifyContent: "center",
           }}>
-            <Image src="/images/logo.png" alt="logo" width={34} height={34} style={{ objectFit: "cover" }} />
+            <Image src="/images/logo.png" alt="logo" width={120} height={150} style={{ objectFit: "contain" }} />
           </div>
-          {!collapsed && (
+          {/* {!collapsed && (
             <div style={{ overflow: "hidden" }}>
               <div style={{ color: "#fff", fontWeight: 700, fontSize: 14, lineHeight: 1.2, whiteSpace: "nowrap" }}>
                 Tukaatu Express
@@ -204,7 +204,7 @@ export default function DashboardLayout({ section = "admin", children }) {
                 Delivery Management
               </div>
             </div>
-          )}
+          )} */}
         </div>
 
         {/* Nav */}

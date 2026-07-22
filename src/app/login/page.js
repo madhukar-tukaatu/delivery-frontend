@@ -40,7 +40,7 @@ export default function LoginPage() {
           <Image
             src="/images/logo.png"
             alt="Tukaatu Express"
-            width={96}
+            width={200}
             height={96}
             className={s.logoImg}
           />

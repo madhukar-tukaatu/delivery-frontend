@@ -41,7 +41,7 @@ export default function MerchantRegisterPage() {
 
         {/* Logo */}
         <div className={s.logoRow}>
-          <Image src="/images/logo.png" alt="Tukaatu Express" width={40} height={40} className={s.logo} />
+          <Image src="/images/logo.png" alt="Tukaatu Express" width={120} height={60} className={s.logo} />
           <div>
             <div className={s.appName}>Tukaatu Express</div>
             <div className={s.appSub}>Merchant Registration</div>

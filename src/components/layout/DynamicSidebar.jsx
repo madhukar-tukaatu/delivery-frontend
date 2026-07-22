@@ -44,7 +44,7 @@ const iconMap = {
 
 export default function DynamicSidebar({
   section = "admin",
-  title = "Courier DMS",
+  title = "TUKAATU EXPRESS",
 }) {
   const pathname = usePathname();
   const [menus, setMenus] = useState([]);
