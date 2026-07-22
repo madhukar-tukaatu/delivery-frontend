@@ -484,7 +484,7 @@ export default function CoverageLocationsPage() {
               items={[
                 {
                   key: "main",
-                  label: `Main Zones (${mainZones.length})`,
+                  label: `Main Zone Allocation (${mainZones.length})`,
                   children: (
                     <>
                       <TabToolbar
@@ -517,7 +517,7 @@ export default function CoverageLocationsPage() {
                 },
                 {
                   key: "sub",
-                  label: `Sub-Branch Zones (${subZones.length})`,
+                  label: `Sub-Branch Allocation (${subZones.length})`,
                   children: (
                     <>
                       <TabToolbar

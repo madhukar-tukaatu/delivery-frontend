@@ -22,10 +22,12 @@ import {
   message,
 } from "antd";
 import {
+  AimOutlined,
   BankOutlined,
   CheckCircleFilled,
   EnvironmentOutlined,
   FileTextOutlined,
+  LoadingOutlined,
   PlusOutlined,
   SaveOutlined,
   ShopOutlined,
@@ -93,7 +95,7 @@ const DOCUMENT_TYPE_OPTIONS = [
   {
     value: "pan_vat_certificate",
     label: "PAN / VAT Certificate",
-    requiredFor: ["franchise_branch"],
+    requiredFor: ["franchise_branch", "sub_branch", "admin"],
   },
   {
     value: "company_registration",
@@ -354,6 +356,7 @@ export default function BranchAssignmentForm({
   const coverageLocationId = Form.useWatch("coverage_location_id", form);
   const officeLatitude = Form.useWatch("office_latitude", form);
   const officeLongitude = Form.useWatch("office_longitude", form);
+  const [locatingCurrentLocation, setLocatingCurrentLocation] = useState(false);
 
   const selectedCoverageLocation = useMemo(() => {
     return coverageLocations.find(
@@ -490,13 +493,72 @@ export default function BranchAssignmentForm({
     });
   }
 
+  function locateCurrentOfficeLocation() {
+    if (typeof window === "undefined" || !navigator.geolocation) {
+      message.error("Current location is not supported by this browser.");
+
+      return;
+    }
+
+    setLocatingCurrentLocation(true);
+
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const latitude = Number(position.coords.latitude.toFixed(7));
+
+        const longitude = Number(position.coords.longitude.toFixed(7));
+
+        form.setFieldsValue({
+          office_latitude: latitude,
+          office_longitude: longitude,
+        });
+
+        setLocatingCurrentLocation(false);
+
+        message.success("Current office location pinned successfully.");
+      },
+
+      (error) => {
+        setLocatingCurrentLocation(false);
+
+        if (error.code === error.PERMISSION_DENIED) {
+          message.error(
+            "Location permission was denied. Please allow location access in your browser.",
+          );
+
+          return;
+        }
+
+        if (error.code === error.POSITION_UNAVAILABLE) {
+          message.error("Your current location could not be determined.");
+
+          return;
+        }
+
+        if (error.code === error.TIMEOUT) {
+          message.error("Location request timed out. Please try again.");
+
+          return;
+        }
+
+        message.error("Could not access your current location.");
+      },
+
+      {
+        enableHighAccuracy: true,
+        timeout: 15000,
+        maximumAge: 0,
+      },
+    );
+  }
+
   function applyCoverageAddressToBranch() {
     if (!selectedCoverageLocation) {
       return;
     }
 
     form.setFieldsValue({
-      country: selectedCoverageLocation.country || "Nepal",
+      country: selectedCove- rageLocation.country || "Nepal",
       province: selectedCoverageLocation.province,
       district: selectedCoverageLocation.district,
       city: selectedCoverageLocation.city,
@@ -884,56 +946,154 @@ export default function BranchAssignmentForm({
                                 </Button>
                               </div>
                             </Col>
-
-                            <Col xs={24}>
-                              <Text
-                                type="secondary"
-                                style={{
-                                  display: "block",
-                                  marginBottom: 6,
-                                  fontSize: 13,
-                                }}
-                              >
-                                Service Area
-                              </Text>
-
-                              <Text
-                                strong
-                                style={{
-                                  display: "block",
-                                  color: "#0f172a",
-                                  lineHeight: 1.5,
-                                }}
-                              >
-                                {selectedCoverageLocation.city || "-"}
-                                {selectedCoverageLocation.area
-                                  ? ` / ${selectedCoverageLocation.area}`
-                                  : ""}
-                              </Text>
-                            </Col>
-
-                            <Col xs={24}>
-                              <Button
-                                block
-                                icon={<EnvironmentOutlined />}
-                                onClick={applyCoverageAddressToBranch}
-                                style={{
-                                  height: 40,
-                                  borderRadius: 10,
-                                  fontWeight: 500,
-                                }}
-                              >
-                                Apply Allocation Address
-                              </Button>
-                            </Col>
                           </Row>
                         </div>
                       )}
                     </div>
-
                     <div style={pageStyles.section}>
                       <SectionHeader
                         number="2"
+                        icon={
+                          <EnvironmentOutlined style={{ color: "#2563eb" }} />
+                        }
+                        title="Physical Office / Pickup Location"
+                        description="This location will be used for pickups, delivery routing and branch operations."
+                      />
+
+                      <Row
+                        justify="space-between"
+                        align="middle"
+                        gutter={[12, 12]}
+                        style={{
+                          marginBottom: 18,
+                          padding: "12px 14px",
+                          border: "1px solid #dbeafe",
+                          background: "#f8fbff",
+                          borderRadius: 12,
+                        }}
+                      >
+                        <Col flex="auto">
+                          <Space direction="vertical" size={1}>
+                            <Text strong>
+                              Pin the office location automatically
+                            </Text>
+
+                            <Text type="secondary" style={{ fontSize: 12 }}>
+                              Use the current device location as the physical
+                              office location.
+                            </Text>
+                          </Space>
+                        </Col>
+
+                        <Col>
+                          <Button
+                            type="primary"
+                            icon={
+                              locatingCurrentLocation ? (
+                                <LoadingOutlined />
+                              ) : (
+                                <AimOutlined />
+                              )
+                            }
+                            loading={locatingCurrentLocation}
+                            onClick={locateCurrentOfficeLocation}
+                          >
+                            Pin Current Location
+                          </Button>
+                        </Col>
+                      </Row>
+
+                      <Form.Item
+                        label="Office / Pickup Address"
+                        name="office_address"
+                        rules={[
+                          {
+                            required: true,
+                            message: "Physical office address is required.",
+                          },
+                        ]}
+                      >
+                        <Input.TextArea
+                          rows={3}
+                          placeholder="Enter complete office or pickup address"
+                        />
+                      </Form.Item>
+
+                      <Row gutter={[14, 0]}>
+                        <Col xs={24} md={12}>
+                          <Form.Item label="Office City" name="office_city">
+                            <Input placeholder="Enter city" />
+                          </Form.Item>
+                        </Col>
+
+                        <Col xs={24} md={12}>
+                          <Form.Item label="Office Area" name="office_area">
+                            <Input placeholder="Enter area" />
+                          </Form.Item>
+                        </Col>
+                      </Row>
+
+                      <Row gutter={[14, 0]}>
+                        <Col xs={24} md={12}>
+                          <Form.Item label="Office Street" name="office_street">
+                            <Input placeholder="Enter street name" />
+                          </Form.Item>
+                        </Col>
+
+                        <Col xs={24} md={12}>
+                          <Form.Item
+                            label="Office Landmark"
+                            name="office_landmark"
+                          >
+                            <Input placeholder="Nearby landmark" />
+                          </Form.Item>
+                        </Col>
+                      </Row>
+
+                      <Row gutter={[14, 0]}>
+                        <Col xs={24} md={12}>
+                          <Form.Item
+                            label="Office / Pickup Latitude"
+                            name="office_latitude"
+                            rules={[
+                              {
+                                required: true,
+                                message: "Latitude is required.",
+                              },
+                            ]}
+                          >
+                            <InputNumber
+                              style={{ width: "100%" }}
+                              stringMode
+                              placeholder="Example: 27.7172"
+                            />
+                          </Form.Item>
+                        </Col>
+
+                        <Col xs={24} md={12}>
+                          <Form.Item
+                            label="Office / Pickup Longitude"
+                            name="office_longitude"
+                            rules={[
+                              {
+                                required: true,
+                                message: "Longitude is required.",
+                              },
+                            ]}
+                          >
+                            <InputNumber
+                              style={{ width: "100%" }}
+                              stringMode
+                              placeholder="Example: 85.3240"
+                            />
+                          </Form.Item>
+                        </Col>
+                      </Row>
+                    </div>
+
+                    <div style={pageStyles.section}>
+                      <SectionHeader
+                        number="3"
                         icon={<BankOutlined style={{ color: "#2563eb" }} />}
                         title="Business Details"
                         description="Enter the registered business and contact information."
@@ -1132,7 +1292,7 @@ export default function BranchAssignmentForm({
 
                     <div style={pageStyles.section}>
                       <SectionHeader
-                        number="3"
+                        number="4"
                         icon={<ShopOutlined style={{ color: "#2563eb" }} />}
                         title="Operation Settings"
                         description="Set operating hours, working days and enabled services."
@@ -1224,117 +1384,6 @@ export default function BranchAssignmentForm({
                             name="return_enabled"
                             description="Process return parcels."
                           />
-                        </Col>
-                      </Row>
-                    </div>
-
-                    <div style={pageStyles.section}>
-                      <SectionHeader
-                        number="4"
-                        icon={
-                          <EnvironmentOutlined style={{ color: "#2563eb" }} />
-                        }
-                        title="Physical Office / Pickup Location"
-                        description="This location will be used for pickups, delivery routing and branch operations."
-                      />
-
-                      <Alert
-                        type="info"
-                        showIcon
-                        style={{
-                          marginBottom: 18,
-                          borderRadius: 12,
-                          border: "1px solid #bfdbfe",
-                          background: "#eff6ff",
-                        }}
-                        message="Select the exact physical office location"
-                        description="You can enter the address manually or click on the map. Latitude and longitude will be stored automatically."
-                      />
-
-                      <Form.Item
-                        label="Office / Pickup Address"
-                        name="office_address"
-                        rules={[
-                          {
-                            required: true,
-                            message: "Physical office address is required.",
-                          },
-                        ]}
-                      >
-                        <Input.TextArea
-                          rows={3}
-                          placeholder="Enter complete office or pickup address"
-                        />
-                      </Form.Item>
-
-                      <Row gutter={[14, 0]}>
-                        <Col xs={24} md={12}>
-                          <Form.Item label="Office City" name="office_city">
-                            <Input placeholder="Enter city" />
-                          </Form.Item>
-                        </Col>
-
-                        <Col xs={24} md={12}>
-                          <Form.Item label="Office Area" name="office_area">
-                            <Input placeholder="Enter area" />
-                          </Form.Item>
-                        </Col>
-                      </Row>
-
-                      <Row gutter={[14, 0]}>
-                        <Col xs={24} md={12}>
-                          <Form.Item label="Office Street" name="office_street">
-                            <Input placeholder="Enter street name" />
-                          </Form.Item>
-                        </Col>
-
-                        <Col xs={24} md={12}>
-                          <Form.Item
-                            label="Office Landmark"
-                            name="office_landmark"
-                          >
-                            <Input placeholder="Nearby landmark" />
-                          </Form.Item>
-                        </Col>
-                      </Row>
-
-                      <Row gutter={[14, 0]}>
-                        <Col xs={24} md={12}>
-                          <Form.Item
-                            label="Office / Pickup Latitude"
-                            name="office_latitude"
-                            rules={[
-                              {
-                                required: true,
-                                message: "Latitude is required.",
-                              },
-                            ]}
-                          >
-                            <InputNumber
-                              style={{ width: "100%" }}
-                              stringMode
-                              placeholder="Example: 27.7172"
-                            />
-                          </Form.Item>
-                        </Col>
-
-                        <Col xs={24} md={12}>
-                          <Form.Item
-                            label="Office / Pickup Longitude"
-                            name="office_longitude"
-                            rules={[
-                              {
-                                required: true,
-                                message: "Longitude is required.",
-                              },
-                            ]}
-                          >
-                            <InputNumber
-                              style={{ width: "100%" }}
-                              stringMode
-                              placeholder="Example: 85.3240"
-                            />
-                          </Form.Item>
                         </Col>
                       </Row>
                     </div>
@@ -1468,7 +1517,7 @@ export default function BranchAssignmentForm({
                                   />
                                 </Col>
 
-                                <Col xs={24} md={8}>
+                                <Col xs={24} md={8} style={{ display:"none" }}>
                                   <Text
                                     type="secondary"
                                     style={{
