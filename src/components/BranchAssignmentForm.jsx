@@ -364,6 +364,13 @@ export default function BranchAssignmentForm({
     );
   }, [coverageLocations, coverageLocationId]);
 
+  useEffect(() => {
+    const allocatedBranchCode =
+      selectedCoverageLocation?.code?.toString().trim() || null;
+
+    form.setFieldValue("code", allocatedBranchCode);
+  }, [form, selectedCoverageLocation]);
+
   const filteredCoverageLocations = useMemo(() => {
     if (isMainBranch(type)) {
       return coverageLocations.filter(
@@ -558,7 +565,7 @@ export default function BranchAssignmentForm({
     }
 
     form.setFieldsValue({
-      country: selectedCove- rageLocation.country || "Nepal",
+      country: selectedCove - rageLocation.country || "Nepal",
       province: selectedCoverageLocation.province,
       district: selectedCoverageLocation.district,
       city: selectedCoverageLocation.city,
@@ -826,6 +833,19 @@ export default function BranchAssignmentForm({
                             value: item.id,
                             label: `${item.name} (${item.code})`,
                           }))}
+                          onChange={(allocationId) => {
+                            const selectedAllocation =
+                              filteredCoverageLocations.find(
+                                (item) =>
+                                  Number(item.id) === Number(allocationId),
+                              );
+
+                            form.setFieldValue(
+                              "code",
+                              selectedAllocation?.code?.toString().trim() ||
+                                null,
+                            );
+                          }}
                         />
                       </Form.Item>
 
@@ -1111,7 +1131,7 @@ export default function BranchAssignmentForm({
 
                         <Col xs={24} md={12} style={{ display: "none" }}>
                           <Form.Item label="Code" name="code" hidden>
-                            <Input disabled placeholder="Auto or custom code" />
+                            <Input/>
                           </Form.Item>
                         </Col>
                       </Row>
@@ -1517,7 +1537,7 @@ export default function BranchAssignmentForm({
                                   />
                                 </Col>
 
-                                <Col xs={24} md={8} style={{ display:"none" }}>
+                                <Col xs={24} md={8} style={{ display: "none" }}>
                                   <Text
                                     type="secondary"
                                     style={{
