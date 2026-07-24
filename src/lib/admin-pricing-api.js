@@ -1,223 +1,259 @@
-const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_BASE_URL || "http://127.0.0.1:8000/api";
+import api from "@/lib/api";
 
-function getAccessToken() {
-  if (typeof window === "undefined") {
-    return null;
-  }
-
-  return (
-    localStorage.getItem("access_token") ||
-    localStorage.getItem("admin_token") ||
-    null
-  );
+function unwrapData(response) {
+  return response?.data?.data || response?.data || null;
 }
 
-function buildQuery(params = {}) {
-  const query = new URLSearchParams();
-
-  Object.entries(params).forEach(([key, value]) => {
-    if (
-      value !== undefined &&
-      value !== null &&
-      value !== ""
-    ) {
-      query.set(key, String(value));
-    }
-  });
-
-  const result = query.toString();
-
-  return result ? `?${result}` : "";
-}
-
-async function apiRequest(path, options = {}) {
-  const token = getAccessToken();
-
-  const response = await fetch(`${API_BASE_URL}${path}`, {
-    ...options,
-    credentials: "include",
-    cache: "no-store",
-    headers: {
-      Accept: "application/json",
-      ...(options.body
-        ? { "Content-Type": "application/json" }
-        : {}),
-      ...(token
-        ? { Authorization: `Bearer ${token}` }
-        : {}),
-      ...(options.headers || {}),
-    },
-  });
-
-  const body = await response.json().catch(() => null);
-
-  if (!response.ok) {
-    const validationMessage = body?.errors
-      ? Object.values(body.errors)?.[0]?.[0]
-      : null;
-
-    const error = new Error(
-      validationMessage ||
-        body?.message ||
-        "The request could not be completed.",
-    );
-
-    error.status = response.status;
-    error.errors = body?.errors || {};
-    error.response = body;
-
-    throw error;
-  }
-
-  return body;
-}
+/*
+|--------------------------------------------------------------------------
+| Pricing Settings
+|--------------------------------------------------------------------------
+*/
 
 export const pricingSettingsApi = {
-  list(params = {}) {
-    return apiRequest(
-      `/admin/rate/pricing-settings${buildQuery(params)}`,
+  async list(params = {}) {
+    const response = await api.get("/admin/pricing-settings", {
+      params,
+    });
+
+    return response.data;
+  },
+
+  async get(id) {
+    const response = await api.get(
+      `/admin/pricing-settings/${id}`,
     );
+
+    return unwrapData(response);
   },
 
-  get(id) {
-    return apiRequest(`/admin/rate/pricing-settings/${id}`);
-  },
-
-  create(payload) {
-    return apiRequest("/admin/rate/pricing-settings", {
-      method: "POST",
-      body: JSON.stringify(payload),
-    });
-  },
-
-  update(id, payload) {
-    return apiRequest(`/admin/rate/pricing-settings/${id}`, {
-      method: "PUT",
-      body: JSON.stringify(payload),
-    });
-  },
-
-  activate(id) {
-    return apiRequest(
-      `/admin/rate/pricing-settings/${id}/activate`,
-      {
-        method: "POST",
-      },
+  async create(payload) {
+    const response = await api.post(
+      "/admin/pricing-settings",
+      payload,
     );
+
+    return unwrapData(response);
   },
 
-  remove(id) {
-    return apiRequest(`/admin/rate/pricing-settings/${id}`, {
-      method: "DELETE",
-    });
+  async update(id, payload) {
+    const response = await api.put(
+      `/admin/pricing-settings/${id}`,
+      payload,
+    );
+
+    return unwrapData(response);
+  },
+
+  async activate(id) {
+    const response = await api.post(
+      `/admin/pricing-settings/${id}/activate`,
+    );
+
+    return unwrapData(response);
+  },
+
+  async remove(id) {
+    const response = await api.delete(
+      `/admin/pricing-settings/${id}`,
+    );
+
+    return response.data;
   },
 };
+
+/*
+|--------------------------------------------------------------------------
+| Service Types
+|--------------------------------------------------------------------------
+*/
 
 export const serviceTypesApi = {
-  list(params = {}) {
-    return apiRequest(
-      `/admin/rate/service-types${buildQuery(params)}`,
+  async list(params = {}) {
+    const response = await api.get("/admin/service-types", {
+      params,
+    });
+
+    return response.data;
+  },
+
+  async get(id) {
+    const response = await api.get(
+      `/admin/service-types/${id}`,
     );
+
+    return unwrapData(response);
   },
 
-  create(payload) {
-    return apiRequest("/admin/rate/service-types", {
-      method: "POST",
-      body: JSON.stringify(payload),
-    });
-  },
-
-  update(id, payload) {
-    return apiRequest(`/admin/rate/service-types/${id}`, {
-      method: "PUT",
-      body: JSON.stringify(payload),
-    });
-  },
-
-  setStatus(id, isActive) {
-    return apiRequest(`/admin/rate/service-types/${id}/status`, {
-      method: "PATCH",
-      body: JSON.stringify({ is_active: isActive }),
-    });
-  },
-
-  remove(id) {
-    return apiRequest(`/admin/rate/service-types/${id}`, {
-      method: "DELETE",
-    });
-  },
-};
-
-export const branchRouteRatesApi = {
-  branches() {
-    return apiRequest("/admin/rate/branch-route-rates/branches");
-  },
-
-  list(params = {}) {
-    return apiRequest(
-      `/admin/rate/branch-route-rates${buildQuery(params)}`,
+  async create(payload) {
+    const response = await api.post(
+      "/admin/service-types",
+      payload,
     );
+
+    return unwrapData(response);
   },
 
-  matrix() {
-    return apiRequest("/admin/rate/branch-route-rates/matrix");
+  async update(id, payload) {
+    const response = await api.put(
+      `/admin/service-types/${id}`,
+      payload,
+    );
+
+    return unwrapData(response);
   },
 
-  create(payload) {
-    return apiRequest("/admin/rate/branch-route-rates", {
-      method: "POST",
-      body: JSON.stringify(payload),
-    });
-  },
-
-  update(id, payload) {
-    return apiRequest(`/admin/rate/branch-route-rates/${id}`, {
-      method: "PUT",
-      body: JSON.stringify(payload),
-    });
-  },
-
-  setStatus(id, isActive) {
-    return apiRequest(
-      `/admin/rate/branch-route-rates/${id}/status`,
+  async setStatus(id, isActive) {
+    const response = await api.patch(
+      `/admin/service-types/${id}/status`,
       {
-        method: "PATCH",
-        body: JSON.stringify({ is_active: isActive }),
+        is_active: isActive,
       },
     );
+
+    return unwrapData(response);
   },
 
-  remove(id) {
-    return apiRequest(`/admin/rate/branch-route-rates/${id}`, {
-      method: "DELETE",
-    });
+  async remove(id) {
+    const response = await api.delete(
+      `/admin/service-types/${id}`,
+    );
+
+    return response.data;
   },
 };
+
+/*
+|--------------------------------------------------------------------------
+| Branch Route Rates
+|--------------------------------------------------------------------------
+*/
+
+export const branchRouteRatesApi = {
+  async branches(params = {}) {
+    const response = await api.get(
+      "/admin/branch-route-rates/branches",
+      {
+        params,
+      },
+    );
+
+    return response.data;
+  },
+
+  async list(params = {}) {
+    const response = await api.get(
+      "/admin/branch-route-rates",
+      {
+        params,
+      },
+    );
+
+    return response.data;
+  },
+
+  async matrix(params = {}) {
+    const response = await api.get(
+      "/admin/branch-route-rates/matrix",
+      {
+        params,
+      },
+    );
+
+    return response.data;
+  },
+
+  async get(id) {
+    const response = await api.get(
+      `/admin/branch-route-rates/${id}`,
+    );
+
+    return unwrapData(response);
+  },
+
+  async create(payload) {
+    const response = await api.post(
+      "/admin/branch-route-rates",
+      payload,
+    );
+
+    return unwrapData(response);
+  },
+
+  async update(id, payload) {
+    const response = await api.put(
+      `/admin/branch-route-rates/${id}`,
+      payload,
+    );
+
+    return unwrapData(response);
+  },
+
+  async setStatus(id, isActive) {
+    const response = await api.patch(
+      `/admin/branch-route-rates/${id}/status`,
+      {
+        is_active: isActive,
+      },
+    );
+
+    return unwrapData(response);
+  },
+
+  async remove(id) {
+    const response = await api.delete(
+      `/admin/branch-route-rates/${id}`,
+    );
+
+    return response.data;
+  },
+};
+
+/*
+|--------------------------------------------------------------------------
+| Pricing Quotes
+|--------------------------------------------------------------------------
+*/
 
 export const pricingQuotesApi = {
-  list(params = {}) {
-    return apiRequest(
-      `/admin/rate/pricing-quotes${buildQuery(params)}`,
-    );
-  },
-
-  get(id) {
-    return apiRequest(`/admin/rate/pricing-quotes/${id}`);
-  },
-
-  remove(id) {
-    return apiRequest(`/admin/rate/pricing-quotes/${id}`, {
-      method: "DELETE",
+  async list(params = {}) {
+    const response = await api.get("/admin/pricing-quotes", {
+      params,
     });
+
+    return response.data;
+  },
+
+  async get(id) {
+    const response = await api.get(
+      `/admin/pricing-quotes/${id}`,
+    );
+
+    return unwrapData(response);
+  },
+
+  async remove(id) {
+    const response = await api.delete(
+      `/admin/pricing-quotes/${id}`,
+    );
+
+    return response.data;
   },
 };
 
+/*
+|--------------------------------------------------------------------------
+| Pricing Simulator
+|--------------------------------------------------------------------------
+*/
+
 export const pricingSimulatorApi = {
-  calculate(payload) {
-    return apiRequest("/admin/rate/pricing-simulator", {
-      method: "POST",
-      body: JSON.stringify(payload),
-    });
+  async calculate(payload) {
+    const response = await api.post(
+      "/admin/pricing-simulator",
+      payload,
+    );
+
+    return unwrapData(response);
   },
 };
