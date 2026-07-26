@@ -41,13 +41,13 @@
   width: 44px;
   height: 44px;
   border-radius: 14px;
-  background: linear-gradient(135deg, #1677ff, #0047ab);
+  background: linear-gradient(135deg, #027196, #014d68);
   color: #ffffff;
   display: grid;
   place-items: center;
   font-size: 22px;
   font-weight: 900;
-  box-shadow: 0 16px 36px rgba(22, 119, 255, 0.25);
+  box-shadow: 0 16px 36px rgba(2, 113, 150, 0.25);
 }
 
 .nav {
@@ -64,7 +64,7 @@
 }
 
 .nav a:hover {
-  color: #1677ff;
+  color: #027196;
 }
 
 .loginBtn,
@@ -80,10 +80,10 @@
 
 .loginBtn,
 .primaryBtn {
-  background: #1677ff;
+  background: #027196;
   color: #ffffff;
   padding: 12px 20px;
-  box-shadow: 0 16px 36px rgba(22, 119, 255, 0.22);
+  box-shadow: 0 16px 36px rgba(2, 113, 150, 0.22);
 }
 
 .secondaryBtn {
@@ -147,7 +147,7 @@
   position: absolute;
   inset: -40px;
   border-radius: 40px;
-  background: radial-gradient(circle, rgba(22, 119, 255, 0.18), transparent 60%);
+  background: radial-gradient(circle, rgba(2, 113, 150, 0.18), transparent 60%);
 }
 
 .deliveryCard {
@@ -205,7 +205,7 @@
   width: 70px;
   height: 3px;
   border-radius: 99px;
-  background: #1677ff;
+  background: #027196;
 }
 
 .statusList {
@@ -234,8 +234,8 @@
 }
 
 .status.active span {
-  background: #1677ff;
-  box-shadow: 0 0 0 5px rgba(22, 119, 255, 0.14);
+  background: #027196;
+  box-shadow: 0 0 0 5px rgba(2, 113, 150, 0.14);
 }
 
 .stats,
@@ -295,7 +295,7 @@
 }
 
 .sectionHeader span {
-  color: #1677ff;
+  color: #027196;
   font-weight: 900;
   text-transform: uppercase;
   letter-spacing: 0.08em;
@@ -331,8 +331,8 @@
   width: 42px;
   height: 42px;
   border-radius: 14px;
-  background: #eff6ff;
-  color: #1677ff;
+  background: #e0f2fe;
+  color: #027196;
   display: grid;
   place-items: center;
   font-weight: 900;
