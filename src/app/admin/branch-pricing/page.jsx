@@ -5,15 +5,20 @@ import {
   Button,
   Card,
   Col,
+  Descriptions,
+  Form,
   Input,
+  InputNumber,
+  Modal,
   Popconfirm,
   Row,
   Select,
   Space,
+  Statistic,
   Switch,
   Table,
-  Tabs,
   Tag,
+  Tooltip,
   Typography,
   message,
 } from "antd";
@@ -22,411 +27,725 @@ import {
   EditOutlined,
   PlusOutlined,
   ReloadOutlined,
+  SwapOutlined,
 } from "@ant-design/icons";
-import { branchRouteRatesApi } from "@/lib/admin-pricing-api";
-import { formatDateTime, money } from "@/lib/pricing-formatters";
-import BranchRouteRateModal from "./components/BranchRouteRateModal";
+
+import PermissionGate from "@/components/rate-admin/PermissionGate";
+import RouteMap from "@/components/rate-admin/RouteMap";
+
+import {
+  createBranchRouteRate,
+  createReverseBranchRouteRate,
+  deleteBranchRouteRate,
+  getBranchRouteRates,
+  getRateBranches,
+  updateBranchRouteRate,
+  updateBranchRouteRateStatus,
+} from "@/services/adminRateManagementService";
+
+import {
+  apiErrorMessage,
+  branchLabel,
+  buildBranchMap,
+  extractCollection,
+  formatDate,
+  formatMoney,
+  normalizeBranch,
+  normalizeBranchRate,
+} from "@/lib/rate-management-page-utils";
 
 const { Title, Text } = Typography;
 
+function statusTag(active) {
+  return (
+    <Tag color={active ? "green" : "default"}>
+      {active ? "Active" : "Inactive"}
+    </Tag>
+  );
+}
+
 export default function BranchPricingPage() {
-  const [messageApi, contextHolder] = message.useMessage();
-  const [activeTab, setActiveTab] = useState("list");
+  const [form] = Form.useForm();
+
   const [branches, setBranches] = useState([]);
   const [rows, setRows] = useState([]);
-  const [matrix, setMatrix] = useState({ branches: [], rates: {} });
-  const [pagination, setPagination] = useState({ current: 1, pageSize: 30, total: 0 });
+  const [selected, setSelected] = useState(null);
+
+  const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  const [modalOpen, setModalOpen] = useState(false);
+  const [editing, setEditing] = useState(null);
+
   const [filters, setFilters] = useState({
     search: "",
     pickup_branch_id: undefined,
     delivery_branch_id: undefined,
     is_active: undefined,
   });
-  const [loading, setLoading] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [modal, setModal] = useState({
-    open: false,
-    record: null,
-    defaults: null,
+
+  const [pagination, setPagination] = useState({
+    current: 1,
+    pageSize: 25,
+    total: 0,
   });
+
+  const branchesById = useMemo(
+    () => buildBranchMap(branches),
+    [branches]
+  );
+
+  const branchOptions = useMemo(
+    () =>
+      branches.map((branch) => ({
+        value: Number(branch.id),
+        label: branchLabel(branch),
+      })),
+    [branches]
+  );
 
   const loadBranches = useCallback(async () => {
     try {
-      const response = await branchRouteRatesApi.branches();
-      setBranches(response.data || []);
-    } catch (error) {
-      messageApi.error(error.message);
-    }
-  }, [messageApi]);
+      const payload = await getRateBranches({
+        status: "active",
+        per_page: 500,
+      });
 
-  const loadList = useCallback(async (page = 1, pageSize = pagination.pageSize, nextFilters = filters) => {
-    setLoading(true);
-    try {
-      const response = await branchRouteRatesApi.list({
-        page,
-        per_page: pageSize,
-        ...nextFilters,
-      });
-      const data = response.data || {};
-      setRows(data.data || []);
-      setPagination({
-        current: data.current_page || page,
-        pageSize: data.per_page || pageSize,
-        total: data.total || 0,
-      });
-    } catch (error) {
-      messageApi.error(error.message);
-    } finally {
-      setLoading(false);
-    }
-  }, [filters, messageApi, pagination.pageSize]);
+      const collection = extractCollection(payload);
 
-  const loadMatrix = useCallback(async () => {
-    setLoading(true);
-    try {
-      const response = await branchRouteRatesApi.matrix();
-      setMatrix({
-        branches: response.data?.branches || [],
-        rates: response.data?.rates || {},
-      });
+      setBranches(
+        collection.rows
+          .map(normalizeBranch)
+          .filter((branch) => Number.isFinite(Number(branch?.id)))
+      );
     } catch (error) {
-      messageApi.error(error.message);
-    } finally {
-      setLoading(false);
+      message.error(
+        apiErrorMessage(error, "Could not load branch options.")
+      );
     }
-  }, [messageApi]);
+  }, []);
+
+  const loadRows = useCallback(
+    async (
+      page = pagination.current,
+      pageSize = pagination.pageSize
+    ) => {
+      try {
+        setLoading(true);
+
+        const payload = await getBranchRouteRates({
+          page,
+          per_page: pageSize,
+          search: filters.search || undefined,
+          pickup_branch_id:
+            filters.pickup_branch_id || undefined,
+          delivery_branch_id:
+            filters.delivery_branch_id || undefined,
+          is_active:
+            filters.is_active === undefined
+              ? undefined
+              : filters.is_active,
+        });
+
+        const collection = extractCollection(payload);
+
+        const normalized = collection.rows.map((row) =>
+          normalizeBranchRate(row, branchesById)
+        );
+
+        setRows(normalized);
+
+        setSelected((current) => {
+          if (!normalized.length) return null;
+
+          return (
+            normalized.find(
+              (row) => Number(row.id) === Number(current?.id)
+            ) || normalized[0]
+          );
+        });
+
+        setPagination({
+          current: collection.currentPage || page,
+          pageSize: collection.pageSize || pageSize,
+          total: collection.total,
+        });
+      } catch (error) {
+        message.error(
+          apiErrorMessage(error, "Could not load branch pricing.")
+        );
+      } finally {
+        setLoading(false);
+      }
+    },
+    [
+      branchesById,
+      filters,
+      pagination.current,
+      pagination.pageSize,
+    ]
+  );
 
   useEffect(() => {
     loadBranches();
-    loadList(1, 30, filters);
-  }, []);
+  }, [loadBranches]);
 
-  async function refresh() {
-    if (activeTab === "matrix") {
-      await loadMatrix();
-    } else {
-      await loadList(pagination.current, pagination.pageSize, filters);
+  useEffect(() => {
+    if (branches.length) {
+      loadRows(1, pagination.pageSize);
     }
-  }
+  }, [branches.length]);
 
-  async function save(values) {
-    setSaving(true);
+  const stats = useMemo(() => {
+    const active = rows.filter((row) => row.is_active).length;
+    const average = rows.length
+      ? rows.reduce(
+          (sum, row) => sum + Number(row.base_rate || 0),
+          0
+        ) / rows.length
+      : 0;
+
+    return {
+      active,
+      inactive: rows.length - active,
+      average,
+    };
+  }, [rows]);
+
+  const openCreate = (prefill = {}) => {
+    setEditing(null);
+
+    form.setFieldsValue({
+      pickup_branch_id: undefined,
+      delivery_branch_id: undefined,
+      base_rate: undefined,
+      is_active: true,
+      ...prefill,
+    });
+
+    setModalOpen(true);
+  };
+
+  const openEdit = (row) => {
+    setEditing(row);
+
+    form.setFieldsValue({
+      pickup_branch_id: row.pickup_branch_id,
+      delivery_branch_id: row.delivery_branch_id,
+      base_rate: Number(row.base_rate),
+      is_active: Boolean(row.is_active),
+    });
+
+    setModalOpen(true);
+  };
+
+  const saveRate = async () => {
     try {
-      let response;
-      if (modal.record) {
-        response = await branchRouteRatesApi.update(modal.record.id, {
-          base_rate: values.base_rate,
-          is_active: values.is_active,
-        });
-      } else {
-        response = await branchRouteRatesApi.create({
-          pickup_branch_id: values.pickup_branch_id,
-          delivery_branch_id: values.delivery_branch_id,
-          base_rate: values.base_rate,
-          is_active: values.is_active,
-          create_reverse_route: Boolean(values.create_reverse_route),
-          reverse_base_rate: values.create_reverse_route
-            ? values.reverse_base_rate
-            : null,
-        });
+      const values = await form.validateFields();
+
+      if (
+        Number(values.pickup_branch_id) ===
+        Number(values.delivery_branch_id)
+      ) {
+        message.error(
+          "Pickup and delivery branches must be different."
+        );
+        return;
       }
 
-      messageApi.success(response.message || "Branch route rate saved.");
-      setModal({ open: false, record: null, defaults: null });
-      await loadList(pagination.current, pagination.pageSize, filters);
-      if (activeTab === "matrix") await loadMatrix();
+      const payload = {
+        pickup_branch_id: Number(values.pickup_branch_id),
+        delivery_branch_id: Number(values.delivery_branch_id),
+        base_rate: Number(values.base_rate),
+        is_active: Boolean(values.is_active),
+      };
+
+      setSaving(true);
+
+      if (editing) {
+        await updateBranchRouteRate(editing.id, payload);
+        message.success("Branch rate updated.");
+      } else {
+        await createBranchRouteRate(payload);
+        message.success("Branch rate created.");
+      }
+
+      setModalOpen(false);
+      setEditing(null);
+      form.resetFields();
+
+      await loadRows();
     } catch (error) {
-      messageApi.error(error.message);
+      if (error?.errorFields) return;
+
+      message.error(
+        apiErrorMessage(error, "Could not save branch rate.")
+      );
     } finally {
       setSaving(false);
     }
-  }
+  };
 
-  async function setStatus(record, isActive) {
+  const toggleStatus = async (row) => {
     try {
-      const response = await branchRouteRatesApi.setStatus(record.id, isActive);
-      messageApi.success(response.message || "Status updated.");
-      await refresh();
-    } catch (error) {
-      messageApi.error(error.message);
-    }
-  }
+      await updateBranchRouteRateStatus(
+        row.id,
+        !row.is_active
+      );
 
-  async function remove(record) {
+      message.success(
+        `Branch rate ${row.is_active ? "disabled" : "enabled"}.`
+      );
+
+      await loadRows();
+    } catch (error) {
+      message.error(
+        apiErrorMessage(error, "Could not update rate status.")
+      );
+    }
+  };
+
+  const createReverse = async (row) => {
     try {
-      const response = await branchRouteRatesApi.remove(record.id);
-      messageApi.success(response.message || "Route rate deleted.");
-      await refresh();
+      await createReverseBranchRouteRate(row);
+
+      message.success("Reverse branch rate created.");
+      await loadRows();
     } catch (error) {
-      messageApi.error(error.message);
+      message.error(
+        apiErrorMessage(error, "Could not create reverse rate.")
+      );
     }
-  }
+  };
 
-  const branchOptions = branches.map((branch) => ({
-    value: Number(branch.id),
-    label: `${branch.name} (${branch.code})`,
-  }));
+  const removeRate = async (row) => {
+    try {
+      await deleteBranchRouteRate(row.id);
 
-  const listColumns = [
+      message.success("Branch rate deleted.");
+      await loadRows();
+    } catch (error) {
+      message.error(
+        apiErrorMessage(error, "Could not delete branch rate.")
+      );
+    }
+  };
+
+  const columns = [
     {
-      title: "Pickup Branch",
-      render: (_, record) => (
-        <Space direction="vertical" size={0}>
-          <Text strong>{record.pickup_branch_name}</Text>
-          <Text type="secondary">{record.pickup_branch_code}</Text>
+      title: "Route",
+      key: "route",
+      width: 300,
+      render: (_, row) => (
+        <Space direction="vertical" size={2}>
+          <Text strong>
+            {row.pickup_branch?.name || "Unknown"}
+            {" → "}
+            {row.delivery_branch?.name || "Unknown"}
+          </Text>
+
+          <Text type="secondary" style={{ fontSize: 12 }}>
+            {row.pickup_branch?.code || row.pickup_branch_id}
+            {" → "}
+            {row.delivery_branch?.code || row.delivery_branch_id}
+          </Text>
         </Space>
       ),
     },
     {
-      title: "Delivery Branch",
-      render: (_, record) => (
-        <Space direction="vertical" size={0}>
-          <Text strong>{record.delivery_branch_name}</Text>
-          <Text type="secondary">{record.delivery_branch_code}</Text>
-        </Space>
+      title: "Base Rate",
+      dataIndex: "base_rate",
+      width: 150,
+      render: (value) => (
+        <Text strong>{formatMoney(value)}</Text>
       ),
     },
-    { title: "Base Rate", dataIndex: "base_rate", render: (value) => <Text strong>{money(value)}</Text> },
     {
       title: "Status",
       dataIndex: "is_active",
       width: 110,
-      render: (value, record) => (
-        <Switch checked={Boolean(value)} onChange={(checked) => setStatus(record, checked)} />
-      ),
+      render: statusTag,
     },
-    { title: "Updated", dataIndex: "updated_at", width: 180, render: formatDateTime },
+    {
+      title: "Last Updated",
+      dataIndex: "updated_at",
+      width: 180,
+      render: formatDate,
+    },
     {
       title: "Actions",
       key: "actions",
-      width: 130,
+      width: 250,
       fixed: "right",
-      render: (_, record) => (
-        <Space>
-          <Button icon={<EditOutlined />} onClick={() => setModal({ open: true, record, defaults: null })} />
-          <Popconfirm title="Delete this route rate?" onConfirm={() => remove(record)}>
-            <Button danger icon={<DeleteOutlined />} />
-          </Popconfirm>
-        </Space>
-      ),
-    },
-  ];
-
-  const matrixColumns = useMemo(() => {
-    const first = {
-      title: "From / To",
-      key: "origin",
-      fixed: "left",
-      width: 220,
-      render: (_, record) => (
-        <Space direction="vertical" size={0}>
-          <Text strong>{record.name}</Text>
-          <Text type="secondary">{record.code}</Text>
-        </Space>
-      ),
-    };
-
-    return [
-      first,
-      ...matrix.branches.map((destination) => ({
-        title: destination.name,
-        key: `destination-${destination.id}`,
-        width: 150,
-        align: "center",
-        render: (_, origin) => {
-          const key = `${origin.id}:${destination.id}`;
-          const rate = matrix.rates?.[key];
-
-          if (!rate) {
-            return (
+      render: (_, row) => (
+        <Space wrap>
+          <PermissionGate permission="pricing.branch_rates.update">
+            <Tooltip title="Edit rate">
               <Button
-                type="dashed"
                 size="small"
-                icon={<PlusOutlined />}
-                onClick={() =>
-                  setModal({
-                    open: true,
-                    record: null,
-                    defaults: {
-                      pickup_branch_id: Number(origin.id),
-                      delivery_branch_id: Number(destination.id),
-                    },
-                  })
-                }
-              >
-                Add
-              </Button>
-            );
-          }
+                icon={<EditOutlined />}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  openEdit(row);
+                }}
+              />
+            </Tooltip>
+          </PermissionGate>
 
-          return (
+          <PermissionGate permission="pricing.branch_rates.create">
+            <Tooltip title="Create reverse rate">
+              <Button
+                size="small"
+                icon={<SwapOutlined />}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  createReverse(row);
+                }}
+              />
+            </Tooltip>
+          </PermissionGate>
+
+          <PermissionGate permission="pricing.branch_rates.status">
             <Button
-              type="link"
-              onClick={() =>
-                setModal({
-                  open: true,
-                  record: {
-                    ...rate,
-                    pickup_branch_id: Number(origin.id),
-                    delivery_branch_id: Number(destination.id),
-                  },
-                  defaults: null,
-                })
-              }
+              size="small"
+              onClick={(event) => {
+                event.stopPropagation();
+                toggleStatus(row);
+              }}
             >
-              <Space direction="vertical" size={0}>
-                <Text strong>{money(rate.base_rate)}</Text>
-                <Tag color={rate.is_active ? "green" : "default"}>
-                  {rate.is_active ? "Active" : "Inactive"}
-                </Tag>
-              </Space>
+              {row.is_active ? "Disable" : "Enable"}
             </Button>
-          );
-        },
-      })),
-    ];
-  }, [matrix]);
+          </PermissionGate>
 
-  const tabItems = [
-    {
-      key: "list",
-      label: "List View",
-      children: (
-        <>
-          <Row gutter={[12, 12]} style={{ marginBottom: 16 }}>
-            <Col xs={24} lg={7}>
-              <Input.Search
-                allowClear
-                placeholder="Search branch name or code"
-                onSearch={(search) => {
-                  const next = { ...filters, search };
-                  setFilters(next);
-                  loadList(1, pagination.pageSize, next);
-                }}
+          <PermissionGate permission="pricing.branch_rates.delete">
+            <Popconfirm
+              title="Delete this branch rate?"
+              description="This action cannot be undone."
+              okText="Delete"
+              okButtonProps={{ danger: true }}
+              onConfirm={() => removeRate(row)}
+            >
+              <Button
+                danger
+                size="small"
+                icon={<DeleteOutlined />}
+                onClick={(event) => event.stopPropagation()}
               />
-            </Col>
-            <Col xs={24} sm={12} lg={5}>
-              <Select
-                allowClear
-                showSearch
-                optionFilterProp="label"
-                placeholder="Pickup branch"
-                options={branchOptions}
-                style={{ width: "100%" }}
-                onChange={(pickup_branch_id) => {
-                  const next = { ...filters, pickup_branch_id };
-                  setFilters(next);
-                  loadList(1, pagination.pageSize, next);
-                }}
-              />
-            </Col>
-            <Col xs={24} sm={12} lg={5}>
-              <Select
-                allowClear
-                showSearch
-                optionFilterProp="label"
-                placeholder="Delivery branch"
-                options={branchOptions}
-                style={{ width: "100%" }}
-                onChange={(delivery_branch_id) => {
-                  const next = { ...filters, delivery_branch_id };
-                  setFilters(next);
-                  loadList(1, pagination.pageSize, next);
-                }}
-              />
-            </Col>
-            <Col xs={24} sm={12} lg={4}>
-              <Select
-                allowClear
-                placeholder="Status"
-                style={{ width: "100%" }}
-                options={[
-                  { value: true, label: "Active" },
-                  { value: false, label: "Inactive" },
-                ]}
-                onChange={(is_active) => {
-                  const next = { ...filters, is_active };
-                  setFilters(next);
-                  loadList(1, pagination.pageSize, next);
-                }}
-              />
-            </Col>
-          </Row>
-
-          <Table
-            rowKey="id"
-            loading={loading}
-            columns={listColumns}
-            dataSource={rows}
-            scroll={{ x: 1100 }}
-            pagination={{
-              current: pagination.current,
-              pageSize: pagination.pageSize,
-              total: pagination.total,
-              showSizeChanger: true,
-              showTotal: (total) => `${total} route rates`,
-              onChange: (page, pageSize) => loadList(page, pageSize, filters),
-            }}
-          />
-        </>
-      ),
-    },
-    {
-      key: "matrix",
-      label: "Matrix View",
-      children: (
-        <Table
-          rowKey="id"
-          loading={loading}
-          columns={matrixColumns}
-          dataSource={matrix.branches}
-          pagination={false}
-          bordered
-          size="small"
-          scroll={{ x: Math.max(1000, matrix.branches.length * 150 + 220), y: 600 }}
-        />
+            </Popconfirm>
+          </PermissionGate>
+        </Space>
       ),
     },
   ];
+
+  const selectedNodes = selected
+    ? [
+        selected.pickup_branch,
+        selected.delivery_branch,
+      ].filter(Boolean)
+    : [];
 
   return (
-    <div style={{ padding: 24 }}>
-      {contextHolder}
-      <Row justify="space-between" align="middle" gutter={[16, 16]} style={{ marginBottom: 20 }}>
-        <Col>
-          <Title level={2} style={{ margin: 0 }}>Branch Pricing</Title>
-          <Text type="secondary">Customer-facing base rates between main branches.</Text>
+    <Space direction="vertical" size={20} style={{ width: "100%" }}>
+      <Card bordered={false}>
+        <Row justify="space-between" align="middle" gutter={[16, 16]}>
+          <Col>
+            <Title level={3} style={{ margin: 0 }}>
+              Branch Pricing
+            </Title>
+            <Text type="secondary">
+              Manage directional legacy or simple branch-to-branch base rates.
+              Complete multi-lane marketplace base rates are managed under
+              Transfer Routes.
+            </Text>
+          </Col>
+
+          <Col>
+            <Space>
+              <Button
+                icon={<ReloadOutlined />}
+                onClick={() => loadRows()}
+              >
+                Refresh
+              </Button>
+
+              <PermissionGate permission="pricing.branch_rates.create">
+                <Button
+                  type="primary"
+                  icon={<PlusOutlined />}
+                  onClick={() => openCreate()}
+                >
+                  Add Branch Rate
+                </Button>
+              </PermissionGate>
+            </Space>
+          </Col>
+        </Row>
+      </Card>
+
+      <Row gutter={[16, 16]}>
+        <Col xs={24} md={8}>
+          <Card bordered={false}>
+            <Statistic
+              title="Loaded Rates"
+              value={rows.length}
+            />
+          </Card>
         </Col>
-        <Col>
-          <Space>
-            <Button icon={<ReloadOutlined />} onClick={refresh} loading={loading}>Refresh</Button>
-            <Button type="primary" icon={<PlusOutlined />} onClick={() => setModal({ open: true, record: null, defaults: null })}>
-              Add Route Rate
-            </Button>
-          </Space>
+
+        <Col xs={24} md={8}>
+          <Card bordered={false}>
+            <Statistic
+              title="Active Rates"
+              value={stats.active}
+            />
+          </Card>
+        </Col>
+
+        <Col xs={24} md={8}>
+          <Card bordered={false}>
+            <Statistic
+              title="Average Base Rate"
+              value={stats.average}
+              precision={2}
+              prefix="NPR"
+            />
+          </Card>
         </Col>
       </Row>
 
-      <Card>
-        <Tabs
-          activeKey={activeTab}
-          onChange={async (key) => {
-            setActiveTab(key);
-            if (key === "matrix") await loadMatrix();
-          }}
-          items={tabItems}
-        />
+      <Card bordered={false}>
+        <Row gutter={[16, 16]}>
+          <Col xs={24} lg={7}>
+            <Input
+              allowClear
+              placeholder="Search route or amount"
+              value={filters.search}
+              onChange={(event) =>
+                setFilters((current) => ({
+                  ...current,
+                  search: event.target.value,
+                }))
+              }
+            />
+          </Col>
+
+          <Col xs={24} sm={12} lg={5}>
+            <Select
+              allowClear
+              showSearch
+              optionFilterProp="label"
+              placeholder="Pickup branch"
+              style={{ width: "100%" }}
+              options={branchOptions}
+              value={filters.pickup_branch_id}
+              onChange={(value) =>
+                setFilters((current) => ({
+                  ...current,
+                  pickup_branch_id: value,
+                }))
+              }
+            />
+          </Col>
+
+          <Col xs={24} sm={12} lg={5}>
+            <Select
+              allowClear
+              showSearch
+              optionFilterProp="label"
+              placeholder="Delivery branch"
+              style={{ width: "100%" }}
+              options={branchOptions}
+              value={filters.delivery_branch_id}
+              onChange={(value) =>
+                setFilters((current) => ({
+                  ...current,
+                  delivery_branch_id: value,
+                }))
+              }
+            />
+          </Col>
+
+          <Col xs={24} sm={12} lg={4}>
+            <Select
+              allowClear
+              placeholder="Status"
+              style={{ width: "100%" }}
+              value={filters.is_active}
+              onChange={(value) =>
+                setFilters((current) => ({
+                  ...current,
+                  is_active: value,
+                }))
+              }
+              options={[
+                { label: "Active", value: 1 },
+                { label: "Inactive", value: 0 },
+              ]}
+            />
+          </Col>
+
+          <Col xs={24} sm={12} lg={3}>
+            <Button
+              block
+              type="primary"
+              onClick={() => loadRows(1)}
+            >
+              Apply
+            </Button>
+          </Col>
+        </Row>
       </Card>
 
-      <BranchRouteRateModal
-        open={modal.open}
-        record={modal.record}
-        defaults={modal.defaults}
-        branches={branches}
-        saving={saving}
-        onCancel={() => setModal({ open: false, record: null, defaults: null })}
-        onSubmit={save}
-      />
-    </div>
+      <Row gutter={[16, 16]}>
+        <Col xs={24} xl={16}>
+          <Card bordered={false}>
+            <Table
+              rowKey="id"
+              loading={loading}
+              columns={columns}
+              dataSource={rows}
+              scroll={{ x: 1050 }}
+              rowClassName={(row) =>
+                Number(row.id) === Number(selected?.id)
+                  ? "ant-table-row-selected"
+                  : ""
+              }
+              onRow={(row) => ({
+                onClick: () => setSelected(row),
+                style: { cursor: "pointer" },
+              })}
+              pagination={{
+                current: pagination.current,
+                pageSize: pagination.pageSize,
+                total: pagination.total,
+                showSizeChanger: true,
+              }}
+              onChange={(next) =>
+                loadRows(next.current, next.pageSize)
+              }
+            />
+          </Card>
+        </Col>
+
+        <Col xs={24} xl={8}>
+          <Card
+            bordered={false}
+            title="Selected Rate Map"
+          >
+            <RouteMap
+              nodes={selectedNodes}
+              height={360}
+              selectedLabel="Branch route rate"
+            />
+
+            <Descriptions
+              column={1}
+              size="small"
+              style={{ marginTop: 18 }}
+            >
+              <Descriptions.Item label="Pickup">
+                {selected?.pickup_branch?.name || "—"}
+              </Descriptions.Item>
+
+              <Descriptions.Item label="Delivery">
+                {selected?.delivery_branch?.name || "—"}
+              </Descriptions.Item>
+
+              <Descriptions.Item label="Base Rate">
+                {selected
+                  ? formatMoney(selected.base_rate)
+                  : "—"}
+              </Descriptions.Item>
+
+              <Descriptions.Item label="Status">
+                {selected
+                  ? statusTag(selected.is_active)
+                  : "—"}
+              </Descriptions.Item>
+            </Descriptions>
+          </Card>
+        </Col>
+      </Row>
+
+      <Modal
+        open={modalOpen}
+        title={editing ? "Edit Branch Rate" : "Create Branch Rate"}
+        width={640}
+        confirmLoading={saving}
+        okText={editing ? "Update Rate" : "Create Rate"}
+        onOk={saveRate}
+        onCancel={() => {
+          setModalOpen(false);
+          setEditing(null);
+          form.resetFields();
+        }}
+        destroyOnClose
+      >
+        <Form
+          form={form}
+          layout="vertical"
+          initialValues={{ is_active: true }}
+        >
+          <Row gutter={16}>
+            <Col span={12}>
+              <Form.Item
+                name="pickup_branch_id"
+                label="Pickup Branch"
+                rules={[{ required: true }]}
+              >
+                <Select
+                  showSearch
+                  optionFilterProp="label"
+                  options={branchOptions}
+                />
+              </Form.Item>
+            </Col>
+
+            <Col span={12}>
+              <Form.Item
+                name="delivery_branch_id"
+                label="Delivery Branch"
+                rules={[{ required: true }]}
+              >
+                <Select
+                  showSearch
+                  optionFilterProp="label"
+                  options={branchOptions}
+                />
+              </Form.Item>
+            </Col>
+          </Row>
+
+          <Form.Item
+            name="base_rate"
+            label="Base Rate"
+            rules={[
+              { required: true },
+              {
+                type: "number",
+                min: 0,
+                message: "Base rate must be zero or greater.",
+              },
+            ]}
+          >
+            <InputNumber
+              min={0}
+              precision={2}
+              addonBefore="NPR"
+              style={{ width: "100%" }}
+            />
+          </Form.Item>
+
+          <Form.Item
+            name="is_active"
+            label="Active for Pricing"
+            valuePropName="checked"
+          >
+            <Switch />
+          </Form.Item>
+        </Form>
+      </Modal>
+    </Space>
   );
 }

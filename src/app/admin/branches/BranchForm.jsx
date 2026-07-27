@@ -327,12 +327,6 @@ export default function BranchForm({
                         return Promise.resolve();
                       }
 
-                      if (!value) {
-                        return Promise.reject(
-                          new Error("Parent branch is required.")
-                        );
-                      }
-
                       return Promise.resolve();
                     },
                   }),
