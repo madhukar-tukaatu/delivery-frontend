@@ -19,7 +19,7 @@ export const ROUTE_ROUNDING_OPTIONS = [
   },
 ];
 
-function toBoolean(value) {
+export function toBoolean(value) {
   return (
     value === true ||
     value === 1 ||
@@ -28,70 +28,118 @@ function toBoolean(value) {
   );
 }
 
+function numberValue(...values) {
+  const found = values.find(
+    (value) =>
+      value !== undefined &&
+      value !== null &&
+      value !== "",
+  );
+
+  const number =
+    Number(found);
+
+  return Number.isFinite(number)
+    ? number
+    : 0;
+}
+
 export function toRouteCustomPricingForm(
   record,
   route,
 ) {
+  const cutoff = String(
+    record?.same_day_cutoff_time ||
+      "12:00",
+  ).slice(0, 5);
+
   return {
     name:
       record?.name ||
-      `${route?.route_code || "Route"} Custom Pricing`,
+      `${
+        route?.route_code ||
+        "Route"
+      } Custom Pricing`,
 
-    base_weight_kg:
-      Number(record?.base_weight_kg ?? 1.5),
+    base_weight_kg: numberValue(
+      record?.base_weight_kg,
+      record?.included_weight_kg,
+      1.5,
+    ),
 
-    base_distance_km:
-      Number(record?.base_distance_km ?? 5),
+    base_distance_km: numberValue(
+      record?.base_distance_km,
+      record?.included_delivery_distance_km,
+      5,
+    ),
 
     transfer_extra_weight_rate:
-      Number(
-        record?.transfer_extra_weight_rate ??
-          30,
+      numberValue(
+        record?.transfer_extra_weight_rate,
+
+        record?.transfer_branch_excess_weight_rate,
+
+        record?.other_branch_weight_rate,
+
+        30,
       ),
 
     extra_distance_rate:
-      Number(
-        record?.extra_distance_rate ??
-          6,
+      numberValue(
+        record?.extra_distance_rate,
+
+        record?.extra_distance_rate_per_km,
+
+        6,
       ),
 
     fragile_multiplier:
-      Number(
-        record?.fragile_multiplier ??
-          1.05,
+      numberValue(
+        record?.fragile_multiplier,
+        1.05,
       ),
 
     transfer_same_day_multiplier:
-      Number(
-        record?.transfer_same_day_multiplier ??
-          2,
+      numberValue(
+        record?.transfer_same_day_multiplier,
+
+        record?.same_day_transfer_branch_multiplier,
+
+        record?.other_branch_sdd_multiplier,
+
+        2,
       ),
 
     same_day_cutoff_time:
       dayjs(
-        String(
-          record?.same_day_cutoff_time ||
-            "12:00",
-        ).slice(0, 5),
+        cutoff,
         "HH:mm",
       ),
 
     minimum_free_pickup_packets:
-      Number(
-        record?.minimum_free_pickup_packets ??
-          3,
+      numberValue(
+        record?.minimum_free_pickup_packets,
+
+        record?.minimum_pickup_packet_count,
+
+        record?.minimum_pickup_packets,
+
+        3,
       ),
 
     small_pickup_charge:
-      Number(
-        record?.small_pickup_charge ??
-          50,
+      numberValue(
+        record?.small_pickup_charge,
+
+        record?.low_packet_pickup_charge,
+
+        50,
       ),
 
     vat_percentage:
-      Number(
-        record?.vat_percentage ??
-          13,
+      numberValue(
+        record?.vat_percentage,
+        13,
       ),
 
     weight_rounding:
@@ -108,12 +156,14 @@ export function toRouteCustomPricingForm(
 
     fragile_enabled:
       toBoolean(
-        record?.fragile_enabled ?? true,
+        record?.fragile_enabled ??
+          true,
       ),
 
     same_day_enabled:
       toBoolean(
-        record?.same_day_enabled ?? true,
+        record?.same_day_enabled ??
+          true,
       ),
 
     pickup_charge_enabled:
@@ -124,7 +174,8 @@ export function toRouteCustomPricingForm(
 
     vat_enabled:
       toBoolean(
-        record?.vat_enabled ?? true,
+        record?.vat_enabled ??
+          true,
       ),
   };
 }
@@ -133,7 +184,8 @@ export function buildRoutePricingProfilePayload(
   values,
 ) {
   const mode =
-    values.pricing_mode || "global";
+    values?.pricing_mode ||
+    "global";
 
   if (mode === "global") {
     return {
@@ -143,20 +195,27 @@ export function buildRoutePricingProfilePayload(
   }
 
   const custom =
-    values.custom_pricing || {};
+    values?.custom_pricing ||
+    {};
 
   return {
     mode: "custom",
 
     custom_pricing: {
       name:
-        String(custom.name || "").trim(),
+        String(
+          custom.name || "",
+        ).trim(),
 
       base_weight_kg:
-        Number(custom.base_weight_kg),
+        Number(
+          custom.base_weight_kg,
+        ),
 
       base_distance_km:
-        Number(custom.base_distance_km),
+        Number(
+          custom.base_distance_km,
+        ),
 
       transfer_extra_weight_rate:
         Number(
@@ -194,7 +253,9 @@ export function buildRoutePricingProfilePayload(
         ),
 
       vat_percentage:
-        Number(custom.vat_percentage),
+        Number(
+          custom.vat_percentage,
+        ),
 
       weight_rounding:
         custom.weight_rounding ||
@@ -209,10 +270,14 @@ export function buildRoutePricingProfilePayload(
         "round",
 
       fragile_enabled:
-        Boolean(custom.fragile_enabled),
+        Boolean(
+          custom.fragile_enabled,
+        ),
 
       same_day_enabled:
-        Boolean(custom.same_day_enabled),
+        Boolean(
+          custom.same_day_enabled,
+        ),
 
       pickup_charge_enabled:
         Boolean(
@@ -220,7 +285,9 @@ export function buildRoutePricingProfilePayload(
         ),
 
       vat_enabled:
-        Boolean(custom.vat_enabled),
+        Boolean(
+          custom.vat_enabled,
+        ),
     },
   };
 }

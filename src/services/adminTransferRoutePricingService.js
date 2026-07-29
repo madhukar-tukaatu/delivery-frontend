@@ -59,3 +59,43 @@ export async function deleteTransferRoutePricingVersion(
 
   return response?.data ?? null;
 }
+
+
+export async function getTransferRoutePricingProfile(
+  routeId,
+) {
+  const response = await api.get(
+    `/admin/rate/branch-transfer-routes/${routeId}/pricing-profile`,
+  );
+
+  return unwrapData(response);
+}
+
+export async function updateTransferRoutePricingProfile(
+  routeId,
+  payload,
+) {
+  const response = await api.put(
+    `/admin/rate/branch-transfer-routes/${routeId}/pricing-profile`,
+    payload,
+  );
+
+  return unwrapData(response);
+}
+
+export async function getActiveGlobalPricingSettings() {
+  const response = await api.get(
+    "/admin/pricing-settings",
+    {
+      params: {
+        page: 1,
+        per_page: 1,
+      },
+    },
+  );
+
+  const data =
+    unwrapData(response) ?? {};
+
+  return data?.active ?? null;
+}
