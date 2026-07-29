@@ -6,6 +6,7 @@ import Image from "next/image";
 import api from "@/lib/api";
 import { routeForRole, saveAuth } from "@/lib/auth";
 import s from "./login.module.css";
+import AccountSetupSuccessAlert from "@/components/auth/AccountSetupSuccessAlert";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -34,6 +35,7 @@ export default function LoginPage() {
   return (
     <div className={s.page}>
       <div className={s.card}>
+        <AccountSetupSuccessAlert />
 
         {/* Logo */}
         <div className={s.logoWrap}>
