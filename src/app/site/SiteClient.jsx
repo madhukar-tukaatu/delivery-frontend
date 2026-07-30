@@ -1145,9 +1145,9 @@ export default function SiteClient() {
                                 }}
                               />
                             </div>
-                            <div className="tukaatu-weight-help" style={{ color: mc }}>
+                            {/* <div className="tukaatu-weight-help" style={{ color: mc }}>
                               Volumetric weight: {volumetricWeightPreview !== null ? `${volumetricWeightPreview} kg` : "enter dimensions"}. Chargeable weight: {chargeableWeightPreview !== null ? `${chargeableWeightPreview} kg` : "—"}. The higher of actual and volumetric weight is used.
-                            </div>
+                            </div> */}
                           </div>
 
                           <div style={{ gridColumn: "1 / -1" }}>
@@ -1271,11 +1271,11 @@ export default function SiteClient() {
                         </div>
                       </div>
 
-                      {rateEstimate && (
+                      {/* {rateEstimate && (
                         <div style={{ marginTop: 8, fontSize: 9, color: mc, lineHeight: 1.5 }}>
                           The pricing engine compares actual weight with volumetric weight and charges the higher value. Volumetric weight is calculated using the active backend divisor. The final amount may change after physical parcel verification.
                         </div>
-                      )}
+                      )} */}
                     </div>
                   )}
 
