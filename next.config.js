@@ -1,4 +1,22 @@
-/** @type {import('next').NextConfig} */
+/** @type {import("next").NextConfig} */
+const nextConfig = {
+  reactStrictMode: true,
+
+  /*
+   * Standalone output is enabled only during
+   * Docker/production builds.
+   */
+  ...(process.env.NEXT_STANDALONE === "true"
+    ? {
+        output: "standalone",
+      }
+    : {}),
+};
+
+module.exports = nextConfig;
+
+
+/** @type {import('next').NextConfig}
 const nextConfig = {
   output: "standalone",
   images: {
@@ -6,4 +24,4 @@ const nextConfig = {
   },
 };
 
-module.exports = nextConfig;
+module.exports = nextConfig; */
