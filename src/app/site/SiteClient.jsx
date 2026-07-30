@@ -139,7 +139,11 @@ export default function SiteClient() {
   const [rateProduct, setRateProduct] = useState({
     name: "",
     quantity: 1,
+    weightMode: "actual",
     weight: 1,
+    lengthCm: "",
+    widthCm: "",
+    heightCm: "",
     parcelType: "non_fragile",
   });
 
@@ -147,6 +151,26 @@ export default function SiteClient() {
   const [rateEstimate, setRateEstimate] = useState(null);
   const [isLoadingRate, setIsLoadingRate] = useState(false);
   const [rateError, setRateError] = useState("");
+
+  const volumetricWeightPreview = (() => {
+    const length = Number(rateProduct.lengthCm);
+    const width = Number(rateProduct.widthCm);
+    const height = Number(rateProduct.heightCm);
+
+    if (
+      rateProduct.weightMode !== "volumetric" ||
+      !Number.isFinite(length) ||
+      !Number.isFinite(width) ||
+      !Number.isFinite(height) ||
+      length <= 0 ||
+      width <= 0 ||
+      height <= 0
+    ) {
+      return null;
+    }
+
+    return Number(((length * width * height) / 5000).toFixed(3));
+  })();
 
   // Book Pickup
   const [pickupData, setPickupData] = useState({ name: "", phone: "", address: "", city: "Kathmandu" });
@@ -220,7 +244,10 @@ export default function SiteClient() {
     const deliveryLatitude = Number(deliveryLocation.latitude);
     const deliveryLongitude = Number(deliveryLocation.longitude);
     const quantity = Number(rateProduct.quantity);
-    const weight = Number(rateProduct.weight);
+    const actualUnitWeight = Number(rateProduct.weight);
+    const lengthCm = Number(rateProduct.lengthCm);
+    const widthCm = Number(rateProduct.widthCm);
+    const heightCm = Number(rateProduct.heightCm);
 
     if (!pickupLocation.address.trim()) {
       setRateError("Select the pickup location from the map.");
@@ -270,11 +297,27 @@ export default function SiteClient() {
       return;
     }
 
-    if (!Number.isFinite(weight) || weight <= 0) {
-      setRateError("Product weight must be greater than zero.");
+    if (rateProduct.weightMode === "actual") {
+      if (!Number.isFinite(actualUnitWeight) || actualUnitWeight <= 0) {
+        setRateError("Enter a valid unit actual weight.");
+        return;
+      }
+    } else if (rateProduct.weightMode === "volumetric") {
+      if (
+        !Number.isFinite(lengthCm) ||
+        !Number.isFinite(widthCm) ||
+        !Number.isFinite(heightCm) ||
+        lengthCm <= 0 ||
+        widthCm <= 0 ||
+        heightCm <= 0
+      ) {
+        setRateError("Enter valid packed parcel length, width and height.");
+        return;
+      }
+    } else {
+      setRateError("Select a weight calculation method.");
       return;
     }
-
 
     try {
       setIsLoadingRate(true);
@@ -287,12 +330,24 @@ export default function SiteClient() {
         delivery_latitude: deliveryLatitude,
         delivery_longitude: deliveryLongitude,
         service_type: rateServiceType,
+        weight_mode: rateProduct.weightMode,
+        parcel_dimensions:
+          rateProduct.weightMode === "volumetric"
+            ? {
+                length_cm: lengthCm,
+                width_cm: widthCm,
+                height_cm: heightCm,
+              }
+            : null,
         products: [
           {
             product_id: null,
             name: rateProduct.name.trim(),
             quantity,
-            unit_weight: weight,
+            unit_weight:
+              rateProduct.weightMode === "actual"
+                ? actualUnitWeight
+                : null,
             parcel_type: rateProduct.parcelType,
           },
         ],
@@ -403,6 +458,18 @@ export default function SiteClient() {
           max-width: 100%;
         }
 
+        .tukaatu-dimension-grid {
+          display: grid;
+          grid-template-columns: repeat(3, minmax(0, 1fr));
+          gap: 10px;
+        }
+
+        .tukaatu-weight-help {
+          margin-top: 6px;
+          font-size: 10px;
+          line-height: 1.45;
+        }
+
         .tukaatu-location-field {
           min-width: 0;
         }
@@ -485,6 +552,10 @@ export default function SiteClient() {
             gap: 10px !important;
           }
 
+          .tukaatu-dimension-grid {
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+          }
+
           .tukaatu-location-control {
             display: grid !important;
             grid-template-columns: minmax(0, 1fr) auto !important;
@@ -559,6 +630,12 @@ export default function SiteClient() {
 
           .tukaatu-location-confirm-button {
             width: 100%;
+          }
+        }
+
+        @media (max-width: 520px) {
+          .tukaatu-dimension-grid {
+            grid-template-columns: minmax(0, 1fr);
           }
         }
 
@@ -998,33 +1075,32 @@ export default function SiteClient() {
 
                           <div>
                             <label style={{ fontSize: 10, fontWeight: 800, color: mc, display: "block", marginBottom: 4 }}>
-                              UNIT WEIGHT (KG)
+                              WEIGHT CALCULATION
                             </label>
-                            <input
-                              required
-                              type="number"
-                              min="0.01"
-                              max="500"
-                              step="0.01"
-                              value={rateProduct.weight}
+                            <select
+                              value={rateProduct.weightMode}
                               onChange={(event) => {
                                 setRateProduct((previous) => ({
                                   ...previous,
-                                  weight: event.target.value,
+                                  weightMode: event.target.value,
                                 }));
                                 setRateEstimate(null);
+                                setRateError("");
                               }}
                               style={{
                                 width: "100%",
                                 padding: 10,
                                 borderRadius: 10,
                                 border: `1px solid ${inputBorder}`,
+                                fontWeight: 700,
                                 fontSize: 13,
                                 color: tc,
                                 background: inputBg,
-                                boxSizing: "border-box",
                               }}
-                            />
+                            >
+                              <option value="actual">Actual Weight</option>
+                              <option value="volumetric">Volumetric Weight</option>
+                            </select>
                           </div>
 
                           <div>
@@ -1056,6 +1132,136 @@ export default function SiteClient() {
                             </select>
                           </div>
 
+                          {rateProduct.weightMode === "actual" ? (
+                            <div style={{ gridColumn: "1 / -1" }}>
+                              <label style={{ fontSize: 10, fontWeight: 800, color: mc, display: "block", marginBottom: 4 }}>
+                                UNIT ACTUAL WEIGHT (KG)
+                              </label>
+                              <input
+                                required
+                                type="number"
+                                min="0.01"
+                                max="500"
+                                step="0.01"
+                                value={rateProduct.weight}
+                                onChange={(event) => {
+                                  setRateProduct((previous) => ({
+                                    ...previous,
+                                    weight: event.target.value,
+                                  }));
+                                  setRateEstimate(null);
+                                }}
+                                style={{
+                                  width: "100%",
+                                  padding: 10,
+                                  borderRadius: 10,
+                                  border: `1px solid ${inputBorder}`,
+                                  fontSize: 13,
+                                  color: tc,
+                                  background: inputBg,
+                                  boxSizing: "border-box",
+                                }}
+                              />
+                              <div className="tukaatu-weight-help" style={{ color: mc }}>
+                                Total packed actual weight will be quantity × unit weight.
+                              </div>
+                            </div>
+                          ) : (
+                            <div style={{ gridColumn: "1 / -1" }}>
+                              <label style={{ fontSize: 10, fontWeight: 800, color: mc, display: "block", marginBottom: 4 }}>
+                                PACKED PARCEL DIMENSIONS (CM)
+                              </label>
+                              <div className="tukaatu-dimension-grid">
+                                <input
+                                  required
+                                  type="number"
+                                  min="0.1"
+                                  max="1000"
+                                  step="0.1"
+                                  placeholder="Length"
+                                  aria-label="Packed parcel length in centimetres"
+                                  value={rateProduct.lengthCm}
+                                  onChange={(event) => {
+                                    setRateProduct((previous) => ({
+                                      ...previous,
+                                      lengthCm: event.target.value,
+                                    }));
+                                    setRateEstimate(null);
+                                  }}
+                                  style={{
+                                    width: "100%",
+                                    padding: 10,
+                                    borderRadius: 10,
+                                    border: `1px solid ${inputBorder}`,
+                                    fontSize: 13,
+                                    color: tc,
+                                    background: inputBg,
+                                    boxSizing: "border-box",
+                                  }}
+                                />
+                                <input
+                                  required
+                                  type="number"
+                                  min="0.1"
+                                  max="1000"
+                                  step="0.1"
+                                  placeholder="Width"
+                                  aria-label="Packed parcel width in centimetres"
+                                  value={rateProduct.widthCm}
+                                  onChange={(event) => {
+                                    setRateProduct((previous) => ({
+                                      ...previous,
+                                      widthCm: event.target.value,
+                                    }));
+                                    setRateEstimate(null);
+                                  }}
+                                  style={{
+                                    width: "100%",
+                                    padding: 10,
+                                    borderRadius: 10,
+                                    border: `1px solid ${inputBorder}`,
+                                    fontSize: 13,
+                                    color: tc,
+                                    background: inputBg,
+                                    boxSizing: "border-box",
+                                  }}
+                                />
+                                <input
+                                  required
+                                  type="number"
+                                  min="0.1"
+                                  max="1000"
+                                  step="0.1"
+                                  placeholder="Height"
+                                  aria-label="Packed parcel height in centimetres"
+                                  value={rateProduct.heightCm}
+                                  onChange={(event) => {
+                                    setRateProduct((previous) => ({
+                                      ...previous,
+                                      heightCm: event.target.value,
+                                    }));
+                                    setRateEstimate(null);
+                                  }}
+                                  style={{
+                                    width: "100%",
+                                    padding: 10,
+                                    borderRadius: 10,
+                                    border: `1px solid ${inputBorder}`,
+                                    fontSize: 13,
+                                    color: tc,
+                                    background: inputBg,
+                                    boxSizing: "border-box",
+                                  }}
+                                />
+                              </div>
+                              <div className="tukaatu-weight-help" style={{ color: mc }}>
+                                {volumetricWeightPreview !== null
+                                  ? `Estimated volumetric weight: ${volumetricWeightPreview} kg (L × W × H ÷ 5000).`
+                                  : "Enter the final packed parcel dimensions. The backend applies the active volumetric divisor."}
+                              </div>
+                            </div>
+                          )}
+
                           <div style={{ gridColumn: "1 / -1" }}>
                             <label style={{ fontSize: 10, fontWeight: 800, color: mc, display: "block", marginBottom: 4 }}>
                               SERVICE TYPE
@@ -1078,7 +1284,7 @@ export default function SiteClient() {
                               }}
                             >
                               <option value="standard">Standard</option>
-                              {/* <option value="express">Express</option> */}
+                              <option value="express">Express</option>
                               <option value="same_day">Same Day</option>
                             </select>
                           </div>
@@ -1155,16 +1361,21 @@ export default function SiteClient() {
 
                           {rateEstimate && (
                             <div style={{ marginTop: 4, fontSize: 10, color: mc, lineHeight: 1.5 }}>
-                              Packed weight: {Number(
-                                rateEstimate.packed_weight_kg ??
-                                  Number(rateProduct.weight) * Number(rateProduct.quantity),
-                              )} kg
+                              Weight method: {rateEstimate.weight_mode === "volumetric" ? "Volumetric" : "Actual"}
                               <br />
-                              Chargeable weight: {Number(
-                                rateEstimate.chargeable_weight_kg ??
-                                  rateEstimate.packed_weight_kg ??
-                                  Number(rateProduct.weight) * Number(rateProduct.quantity),
-                              )} kg
+                              {rateEstimate.actual_weight_kg !== null && rateEstimate.actual_weight_kg !== undefined && (
+                                <>
+                                  Actual weight: {Number(rateEstimate.actual_weight_kg)} kg
+                                  <br />
+                                </>
+                              )}
+                              {rateEstimate.volumetric_weight_kg !== null && rateEstimate.volumetric_weight_kg !== undefined && (
+                                <>
+                                  Volumetric weight: {Number(rateEstimate.volumetric_weight_kg)} kg
+                                  <br />
+                                </>
+                              )}
+                              Chargeable weight: {Number(rateEstimate.chargeable_weight_kg ?? 0)} kg
                               <br />
                               {Number(rateEstimate.product_count ?? rateProduct.quantity)} item(s) packed as {Number(rateEstimate.packet_count ?? 1)} parcel
                             </div>
@@ -1186,7 +1397,7 @@ export default function SiteClient() {
 
                       {rateEstimate && (
                         <div style={{ marginTop: 8, fontSize: 9, color: mc, lineHeight: 1.5 }}>
-                          The estimate uses the map-confirmed pickup and delivery points. Product quantity is combined into one shipment parcel, matching the live marketplace single-per-store pricing policy. This public calculator estimates prepaid delivery charges only. The final amount may change after physical verification.
+                          The estimate uses the map-confirmed pickup and delivery points. Choose actual weight or enter the final packed parcel dimensions for volumetric pricing. Product quantity is combined into one shipment parcel, matching the live marketplace single-per-store pricing policy. The final amount may change after physical verification.
                         </div>
                       )}
                     </div>
