@@ -25,13 +25,20 @@ import {
 } from "@ant-design/icons";
 
 export function StatusTag({ value }) {
+  const v = String(value || "-");
   const color =
-    value === "delivered" || value === "active" || value === "settled"
+    v === "delivered" || v === "active" || v === "settled" || v === "completed"
       ? "green"
-      : value === "cancelled" || value === "failed" || value === "suspended"
+      : v === "cancelled" || v === "failed" || v === "suspended" || v === "rejected"
         ? "red"
-        : "blue";
-  return <Tag color={color}>{String(value || "-").replaceAll("_", " ")}</Tag>;
+        : v === "pending" || v === "on_hold"
+          ? "orange"
+          : "blue";
+  return (
+    <Tag color={color} style={{ borderRadius: 6, fontWeight: 600, textTransform: "capitalize" }}>
+      {v.replaceAll("_", " ")}
+    </Tag>
+  );
 }
 
 // export function useList(endpoint) {
@@ -857,11 +864,15 @@ export function JsonBlock({ data }) {
   return (
     <pre
       style={{
-        background: "#111827",
-        color: "#f9fafb",
-        padding: 16,
-        borderRadius: 8,
+        background: "#071722",
+        color: "#93C5FD",
+        padding: 20,
+        borderRadius: 12,
         overflow: "auto",
+        fontSize: 13,
+        lineHeight: 1.7,
+        maxHeight: "70vh",
+        border: "1px solid rgba(255,255,255,0.08)",
       }}
     >
       {JSON.stringify(data, null, 2)}

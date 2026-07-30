@@ -34,10 +34,10 @@ function createHubIcon(name) {
       <div style="
         width: 10px;
         height: 10px;
-        background: #F4B740;
+        background: #ffd026;
         border: 2px solid #FFFFFF;
         border-radius: 50%;
-        box-shadow: 0 0 8px #F4B740;
+        box-shadow: 0 0 8px #ffd026;
       "></div>
       <div style="
         font-family: Inter, sans-serif;
@@ -103,7 +103,7 @@ export default function CoverageMap() {
   }, []);
 
   return (
-    <div style={{ width: "100%", height: "380px", borderRadius: "24px", overflow: "hidden", border: "1px solid rgba(255, 255, 255, 0.08)", position: "relative" }}>
+    <div style={{ width: "100%", height: "480px", borderRadius: "20px", overflow: "hidden", position: "relative" }}>
       <MapContainer
         center={[28.0, 84.2]}
         zoom={7}
@@ -120,7 +120,7 @@ export default function CoverageMap() {
             key={i}
             positions={line}
             pathOptions={{
-              color: "#2A6FDB",
+              color: "#027196",
               weight: 2,
               dashArray: "4, 6",
               opacity: 0.6
