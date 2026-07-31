@@ -132,10 +132,6 @@ export default function SiteClient() {
   const [rateWeight, setRateWeight] = useState(2);
   const [rateSpeed, setRateSpeed] = useState("express");
 
-  // Book Pickup
-  const [pickupData, setPickupData] = useState({ name: "", phone: "", address: "", city: "Kathmandu" });
-  const [pickupSubmitted, setPickupSubmitted] = useState(false);
-
   // Full-Screen Slide Deck Presentation Engine State
   const [currentSlide, setCurrentSlide] = useState(0);
   const [isDark, setIsDark] = useState(true);
@@ -465,15 +461,6 @@ export default function SiteClient() {
                       </svg>
                       <span style={{ whiteSpace: 'nowrap' }}>Rate Estimator</span>
                     </button>
-                    <button
-                      onClick={() => setConsoleTab("pickup")}
-                      className={`${styles.consoleTabBtn} ${consoleTab === "pickup" ? styles.consoleTabActive : ""}`}
-                    >
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
-                      </svg>
-                      <span style={{ whiteSpace: 'nowrap' }}>Book Pickup</span>
-                    </button>
                   </div>
 
                   <div style={{ fontSize: 11, fontWeight: 800, color: '#15803D', background: '#DCFCE7', padding: '4px 12px', borderRadius: 999, display: 'flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap' }}>
@@ -641,22 +628,6 @@ export default function SiteClient() {
                     </div>
                   )}
 
-                  {/* TAB 3: BOOK PICKUP */}
-                  {consoleTab === "pickup" && (
-                    <div key="tab-pickup" className={styles.tabContentSlide}>
-                      <form onSubmit={(e) => { e.preventDefault(); setPickupSubmitted(true); }}>
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginBottom: 16 }}>
-                          <input required placeholder="Sender Name" value={pickupData.name} onChange={(e) => setPickupData({ ...pickupData, name: e.target.value })} style={{ padding: 14, borderRadius: 12, border: `1px solid ${inputBorder}`, fontSize: 14, color: tc, background: inputBg }} />
-                          <input required placeholder="Phone (+977)" value={pickupData.phone} onChange={(e) => setPickupData({ ...pickupData, phone: e.target.value })} style={{ padding: 14, borderRadius: 12, border: `1px solid ${inputBorder}`, fontSize: 14, color: tc, background: inputBg }} />
-                        </div>
-                        <input required placeholder="Pickup Address (e.g. New Road, Kathmandu)" value={pickupData.address} onChange={(e) => setPickupData({ ...pickupData, address: e.target.value })} style={{ width: '100%', padding: 14, borderRadius: 12, border: `1px solid ${inputBorder}`, fontSize: 14, color: tc, background: inputBg, marginBottom: 16, boxSizing: 'border-box' }} />
-                        <button type="submit" style={{ background: '#FFD026', color: '#060D14', fontWeight: 900, padding: '16px 28px', border: 'none', borderRadius: 14, cursor: 'pointer', width: '100%', fontSize: 15, boxShadow: '0 4px 20px rgba(255,208,38,0.4)' }}>
-                          Schedule Immediate Rider Pickup →
-                        </button>
-                        {pickupSubmitted && <div style={{ marginTop: 12, color: '#4ADE80', fontWeight: 800, fontSize: 14 }}>✓ Request submitted! Nearby rider assigned.</div>}
-                      </form>
-                    </div>
-                  )}
                 </div>
               </div>
 
