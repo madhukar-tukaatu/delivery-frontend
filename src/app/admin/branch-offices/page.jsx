@@ -9,16 +9,13 @@ import {
 
 import dynamic from "next/dynamic";
 import Link from "next/link";
-
-import {
-  useRouter,
-  useSearchParams,
-} from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 
 import {
   Button,
   Card,
   Col,
+  Dropdown,
   Empty,
   Form,
   Input,
@@ -32,6 +29,7 @@ import {
   Table,
   Tabs,
   Tag,
+  Tooltip,
   Typography,
   message,
 } from "antd";
@@ -41,9 +39,9 @@ import {
   CheckCircleOutlined,
   DeleteOutlined,
   DownloadOutlined,
-  EditOutlined,
   EyeOutlined,
   GlobalOutlined,
+  MoreOutlined,
   PlusOutlined,
   ReloadOutlined,
   SearchOutlined,
@@ -64,23 +62,18 @@ import {
 } from "@/services/branchAllocationApi";
 
 import BranchInvitationStatusTag from "@/components/branches/BranchInvitationStatusTag";
-
 import BranchInvitationActions from "@/components/branches/BranchInvitationActions";
 
 const CoverageRadiusMapFull = dynamic(
-  () =>
-    import(
-      "@/components/maps/CoverageRadiusMapFull"
-    ),
+  () => import("@/components/maps/CoverageRadiusMapFull"),
   {
     ssr: false,
-
     loading: () => (
       <div
         style={{
           height: 650,
-          background: "#f5f5f5",
-          borderRadius: 8,
+          background: "#f6f8fb",
+          borderRadius: 12,
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
@@ -92,37 +85,16 @@ const CoverageRadiusMapFull = dynamic(
   },
 );
 
-const { Text } = Typography;
+const { Paragraph, Text, Title } = Typography;
 
 const STATUS_OPTIONS = [
-  {
-    value: "draft",
-    label: "Draft",
-  },
-  {
-    value: "pending_review",
-    label: "Pending Review",
-  },
-  {
-    value: "approved",
-    label: "Approved",
-  },
-  {
-    value: "active",
-    label: "Active",
-  },
-  {
-    value: "suspended",
-    label: "Suspended",
-  },
-  {
-    value: "rejected",
-    label: "Rejected",
-  },
-  {
-    value: "closed",
-    label: "Closed",
-  },
+  { value: "draft", label: "Draft" },
+  { value: "pending_review", label: "Pending Review" },
+  { value: "approved", label: "Approved" },
+  { value: "active", label: "Active" },
+  { value: "suspended", label: "Suspended" },
+  { value: "rejected", label: "Rejected" },
+  { value: "closed", label: "Closed" },
 ];
 
 const STATUS_COLOR = {
@@ -135,19 +107,16 @@ const STATUS_COLOR = {
   closed: "default",
 };
 
+const SERVICE_TAGS = [
+  ["pickup_enabled", "Pickup", "purple"],
+  ["delivery_enabled", "Delivery", "orange"],
+  ["pod_enabled", "POD", "green"],
+  ["return_enabled", "Return", "cyan"],
+];
+
 function normalizeRows(response) {
-  if (Array.isArray(response?.data)) {
-    return response.data;
-  }
-
-  if (
-    Array.isArray(
-      response?.data?.data,
-    )
-  ) {
-    return response.data.data;
-  }
-
+  if (Array.isArray(response?.data)) return response.data;
+  if (Array.isArray(response?.data?.data)) return response.data.data;
   return [];
 }
 
@@ -162,17 +131,10 @@ function normalizePaginated(response) {
   if (Array.isArray(payload?.data)) {
     return {
       rows: payload.data,
-
       pagination: {
-        current:
-          payload.current_page || 1,
-
-        pageSize:
-          payload.per_page || 10,
-
-        total:
-          payload.total ||
-          payload.data.length,
+        current: payload.current_page || 1,
+        pageSize: payload.per_page || 10,
+        total: payload.total || payload.data.length,
       },
     };
   }
@@ -180,22 +142,16 @@ function normalizePaginated(response) {
   if (Array.isArray(response?.data)) {
     return {
       rows: response.data,
-
       pagination: {
         current: 1,
-
-        pageSize:
-          response.data.length,
-
-        total:
-          response.data.length,
+        pageSize: response.data.length || 10,
+        total: response.data.length,
       },
     };
   }
 
   return {
     rows: [],
-
     pagination: {
       current: 1,
       pageSize: 10,
@@ -204,10 +160,34 @@ function normalizePaginated(response) {
   };
 }
 
-function exportToCsv(
-  data,
-  filename,
-) {
+function apiErrorMessage(error, fallback) {
+  const errors = error?.response?.data?.errors;
+
+  if (errors) {
+    const firstError = Object.values(errors).flat().find(Boolean);
+    if (firstError) return String(firstError);
+  }
+
+  return error?.response?.data?.message || fallback;
+}
+
+function isApprovedBranch(branch) {
+  return ["approved", "active"].includes(branch?.status);
+}
+
+function isFranchiseBranch(branch) {
+  return ["franchise", "franchise_branch"].includes(
+    String(branch?.type || "").toLowerCase(),
+  );
+}
+
+function formatStatus(value) {
+  return String(value || "Unknown")
+    .replaceAll("_", " ")
+    .replace(/\b\w/g, (character) => character.toUpperCase());
+}
+
+function exportToCsv(data, filename) {
   const headers = [
     "ID",
     "Name",
@@ -221,1360 +201,787 @@ function exportToCsv(
     "Account Invitation Status",
   ];
 
-  const csvRows = data.map(
-    (record) => [
-      record.id,
+  const rows = data.map((record) => [
+    record.id,
+    record.name,
+    record.code || "",
+    record.type,
+    record.parent?.name || "",
+    record.coverage_location?.name || "",
+    record.city || record.office_city || "",
+    record.status,
+    record.account_invitation_email || record.manager?.email || "",
+    record.account_invitation_status || "",
+  ]);
 
-      record.name,
-
-      record.code || "",
-
-      record.type,
-
-      record.parent?.name || "",
-
-      record.coverage_location
-        ?.name || "",
-
-      record.city || "",
-
-      record.status,
-
-      record.account_invitation_email ||
-        record.manager?.email ||
-        "",
-
-      record.account_invitation_status ||
-        "",
-    ],
-  );
-
-  const csv = [
-    headers,
-    ...csvRows,
-  ]
+  const csv = [headers, ...rows]
     .map((row) =>
       row
-        .map((value) => {
-          const escaped = String(
-            value ?? "",
-          ).replaceAll('"', '""');
-
-          return `"${escaped}"`;
-        })
+        .map((value) => `"${String(value ?? "").replaceAll('"', '""')}"`)
         .join(","),
     )
     .join("\n");
 
-  const blob = new Blob(
-    [csv],
-    {
-      type: "text/csv;charset=utf-8",
-    },
-  );
-
-  const url =
-    URL.createObjectURL(blob);
-
-  const anchor =
-    document.createElement("a");
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
 
   anchor.href = url;
   anchor.download = filename;
-
-  document.body.appendChild(
-    anchor,
-  );
-
+  document.body.appendChild(anchor);
   anchor.click();
   anchor.remove();
-
   URL.revokeObjectURL(url);
 }
 
-function apiErrorMessage(
-  error,
-  fallback,
-) {
-  const errors =
-    error?.response?.data?.errors;
+function ServiceTags({ record }) {
+  const enabled = SERVICE_TAGS.filter(([field]) => Boolean(record?.[field]));
 
-  if (errors) {
-    const firstError =
-      Object.values(errors)
-        .flat()
-        .find(Boolean);
-
-    if (firstError) {
-      return String(firstError);
-    }
+  if (!enabled.length) {
+    return <Text type="secondary">No services</Text>;
   }
 
   return (
-    error?.response?.data?.message ||
-    fallback
-  );
-}
-
-function isApprovedBranch(
-  branch,
-) {
-  return [
-    "approved",
-    "active",
-  ].includes(branch?.status);
-}
-
-function isFranchiseBranch(
-  branch,
-) {
-  return [
-    "franchise",
-    "franchise_branch",
-  ].includes(
-    String(
-      branch?.type || "",
-    ).toLowerCase(),
+    <Space size={[4, 4]} wrap>
+      {enabled.map(([field, label, color]) => (
+        <Tag
+          key={field}
+          color={color}
+          style={{
+            marginInlineEnd: 0,
+            borderRadius: 999,
+            fontSize: 11,
+            lineHeight: "20px",
+            paddingInline: 8,
+          }}
+        >
+          {label}
+        </Tag>
+      ))}
+    </Space>
   );
 }
 
 export default function BranchOfficesPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const [filterForm] = Form.useForm();
 
-  const searchParams =
-    useSearchParams();
+  const [franchiseBranches, setFranchiseBranches] = useState([]);
+  const [subBranches, setSubBranches] = useState([]);
+  const [allBranches, setAllBranches] = useState([]);
+  const [coverageLocations, setCoverageLocations] = useState([]);
+  const [mapBranches, setMapBranches] = useState([]);
 
-  const [filterForm] =
-    Form.useForm();
+  const [franchiseLoading, setFranchiseLoading] = useState(false);
+  const [subLoading, setSubLoading] = useState(false);
+  const [mapLoading, setMapLoading] = useState(false);
+  const [actionLoading, setActionLoading] = useState(false);
 
-  const [
-    franchiseBranches,
-    setFranchiseBranches,
-  ] = useState([]);
+  const [viewMode, setViewMode] = useState("table");
+  const [activeTab, setActiveTab] = useState(
+    searchParams.get("tab") === "sub" ? "sub" : "franchise",
+  );
 
-  const [
-    subBranches,
-    setSubBranches,
-  ] = useState([]);
-
-  const [
-    allBranches,
-    setAllBranches,
-  ] = useState([]);
-
-  const [
-    coverageLocations,
-    setCoverageLocations,
-  ] = useState([]);
-
-  const [
-    mapBranches,
-    setMapBranches,
-  ] = useState([]);
-
-  const [
-    loading,
-    setLoading,
-  ] = useState(false);
-
-  const [
-    mapLoading,
-    setMapLoading,
-  ] = useState(false);
-
-  const [
-    viewMode,
-    setViewMode,
-  ] = useState("table");
-
-  const [
-    franchisePagination,
-    setFranchisePagination,
-  ] = useState({
+  const [franchisePagination, setFranchisePagination] = useState({
     current: 1,
     pageSize: 10,
     total: 0,
   });
 
-  const [
-    subPagination,
-    setSubPagination,
-  ] = useState({
+  const [subPagination, setSubPagination] = useState({
     current: 1,
     pageSize: 10,
     total: 0,
   });
 
-  const [
-    selectedFranchiseKeys,
-    setSelectedFranchiseKeys,
-  ] = useState([]);
+  const [selectedFranchiseKeys, setSelectedFranchiseKeys] = useState([]);
+  const [selectedSubKeys, setSelectedSubKeys] = useState([]);
 
-  const [
-    selectedSubKeys,
-    setSelectedSubKeys,
-  ] = useState([]);
-
-  const [
-    actionModal,
-    setActionModal,
-  ] = useState({
+  const [actionModal, setActionModal] = useState({
     open: false,
     action: null,
     record: null,
     reason: "",
   });
 
-  /*
-   * Sync filter form from URL.
-   */
   useEffect(() => {
     filterForm.setFieldsValue({
-      q:
-        searchParams.get("q") ||
-        undefined,
-
-      status:
-        searchParams.get(
-          "status",
-        ) || undefined,
-
-      parent_id:
-        searchParams.get(
-          "parent_id",
-        )
-          ? Number(
-              searchParams.get(
-                "parent_id",
-              ),
-            )
-          : undefined,
-
-      coverage_location_id:
-        searchParams.get(
-          "coverage_location_id",
-        )
-          ? Number(
-              searchParams.get(
-                "coverage_location_id",
-              ),
-            )
-          : undefined,
+      q: searchParams.get("q") || undefined,
+      status: searchParams.get("status") || undefined,
+      parent_id: searchParams.get("parent_id")
+        ? Number(searchParams.get("parent_id"))
+        : undefined,
+      coverage_location_id: searchParams.get("coverage_location_id")
+        ? Number(searchParams.get("coverage_location_id"))
+        : undefined,
     });
-  }, [
-    filterForm,
-    searchParams,
-  ]);
+  }, [filterForm, searchParams]);
 
-  const activeCount =
-    useMemo(
-      () =>
-        allBranches.filter(
-          (record) =>
-            record.status ===
-            "active",
-        ).length,
-      [allBranches],
-    );
+  const activeCount = useMemo(
+    () => allBranches.filter((record) => record.status === "active").length,
+    [allBranches],
+  );
 
-  const parentBranchOptions =
-    useMemo(
-      () =>
-        allBranches
-          .filter(
-            (record) =>
-              record.type ===
-              "franchise_branch",
-          )
-          .map((record) => ({
-            value: record.id,
+  const franchiseCount = useMemo(
+    () =>
+      allBranches.filter((record) =>
+        ["franchise", "franchise_branch", "head_branch", "main_branch"].includes(
+          String(record.type || "").toLowerCase(),
+        ),
+      ).length,
+    [allBranches],
+  );
 
-            label: `${
-              record.name
-            } (${
-              record.code ||
-              record.type
-            })`,
-          })),
-      [allBranches],
-    );
+  const subCount = useMemo(
+    () =>
+      allBranches.filter((record) =>
+        ["sub", "sub_branch", "pickup_point", "delivery_hub"].includes(
+          String(record.type || "").toLowerCase(),
+        ),
+      ).length,
+    [allBranches],
+  );
 
-  function syncUrl(values) {
-    const params =
-      new URLSearchParams();
+  const parentBranchOptions = useMemo(
+    () =>
+      allBranches
+        .filter((record) => isFranchiseBranch(record))
+        .map((record) => ({
+          value: record.id,
+          label: `${record.name} (${record.code || record.type})`,
+        })),
+    [allBranches],
+  );
 
-    if (values.q) {
-      params.set(
-        "q",
-        values.q,
+  const syncUrl = useCallback(
+    (values, tab = activeTab) => {
+      const params = new URLSearchParams();
+
+      if (values.q) params.set("q", values.q);
+      if (values.status) params.set("status", values.status);
+      if (values.parent_id) params.set("parent_id", values.parent_id);
+      if (values.coverage_location_id) {
+        params.set("coverage_location_id", values.coverage_location_id);
+      }
+      if (tab === "sub") params.set("tab", "sub");
+
+      const query = params.toString();
+      router.replace(query ? `?${query}` : "?", { scroll: false });
+    },
+    [activeTab, router],
+  );
+
+  const buildParams = useCallback(
+    (overrides = {}) => {
+      const values = {
+        ...filterForm.getFieldsValue(),
+        ...overrides,
+      };
+
+      return {
+        q: values.q || undefined,
+        status: values.status || undefined,
+        parent_id: values.parent_id || undefined,
+        coverage_location_id: values.coverage_location_id || undefined,
+      };
+    },
+    [filterForm],
+  );
+
+  const loadSupportData = useCallback(async () => {
+    try {
+      const [allResponse, coverageResponse] = await Promise.all([
+        getBranches({ all: 1 }),
+        getCoverageLocations({ all: 1 }),
+      ]);
+
+      setAllBranches(normalizeRows(allResponse));
+      setCoverageLocations(normalizeRows(coverageResponse));
+    } catch (error) {
+      message.error(
+        apiErrorMessage(error, "Could not load branch support data."),
       );
     }
+  }, []);
 
-    if (values.status) {
-      params.set(
-        "status",
-        values.status,
-      );
-    }
-
-    if (values.parent_id) {
-      params.set(
-        "parent_id",
-        values.parent_id,
-      );
-    }
-
-    if (
-      values.coverage_location_id
-    ) {
-      params.set(
-        "coverage_location_id",
-        values.coverage_location_id,
-      );
-    }
-
-    const query =
-      params.toString();
-
-    router.replace(
-      query ? `?${query}` : "?",
-      {
-        scroll: false,
-      },
-    );
-  }
-
-  function buildParams(
-    extra = {},
-  ) {
-    const values = {
-      ...filterForm.getFieldsValue(),
-      ...extra,
-    };
-
-    return {
-      q:
-        values.q ||
-        undefined,
-
-      status:
-        values.status ||
-        undefined,
-
-      parent_id:
-        values.parent_id ||
-        undefined,
-
-      coverage_location_id:
-        values.coverage_location_id ||
-        undefined,
-    };
-  }
-
-  const loadSupportData =
-    useCallback(async () => {
+  const loadFranchise = useCallback(
+    async (page = 1, pageSize = 10, overrides = {}) => {
       try {
-        const [
-          allResponse,
-          coverageResponse,
-        ] = await Promise.all([
-          getBranches({
-            all: 1,
-          }),
+        setFranchiseLoading(true);
 
-          getCoverageLocations({
-            all: 1,
-          }),
-        ]);
+        const response = await getBranches({
+          page,
+          per_page: pageSize,
+          type: "franchise_branch",
+          ...buildParams(overrides),
+        });
 
-        setAllBranches(
-          normalizeRows(
-            allResponse,
-          ),
-        );
-
-        setCoverageLocations(
-          normalizeRows(
-            coverageResponse,
-          ),
-        );
+        const parsed = normalizePaginated(response);
+        setFranchiseBranches(parsed.rows);
+        setFranchisePagination(parsed.pagination);
       } catch (error) {
         message.error(
-          apiErrorMessage(
-            error,
-            "Could not load branch support data.",
-          ),
+          apiErrorMessage(error, "Could not load franchise branches."),
         );
+      } finally {
+        setFranchiseLoading(false);
       }
-    }, []);
+    },
+    [buildParams],
+  );
 
-  const loadFranchise =
-    useCallback(
-      async (
-        page = 1,
-        pageSize = 10,
-        overrides = {},
-      ) => {
-        try {
-          setLoading(true);
+  const loadSub = useCallback(
+    async (page = 1, pageSize = 10, overrides = {}) => {
+      try {
+        setSubLoading(true);
 
-          const response =
-            await getBranches({
-              page,
-              per_page: pageSize,
+        const response = await getBranches({
+          page,
+          per_page: pageSize,
+          type: "sub_branch",
+          ...buildParams(overrides),
+        });
 
-              type:
-                "franchise_branch",
+        const parsed = normalizePaginated(response);
+        setSubBranches(parsed.rows);
+        setSubPagination(parsed.pagination);
+      } catch (error) {
+        message.error(apiErrorMessage(error, "Could not load sub-branches."));
+      } finally {
+        setSubLoading(false);
+      }
+    },
+    [buildParams],
+  );
 
-              ...buildParams(
-                overrides,
-              ),
-            });
+  const loadMapData = useCallback(
+    async (overrides = {}) => {
+      try {
+        setMapLoading(true);
+        const response = await getBranches({
+          all: 1,
+          ...buildParams(overrides),
+        });
+        setMapBranches(normalizeRows(response));
+      } catch {
+        // Keep the list usable if map data fails.
+      } finally {
+        setMapLoading(false);
+      }
+    },
+    [buildParams],
+  );
 
-          const parsed =
-            normalizePaginated(
-              response,
-            );
-
-          setFranchiseBranches(
-            parsed.rows,
-          );
-
-          setFranchisePagination(
-            parsed.pagination,
-          );
-        } catch (error) {
-          message.error(
-            apiErrorMessage(
-              error,
-              "Could not load franchise branches.",
-            ),
-          );
-        } finally {
-          setLoading(false);
-        }
-      },
-      [filterForm],
-    );
-
-  const loadSub =
-    useCallback(
-      async (
-        page = 1,
-        pageSize = 10,
-        overrides = {},
-      ) => {
-        try {
-          setLoading(true);
-
-          const response =
-            await getBranches({
-              page,
-              per_page: pageSize,
-
-              type:
-                "sub_branch",
-
-              ...buildParams(
-                overrides,
-              ),
-            });
-
-          const parsed =
-            normalizePaginated(
-              response,
-            );
-
-          setSubBranches(
-            parsed.rows,
-          );
-
-          setSubPagination(
-            parsed.pagination,
-          );
-        } catch (error) {
-          message.error(
-            apiErrorMessage(
-              error,
-              "Could not load sub-branches.",
-            ),
-          );
-        } finally {
-          setLoading(false);
-        }
-      },
-      [filterForm],
-    );
-
-  const loadMapData =
-    useCallback(
-      async (
-        overrides = {},
-      ) => {
-        try {
-          setMapLoading(true);
-
-          const response =
-            await getBranches({
-              all: 1,
-
-              ...buildParams(
-                overrides,
-              ),
-            });
-
-          setMapBranches(
-            normalizeRows(
-              response,
-            ),
-          );
-        } catch {
-          /*
-           * Keep the page usable if
-           * map loading fails.
-           */
-        } finally {
-          setMapLoading(false);
-        }
-      },
-      [filterForm],
-    );
-
-  const loadAll =
-    useCallback(
-      async (
-        overrides = {},
-      ) => {
-        await Promise.all([
-          loadSupportData(),
-
-          loadFranchise(
-            1,
-            franchisePagination.pageSize,
-            overrides,
-          ),
-
-          loadSub(
-            1,
-            subPagination.pageSize,
-            overrides,
-          ),
-
-          loadMapData(
-            overrides,
-          ),
-        ]);
-      },
-      [
-        loadSupportData,
-        loadFranchise,
-        loadSub,
-        loadMapData,
-        franchisePagination.pageSize,
-        subPagination.pageSize,
-      ],
-    );
+  const loadAll = useCallback(
+    async (overrides = {}) => {
+      await Promise.all([
+        loadSupportData(),
+        loadFranchise(1, franchisePagination.pageSize, overrides),
+        loadSub(1, subPagination.pageSize, overrides),
+        loadMapData(overrides),
+      ]);
+    },
+    [
+      franchisePagination.pageSize,
+      loadFranchise,
+      loadMapData,
+      loadSub,
+      loadSupportData,
+      subPagination.pageSize,
+    ],
+  );
 
   useEffect(() => {
     loadAll();
+    // Run once on initial mount. Reloads are handled explicitly afterward.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const applyFilters =
-    useCallback(() => {
-      const values =
-        filterForm.getFieldsValue();
+  const applyFilters = useCallback(() => {
+    const values = filterForm.getFieldsValue();
+    syncUrl(values);
 
-      syncUrl(values);
+    loadFranchise(1, franchisePagination.pageSize);
+    loadSub(1, subPagination.pageSize);
+    loadMapData();
+  }, [
+    filterForm,
+    franchisePagination.pageSize,
+    loadFranchise,
+    loadMapData,
+    loadSub,
+    subPagination.pageSize,
+    syncUrl,
+  ]);
 
-      loadFranchise(
-        1,
-        franchisePagination.pageSize,
-      );
+  const resetFilters = useCallback(() => {
+    filterForm.resetFields();
 
-      loadSub(
-        1,
-        subPagination.pageSize,
-      );
+    const cleared = {
+      q: undefined,
+      status: undefined,
+      parent_id: undefined,
+      coverage_location_id: undefined,
+    };
 
-      loadMapData();
-    }, [
-      filterForm,
-      franchisePagination.pageSize,
-      subPagination.pageSize,
-      loadFranchise,
-      loadSub,
-      loadMapData,
-    ]);
+    syncUrl(cleared);
+    loadFranchise(1, franchisePagination.pageSize, cleared);
+    loadSub(1, subPagination.pageSize, cleared);
+    loadMapData(cleared);
+  }, [
+    filterForm,
+    franchisePagination.pageSize,
+    loadFranchise,
+    loadMapData,
+    loadSub,
+    subPagination.pageSize,
+    syncUrl,
+  ]);
 
-  const resetFilters =
-    useCallback(() => {
-      filterForm.resetFields();
+  const handleTabChange = useCallback(
+    (tab) => {
+      setActiveTab(tab);
+      syncUrl(filterForm.getFieldsValue(), tab);
+    },
+    [filterForm, syncUrl],
+  );
 
-      router.replace("?", {
-        scroll: false,
-      });
+  const removeRecord = useCallback(
+    async (id) => {
+      try {
+        await deleteBranch(id);
+        message.success("Branch deleted.");
+        await loadAll();
+      } catch (error) {
+        message.error(apiErrorMessage(error, "Could not delete branch."));
+      }
+    },
+    [loadAll],
+  );
 
-      const cleared = {
-        q: undefined,
-        status: undefined,
-        parent_id: undefined,
-        coverage_location_id:
-          undefined,
+  const removeBulk = useCallback(
+    async (ids) => {
+      try {
+        await Promise.all(ids.map((id) => deleteBranch(id)));
+        message.success(`${ids.length} branch(es) deleted.`);
+        setSelectedFranchiseKeys([]);
+        setSelectedSubKeys([]);
+        await loadAll();
+      } catch (error) {
+        message.error(
+          apiErrorMessage(error, "Could not delete the selected branches."),
+        );
+      }
+    },
+    [loadAll],
+  );
+
+  const openAction = useCallback((action, record) => {
+    setActionModal({
+      open: true,
+      action,
+      record,
+      reason: "",
+    });
+  }, []);
+
+  const closeAction = useCallback(() => {
+    if (actionLoading) return;
+
+    setActionModal({
+      open: false,
+      action: null,
+      record: null,
+      reason: "",
+    });
+  }, [actionLoading]);
+
+  const submitAction = useCallback(async () => {
+    const { action, record, reason } = actionModal;
+    if (!record?.id) return;
+
+    try {
+      setActionLoading(true);
+
+      if (action === "approve") await approveBranch(record.id);
+      if (action === "activate") await activateBranch(record.id);
+      if (action === "suspend") {
+        await suspendBranch(record.id, reason || "Suspended from admin panel.");
+      }
+      if (action === "reject") {
+        await rejectBranch(record.id, reason || "Rejected from admin panel.");
+      }
+
+      const messages = {
+        approve: "Branch approved successfully.",
+        activate: "Branch activated successfully.",
+        suspend: "Branch suspended successfully.",
+        reject: "Branch rejected successfully.",
       };
 
-      loadFranchise(
-        1,
-        franchisePagination.pageSize,
-        cleared,
-      );
-
-      loadSub(
-        1,
-        subPagination.pageSize,
-        cleared,
-      );
-
-      loadMapData(cleared);
-    }, [
-      filterForm,
-      router,
-      loadFranchise,
-      loadSub,
-      loadMapData,
-      franchisePagination.pageSize,
-      subPagination.pageSize,
-    ]);
-
-  const removeRecord =
-    useCallback(
-      async (id) => {
-        try {
-          await deleteBranch(id);
-
-          message.success(
-            "Branch deleted.",
-          );
-
-          await loadAll();
-        } catch (error) {
-          message.error(
-            apiErrorMessage(
-              error,
-              "Could not delete branch.",
-            ),
-          );
-        }
-      },
-      [loadAll],
-    );
-
-  const removeBulk =
-    useCallback(
-      async (ids) => {
-        try {
-          await Promise.all(
-            ids.map((id) =>
-              deleteBranch(id),
-            ),
-          );
-
-          message.success(
-            `${ids.length} branch(es) deleted.`,
-          );
-
-          setSelectedFranchiseKeys(
-            [],
-          );
-
-          setSelectedSubKeys([]);
-
-          await loadAll();
-        } catch (error) {
-          message.error(
-            apiErrorMessage(
-              error,
-              "Could not delete the selected branches.",
-            ),
-          );
-        }
-      },
-      [loadAll],
-    );
-
-  const openAction =
-    useCallback(
-      (
-        action,
-        record,
-      ) => {
-        setActionModal({
-          open: true,
-          action,
-          record,
-          reason: "",
-        });
-      },
-      [],
-    );
-
-  const closeAction =
-    useCallback(() => {
+      message.success(messages[action] || "Branch updated successfully.");
       setActionModal({
         open: false,
         action: null,
         record: null,
         reason: "",
       });
-    }, []);
+      await loadAll();
+    } catch (error) {
+      message.error(apiErrorMessage(error, "Branch action failed."));
+    } finally {
+      setActionLoading(false);
+    }
+  }, [actionModal, loadAll]);
 
-  /*
-   * This modal continues to handle:
-   *
-   * - Sub-branch approval
-   * - Branch activation
-   * - Suspension
-   * - Rejection
-   *
-   * Franchise approval and email
-   * invitation actions are handled by
-   * BranchInvitationActions.
-   */
-  const submitAction =
-    useCallback(async () => {
-      const {
-        action,
-        record,
-        reason,
-      } = actionModal;
+  const confirmDelete = useCallback(
+    (record) => {
+      Modal.confirm({
+        title: "Delete branch?",
+        content: `Delete ${record.name}? This action cannot be undone.`,
+        okText: "Delete",
+        okButtonProps: { danger: true },
+        onOk: () => removeRecord(record.id),
+      });
+    },
+    [removeRecord],
+  );
 
-      if (!record?.id) {
-        return;
+  const buildActionMenu = useCallback(
+    (record) => {
+      const franchise = isFranchiseBranch(record);
+      const approved = isApprovedBranch(record);
+      const canActivate = ["approved", "suspended"].includes(record.status);
+      const canSuspend = ["approved", "active"].includes(record.status);
+
+      const items = [];
+
+      if (!franchise && !approved) {
+        items.push({
+          key: "approve",
+          icon: <CheckCircleOutlined />,
+          label: "Approve branch",
+        });
       }
 
-      try {
-        if (
-          action === "approve"
-        ) {
-          await approveBranch(
-            record.id,
-          );
-        }
-
-        if (
-          action === "activate"
-        ) {
-          await activateBranch(
-            record.id,
-          );
-        }
-
-        if (
-          action === "suspend"
-        ) {
-          await suspendBranch(
-            record.id,
-
-            reason ||
-              "Suspended from admin panel.",
-          );
-        }
-
-        if (
-          action === "reject"
-        ) {
-          await rejectBranch(
-            record.id,
-
-            reason ||
-              "Rejected from admin panel.",
-          );
-        }
-
-        const messages = {
-          approve:
-            "Branch approved successfully.",
-
-          activate:
-            "Branch activated successfully.",
-
-          suspend:
-            "Branch suspended successfully.",
-
-          reject:
-            "Branch rejected successfully.",
-        };
-
-        message.success(
-          messages[action] ||
-            "Branch updated successfully.",
-        );
-
-        closeAction();
-
-        await loadAll();
-      } catch (error) {
-        message.error(
-          apiErrorMessage(
-            error,
-            "Branch action failed.",
-          ),
-        );
+      if (canActivate && record.status !== "active") {
+        items.push({
+          key: "activate",
+          icon: <ThunderboltOutlined />,
+          label: "Activate branch",
+        });
       }
-    }, [
-      actionModal,
-      closeAction,
-      loadAll,
-    ]);
 
-  const actionCol =
-    useCallback(
-      (record) => {
-        const franchise =
-          isFranchiseBranch(
-            record,
-          );
+      if (canSuspend && record.status !== "suspended") {
+        items.push({
+          key: "suspend",
+          icon: <StopOutlined />,
+          label: "Suspend branch",
+        });
+      }
 
-        const approved =
-          isApprovedBranch(
-            record,
-          );
+      if (!["rejected", "closed"].includes(record.status)) {
+        items.push({
+          key: "reject",
+          icon: <StopOutlined />,
+          label: "Reject branch",
+          danger: true,
+        });
+      }
 
-        const canActivate = [
-          "approved",
-          "suspended",
-        ].includes(
-          record.status,
-        );
+      if (items.length) {
+        items.push({ type: "divider" });
+      }
 
-        const canSuspend = [
-          "approved",
-          "active",
-        ].includes(
-          record.status,
-        );
+      items.push({
+        key: "delete",
+        icon: <DeleteOutlined />,
+        label: "Delete branch",
+        danger: true,
+      });
 
-        return (
-          <Space
-            size={4}
-            wrap
+      return {
+        items,
+        onClick: ({ key }) => {
+          if (key === "delete") {
+            confirmDelete(record);
+            return;
+          }
+
+          openAction(key, record);
+        },
+      };
+    },
+    [confirmDelete, openAction],
+  );
+
+  const actionColumn = useCallback(
+    (record) => (
+      <Space size={6}>
+        <Link href={`/admin/branch-offices/${record.id}`}>
+          <Button
+            size="small"
+            type="danger"
+            ghost
+            icon={<EyeOutlined />}
           >
+          </Button>
+        </Link>
+
+        <Dropdown
+          trigger={["click"]}
+          placement="bottomRight"
+          menu={buildActionMenu(record)}
+        >
+          <Tooltip title="More actions">
+            <Button size="small" icon={<MoreOutlined />} />
+          </Tooltip>
+        </Dropdown>
+      </Space>
+    ),
+    [buildActionMenu],
+  );
+
+  const baseColumns = useMemo(
+    () => [
+      {
+        title: "Branch / Office",
+        dataIndex: "name",
+        key: "name",
+        width: 230,
+        fixed: "left",
+        sorter: (a, b) =>
+          String(a.name || "").localeCompare(String(b.name || "")),
+        render: (text, record) => (
+          <Space direction="vertical" size={2} style={{ width: "100%" }}>
             <Link
               href={`/admin/branch-offices/${record.id}`}
+              style={{ fontWeight: 600 }}
             >
-              <Button
-                size="small"
-                icon={
-                  <EyeOutlined />
-                }
-                title="View branch"
-              />
+              {text || "Unnamed branch"}
             </Link>
 
-            <Link
-              href={`/admin/branch-offices/${record.id}/edit`}
-            >
-              <Button
-                size="small"
-                icon={
-                  <EditOutlined />
-                }
-                title="Edit branch"
-              />
-            </Link>
+            <Space size={6} wrap>
+              <Text type="secondary" style={{ fontSize: 12 }}>
+                {record.code || "No code"}
+              </Text>
 
-            {franchise ? (
-              <BranchInvitationActions
-                branch={record}
-                onChanged={
-                  loadAll
-                }
-              />
-            ) : !approved ? (
-              <Button
-                size="small"
-                icon={
-                  <CheckCircleOutlined />
-                }
-                title="Approve branch"
-                onClick={() =>
-                  openAction(
-                    "approve",
-                    record,
-                  )
-                }
-              />
-            ) : null}
-
-            {canActivate &&
-            record.status !==
-              "active" ? (
-              <Button
-                size="small"
-                type="primary"
-                icon={
-                  <ThunderboltOutlined />
-                }
-                title="Activate branch"
-                onClick={() =>
-                  openAction(
-                    "activate",
-                    record,
-                  )
-                }
-              />
-            ) : null}
-
-            {canSuspend &&
-            record.status !==
-              "suspended" ? (
-              <Button
-                size="small"
-                icon={
-                  <StopOutlined />
-                }
-                title="Suspend branch"
-                onClick={() =>
-                  openAction(
-                    "suspend",
-                    record,
-                  )
-                }
-              />
-            ) : null}
-
-            <Popconfirm
-              title="Delete this branch?"
-              description="This action cannot be undone."
-              okText="Delete"
-              cancelText="Cancel"
-              okButtonProps={{
-                danger: true,
-              }}
-              onConfirm={() =>
-                removeRecord(
-                  record.id,
-                )
-              }
-            >
-              <Button
-                size="small"
-                danger
-                icon={
-                  <DeleteOutlined />
-                }
-                title="Delete branch"
-              />
-            </Popconfirm>
+              <Tag
+                style={{
+                  marginInlineEnd: 0,
+                  borderRadius: 999,
+                  fontSize: 10,
+                  lineHeight: "18px",
+                }}
+              >
+                #{record.id}
+              </Tag>
+            </Space>
           </Space>
-        );
+        ),
       },
-      [
-        loadAll,
-        openAction,
-        removeRecord,
-      ],
-    );
+      {
+        title: "Allocation",
+        key: "allocation",
+        width: 190,
+        render: (_, record) => {
+          const allocation = record.coverage_location;
 
-  const sharedColumns =
-    useMemo(
-      () => [
-        {
-          title: "ID",
-          dataIndex: "id",
-          width: 65,
+          if (!allocation) {
+            return <Text type="secondary">Not assigned</Text>;
+          }
 
-          sorter: (a, b) =>
-            Number(a.id) -
-            Number(b.id),
-        },
-
-        {
-          title:
-            "Branch / Office",
-
-          dataIndex: "name",
-
-          width: 220,
-
-          sorter: (a, b) =>
-            String(
-              a.name || "",
-            ).localeCompare(
-              String(
-                b.name || "",
-              ),
-            ),
-
-          render: (
-            text,
-            record,
-          ) => (
-            <Space
-              direction="vertical"
-              size={0}
-            >
-              <Link
-                href={`/admin/branch-offices/${record.id}`}
-              >
-                {text}
-              </Link>
-
-              <Text
-                type="secondary"
-                style={{
-                  fontSize: 12,
-                }}
-              >
-                {record.code ||
-                  "—"}
-              </Text>
-            </Space>
-          ),
-        },
-
-        {
-          title: "Allocation",
-          width: 180,
-
-          render: (
-            _,
-            record,
-          ) =>
-            record
-              .coverage_location
-              ?.name || (
-              <Text type="secondary">
-                —
-              </Text>
-            ),
-        },
-
-        {
-          title:
-            "Office Location",
-
-          width: 240,
-
-          render: (
-            _,
-            record,
-          ) => (
-            <Space
-              direction="vertical"
-              size={0}
-            >
-              <Text
-                style={{
-                  fontSize: 12,
-                }}
-              >
-                {record.office_address ||
-                  "—"}
-              </Text>
-
-              {record.office_latitude &&
-              record.office_longitude ? (
-                <Text
-                  type="secondary"
-                  style={{
-                    fontSize: 11,
-                  }}
-                >
-                  {
-                    record.office_latitude
-                  }
-                  ,{" "}
-                  {
-                    record.office_longitude
-                  }
+          return (
+            <Space direction="vertical" size={1} style={{ width: "100%" }}>
+              <Tooltip title={allocation.name}>
+                <Text ellipsis style={{ width: "100%" }}>
+                  {allocation.name}
                 </Text>
-              ) : null}
-            </Space>
-          ),
-        },
-
-        {
-          title: "Services",
-          width: 160,
-
-          render: (
-            _,
-            record,
-          ) => (
-            <Space
-              size={4}
-              wrap
-            >
-              {record.pickup_enabled ? (
-                <Tag
-                  color="purple"
-                  style={{
-                    fontSize: 11,
-                    padding:
-                      "0 4px",
-                  }}
-                >
-                  Pickup
-                </Tag>
-              ) : null}
-
-              {record.delivery_enabled ? (
-                <Tag
-                  color="orange"
-                  style={{
-                    fontSize: 11,
-                    padding:
-                      "0 4px",
-                  }}
-                >
-                  Delivery
-                </Tag>
-              ) : null}
-
-              {record.pod_enabled ? (
-                <Tag
-                  color="green"
-                  style={{
-                    fontSize: 11,
-                    padding:
-                      "0 4px",
-                  }}
-                >
-                  POD
-                </Tag>
-              ) : null}
-
-              {record.return_enabled ? (
-                <Tag
-                  color="cyan"
-                  style={{
-                    fontSize: 11,
-                    padding:
-                      "0 4px",
-                  }}
-                >
-                  Return
-                </Tag>
-              ) : null}
-            </Space>
-          ),
-        },
-
-        {
-          title: "Status",
-          dataIndex: "status",
-          width: 110,
-          align: "center",
-
-          filters:
-            STATUS_OPTIONS.map(
-              (status) => ({
-                text:
-                  status.label,
-
-                value:
-                  status.value,
-              }),
-            ),
-
-          onFilter: (
-            value,
-            record,
-          ) =>
-            record.status ===
-            value,
-
-          render: (value) => (
-            <Tag
-              color={
-                STATUS_COLOR[
-                  value
-                ] || "default"
-              }
-              style={{
-                fontSize: 11,
-              }}
-            >
-              {value}
-            </Tag>
-          ),
-        },
-
-        {
-          title: "Actions",
-          key: "actions",
-          fixed: "right",
-          width: 350,
-
-          render: (
-            _,
-            record,
-          ) =>
-            actionCol(record),
-        },
-      ],
-      [actionCol],
-    );
-
-  const franchiseColumns =
-    useMemo(
-      () => [
-        ...sharedColumns.slice(
-          0,
-          2,
-        ),
-
-        {
-          title: "Sub-Branches",
-          width: 110,
-          align: "center",
-
-          render: (
-            _,
-            record,
-          ) => (
-            <Tag
-              color={
-                record.children
-                  ?.length
-                  ? "blue"
-                  : "default"
-              }
-            >
-              {record.children
-                ?.length || 0}
-            </Tag>
-          ),
-        },
-
-        /*
-         * Allocation, office
-         * location and services.
-         */
-        ...sharedColumns.slice(
-          2,
-          5,
-        ),
-
-        {
-          title:
-            "Manager Account",
-
-          key:
-            "manager_account",
-
-          width: 200,
-
-          render: (
-            _,
-            record,
-          ) => (
-            <BranchInvitationStatusTag
-              branch={record}
-              showEmail
-            />
-          ),
-        },
-
-        /*
-         * Branch status and
-         * actions.
-         */
-        ...sharedColumns.slice(5),
-      ],
-      [sharedColumns],
-    );
-
-  const subColumns =
-    useMemo(
-      () => [
-        ...sharedColumns.slice(
-          0,
-          2,
-        ),
-
-        {
-          title: "Parent",
-          width: 180,
-
-          render: (
-            _,
-            record,
-          ) =>
-            record.parent?.name || (
-              <Text type="secondary">
-                —
+              </Tooltip>
+              <Text type="secondary" style={{ fontSize: 11 }}>
+                {allocation.code || "No allocation code"}
               </Text>
-            ),
+            </Space>
+          );
         },
+      },
+      {
+        title: "Office location",
+        key: "office_location",
+        width: 260,
+        render: (_, record) => (
+          <Space direction="vertical" size={2} style={{ width: "100%" }}>
+            <Paragraph
+              ellipsis={{ rows: 2, tooltip: record.office_address || "" }}
+              style={{ margin: 0, fontSize: 12 }}
+            >
+              {record.office_address || "Office address not added"}
+            </Paragraph>
 
-        ...sharedColumns.slice(2),
-      ],
-      [sharedColumns],
-    );
+            {record.office_latitude && record.office_longitude ? (
+              <Text type="secondary" style={{ fontSize: 11 }}>
+                {record.office_latitude}, {record.office_longitude}
+              </Text>
+            ) : (
+              <Text type="secondary" style={{ fontSize: 11 }}>
+                Map point not set
+              </Text>
+            )}
+          </Space>
+        ),
+      },
+      {
+        title: "Services",
+        key: "services",
+        width: 190,
+        render: (_, record) => <ServiceTags record={record} />,
+      },
+      {
+        title: "Status",
+        dataIndex: "status",
+        key: "status",
+        width: 120,
+        align: "center",
+        render: (value) => (
+          <Tag
+            color={STATUS_COLOR[value] || "default"}
+            style={{
+              marginInlineEnd: 0,
+              borderRadius: 999,
+              minWidth: 82,
+              textAlign: "center",
+            }}
+          >
+            {formatStatus(value)}
+          </Tag>
+        ),
+      },
+      {
+        title: "Actions",
+        key: "actions",
+        fixed: "right",
+        width: 128,
+        align: "center",
+        render: (_, record) => actionColumn(record),
+      },
+    ],
+    [actionColumn],
+  );
 
-  function TabToolbar({
-    selectedKeys,
-    onBulkDelete,
-    data,
-    csvFilename,
-  }) {
+  const franchiseColumns = useMemo(
+    () => [
+      baseColumns[0],
+      {
+        title: "Sub-branches",
+        key: "children_count",
+        width: 110,
+        align: "center",
+        render: (_, record) => (
+          <Tag
+            color={Number(record.children_count || record.children?.length) ? "blue" : "default"}
+            style={{ marginInlineEnd: 0, borderRadius: 999 }}
+          >
+            {record.children_count ?? record.children?.length ?? 0}
+          </Tag>
+        ),
+      },
+      baseColumns[1],
+      baseColumns[2],
+      baseColumns[3],
+      {
+        title: "Manager account",
+        key: "manager_account",
+        width: 250,
+        render: (_, record) => (
+          <Space direction="vertical" size={6} style={{ width: "100%" }}>
+            <BranchInvitationStatusTag branch={record} showEmail />
+            <div className="branch-invitation-actions">
+              <BranchInvitationActions branch={record} onChanged={loadAll} />
+            </div>
+          </Space>
+        ),
+      },
+      baseColumns[4],
+      baseColumns[5],
+    ],
+    [baseColumns, loadAll],
+  );
+
+  const subColumns = useMemo(
+    () => [
+      baseColumns[0],
+      {
+        title: "Parent branch",
+        key: "parent",
+        width: 190,
+        render: (_, record) =>
+          record.parent?.name ? (
+            <Space direction="vertical" size={1} style={{ width: "100%" }}>
+              <Tooltip title={record.parent.name}>
+                <Text ellipsis style={{ width: "100%" }}>
+                  {record.parent.name}
+                </Text>
+              </Tooltip>
+              <Text type="secondary" style={{ fontSize: 11 }}>
+                {record.parent.code || record.parent.type || "Parent branch"}
+              </Text>
+            </Space>
+          ) : (
+            <Text type="secondary">No parent</Text>
+          ),
+      },
+      baseColumns[1],
+      baseColumns[2],
+      baseColumns[3],
+      baseColumns[4],
+      baseColumns[5],
+    ],
+    [baseColumns],
+  );
+
+  function TabToolbar({ selectedKeys, onBulkDelete, data, csvFilename }) {
     return (
       <Row
         justify="space-between"
         align="middle"
-        style={{
-          marginBottom: 12,
-        }}
+        gutter={[12, 10]}
+        style={{ marginBottom: 12 }}
       >
         <Col>
-          {selectedKeys.length >
-          0 ? (
-            <Popconfirm
-              title={`Delete ${selectedKeys.length} branch(es)?`}
-              description="This action cannot be undone."
-              okText="Delete"
-              cancelText="Cancel"
-              okButtonProps={{
-                danger: true,
-              }}
-              onConfirm={() =>
-                onBulkDelete(
-                  selectedKeys,
-                )
-              }
-            >
-              <Button
-                danger
-                size="small"
-                icon={
-                  <DeleteOutlined />
-                }
+          {selectedKeys.length ? (
+            <Space wrap>
+              <Tag color="blue" style={{ marginInlineEnd: 0 }}>
+                {selectedKeys.length} selected
+              </Tag>
+
+              <Popconfirm
+                title={`Delete ${selectedKeys.length} selected branch(es)?`}
+                description="This action cannot be undone."
+                okText="Delete"
+                cancelText="Cancel"
+                okButtonProps={{ danger: true }}
+                onConfirm={() => onBulkDelete(selectedKeys)}
               >
-                Delete selected (
-                {
-                  selectedKeys.length
-                }
-                )
-              </Button>
-            </Popconfirm>
-          ) : null}
+                <Button danger size="small" icon={<DeleteOutlined />}>
+                  Delete selected
+                </Button>
+              </Popconfirm>
+            </Space>
+          ) : (
+            <Text type="secondary" style={{ fontSize: 12 }}>
+              Select rows to perform bulk actions.
+            </Text>
+          )}
         </Col>
 
         <Col>
           <Button
             size="small"
-            icon={
-              <DownloadOutlined />
-            }
-            onClick={() =>
-              exportToCsv(
-                data,
-                csvFilename,
-              )
-            }
+            icon={<DownloadOutlined />}
+            onClick={() => exportToCsv(data, csvFilename)}
           >
-            Export CSV
+            Export current page
           </Button>
         </Col>
       </Row>
@@ -1582,13 +989,11 @@ export default function BranchOfficesPage() {
   }
 
   const tabBarExtra = (
-    <Space>
+    <Space size={8} wrap>
       <Segmented
         size="small"
         value={viewMode}
-        onChange={
-          setViewMode
-        }
+        onChange={setViewMode}
         options={[
           {
             label: (
@@ -1597,10 +1002,8 @@ export default function BranchOfficesPage() {
                 Table
               </Space>
             ),
-
             value: "table",
           },
-
           {
             label: (
               <Space size={4}>
@@ -1608,453 +1011,239 @@ export default function BranchOfficesPage() {
                 Map
               </Space>
             ),
-
             value: "map",
           },
         ]}
       />
 
-      <Button
-        size="small"
-        icon={
-          <ReloadOutlined />
-        }
-        onClick={() =>
-          loadAll()
-        }
-      >
+      <Button size="small" icon={<ReloadOutlined />} onClick={() => loadAll()}>
         Refresh
       </Button>
     </Space>
   );
 
+  const tablePagination = (pagination, loader) => ({
+    current: pagination.current,
+    pageSize: pagination.pageSize,
+    total: pagination.total,
+    showSizeChanger: true,
+    pageSizeOptions: [10, 20, 50],
+    showTotal: (total, range) => `${range[0]}-${range[1]} of ${total}`,
+    onChange: (page, pageSize) => loader(page, pageSize),
+  });
+
   return (
     <div
       style={{
-        background: "#ffffff",
         minHeight: "100vh",
         padding: 20,
+        background: "linear-gradient(180deg, #f7faff 0%, #f2f6fb 100%)",
       }}
     >
-      <Space
-        direction="vertical"
-        size={16}
-        style={{
-          width: "100%",
-        }}
-      >
-        {/* Header */}
-
-        <Row
-          justify="space-between"
-          align="middle"
-          gutter={[16, 12]}
+      <Space direction="vertical" size={16} style={{ width: "100%" }}>
+        <Card
+          bordered={false}
+          style={{
+            borderRadius: 16,
+            boxShadow: "0 12px 30px rgba(15, 23, 42, 0.06)",
+          }}
         >
-          <Col>
-            <Space
-              direction="vertical"
-              size={2}
-            >
-              <Text
-                style={{
-                  fontSize: 20,
-                  fontWeight: 600,
-                }}
-              >
-                Branch Offices
-              </Text>
+          <Row justify="space-between" align="middle" gutter={[16, 14]}>
+            <Col>
+              <Space direction="vertical" size={3}>
+                <Title level={3} style={{ margin: 0 }}>
+                  Branch Offices
+                </Title>
+                <Text type="secondary">
+                  Manage branch allocation, operational status and manager access.
+                </Text>
+              </Space>
+            </Col>
 
-              <Text type="secondary">
-                Manage franchise
-                branches, manager
-                account invitations and
-                sub-branches.
-              </Text>
-            </Space>
-          </Col>
+            <Col>
+              <Space wrap>
+                <Link href="/admin/branch-offices/create?type=franchise_branch">
+                  <Button type="primary" icon={<PlusOutlined />}>
+                    Add Franchise
+                  </Button>
+                </Link>
 
-          <Col>
-            <Space wrap>
-              <Link href="/admin/branch-offices/create?type=franchise_branch">
-                <Button
-                  type="primary"
-                  icon={
-                    <PlusOutlined />
-                  }
-                >
-                  Add Franchise
-                </Button>
-              </Link>
+                <Link href="/admin/branch-offices/create?type=sub_branch">
+                  <Button icon={<PlusOutlined />}>Add Sub-Branch</Button>
+                </Link>
+              </Space>
+            </Col>
+          </Row>
+        </Card>
 
-              <Link href="/admin/branch-offices/create?type=sub_branch">
-                <Button
-                  icon={
-                    <PlusOutlined />
-                  }
-                >
-                  Add Sub-Branch
-                </Button>
-              </Link>
-            </Space>
-          </Col>
-        </Row>
-
-        {/* Statistics */}
-
-        <Row gutter={[16, 16]}>
-          <Col xs={24} sm={6}>
-            <Card size="small">
+        <Row gutter={[14, 14]}>
+          <Col xs={24} sm={12} xl={6}>
+            <Card className="branch-stat-card" bordered={false}>
               <Statistic
-                title="Total Branches"
-                value={
-                  allBranches.length
-                }
-                prefix={
-                  <ShopOutlined
-                    style={{
-                      color:
-                        "#6366f1",
-                    }}
-                  />
-                }
-                valueStyle={{
-                  color:
-                    "#6366f1",
-                }}
+                title="Total branches"
+                value={allBranches.length}
+                prefix={<ShopOutlined />}
               />
             </Card>
           </Col>
 
-          <Col xs={24} sm={6}>
-            <Card size="small">
+          <Col xs={24} sm={12} xl={6}>
+            <Card className="branch-stat-card" bordered={false}>
               <Statistic
                 title="Active"
                 value={activeCount}
-                prefix={
-                  <ThunderboltOutlined
-                    style={{
-                      color:
-                        "#22c55e",
-                    }}
-                  />
-                }
-                valueStyle={{
-                  color:
-                    "#22c55e",
-                }}
+                prefix={<ThunderboltOutlined />}
+                valueStyle={{ color: "#16a34a" }}
               />
             </Card>
           </Col>
 
-          <Col xs={24} sm={6}>
-            <Card size="small">
+          <Col xs={24} sm={12} xl={6}>
+            <Card className="branch-stat-card" bordered={false}>
               <Statistic
                 title="Franchise / Main"
-                value={
-                  allBranches.filter(
-                    (record) =>
-                      record.type ===
-                      "franchise_branch",
-                  ).length
-                }
-                prefix={
-                  <ApartmentOutlined
-                    style={{
-                      color:
-                        "#3b82f6",
-                    }}
-                  />
-                }
-                valueStyle={{
-                  color:
-                    "#3b82f6",
-                }}
+                value={franchiseCount}
+                prefix={<ApartmentOutlined />}
+                valueStyle={{ color: "#2563eb" }}
               />
             </Card>
           </Col>
 
-          <Col xs={24} sm={6}>
-            <Card size="small">
+          <Col xs={24} sm={12} xl={6}>
+            <Card className="branch-stat-card" bordered={false}>
               <Statistic
-                title="Sub-Branches"
-                value={
-                  allBranches.filter(
-                    (record) =>
-                      record.type ===
-                      "sub_branch",
-                  ).length
-                }
-                prefix={
-                  <ApartmentOutlined
-                    style={{
-                      color:
-                        "#f59e0b",
-                    }}
-                  />
-                }
-                valueStyle={{
-                  color:
-                    "#f59e0b",
-                }}
+                title="Sub-branches"
+                value={subCount}
+                prefix={<ApartmentOutlined />}
+                valueStyle={{ color: "#d97706" }}
               />
             </Card>
           </Col>
         </Row>
 
-        {/* Filters */}
-
-        <Card size="small">
-          <Form
-            form={filterForm}
-            layout="inline"
-            style={{
-              width: "100%",
-            }}
-          >
-            <Row
-              gutter={[12, 8]}
-              style={{
-                width: "100%",
-              }}
-              align="middle"
-            >
-              <Col
-                xs={24}
-                sm={12}
-                md={6}
-              >
-                <Form.Item
-                  name="q"
-                  style={{
-                    margin: 0,
-                    width: "100%",
-                  }}
-                >
+        <Card bordered={false} className="branch-filter-card">
+          <Form form={filterForm} layout="vertical">
+            <Row gutter={[12, 4]} align="bottom">
+              <Col xs={24} md={12} xl={6}>
+                <Form.Item label="Search branch" name="q" style={{ marginBottom: 0 }}>
                   <Input
                     allowClear
-                    placeholder="Search name, code, city..."
-                    prefix={
-                      <SearchOutlined />
-                    }
-                    onPressEnter={
-                      applyFilters
-                    }
+                    placeholder="Name, code, city, email or phone"
+                    prefix={<SearchOutlined />}
+                    onPressEnter={applyFilters}
                   />
                 </Form.Item>
               </Col>
 
-              <Col
-                xs={24}
-                sm={12}
-                md={5}
-              >
-                <Form.Item
-                  name="parent_id"
-                  style={{
-                    margin: 0,
-                    width: "100%",
-                  }}
-                >
+              <Col xs={24} md={12} xl={5}>
+                <Form.Item label="Parent branch" name="parent_id" style={{ marginBottom: 0 }}>
                   <Select
                     allowClear
                     showSearch
-                    placeholder="Filter by parent"
                     optionFilterProp="label"
-                    style={{
-                      width: "100%",
-                    }}
-                    options={
-                      parentBranchOptions
-                    }
+                    placeholder="All parents"
+                    options={parentBranchOptions}
                   />
                 </Form.Item>
               </Col>
 
-              <Col
-                xs={24}
-                sm={12}
-                md={5}
-              >
+              <Col xs={24} md={12} xl={5}>
                 <Form.Item
+                  label="Coverage allocation"
                   name="coverage_location_id"
-                  style={{
-                    margin: 0,
-                    width: "100%",
-                  }}
+                  style={{ marginBottom: 0 }}
                 >
                   <Select
                     allowClear
                     showSearch
-                    placeholder="Filter by allocation"
                     optionFilterProp="label"
-                    style={{
-                      width: "100%",
-                    }}
-                    options={coverageLocations.map(
-                      (item) => ({
-                        value:
-                          item.id,
-
-                        label: `${item.name} (${item.code})`,
-                      }),
-                    )}
+                    placeholder="All allocations"
+                    options={coverageLocations.map((item) => ({
+                      value: item.id,
+                      label: `${item.name} (${item.code})`,
+                    }))}
                   />
                 </Form.Item>
               </Col>
 
-              <Col
-                xs={24}
-                sm={8}
-                md={4}
-              >
-                <Form.Item
-                  name="status"
-                  style={{
-                    margin: 0,
-                    width: "100%",
-                  }}
-                >
-                  <Select
-                    allowClear
-                    placeholder="Status"
-                    style={{
-                      width: "100%",
-                    }}
-                    options={
-                      STATUS_OPTIONS
-                    }
-                  />
+              <Col xs={24} md={12} xl={3}>
+                <Form.Item label="Status" name="status" style={{ marginBottom: 0 }}>
+                  <Select allowClear placeholder="All" options={STATUS_OPTIONS} />
                 </Form.Item>
               </Col>
 
-              <Col
-                xs={24}
-                sm={16}
-                md={4}
-              >
-                <Space>
+              <Col xs={24} xl={5}>
+                <Space wrap style={{ paddingBottom: 1 }}>
                   <Button
                     type="primary"
-                    icon={
-                      <SearchOutlined />
-                    }
-                    onClick={
-                      applyFilters
-                    }
+                    icon={<SearchOutlined />}
+                    onClick={applyFilters}
                   >
-                    Search
+                    Apply
                   </Button>
-
-                  <Button
-                    onClick={
-                      resetFilters
-                    }
-                  >
-                    Reset
-                  </Button>
+                  <Button onClick={resetFilters}>Clear</Button>
                 </Space>
               </Col>
             </Row>
           </Form>
         </Card>
 
-        {/* Table / map */}
-
         <Card
-          size="small"
-          styles={{
-            body: {
-              padding:
-                "12px 16px",
-            },
-          }}
+          bordered={false}
+          className="branch-table-card"
+          styles={{ body: { padding: "12px 16px 16px" } }}
         >
-          {viewMode ===
-          "table" ? (
+          {viewMode === "table" ? (
             <Tabs
-              defaultActiveKey="franchise"
-              tabBarExtraContent={
-                tabBarExtra
-              }
+              activeKey={activeTab}
+              onChange={handleTabChange}
+              tabBarExtraContent={tabBarExtra}
               items={[
                 {
-                  key:
-                    "franchise",
-
-                  label: `Franchise / Main (${franchisePagination.total})`,
-
+                  key: "franchise",
+                  label: (
+                    <Space size={6}>
+                      Franchise / Main
+                      <Tag color="blue" style={{ marginInlineEnd: 0 }}>
+                        {franchisePagination.total}
+                      </Tag>
+                    </Space>
+                  ),
                   children: (
                     <>
                       <TabToolbar
-                        selectedKeys={
-                          selectedFranchiseKeys
-                        }
-                        onBulkDelete={
-                          removeBulk
-                        }
-                        data={
-                          franchiseBranches
-                        }
+                        selectedKeys={selectedFranchiseKeys}
+                        onBulkDelete={removeBulk}
+                        data={franchiseBranches}
                         csvFilename="franchise-branches.csv"
                       />
 
                       <Table
+                        className="branch-office-table"
                         rowKey="id"
-                        size="small"
-                        loading={
-                          loading
-                        }
-                        columns={
-                          franchiseColumns
-                        }
-                        dataSource={
-                          franchiseBranches
-                        }
+                        size="middle"
+                        sticky
+                        tableLayout="fixed"
+                        loading={franchiseLoading}
+                        columns={franchiseColumns}
+                        dataSource={franchiseBranches}
                         rowSelection={{
-                          selectedRowKeys:
-                            selectedFranchiseKeys,
-
-                          onChange:
-                            setSelectedFranchiseKeys,
+                          fixed: true,
+                          columnWidth: 44,
+                          selectedRowKeys: selectedFranchiseKeys,
+                          onChange: setSelectedFranchiseKeys,
                         }}
-                        pagination={{
-                          current:
-                            franchisePagination.current,
-
-                          pageSize:
-                            franchisePagination.pageSize,
-
-                          total:
-                            franchisePagination.total,
-
-                          showSizeChanger:
-                            false,
-
-                          onChange: (
-                            page,
-                            pageSize,
-                          ) =>
-                            loadFranchise(
-                              page,
-                              pageSize,
-                            ),
-                        }}
-                        scroll={{
-                          x: 1550,
-                        }}
+                        pagination={tablePagination(
+                          franchisePagination,
+                          loadFranchise,
+                        )}
+                        scroll={{ x: 1480 }}
                         locale={{
                           emptyText: (
                             <Empty description="No franchise branches found">
                               <Link href="/admin/branch-offices/create?type=franchise_branch">
-                                <Button
-                                  type="primary"
-                                  size="small"
-                                  icon={
-                                    <PlusOutlined />
-                                  }
-                                >
-                                  Add
-                                  Franchise
+                                <Button type="primary" icon={<PlusOutlined />}>
+                                  Add Franchise
                                 </Button>
                               </Link>
                             </Empty>
@@ -2064,84 +1253,47 @@ export default function BranchOfficesPage() {
                     </>
                   ),
                 },
-
                 {
                   key: "sub",
-
-                  label: `Sub-Branches (${subPagination.total})`,
-
+                  label: (
+                    <Space size={6}>
+                      Sub-branches
+                      <Tag color="gold" style={{ marginInlineEnd: 0 }}>
+                        {subPagination.total}
+                      </Tag>
+                    </Space>
+                  ),
                   children: (
                     <>
                       <TabToolbar
-                        selectedKeys={
-                          selectedSubKeys
-                        }
-                        onBulkDelete={
-                          removeBulk
-                        }
-                        data={
-                          subBranches
-                        }
+                        selectedKeys={selectedSubKeys}
+                        onBulkDelete={removeBulk}
+                        data={subBranches}
                         csvFilename="sub-branches.csv"
                       />
 
                       <Table
+                        className="branch-office-table"
                         rowKey="id"
-                        size="small"
-                        loading={
-                          loading
-                        }
-                        columns={
-                          subColumns
-                        }
-                        dataSource={
-                          subBranches
-                        }
+                        size="middle"
+                        sticky
+                        tableLayout="fixed"
+                        loading={subLoading}
+                        columns={subColumns}
+                        dataSource={subBranches}
                         rowSelection={{
-                          selectedRowKeys:
-                            selectedSubKeys,
-
-                          onChange:
-                            setSelectedSubKeys,
+                          fixed: true,
+                          columnWidth: 44,
+                          selectedRowKeys: selectedSubKeys,
+                          onChange: setSelectedSubKeys,
                         }}
-                        pagination={{
-                          current:
-                            subPagination.current,
-
-                          pageSize:
-                            subPagination.pageSize,
-
-                          total:
-                            subPagination.total,
-
-                          showSizeChanger:
-                            false,
-
-                          onChange: (
-                            page,
-                            pageSize,
-                          ) =>
-                            loadSub(
-                              page,
-                              pageSize,
-                            ),
-                        }}
-                        scroll={{
-                          x: 1250,
-                        }}
+                        pagination={tablePagination(subPagination, loadSub)}
+                        scroll={{ x: 1260 }}
                         locale={{
                           emptyText: (
                             <Empty description="No sub-branches found">
                               <Link href="/admin/branch-offices/create?type=sub_branch">
-                                <Button
-                                  size="small"
-                                  icon={
-                                    <PlusOutlined />
-                                  }
-                                >
-                                  Add
-                                  Sub-Branch
-                                </Button>
+                                <Button icon={<PlusOutlined />}>Add Sub-Branch</Button>
                               </Link>
                             </Empty>
                           ),
@@ -2154,36 +1306,23 @@ export default function BranchOfficesPage() {
             />
           ) : (
             <>
-              <Row
-                justify="end"
-                style={{
-                  marginBottom: 12,
-                }}
-              >
+              <Row justify="end" style={{ marginBottom: 12 }}>
                 {tabBarExtra}
               </Row>
 
               <CoverageRadiusMapFull
                 value={{}}
                 radiusKm={5}
-                existingLocations={
-                  coverageLocations
-                }
-                existingBranches={
-                  mapBranches
-                }
+                existingLocations={coverageLocations}
+                existingBranches={mapBranches}
                 showExisting
                 showBranches
-                showCoverageRadius={
-                  false
-                }
+                showCoverageRadius={false}
                 height={650}
                 clickable={false}
                 showSearch={false}
                 viewMode="nepal"
-                loading={
-                  mapLoading
-                }
+                loading={mapLoading}
                 onChange={() => {}}
               />
             </>
@@ -2191,115 +1330,127 @@ export default function BranchOfficesPage() {
         </Card>
       </Space>
 
-      {/* Action modal */}
-
       <Modal
-        open={
-          actionModal.open
-        }
+        open={actionModal.open}
         title={
           actionModal.action
-            ? `${
-                actionModal.action
-                  .charAt(0)
-                  .toUpperCase() +
-                actionModal.action.slice(
-                  1,
-                )
-              } Branch`
+            ? `${formatStatus(actionModal.action)} Branch`
             : "Branch Action"
         }
-        onCancel={
-          closeAction
-        }
-        onOk={
-          submitAction
-        }
+        onCancel={closeAction}
+        onOk={submitAction}
+        confirmLoading={actionLoading}
         okText={
-          actionModal.action ===
-          "approve"
+          actionModal.action === "approve"
             ? "Approve"
-            : actionModal.action ===
-                "activate"
+            : actionModal.action === "activate"
               ? "Activate"
               : "Confirm"
         }
         okButtonProps={{
-          danger: [
-            "suspend",
-            "reject",
-          ].includes(
-            actionModal.action,
-          ),
+          danger: ["suspend", "reject"].includes(actionModal.action),
         }}
       >
-        <Space
-          direction="vertical"
-          size={12}
-          style={{
-            width: "100%",
-          }}
-        >
+        <Space direction="vertical" size={12} style={{ width: "100%" }}>
           <Text>
-            Branch:{" "}
-            <strong>
-              {
-                actionModal
-                  .record?.name
-              }
-            </strong>
+            Branch: <strong>{actionModal.record?.name}</strong>
           </Text>
 
-          {actionModal.action ===
-          "approve" ? (
+          {actionModal.action === "approve" ? (
+            <Text type="secondary">This will approve the selected branch.</Text>
+          ) : null}
+
+          {actionModal.action === "activate" ? (
             <Text type="secondary">
-              This will approve
-              the selected branch.
+              Franchise activation requires the manager to finish account setup.
             </Text>
           ) : null}
 
-          {actionModal.action ===
-          "activate" ? (
-            <Text type="secondary">
-              For franchise
-              branches, activation
-              requires the Branch
-              Manager to finish
-              account setup first.
-            </Text>
-          ) : null}
-
-          {[
-            "suspend",
-            "reject",
-          ].includes(
-            actionModal.action,
-          ) ? (
+          {["suspend", "reject"].includes(actionModal.action) ? (
             <Input.TextArea
-              rows={3}
-              value={
-                actionModal.reason
+              rows={4}
+              value={actionModal.reason}
+              onChange={(event) =>
+                setActionModal((previous) => ({
+                  ...previous,
+                  reason: event.target.value,
+                }))
               }
-              onChange={(
-                event,
-              ) =>
-                setActionModal(
-                  (
-                    previous,
-                  ) => ({
-                    ...previous,
-
-                    reason:
-                      event.target
-                        .value,
-                  }),
-                )
-              }
-              placeholder="Enter reason"
+              placeholder="Enter the reason"
             />
           ) : null}
         </Space>
       </Modal>
+
+      <style jsx global>{`
+        .branch-stat-card,
+        .branch-filter-card,
+        .branch-table-card {
+          border-radius: 16px !important;
+          box-shadow: 0 10px 28px rgba(15, 23, 42, 0.05);
+        }
+
+        .branch-office-table .ant-table-container {
+          border: 1px solid #edf1f6;
+          border-radius: 12px;
+          overflow: hidden;
+        }
+
+        .branch-office-table .ant-table-thead > tr > th {
+          background: #f8fafc !important;
+          color: #334155;
+          font-size: 12px;
+          font-weight: 700;
+          white-space: nowrap;
+          border-bottom: 1px solid #e5eaf1;
+        }
+
+        .branch-office-table .ant-table-tbody > tr > td {
+          vertical-align: top;
+          padding-top: 14px !important;
+          padding-bottom: 14px !important;
+          border-bottom-color: #eef2f6;
+        }
+
+        .branch-office-table .ant-table-tbody > tr:hover > td {
+          background: #f8fbff !important;
+        }
+
+        .branch-office-table .ant-table-cell-fix-left,
+        .branch-office-table .ant-table-cell-fix-right {
+          background: #ffffff;
+        }
+
+        .branch-office-table .ant-table-tbody > tr:hover > .ant-table-cell-fix-left,
+        .branch-office-table .ant-table-tbody > tr:hover > .ant-table-cell-fix-right {
+          background: #f8fbff !important;
+        }
+
+        .branch-office-table .ant-table-pagination {
+          margin-bottom: 0 !important;
+        }
+
+        .branch-invitation-actions .ant-space {
+          gap: 4px !important;
+          flex-wrap: wrap;
+        }
+
+        .branch-invitation-actions .ant-btn {
+          height: 26px;
+          padding-inline: 8px;
+          font-size: 11px;
+        }
+
+        @media (max-width: 768px) {
+          .branch-table-card .ant-tabs-nav {
+            align-items: flex-start;
+          }
+
+          .branch-table-card .ant-tabs-extra-content {
+            margin-left: 0;
+          }
+        }
+      `}</style>
     </div>
   );
 }
