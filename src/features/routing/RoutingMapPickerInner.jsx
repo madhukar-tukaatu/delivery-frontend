@@ -34,7 +34,7 @@ export default function RoutingMapPicker({ value = {}, onChange }) {
   const pickup = value.pickup || null;
   const delivery = value.delivery || null;
   const weight = value.weight || 1;
-  const codAmount = value.cod_amount || 0;
+  const codAmount = value.pod_amount || 0;
 
   const pickupIcon = useMemo(() => markerIcon('P'), []);
   const deliveryIcon = useMemo(() => markerIcon('D'), []);
@@ -61,7 +61,7 @@ export default function RoutingMapPicker({ value = {}, onChange }) {
         delivery_lat: delivery.lat,
         delivery_lng: delivery.lng,
         weight,
-        cod_amount: codAmount,
+        pod_amount: codAmount,
       });
       setQuote(data);
       update({ quote: data });
@@ -94,8 +94,8 @@ export default function RoutingMapPicker({ value = {}, onChange }) {
             <InputNumber min={0.1} step={0.1} value={weight} style={{ width: '100%' }} onChange={(v) => update({ weight: v || 1 })} />
           </Col>
           <Col xs={12} md={4}>
-            <Text>COD Amount</Text>
-            <InputNumber min={0} value={codAmount} style={{ width: '100%' }} onChange={(v) => update({ cod_amount: v || 0 })} />
+            <Text>POD Amount</Text>
+            <InputNumber min={0} value={codAmount} style={{ width: '100%' }} onChange={(v) => update({ pod_amount: v || 0 })} />
           </Col>
           <Col xs={24} md={8} style={{ display: 'flex', alignItems: 'end' }}>
             <Button type="primary" onClick={calculate} loading={loading} block>Calculate Route & Charge</Button>
@@ -134,7 +134,7 @@ export default function RoutingMapPicker({ value = {}, onChange }) {
             <Descriptions.Item label="Distance">{quote.tariff?.route_distance_km} km</Descriptions.Item>
             <Descriptions.Item label="Route Fee">NPR {quote.tariff?.route_fee}</Descriptions.Item>
             <Descriptions.Item label="Delivery Charge">NPR {quote.tariff?.delivery_charge}</Descriptions.Item>
-            <Descriptions.Item label="COD Charge">NPR {quote.tariff?.cod_charge}</Descriptions.Item>
+            <Descriptions.Item label="POD Charge">NPR {quote.tariff?.pod_charge}</Descriptions.Item>
             <Descriptions.Item label="Estimated Time">{quote.tariff?.estimated_delivery_time}</Descriptions.Item>
           </Descriptions>
         )}

@@ -5,15 +5,12 @@ import Link from "next/link";
 import styles from "./site.module.css";
 import dynamic from "next/dynamic";
 import api from "@/lib/api";
+import siteApi from "@/services/siteApi";
 
 const TrackingMap = dynamic(() => import("./components/TrackingMap"), { ssr: false });
 const CoverageMap = dynamic(() => import("./components/CoverageMap"), { ssr: false });
+const LocationPicker = dynamic(() => import("./components/LocationPicker"), { ssr: false });
 
-const DISTRICTS_NEPAL = [
-  "Kathmandu", "Lalitpur", "Bhaktapur", "Pokhara", "Chitwan", "Biratnagar",
-  "Butwal", "Nepalgunj", "Dharan", "Hetauda", "Itahari", "Bhairahawa",
-  "Birgunj", "Dhangadhi", "Birtamode", "Janakpur", "Kavre", "Surkhet"
-];
 
 const HERO_SLOGANS = [
   {
@@ -127,10 +124,65 @@ export default function SiteClient() {
   });
 
   // Rate Estimator
-  const [rateOrigin, setRateOrigin] = useState("Kathmandu");
-  const [rateDestination, setRateDestination] = useState("Pokhara");
-  const [rateWeight, setRateWeight] = useState(2);
-  const [rateSpeed, setRateSpeed] = useState("express");
+  const [pickupLocation, setPickupLocation] = useState({
+    address: "",
+    latitude: "",
+    longitude: "",
+  });
+
+  const [deliveryLocation, setDeliveryLocation] = useState({
+    address: "",
+    latitude: "",
+    longitude: "",
+  });
+
+  const [rateParcel, setRateParcel] = useState({
+    actualWeightKg: 1,
+    lengthCm: "",
+    widthCm: "",
+    heightCm: "",
+    parcelType: "non_fragile",
+  });
+
+  const [rateServiceType, setRateServiceType] = useState("standard");
+  const [rateEstimate, setRateEstimate] = useState(null);
+  const [isLoadingRate, setIsLoadingRate] = useState(false);
+  const [rateError, setRateError] = useState("");
+
+  const volumetricWeightPreview = (() => {
+    const length = Number(rateParcel.lengthCm);
+    const width = Number(rateParcel.widthCm);
+    const height = Number(rateParcel.heightCm);
+
+    if (
+      !Number.isFinite(length) ||
+      !Number.isFinite(width) ||
+      !Number.isFinite(height) ||
+      length <= 0 ||
+      width <= 0 ||
+      height <= 0
+    ) {
+      return null;
+    }
+
+    return Number(((length * width * height) / 5000).toFixed(3));
+  })();
+
+  const chargeableWeightPreview = (() => {
+    const actualWeight = Number(rateParcel.actualWeightKg);
+
+    if (
+      !Number.isFinite(actualWeight) ||
+      actualWeight <= 0 ||
+      volumetricWeightPreview === null
+    ) {
+      return null;
+    }
+
+    return Number(
+      Math.max(actualWeight, volumetricWeightPreview).toFixed(3),
+    );
+  })();
 
   // Full-Screen Slide Deck Presentation Engine State
   const [currentSlide, setCurrentSlide] = useState(0);
@@ -155,7 +207,11 @@ export default function SiteClient() {
 
     const handleWheel = (e) => {
       if (!window.matchMedia("(min-width: 901px)").matches) return;
-      if (e.target.closest("input, select, textarea, button, [data-scroll-lock]")) return;
+      if (document.querySelector('[data-location-picker-modal="true"]')) return;
+      if (
+        e.target instanceof Element &&
+        e.target.closest("input, select, textarea, button, [data-scroll-lock], [data-prevent-slide-wheel='true']")
+      ) return;
 
       const now = Date.now();
       if (now - lastWheelTime < 650) return;
@@ -171,6 +227,8 @@ export default function SiteClient() {
     };
 
     const handleKeyDown = (e) => {
+      if (document.querySelector('[data-location-picker-modal="true"]')) return;
+
       if (e.key === "ArrowRight" || e.key === "ArrowDown" || e.key === "PageDown") {
         e.preventDefault();
         setCurrentSlide((prev) => Math.min(prev + 1, TOTAL_SLIDES - 1));
@@ -223,6 +281,108 @@ export default function SiteClient() {
     return { total: basePrice + Math.max(0, rateWeight - 1) * 35, time };
   }, [rateOrigin, rateDestination, rateWeight, rateSpeed]);
 
+  const handleRateEstimate = async (event) => {
+    event?.preventDefault();
+
+    setRateError("");
+    setRateEstimate(null);
+
+    const pickupLatitude = Number(pickupLocation.latitude);
+    const pickupLongitude = Number(pickupLocation.longitude);
+    const deliveryLatitude = Number(deliveryLocation.latitude);
+    const deliveryLongitude = Number(deliveryLocation.longitude);
+    const actualWeightKg = Number(rateParcel.actualWeightKg);
+    const lengthCm = Number(rateParcel.lengthCm);
+    const widthCm = Number(rateParcel.widthCm);
+    const heightCm = Number(rateParcel.heightCm);
+
+    if (!pickupLocation.address.trim()) {
+      setRateError("Select the pickup location from the map.");
+      return;
+    }
+
+    if (
+      pickupLocation.latitude === "" ||
+      pickupLocation.longitude === "" ||
+      !Number.isFinite(pickupLatitude) ||
+      !Number.isFinite(pickupLongitude) ||
+      pickupLatitude < -90 ||
+      pickupLatitude > 90 ||
+      pickupLongitude < -180 ||
+      pickupLongitude > 180
+    ) {
+      setRateError("Select a valid pickup point from the map.");
+      return;
+    }
+
+    if (!deliveryLocation.address.trim()) {
+      setRateError("Select the delivery location from the map.");
+      return;
+    }
+
+    if (
+      deliveryLocation.latitude === "" ||
+      deliveryLocation.longitude === "" ||
+      !Number.isFinite(deliveryLatitude) ||
+      !Number.isFinite(deliveryLongitude) ||
+      deliveryLatitude < -90 ||
+      deliveryLatitude > 90 ||
+      deliveryLongitude < -180 ||
+      deliveryLongitude > 180
+    ) {
+      setRateError("Select a valid delivery point from the map.");
+      return;
+    }
+
+    if (!Number.isFinite(actualWeightKg) || actualWeightKg <= 0) {
+      setRateError("Enter a valid actual weight.");
+      return;
+    }
+
+    if (
+      !Number.isFinite(lengthCm) ||
+      !Number.isFinite(widthCm) ||
+      !Number.isFinite(heightCm) ||
+      lengthCm <= 0 ||
+      widthCm <= 0 ||
+      heightCm <= 0
+    ) {
+      setRateError("Enter valid parcel length, width and height.");
+      return;
+    }
+
+    try {
+      setIsLoadingRate(true);
+
+      const estimate = await siteApi.pricing.estimate({
+        pickup_address: pickupLocation.address.trim(),
+        pickup_latitude: pickupLatitude,
+        pickup_longitude: pickupLongitude,
+        delivery_address: deliveryLocation.address.trim(),
+        delivery_latitude: deliveryLatitude,
+        delivery_longitude: deliveryLongitude,
+        service_type: rateServiceType,
+        parcel_type: rateParcel.parcelType,
+        actual_weight_kg: actualWeightKg,
+        parcel_dimensions: {
+          length_cm: lengthCm,
+          width_cm: widthCm,
+          height_cm: heightCm,
+        },
+      });
+
+      setRateEstimate(estimate);
+    } catch (error) {
+      setRateEstimate(null);
+      setRateError(
+        error?.message ||
+          "The delivery price could not be calculated.",
+      );
+    } finally {
+      setIsLoadingRate(false);
+    }
+  };
+
   const handleTrackSubmit = async (e) => {
     e?.preventDefault();
     if (!trackingNumber.trim()) return;
@@ -255,7 +415,262 @@ export default function SiteClient() {
   };
 
   return (
-    <div className={`${styles.site} ${styles.gridBackground}`} data-theme={isDark ? 'dark' : 'light'}>
+    <div className={`${styles.site} ${styles.gridBackground} tukaatu-site-page`} data-theme={isDark ? 'dark' : 'light'}>
+      <style jsx global>{`
+        .tukaatu-hero-grid {
+          width: min(1440px, calc(100vw - 48px));
+          margin: 0 auto;
+          grid-template-columns: minmax(0, 0.88fr) minmax(560px, 1.12fr) !important;
+          gap: clamp(28px, 4vw, 72px) !important;
+          align-items: center !important;
+        }
+
+        .tukaatu-hero-left,
+        .tukaatu-hero-right,
+        .tukaatu-console-card,
+        .tukaatu-console-body,
+        .tukaatu-rate-grid > * {
+          min-width: 0;
+        }
+
+        .tukaatu-hero-right {
+          width: 100%;
+        }
+
+        .tukaatu-console-card {
+          width: 100%;
+          max-width: 780px;
+          margin-left: auto;
+          box-sizing: border-box;
+        }
+
+        .tukaatu-console-header {
+          flex-wrap: wrap;
+          row-gap: 10px;
+        }
+
+        .tukaatu-console-tabs {
+          min-width: 0;
+          overflow-x: auto;
+          scrollbar-width: none;
+        }
+
+        .tukaatu-console-tabs::-webkit-scrollbar {
+          display: none;
+        }
+
+        .tukaatu-console-body,
+        .tukaatu-rate-tab {
+          max-width: 100%;
+          box-sizing: border-box;
+        }
+
+        .tukaatu-rate-tab {
+          overflow-x: hidden;
+        }
+
+        .tukaatu-rate-grid input,
+        .tukaatu-rate-grid select,
+        .tukaatu-rate-grid button {
+          min-width: 0;
+          max-width: 100%;
+        }
+
+        .tukaatu-dimension-grid {
+          display: grid;
+          grid-template-columns: repeat(3, minmax(0, 1fr));
+          gap: 10px;
+        }
+
+        .tukaatu-weight-help {
+          margin-top: 6px;
+          font-size: 10px;
+          line-height: 1.45;
+        }
+
+        .tukaatu-location-field {
+          min-width: 0;
+        }
+
+        .tukaatu-location-main-button {
+          min-width: 0;
+        }
+
+        @media (max-width: 1380px) {
+          .tukaatu-hero-grid {
+            width: min(1240px, calc(100vw - 36px));
+            grid-template-columns: minmax(0, 0.78fr) minmax(540px, 1.22fr) !important;
+            gap: 30px !important;
+          }
+
+          .tukaatu-console-card {
+            max-width: 720px;
+          }
+        }
+
+        @media (max-width: 1180px) {
+          .tukaatu-overview-slide {
+            align-items: flex-start !important;
+            overflow-y: auto !important;
+            overflow-x: hidden !important;
+          }
+
+          .tukaatu-hero-section {
+            min-height: auto !important;
+            height: auto !important;
+            padding: 96px 20px 110px !important;
+            box-sizing: border-box;
+          }
+
+          .tukaatu-hero-grid {
+            width: min(860px, 100%);
+            grid-template-columns: minmax(0, 1fr) !important;
+            gap: 38px !important;
+          }
+
+          .tukaatu-hero-left,
+          .tukaatu-hero-right {
+            width: 100%;
+            max-width: 100%;
+          }
+
+          .tukaatu-console-card {
+            max-width: 860px;
+            margin: 0 auto;
+          }
+        }
+
+        @media (max-width: 760px) {
+          .tukaatu-hero-section {
+            padding: 82px 12px 96px !important;
+          }
+
+          .tukaatu-console-card {
+            border-radius: 16px !important;
+          }
+
+          .tukaatu-console-header {
+            align-items: stretch !important;
+            padding-left: 10px !important;
+            padding-right: 10px !important;
+          }
+
+          .tukaatu-console-tabs {
+            width: 100%;
+            order: 3;
+          }
+
+          .tukaatu-console-body {
+            padding: 12px !important;
+            overflow: visible !important;
+          }
+
+          .tukaatu-rate-grid {
+            grid-template-columns: minmax(0, 1fr) !important;
+            gap: 10px !important;
+          }
+
+          .tukaatu-dimension-grid {
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+          }
+
+          .tukaatu-location-control {
+            display: grid !important;
+            grid-template-columns: minmax(0, 1fr) auto !important;
+            gap: 7px !important;
+          }
+
+          .tukaatu-location-main-button {
+            grid-column: 1 / -1;
+            min-height: 58px;
+          }
+
+          .tukaatu-location-change-button {
+            width: 100%;
+            min-height: 40px;
+          }
+
+          .tukaatu-location-clear-button {
+            width: 42px !important;
+            min-height: 40px;
+          }
+
+          .tukaatu-rate-result {
+            flex-direction: column !important;
+            align-items: flex-start !important;
+          }
+
+          .tukaatu-rate-result > div:last-child {
+            width: 100%;
+            text-align: left !important;
+            padding-top: 10px;
+            border-top: 1px solid rgba(148, 163, 184, 0.18);
+          }
+
+          .tukaatu-location-modal-backdrop {
+            padding: 0 !important;
+            align-items: stretch !important;
+          }
+
+          .tukaatu-location-modal-panel {
+            width: 100% !important;
+            min-height: 100dvh;
+            max-height: 100dvh !important;
+            border-radius: 0 !important;
+          }
+
+          .tukaatu-location-modal-header {
+            padding: 12px !important;
+          }
+
+          .tukaatu-location-modal-content {
+            padding: 12px !important;
+          }
+
+          .tukaatu-location-search-form {
+            grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) !important;
+          }
+
+          .tukaatu-location-search-input {
+            grid-column: 1 / -1;
+          }
+
+          .tukaatu-location-map {
+            height: 42vh !important;
+            min-height: 250px !important;
+            border-radius: 12px !important;
+          }
+
+          .tukaatu-location-footer {
+            grid-template-columns: minmax(0, 1fr) !important;
+            align-items: stretch !important;
+          }
+
+          .tukaatu-location-confirm-button {
+            width: 100%;
+          }
+        }
+
+        @media (max-width: 520px) {
+          .tukaatu-dimension-grid {
+            grid-template-columns: minmax(0, 1fr);
+          }
+        }
+
+        @media (max-width: 430px) {
+          .tukaatu-location-search-form {
+            grid-template-columns: minmax(0, 1fr) !important;
+          }
+
+          .tukaatu-location-search-input {
+            grid-column: auto;
+          }
+
+          .tukaatu-console-body {
+            padding: 9px !important;
+          }
+        }
+      `}</style>
       <a href="#main-content" className={styles.skipLink}>Skip to content</a>
       <div
         className={styles.slideProgress}
@@ -350,11 +765,11 @@ export default function SiteClient() {
       {/* --------------------------------------------------------------------
          SLIDE 0: DRIBBBLE-STYLE 2-COLUMN HERO SECTION WITH SLOGAN ROTATOR
          -------------------------------------------------------------------- */}
-      <div className={styles.slideItem}>
-        <section id="hero" className={`${styles.heroSection} ${styles.snapSection}`}>
-        <div className={styles.heroGrid}>
+      <div className={`${styles.slideItem} tukaatu-overview-slide`}>
+        <section id="hero" className={`${styles.heroSection} ${styles.snapSection} tukaatu-hero-section`}>
+        <div className={`${styles.heroGrid} tukaatu-hero-grid`}>
           {/* Left Column */}
-          <div className={styles.heroLeftCol}>
+          <div className={`${styles.heroLeftCol} tukaatu-hero-left`}>
 
             {/* Live status badge */}
             <div className={styles.heroBadge}>
@@ -424,7 +839,7 @@ export default function SiteClient() {
           </div>
 
           {/* Right Column: Hero Console Card with Floating Badges */}
-          <div id="heroConsole" className={styles.heroRightCol} style={{ display: 'flex', flexDirection: 'column', alignItems: 'stretch', justifyContent: 'flex-start' }}>
+          <div id="heroConsole" className={`${styles.heroRightCol} tukaatu-hero-right`} style={{ display: 'flex', flexDirection: 'column', alignItems: 'stretch', justifyContent: 'flex-start' }}>
             {/* Top Floating Badge */}
             <div className={`${styles.floatingBadgeTopRight} ${styles.floatAnim}`}>
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#027196" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
@@ -434,15 +849,15 @@ export default function SiteClient() {
             </div>
 
             {/* Hero Multi-Tab Console Card (macOS Terminal Inspired Design) */}
-            <div className={styles.consoleCard}>
-                <div className={styles.consoleHeader}>
+            <div className={`${styles.consoleCard} tukaatu-console-card`}>
+                <div className={`${styles.consoleHeader} tukaatu-console-header`}>
                   <div className={styles.macDotsRow}>
                     <span className={styles.macDot} style={{ background: '#FF5F56' }}></span>
                     <span className={styles.macDot} style={{ background: '#FFBD2E' }}></span>
                     <span className={styles.macDot} style={{ background: '#27C93F' }}></span>
                   </div>
 
-                  <div className={styles.consoleTabsRow}>
+                  <div className={`${styles.consoleTabsRow} tukaatu-console-tabs`}>
                     <button
                       onClick={() => setConsoleTab("track")}
                       className={`${styles.consoleTabBtn} ${consoleTab === "track" ? styles.consoleTabActive : ""}`}
@@ -468,7 +883,7 @@ export default function SiteClient() {
                   </div>
                 </div>
 
-                <div className={styles.consoleBody}>
+                <div className={`${styles.consoleBody} tukaatu-console-body`}>
                   {/* TAB 1: PARCEL TRACKER */}
                   {consoleTab === "track" && (
                     <div key="tab-track" className={styles.tabContentSlide}>
@@ -585,46 +1000,323 @@ export default function SiteClient() {
 
                   {/* TAB 2: RATE ESTIMATOR */}
                   {consoleTab === "rate" && (
-                    <div key="tab-rate" className={styles.tabContentSlide}>
-                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginBottom: 20 }}>
-                        <div>
-                          <label style={{ fontSize: 11, fontWeight: 800, color: mc, display: 'block', marginBottom: 4 }}>ORIGIN</label>
-                          <select value={rateOrigin} onChange={(e) => setRateOrigin(e.target.value)} style={{ width: '100%', padding: 12, borderRadius: 12, border: `1px solid ${inputBorder}`, fontWeight: 700, fontSize: 14, color: tc, background: inputBg }}>
-                            {DISTRICTS_NEPAL.map(c => <option key={c} value={c}>{c}</option>)}
-                          </select>
+                    <div key="tab-rate" className={`${styles.tabContentSlide} tukaatu-rate-tab`} data-prevent-slide-wheel="true">
+                      <form onSubmit={handleRateEstimate}>
+                        <div
+                          className="tukaatu-rate-grid"
+                          style={{
+                            display: "grid",
+                            gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+                            gap: 12,
+                            marginBottom: 12,
+                          }}
+                        >
+                          <LocationPicker
+                            label="PICKUP LOCATION"
+                            value={pickupLocation}
+                            isDark={isDark}
+                            allowCurrentLocation
+                            placeholder="Choose pickup point"
+                            onChange={(location) => {
+                              setPickupLocation(location);
+                              setRateEstimate(null);
+                              setRateError("");
+                            }}
+                          />
+
+                          <LocationPicker
+                            label="DELIVERY LOCATION"
+                            value={deliveryLocation}
+                            isDark={isDark}
+                            allowCurrentLocation={false}
+                            placeholder="Choose delivery point"
+                            onChange={(location) => {
+                              setDeliveryLocation(location);
+                              setRateEstimate(null);
+                              setRateError("");
+                            }}
+                          />
+
+                          <div>
+                            <label style={{ fontSize: 10, fontWeight: 800, color: mc, display: "block", marginBottom: 4 }}>
+                              ACTUAL WEIGHT (KG)
+                            </label>
+                            <input
+                              required
+                              type="number"
+                              min="0.01"
+                              max="5000"
+                              step="0.01"
+                              value={rateParcel.actualWeightKg}
+                              onChange={(event) => {
+                                setRateParcel((previous) => ({
+                                  ...previous,
+                                  actualWeightKg: event.target.value,
+                                }));
+                                setRateEstimate(null);
+                              }}
+                              style={{
+                                width: "100%",
+                                padding: 10,
+                                borderRadius: 10,
+                                border: `1px solid ${inputBorder}`,
+                                fontSize: 13,
+                                color: tc,
+                                background: inputBg,
+                                boxSizing: "border-box",
+                              }}
+                            />
+                          </div>
+
+                          <div>
+                            <label style={{ fontSize: 10, fontWeight: 800, color: mc, display: "block", marginBottom: 4 }}>
+                              PARCEL TYPE
+                            </label>
+                            <select
+                              value={rateParcel.parcelType}
+                              onChange={(event) => {
+                                setRateParcel((previous) => ({
+                                  ...previous,
+                                  parcelType: event.target.value,
+                                }));
+                                setRateEstimate(null);
+                              }}
+                              style={{
+                                width: "100%",
+                                padding: 10,
+                                borderRadius: 10,
+                                border: `1px solid ${inputBorder}`,
+                                fontWeight: 700,
+                                fontSize: 13,
+                                color: tc,
+                                background: inputBg,
+                              }}
+                            >
+                              <option value="non_fragile">Non-fragile</option>
+                              <option value="fragile">Fragile</option>
+                            </select>
+                          </div>
+
+                          <div style={{ gridColumn: "1 / -1" }}>
+                            <label style={{ fontSize: 10, fontWeight: 800, color: mc, display: "block", marginBottom: 4 }}>
+                              PACKED PARCEL DIMENSIONS (CM)
+                            </label>
+                            <div className="tukaatu-dimension-grid">
+                              <input
+                                required
+                                type="number"
+                                min="0.01"
+                                max="1000"
+                                step="0.01"
+                                placeholder="Length"
+                                aria-label="Parcel length in centimetres"
+                                value={rateParcel.lengthCm}
+                                onChange={(event) => {
+                                  setRateParcel((previous) => ({
+                                    ...previous,
+                                    lengthCm: event.target.value,
+                                  }));
+                                  setRateEstimate(null);
+                                }}
+                                style={{
+                                  width: "100%",
+                                  padding: 10,
+                                  borderRadius: 10,
+                                  border: `1px solid ${inputBorder}`,
+                                  fontSize: 13,
+                                  color: tc,
+                                  background: inputBg,
+                                  boxSizing: "border-box",
+                                }}
+                              />
+
+                              <input
+                                required
+                                type="number"
+                                min="0.01"
+                                max="1000"
+                                step="0.01"
+                                placeholder="Width"
+                                aria-label="Parcel width in centimetres"
+                                value={rateParcel.widthCm}
+                                onChange={(event) => {
+                                  setRateParcel((previous) => ({
+                                    ...previous,
+                                    widthCm: event.target.value,
+                                  }));
+                                  setRateEstimate(null);
+                                }}
+                                style={{
+                                  width: "100%",
+                                  padding: 10,
+                                  borderRadius: 10,
+                                  border: `1px solid ${inputBorder}`,
+                                  fontSize: 13,
+                                  color: tc,
+                                  background: inputBg,
+                                  boxSizing: "border-box",
+                                }}
+                              />
+
+                              <input
+                                required
+                                type="number"
+                                min="0.01"
+                                max="1000"
+                                step="0.01"
+                                placeholder="Height"
+                                aria-label="Parcel height in centimetres"
+                                value={rateParcel.heightCm}
+                                onChange={(event) => {
+                                  setRateParcel((previous) => ({
+                                    ...previous,
+                                    heightCm: event.target.value,
+                                  }));
+                                  setRateEstimate(null);
+                                }}
+                                style={{
+                                  width: "100%",
+                                  padding: 10,
+                                  borderRadius: 10,
+                                  border: `1px solid ${inputBorder}`,
+                                  fontSize: 13,
+                                  color: tc,
+                                  background: inputBg,
+                                  boxSizing: "border-box",
+                                }}
+                              />
+                            </div>
+                            {/* <div className="tukaatu-weight-help" style={{ color: mc }}>
+                              Volumetric weight: {volumetricWeightPreview !== null ? `${volumetricWeightPreview} kg` : "enter dimensions"}. Chargeable weight: {chargeableWeightPreview !== null ? `${chargeableWeightPreview} kg` : "—"}. The higher of actual and volumetric weight is used.
+                            </div> */}
+                          </div>
+
+                          <div style={{ gridColumn: "1 / -1" }}>
+                            <label style={{ fontSize: 10, fontWeight: 800, color: mc, display: "block", marginBottom: 4 }}>
+                              SERVICE TYPE
+                            </label>
+                            <select
+                              value={rateServiceType}
+                              onChange={(event) => {
+                                setRateServiceType(event.target.value);
+                                setRateEstimate(null);
+                                setRateError("");
+                              }}
+                              style={{
+                                width: "100%",
+                                padding: 10,
+                                borderRadius: 10,
+                                border: `1px solid ${inputBorder}`,
+                                fontWeight: 700,
+                                fontSize: 13,
+                                color: tc,
+                                background: inputBg,
+                              }}
+                            >
+                              <option value="standard">Standard</option>
+                              <option value="express">Express</option>
+                            </select>
+                          </div>
                         </div>
 
+                        {rateError && (
+                          <div
+                            style={{
+                              marginBottom: 10,
+                              padding: "8px 10px",
+                              borderRadius: 9,
+                              background: "rgba(239,68,68,0.1)",
+                              border: "1px solid rgba(239,68,68,0.2)",
+                              color: "#FCA5A5",
+                              fontSize: 11,
+                              fontWeight: 700,
+                            }}
+                          >
+                            {rateError}
+                          </div>
+                        )}
+
+                        <button
+                          type="submit"
+                          disabled={isLoadingRate}
+                          style={{
+                            width: "100%",
+                            padding: "11px 16px",
+                            marginBottom: 12,
+                            background: "#FFD026",
+                            color: "#071722",
+                            border: "none",
+                            borderRadius: 11,
+                            fontSize: 13,
+                            fontWeight: 900,
+                            cursor: isLoadingRate ? "wait" : "pointer",
+                            opacity: isLoadingRate ? 0.7 : 1,
+                          }}
+                        >
+                          {isLoadingRate
+                            ? "Calculating real price..."
+                            : "Calculate Delivery Price"}
+                        </button>
+                      </form>
+
+                      <div
+                        className="tukaatu-rate-result"
+                        style={{
+                          background: darkPanelBg,
+                          color: tc,
+                          padding: 16,
+                          borderRadius: 16,
+                          display: "flex",
+                          justifyContent: "space-between",
+                          alignItems: "center",
+                          gap: 16,
+                        }}
+                      >
                         <div>
-                          <label style={{ fontSize: 11, fontWeight: 800, color: mc, display: 'block', marginBottom: 4 }}>DESTINATION</label>
-                          <select value={rateDestination} onChange={(e) => setRateDestination(e.target.value)} style={{ width: '100%', padding: 12, borderRadius: 12, border: `1px solid ${inputBorder}`, fontWeight: 700, fontSize: 14, color: tc, background: inputBg }}>
-                            {DISTRICTS_NEPAL.map(c => <option key={c} value={c}>{c}</option>)}
-                          </select>
+                          <div style={{ fontSize: 10, color: mc, fontWeight: 700 }}>
+                            ESTIMATED PRICE
+                          </div>
+
+                          <div style={{ fontSize: 28, fontWeight: 900, color: "#FFD026" }}>
+                            {rateEstimate
+                              ? `${rateEstimate.currency || "NPR"} ${Number(
+                                  rateEstimate.price ?? 0,
+                                ).toLocaleString(undefined, {
+                                  minimumFractionDigits: 2,
+                                  maximumFractionDigits: 2,
+                                })}`
+                              : "—"}
+                          </div>
+
+                          {rateEstimate && (
+                            <div style={{ marginTop: 4, fontSize: 10, color: mc, lineHeight: 1.55 }}>
+                              <div>Actual weight: {Number(rateEstimate.actual_weight_kg ?? 0)} kg</div>
+                              <div>Volumetric weight: {Number(rateEstimate.volumetric_weight_kg ?? 0)} kg</div>
+                              <div>Chargeable weight: {Number(rateEstimate.chargeable_weight_kg ?? 0)} kg</div>
+                              <div>Applied: {rateEstimate.weight_source === "volumetric_weight" ? "Volumetric weight" : "Actual weight"}</div>
+                            </div>
+                          )}
                         </div>
 
-                        <div>
-                          <label style={{ fontSize: 11, fontWeight: 800, color: mc, display: 'block', marginBottom: 4 }}>WEIGHT ({rateWeight} KG)</label>
-                          <input type="range" min="1" max="25" value={rateWeight} onChange={(e) => setRateWeight(parseInt(e.target.value))} style={{ width: '100%', marginTop: 8 }} />
-                        </div>
+                        <div style={{ textAlign: "right" }}>
+                          <div style={{ fontSize: 10, color: mc, fontWeight: 700 }}>
+                            ESTIMATED SLA
+                          </div>
 
-                        <div>
-                          <label style={{ fontSize: 11, fontWeight: 800, color: mc, display: 'block', marginBottom: 4 }}>SPEED</label>
-                          <select value={rateSpeed} onChange={(e) => setRateSpeed(e.target.value)} style={{ width: '100%', padding: 12, borderRadius: 12, border: `1px solid ${inputBorder}`, fontWeight: 700, fontSize: 14, color: tc, background: inputBg }}>
-                            <option value="express">Express Delivery</option>
-                            <option value="standard">Standard Courier</option>
-                          </select>
+                          <div style={{ fontSize: 16, fontWeight: 800, color: "#4ADE80" }}>
+                            {rateEstimate?.estimated_delivery_label ||
+                              (rateEstimate?.estimated_delivery_hours
+                                ? `${rateEstimate.estimated_delivery_hours} Hours`
+                                : "—")}
+                          </div>
                         </div>
                       </div>
 
-                      <div style={{ background: darkPanelBg, color: tc, padding: 20, borderRadius: 18, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <div>
-                          <div style={{ fontSize: 11, color: mc, fontWeight: 700 }}>ESTIMATED RATE</div>
-                          <div style={{ fontSize: 32, fontWeight: 900, color: '#FFD026' }}>NPR {calculatedRate.total}</div>
+                      {/* {rateEstimate && (
+                        <div style={{ marginTop: 8, fontSize: 9, color: mc, lineHeight: 1.5 }}>
+                          The pricing engine compares actual weight with volumetric weight and charges the higher value. Volumetric weight is calculated using the active backend divisor. The final amount may change after physical parcel verification.
                         </div>
-                        <div style={{ textAlign: 'right' }}>
-                          <div style={{ fontSize: 11, color: mc, fontWeight: 700 }}>GUARANTEED SLA</div>
-                          <div style={{ fontSize: 18, fontWeight: 800, color: '#4ADE80' }}>{calculatedRate.time}</div>
-                        </div>
-                      </div>
+                      )} */}
                     </div>
                   )}
 

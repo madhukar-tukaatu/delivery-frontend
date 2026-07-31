@@ -16,7 +16,14 @@ const iconMap = {
   money: Banknote, settings: Settings, route: Route, branch: Building2, settlement: Banknote,
 };
 
+<<<<<<< HEAD
 export default function DynamicSidebar({ section = "admin", title = "Courier DMS" }) {
+=======
+export default function DynamicSidebar({
+  section = "admin",
+  title = "TUKAATU EXPRESS",
+}) {
+>>>>>>> 4497cca (updated logo , ui and filtered the branch assignment)
   const pathname = usePathname();
   const [menus, setMenus] = useState([]);
   const [loading, setLoading] = useState(true);

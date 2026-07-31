@@ -8,7 +8,7 @@ export default function ShipmentsPage() {
     { title: "Merchant Order", dataIndex: "merchant_order_id" },
     { title: "Receiver", dataIndex: "receiver_name" },
     { title: "Phone", dataIndex: "receiver_phone" },
-    { title: "COD", dataIndex: "cod_amount" },
+    { title: "POD", dataIndex: "pod_amount" },
     { title: "Charge", dataIndex: "delivery_charge" },
     {
       title: "Status",

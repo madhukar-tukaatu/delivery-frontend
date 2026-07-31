@@ -66,7 +66,7 @@ function normalizeInitialValues(values = {}) {
     ...values,
     pickup_enabled: values.pickup_enabled ?? true,
     delivery_enabled: values.delivery_enabled ?? true,
-    cod_enabled: values.cod_enabled ?? false,
+    pod_enabled: values.pod_enabled ?? false,
     return_enabled: values.return_enabled ?? false,
     covered_areas: Array.isArray(values.covered_areas)
       ? values.covered_areas
@@ -132,7 +132,7 @@ export default function BranchForm({
         status: "draft",
         pickup_enabled: true,
         delivery_enabled: true,
-        cod_enabled: false,
+        pod_enabled: false,
         return_enabled: false,
         country: "Nepal",
         ...values,
@@ -327,12 +327,6 @@ export default function BranchForm({
                         return Promise.resolve();
                       }
 
-                      if (!value) {
-                        return Promise.reject(
-                          new Error("Parent branch is required.")
-                        );
-                      }
-
                       return Promise.resolve();
                     },
                   }),
@@ -520,8 +514,8 @@ export default function BranchForm({
 
             <Col xs={24} md={6}>
               <Form.Item
-                name="cod_enabled"
-                label="COD Enabled"
+                name="pod_enabled"
+                label="POD Enabled"
                 valuePropName="checked"
               >
                 <Switch />

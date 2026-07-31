@@ -16,7 +16,7 @@ function payload(values) {
     customer: { name: values.customer_name, phone: values.customer_phone, email: values.customer_email || null },
     delivery: { address: values.delivery_address, city: values.delivery_city, area: values.delivery_area || null, latitude: values.delivery_latitude || null, longitude: values.delivery_longitude || null },
     package: { type: values.package_type || "parcel", description: values.package_description || null, weight: values.weight, length_cm: values.length_cm || 0, width_cm: values.width_cm || 0, height_cm: values.height_cm || 0, pieces: values.pieces || 1, value: values.declared_value || 0 },
-    payment: { type: values.payment_type || "prepaid", cod_amount: values.payment_type === "cod" ? values.cod_amount || 0 : 0, delivery_charge_paid_by: values.delivery_charge_paid_by || "merchant" },
+    payment: { type: values.payment_type || "prepaid", pod_amount: values.payment_type === "pod" ? values.pod_amount || 0 : 0, delivery_charge_paid_by: values.delivery_charge_paid_by || "merchant" },
     special_instruction: values.special_instruction || null,
   };
 }
@@ -88,8 +88,8 @@ export default function AdminCreateShipmentPage() {
               </Row>
               <Divider orientation="left">Payment</Divider>
               <Row gutter={16}>
-                <Col xs={24} md={8}><Form.Item name="payment_type" label="Payment"><Select options={[{ value: "prepaid", label: "Prepaid" }, { value: "cod", label: "COD" }]} /></Form.Item></Col>
-                {paymentType === "cod" && <Col xs={24} md={8}><Form.Item name="cod_amount" label="COD Amount" rules={[{ required: true }]}><InputNumber min={0} style={{ width: "100%" }} /></Form.Item></Col>}
+                <Col xs={24} md={8}><Form.Item name="payment_type" label="Payment"><Select options={[{ value: "prepaid", label: "Prepaid" }, { value: "pod", label: "POD" }]} /></Form.Item></Col>
+                {paymentType === "pod" && <Col xs={24} md={8}><Form.Item name="pod_amount" label="POD Amount" rules={[{ required: true }]}><InputNumber min={0} style={{ width: "100%" }} /></Form.Item></Col>}
                 <Col xs={24} md={8}><Form.Item name="delivery_charge_paid_by" label="Charge Paid By"><Select options={[{ value: "merchant", label: "Merchant" }, { value: "customer", label: "Customer" }]} /></Form.Item></Col>
               </Row>
               <Form.Item name="special_instruction" label="Instruction"><Input.TextArea rows={2} /></Form.Item>

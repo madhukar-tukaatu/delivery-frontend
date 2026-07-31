@@ -1,28 +1,44 @@
-# dependencies
-node_modules
+# Dependencies
+node_modules/
+.pnpm-store/
 
-# next build output
-.next
-out
+# Next.js build output
+.next/
+out/
 
-# production
-build
-dist
+# Production build output
+build/
+dist/
 
-# env
+# Environment files
 .env
 .env.local
-.env.production
+.env.development.local
+.env.test.local
+.env.production.local
 .env*.local
 
-# logs
+# Keep production secrets outside the frontend repository
+.env.production
+
+# Logs
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
+*.log
 
-# system
+# Test coverage
+coverage/
+
+# System files
 .DS_Store
 Thumbs.db
-DockerFile
-Dockerfile
+
+# Editors
+.vscode/
+.idea/
+
+# Temporary files
+*.tmp
+*.temp
