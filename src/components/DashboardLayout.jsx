@@ -104,9 +104,10 @@ export default function DashboardLayout({ section = "admin", children }) {
   const roleLabel = (user?.roles || [user?.role]).filter(Boolean).join(", ");
 
   return (
-    <Layout style={{ minHeight: "100vh", background: "#F8FAFC" }}>
+    <Layout className="app-shell" style={{ minHeight: "100vh" }}>
       {/* Sidebar */}
       <Sider
+        className="app-glass-sidebar"
         collapsible
         collapsed={collapsed}
         onCollapse={setCollapsed}
@@ -115,8 +116,8 @@ export default function DashboardLayout({ section = "admin", children }) {
         width={248}
         trigger={null}
         style={{
-          background: "#071722",
-          boxShadow: "2px 0 16px rgba(0,0,0,0.18)",
+          background: "rgba(7, 23, 34, 0.76)",
+          boxShadow: "12px 0 40px rgba(0,0,0,0.18), inset -1px 0 rgba(255,255,255,0.08)",
           position: "sticky",
           top: 0,
           height: "100vh",
@@ -170,17 +171,17 @@ export default function DashboardLayout({ section = "admin", children }) {
         )}
       </Sider>
 
-      <Layout style={{ background: "#F8FAFC" }}>
+      <Layout className="app-shell-main">
         {/* Top Header */}
-        <div style={{
-          background: "#fff",
+        <div className="app-glass-topbar" style={{
+          background: "rgba(255,255,255,0.62)",
           padding: "0 24px",
           height: 64,
           display: "flex",
           alignItems: "center",
           justifyContent: "space-between",
-          borderBottom: "1px solid #E2E8F0",
-          boxShadow: "0 1px 8px rgba(0,0,0,0.04)",
+          borderBottom: "1px solid rgba(255,255,255,0.8)",
+          boxShadow: "0 12px 40px rgba(15,23,42,0.08), inset 0 -1px rgba(2,113,150,0.06)",
           position: "sticky",
           top: 0,
           zIndex: 50,
@@ -228,7 +229,7 @@ export default function DashboardLayout({ section = "admin", children }) {
           </Space>
         </div>
 
-        <Content style={{ margin: 24, minHeight: "calc(100vh - 112px)" }}>
+        <Content className="app-glass-content" style={{ margin: 24, minHeight: "calc(100vh - 112px)" }}>
           {children}
         </Content>
       </Layout>

@@ -170,3 +170,201 @@ a {
 .map-legend-dot.hub {
   background: #dc2626;
 }
+
+/* --------------------------------------------------------------------------
+   Application-wide liquid glass system
+   -------------------------------------------------------------------------- */
+:root {
+  --app-glass: rgba(255, 255, 255, 0.64);
+  --app-glass-strong: rgba(255, 255, 255, 0.8);
+  --app-glass-border: rgba(255, 255, 255, 0.88);
+  --app-glass-shadow: 0 20px 60px rgba(15, 23, 42, 0.1), inset 0 1px 0 rgba(255,255,255,0.92);
+}
+
+body {
+  background-color: #eaf3f7;
+  background-image:
+    radial-gradient(ellipse 54vw 52vh at 4% 6%, rgba(11,140,183,0.18), transparent 68%),
+    radial-gradient(ellipse 46vw 52vh at 96% 92%, rgba(2,113,150,0.13), transparent 70%),
+    radial-gradient(ellipse 26vw 30vh at 60% 36%, rgba(255,208,38,0.11), transparent 72%);
+  background-attachment: fixed;
+}
+
+.app-shell,
+.app-shell-main,
+.admin-glass-page {
+  background: transparent !important;
+}
+
+.app-shell-main {
+  background-image:
+    radial-gradient(ellipse 48vw 48vh at 6% 8%, rgba(11,140,183,0.12), transparent 70%),
+    radial-gradient(ellipse 42vw 46vh at 96% 92%, rgba(2,113,150,0.1), transparent 72%) !important;
+  background-attachment: fixed !important;
+}
+
+.app-glass-sidebar {
+  backdrop-filter: blur(30px) saturate(1.75);
+  -webkit-backdrop-filter: blur(30px) saturate(1.75);
+  border-right: 1px solid rgba(255,255,255,0.09);
+}
+
+.app-glass-topbar {
+  backdrop-filter: blur(28px) saturate(1.7);
+  -webkit-backdrop-filter: blur(28px) saturate(1.7);
+}
+
+.app-glass-content {
+  position: relative;
+}
+
+/* Ant Design surfaces */
+.ant-card,
+.ant-table-wrapper,
+.ant-modal-content,
+.ant-drawer-content,
+.ant-dropdown-menu,
+.ant-popover-inner,
+.ant-collapse,
+.ant-descriptions-bordered,
+.ant-picker-dropdown .ant-picker-panel-container,
+.ant-select-dropdown,
+.ant-notification-notice,
+.ant-message-notice-content,
+.ant-segmented,
+.ant-transfer-list,
+.ant-list-bordered {
+  background:
+    linear-gradient(145deg, rgba(255,255,255,0.88), rgba(255,255,255,0.5)),
+    var(--app-glass) !important;
+  border-color: var(--app-glass-border) !important;
+  box-shadow: var(--app-glass-shadow) !important;
+  backdrop-filter: blur(24px) saturate(1.65) !important;
+  -webkit-backdrop-filter: blur(24px) saturate(1.65) !important;
+}
+
+.ant-card,
+.ant-modal-content,
+.ant-drawer-content,
+.ant-dropdown-menu,
+.ant-popover-inner,
+.ant-notification-notice,
+.ant-message-notice-content {
+  border: 1px solid var(--app-glass-border);
+}
+
+.ant-card,
+.ant-modal-content,
+.ant-drawer-content,
+.ant-popover-inner {
+  border-radius: 18px !important;
+}
+
+.ant-card-head,
+.ant-modal-header,
+.ant-table-thead > tr > th,
+.ant-table-thead > tr > td,
+.ant-descriptions-item-label,
+.ant-collapse-header {
+  background: rgba(240,248,251,0.58) !important;
+  border-color: rgba(2,113,150,0.09) !important;
+}
+
+.ant-table,
+.ant-table-container,
+.ant-table-content,
+.ant-table-tbody > tr > td,
+.ant-list-item,
+.ant-descriptions-item-content {
+  background: transparent !important;
+  border-color: rgba(2,113,150,0.07) !important;
+}
+
+.ant-table-tbody > tr:hover > td {
+  background: rgba(2,113,150,0.07) !important;
+}
+
+.ant-input,
+.ant-input-affix-wrapper,
+.ant-input-number,
+.ant-picker,
+.ant-select-selector,
+.ant-cascader-picker,
+.ant-upload-drag,
+textarea.ant-input {
+  background: rgba(255,255,255,0.58) !important;
+  border-color: rgba(255,255,255,0.92) !important;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.9), 0 5px 16px rgba(15,23,42,0.045) !important;
+  backdrop-filter: blur(14px) saturate(1.5);
+  -webkit-backdrop-filter: blur(14px) saturate(1.5);
+}
+
+.ant-input:focus,
+.ant-input-affix-wrapper-focused,
+.ant-input-number-focused,
+.ant-picker-focused,
+.ant-select-focused .ant-select-selector {
+  border-color: rgba(2,113,150,0.5) !important;
+  box-shadow: 0 0 0 3px rgba(2,113,150,0.1), inset 0 1px 0 #fff !important;
+}
+
+.ant-btn-default,
+.ant-btn-dashed,
+.ant-pagination-item,
+.ant-pagination-prev button,
+.ant-pagination-next button {
+  background: linear-gradient(145deg, rgba(255,255,255,0.9), rgba(255,255,255,0.52)) !important;
+  border-color: rgba(255,255,255,0.95) !important;
+  box-shadow: inset 0 1px 0 #fff, 0 7px 20px rgba(15,23,42,0.07) !important;
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+}
+
+.ant-btn-primary {
+  background: linear-gradient(135deg, #027196, #0B8CB7) !important;
+  border-color: rgba(255,255,255,0.28) !important;
+  box-shadow: 0 9px 24px rgba(2,113,150,0.24), inset 0 1px 0 rgba(255,255,255,0.3) !important;
+}
+
+.ant-tabs-nav::before,
+.ant-divider,
+.ant-modal-footer,
+.ant-drawer-header {
+  border-color: rgba(2,113,150,0.09) !important;
+}
+
+.stat-grid > *,
+.page-header,
+.form-grid,
+.public-track,
+.map-legend,
+.login-card,
+.admin-glass-table {
+  backdrop-filter: blur(20px) saturate(1.55);
+  -webkit-backdrop-filter: blur(20px) saturate(1.55);
+}
+
+.map-legend {
+  background: var(--app-glass);
+  border: 1px solid var(--app-glass-border);
+  box-shadow: var(--app-glass-shadow);
+}
+
+@media (max-width: 768px) {
+  .app-glass-content {
+    margin: 16px !important;
+  }
+
+  .admin-glass-page {
+    padding: 16px !important;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+}

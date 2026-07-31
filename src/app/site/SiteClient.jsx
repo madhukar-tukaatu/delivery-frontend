@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import Link from "next/link";
 import styles from "./site.module.css";
 import dynamic from "next/dynamic";
@@ -140,6 +140,8 @@ export default function SiteClient() {
   const [currentSlide, setCurrentSlide] = useState(0);
   const [isDark, setIsDark] = useState(true);
   const TOTAL_SLIDES = 6;
+  const touchStart = useRef(null);
+  const slideTrackRef = useRef(null);
 
   // Theme-aware color helpers
   const tc = isDark ? '#F1F5F9' : '#0F172A';      // primary text
@@ -156,6 +158,9 @@ export default function SiteClient() {
     let lastWheelTime = 0;
 
     const handleWheel = (e) => {
+      if (!window.matchMedia("(min-width: 901px)").matches) return;
+      if (e.target.closest("input, select, textarea, button, [data-scroll-lock]")) return;
+
       const now = Date.now();
       if (now - lastWheelTime < 650) return;
 
@@ -187,6 +192,30 @@ export default function SiteClient() {
       window.removeEventListener("keydown", handleKeyDown);
     };
   }, []);
+
+  const handleTouchStart = (event) => {
+    const touch = event.touches[0];
+    touchStart.current = { x: touch.clientX, y: touch.clientY };
+  };
+
+  const handleTouchEnd = (event) => {
+    if (!touchStart.current || !window.matchMedia("(max-width: 900px)").matches) return;
+    const touch = event.changedTouches[0];
+    const deltaX = touch.clientX - touchStart.current.x;
+    const deltaY = touch.clientY - touchStart.current.y;
+    touchStart.current = null;
+
+    if (Math.abs(deltaX) < 48 || Math.abs(deltaX) <= Math.abs(deltaY)) return;
+    setCurrentSlide((slide) => deltaX < 0
+      ? Math.min(slide + 1, TOTAL_SLIDES - 1)
+      : Math.max(slide - 1, 0));
+  };
+
+  useEffect(() => {
+    const activeSlide = slideTrackRef.current?.children?.[currentSlide];
+    if (!activeSlide) return;
+    activeSlide.scrollTo({ top: 0, left: 0, behavior: "auto" });
+  }, [currentSlide]);
 
   // Rate Calculator Math
   const calculatedRate = useMemo(() => {
@@ -231,6 +260,12 @@ export default function SiteClient() {
 
   return (
     <div className={`${styles.site} ${styles.gridBackground}`} data-theme={isDark ? 'dark' : 'light'}>
+      <a href="#main-content" className={styles.skipLink}>Skip to content</a>
+      <div
+        className={styles.slideProgress}
+        aria-hidden="true"
+        style={{ transform: `scaleX(${(currentSlide + 1) / TOTAL_SLIDES})` }}
+      />
       {/* --------------------------------------------------------------------
          LOGO-ONLY TOP BAR
          -------------------------------------------------------------------- */}
@@ -269,7 +304,7 @@ export default function SiteClient() {
       {/* --------------------------------------------------------------------
          BOTTOM NAV BAR — nav links + dot indicators merged
          -------------------------------------------------------------------- */}
-      <div className={styles.bottomNav}>
+      <nav className={styles.bottomNav} aria-label="Landing page sections">
         {/* Prev arrow */}
         <button
           onClick={() => setCurrentSlide((prev) => Math.max(prev - 1, 0))}
@@ -284,6 +319,8 @@ export default function SiteClient() {
             key={label}
             onClick={() => setCurrentSlide(idx)}
             className={`${styles.bottomNavItem} ${currentSlide === idx ? styles.bottomNavItemActive : ''}`}
+            aria-current={currentSlide === idx ? "page" : undefined}
+            aria-label={`Go to ${label} section`}
           >
             <span className={`${styles.bottomNavDot} ${currentSlide === idx ? styles.bottomNavDotActive : ''}`} />
             <span className={styles.bottomNavLabel}>{label}</span>
@@ -297,14 +334,21 @@ export default function SiteClient() {
           className={styles.bottomNavArrow}
           style={{ opacity: currentSlide === TOTAL_SLIDES - 1 ? 0.2 : 1 }}
         >→</button>
-      </div>
+        <span className={styles.slideCounter} aria-hidden="true">
+          {String(currentSlide + 1).padStart(2, "0")} / {String(TOTAL_SLIDES).padStart(2, "0")}
+        </span>
+      </nav>
 
       {/* --------------------------------------------------------------------
          FULL-SCREEN HORIZONTAL SLIDE TRACK CONTAINER
          -------------------------------------------------------------------- */}
       <div 
+        id="main-content"
+        ref={slideTrackRef}
         className={styles.slideTrack} 
         style={{ transform: `translateX(-${currentSlide * 100}vw)` }}
+        onTouchStart={handleTouchStart}
+        onTouchEnd={handleTouchEnd}
       >
 
       {/* --------------------------------------------------------------------
@@ -670,7 +714,7 @@ export default function SiteClient() {
       <div className={styles.slideItem} style={{ background: isDark ? '#071722' : '#F0F4F8', color: isDark ? '#FFFFFF' : '#0F172A' }}>
         <section id="merchants" className={styles.merchantSection}>
         <div className={styles.merchantInner}>
-          <div>
+          <div className={styles.merchantIntro}>
             <div className={styles.sectionCategory} style={{ color: '#FFD026' }}>Merchant Platform</div>
             <h2 className={styles.merchantTitle}>Unified Delivery Operations for Online Sellers</h2>
             <p className={styles.merchantCopy}>
@@ -687,14 +731,14 @@ export default function SiteClient() {
               ))}
             </div>
 
-            <Link href="/login" style={{ background: '#FFD026', color: '#071722', padding: '16px 36px', borderRadius: 999, fontWeight: 900, textDecoration: 'none', display: 'inline-block' }}>
+            <Link href="/login" className={styles.merchantCta}>
               Access Merchant Portal →
             </Link>
           </div>
 
           {/* Detailed Merchant Dashboard Wireframe */}
           <div className={styles.merchantMockupCard}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: `1px solid ${cardBorder}`, paddingBottom: 16, marginBottom: 20 }}>
+            <div className={styles.merchantMockupHeader} style={{ borderBottom: `1px solid ${cardBorder}` }}>
               <div>
                 <div style={{ fontWeight: 900, fontSize: 16, color: tc }}>TUKAATU MERCHANT WORKSPACE</div>
                 <div style={{ fontSize: 12, color: mc, marginTop: 2 }}>Store ID: merchant_9942 • Live Telemetry</div>
@@ -705,31 +749,31 @@ export default function SiteClient() {
             </div>
 
             {/* Metrics Row */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 24 }}>
-              <div style={{ background: inputBg, padding: 14, borderRadius: 14 }}>
+            <div className={styles.merchantMetrics}>
+              <div className={styles.merchantMetric} style={{ background: inputBg }}>
                 <div style={{ fontSize: 11, color: mc }}>Total Parcels</div>
                 <div style={{ fontSize: 22, fontWeight: 900, marginTop: 4, color: tc }}>1,428</div>
               </div>
-              <div style={{ background: inputBg, padding: 14, borderRadius: 14 }}>
+              <div className={styles.merchantMetric} style={{ background: inputBg }}>
                 <div style={{ fontSize: 11, color: mc }}>In Transit</div>
                 <div style={{ fontSize: 22, fontWeight: 900, marginTop: 4, color: '#0B8CB7' }}>94</div>
               </div>
-              <div style={{ background: inputBg, padding: 14, borderRadius: 14 }}>
+              <div className={styles.merchantMetric} style={{ background: inputBg }}>
                 <div style={{ fontSize: 11, color: mc }}>Pending COD</div>
                 <div style={{ fontSize: 22, fontWeight: 900, marginTop: 4, color: '#FFD026' }}>NPR 285K</div>
               </div>
-              <div style={{ background: inputBg, padding: 14, borderRadius: 14 }}>
+              <div className={styles.merchantMetric} style={{ background: inputBg }}>
                 <div style={{ fontSize: 11, color: mc }}>Settled Month</div>
                 <div style={{ fontSize: 22, fontWeight: 900, marginTop: 4, color: '#4ADE80' }}>NPR 1.4M</div>
               </div>
             </div>
 
             {/* Simulated Recent Dispatch Queue Table */}
-            <div style={{ background: darkPanelBg, borderRadius: 18, padding: 18, border: `1px solid ${inputBorder}` }}>
+            <div className={styles.merchantDispatchPanel} style={{ background: darkPanelBg, border: `1px solid ${inputBorder}` }}>
               <div style={{ fontSize: 12, fontWeight: 800, color: mc, marginBottom: 12, letterSpacing: '0.08em' }}>RECENT PARCEL DISPATCHES</div>
               
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: inputBg, padding: '12px 16px', borderRadius: 12, border: `1px solid ${cardBorder}` }}>
+                <div className={styles.merchantDispatchRow} style={{ background: inputBg, border: `1px solid ${cardBorder}` }}>
                   <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
                     <span style={{ fontWeight: 900, fontSize: 13, color: '#FFD026' }}>TKX-9941</span>
                     <span style={{ fontSize: 13, color: tc, fontWeight: 700 }}>Kathmandu → Pokhara</span>
@@ -737,7 +781,7 @@ export default function SiteClient() {
                   <span style={{ fontSize: 11, fontWeight: 800, color: '#6EE7B7', background: 'rgba(110,231,183,0.2)', padding: '4px 12px', borderRadius: 999 }}>Out for Delivery</span>
                 </div>
 
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: inputBg, padding: '12px 16px', borderRadius: 12, border: `1px solid ${cardBorder}` }}>
+                <div className={styles.merchantDispatchRow} style={{ background: inputBg, border: `1px solid ${cardBorder}` }}>
                   <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
                     <span style={{ fontWeight: 900, fontSize: 13, color: '#FFD026' }}>TKX-8812</span>
                     <span style={{ fontSize: 13, color: tc, fontWeight: 700 }}>Lalitpur → Chitwan</span>
@@ -745,7 +789,7 @@ export default function SiteClient() {
                   <span style={{ fontSize: 11, fontWeight: 800, color: '#93C5FD', background: 'rgba(147,197,253,0.2)', padding: '4px 12px', borderRadius: 999 }}>Sorting Hub</span>
                 </div>
 
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: inputBg, padding: '12px 16px', borderRadius: 12, border: `1px solid ${cardBorder}` }}>
+                <div className={styles.merchantDispatchRow} style={{ background: inputBg, border: `1px solid ${cardBorder}` }}>
                   <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
                     <span style={{ fontWeight: 900, fontSize: 13, color: '#FFD026' }}>TKX-7714</span>
                     <span style={{ fontSize: 13, color: tc, fontWeight: 700 }}>Kathmandu → Bhaktapur</span>

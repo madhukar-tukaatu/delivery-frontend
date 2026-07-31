@@ -1,28 +1,32 @@
 "use client";
 export const buttonStyle = {
-  border: 0,
+  border: "1px solid rgba(255,255,255,0.32)",
   borderRadius: 10,
   padding: "10px 14px",
-  background: "#111827",
+  background: "linear-gradient(135deg, #027196, #0B8CB7)",
   color: "#fff",
   cursor: "pointer",
   fontWeight: 700,
 };
 export const inputStyle = {
   width: "100%",
-  border: "1px solid #d1d5db",
+  border: "1px solid rgba(255,255,255,0.82)",
   borderRadius: 10,
   padding: "10px 12px",
+  background: "rgba(255,255,255,0.62)",
+  backdropFilter: "blur(16px)",
 };
 export const cardStyle = {
-  background: "#fff",
-  border: "1px solid #e5e7eb",
+  background: "rgba(255,255,255,0.62)",
+  border: "1px solid rgba(255,255,255,0.86)",
   borderRadius: 14,
   padding: 16,
+  backdropFilter: "blur(20px) saturate(1.5)",
+  boxShadow: "0 18px 50px rgba(15,23,42,0.09), inset 0 1px rgba(255,255,255,0.9)",
 };
 export function AdminPage({ title, subtitle, children, right }) {
   return (
-    <main style={{ padding: 24, background: "#f8fafc", minHeight: "100vh" }}>
+    <main className="admin-glass-page" style={{ padding: 24, minHeight: "100vh" }}>
       <header
         style={{
           display: "flex",
@@ -44,11 +48,14 @@ export function AdminPage({ title, subtitle, children, right }) {
 export function AdminTable({ columns, rows, actions }) {
   return (
     <div
+      className="admin-glass-table"
       style={{
         overflowX: "auto",
-        background: "#fff",
-        border: "1px solid #e5e7eb",
+        background: "rgba(255,255,255,0.62)",
+        border: "1px solid rgba(255,255,255,0.86)",
         borderRadius: 12,
+        backdropFilter: "blur(20px) saturate(1.5)",
+        boxShadow: "0 18px 50px rgba(15,23,42,0.09), inset 0 1px rgba(255,255,255,0.9)",
       }}
     >
       <table
@@ -91,12 +98,12 @@ export function AdminTable({ columns, rows, actions }) {
 const th = {
   textAlign: "left",
   padding: "12px",
-  background: "#f9fafb",
-  borderBottom: "1px solid #e5e7eb",
+  background: "rgba(240,248,251,0.72)",
+  borderBottom: "1px solid rgba(2,113,150,0.1)",
   whiteSpace: "nowrap",
 };
 const td = {
   padding: "12px",
-  borderBottom: "1px solid #f1f5f9",
+  borderBottom: "1px solid rgba(2,113,150,0.07)",
   whiteSpace: "nowrap",
 };
