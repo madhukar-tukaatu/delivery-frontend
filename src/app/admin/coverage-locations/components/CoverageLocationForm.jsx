@@ -85,7 +85,7 @@ export default function CoverageLocationForm({
       district: "Kathmandu",
       city: "Kathmandu",
       coverage_radius_km: 5,
-      status: "active",
+      status: "inactive",
       is_hq_managed: true,
       ...initialValues,
     };
@@ -291,8 +291,8 @@ export default function CoverageLocationForm({
               <Form.Item label="Status" name="status">
                 <Select
                   options={[
-                    { value: "active", label: "Active" },
                     { value: "inactive", label: "Inactive" },
+                    { value: "active", label: "Active" },
                   ]}
                 />
               </Form.Item>

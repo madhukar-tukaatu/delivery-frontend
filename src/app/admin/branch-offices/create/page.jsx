@@ -39,14 +39,55 @@ function normalizeType(value) {
   return value === "sub_branch" ? "sub_branch" : "franchise_branch";
 }
 
+// function isUnassignedCoverage(item) {
+//   console.log("Checking coverage item:", item);
+//   return (
+//     String(item?.status || "").toLowerCase() === "inactive" &&
+//     !item?.branch_id &&
+//     !item?.assigned_branch_id &&
+//     !item?.assigned_to_branch_id &&
+//     !item?.branch?.id
+//   );
+// }
+
 function isUnassignedCoverage(item) {
-  return (
-    String(item?.status || "").toLowerCase() === "inactive" &&
-    !item?.branch_id &&
-    !item?.assigned_branch_id &&
-    !item?.assigned_to_branch_id &&
-    !item?.branch?.id
-  );
+  const assignedBranches = Array.isArray(item?.assigned_branches)
+    ? item.assigned_branches
+    : Array.isArray(item?.assignedBranches)
+      ? item.assignedBranches
+      : [];
+
+  const directlyAssignedBranchId =
+    item?.branch_id ||
+    item?.assigned_branch_id ||
+    item?.assigned_to_branch_id ||
+    item?.branch?.id ||
+    null;
+
+  const status = String(item?.status || "")
+    .trim()
+    .toLowerCase();
+
+  const isInactive = status === "inactive";
+  const hasDirectAssignment = Boolean(directlyAssignedBranchId);
+  const hasReverseAssignment = assignedBranches.length > 0;
+
+  console.log("Coverage assignment check:", {
+    id: item?.id,
+    name: item?.name,
+    status,
+    branch_id: item?.branch_id,
+    branch: item?.branch,
+    assigned_branches: item?.assigned_branches,
+    assignedBranches: item?.assignedBranches,
+    assignedBranchesCount: assignedBranches.length,
+    isInactive,
+    hasDirectAssignment,
+    hasReverseAssignment,
+    available: isInactive && !hasDirectAssignment && !hasReverseAssignment,
+  });
+
+  return isInactive && !hasDirectAssignment && !hasReverseAssignment;
 }
 
 function normalizePayload(values) {
@@ -230,7 +271,9 @@ export default function CreateBranchOfficePage() {
             : "/admin/branch-offices",
         );
       } catch (error) {
-        message.error(apiErrorMessage(error, "Could not create branch office."));
+        message.error(
+          apiErrorMessage(error, "Could not create branch office."),
+        );
       } finally {
         setSaving(false);
       }
@@ -299,8 +342,7 @@ export default function CreateBranchOfficePage() {
           styles={{
             body: {
               padding: "16px 18px",
-              background:
-                "linear-gradient(135deg, #10224f 0%, #1d4ed8 100%)",
+              background: "linear-gradient(135deg, #10224f 0%, #1d4ed8 100%)",
             },
           }}
         >
