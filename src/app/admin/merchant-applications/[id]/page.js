@@ -55,7 +55,6 @@ import {
   requestMerchantMoreInfo,
 } from "@/services/adminMerchantApplicationService";
 import { getEcho } from "@/lib/echo";
-import api from "@/lib/api";
 
 const MerchantApplicationMap = dynamic(
   () =>
@@ -68,16 +67,6 @@ const MerchantApplicationMap = dynamic(
 );
 
 const { Text } = Typography;
-
-/*
- * This endpoint returns records from the rate_cards table,
- * which is what your approval controller validates.
- *
- * Because your shared api client already contains /api/v1
- * in its base URL, use /admin/rate-cards here.
- */
-const RATE_CARDS_ENDPOINT =
-  "/admin/rate-cards";
 
 const SERVICE_OPTIONS = [
   {
@@ -405,82 +394,16 @@ function isPdf(document) {
   );
 }
 
-function normalizeCollection(response) {
-  const body =
-    response?.data ?? response;
-
-  if (Array.isArray(body)) {
-    return body;
-  }
-
-  if (Array.isArray(body?.data)) {
-    return body.data;
-  }
-
-  if (
-    Array.isArray(
-      body?.data?.data,
-    )
-  ) {
-    return body.data.data;
-  }
-
-  if (Array.isArray(body?.items)) {
-    return body.items;
-  }
-
-  if (
-    Array.isArray(
-      body?.data?.items,
-    )
-  ) {
-    return body.data.items;
-  }
-
-  return [];
-}
-
-function getExistingRateCardId(
-  merchant,
-) {
-  if (!merchant) {
-    return undefined;
-  }
-
-  if (merchant.rate_card_id) {
-    return merchant.rate_card_id;
-  }
-
-  if (merchant.default_rate_card_id) {
-    return merchant.default_rate_card_id;
-  }
-
-  const rateCards =
-    merchant.rate_cards ||
-    merchant.merchant_rate_cards ||
-    [];
-
-  const selected =
-    rateCards.find(
-      (item) =>
-        item.is_default ||
-        item.pivot?.is_default,
-    ) || rateCards[0];
-
-  return (
-    selected?.id ||
-    selected?.rate_card_id ||
-    selected?.pivot?.rate_card_id ||
-    undefined
-  );
-}
-
 function DocThumb({
   doc,
   onClick,
 }) {
-  const [url, setUrl] = useState(null);
-  const [busy, setBusy] = useState(false);
+  const [url, setUrl] =
+    useState(null);
+
+  const [busy, setBusy] =
+    useState(false);
+
   const [failed, setFailed] =
     useState(false);
 
@@ -530,7 +453,8 @@ function DocThumb({
     width: 44,
     height: 44,
     borderRadius: 6,
-    border: "1px solid #e2e8f0",
+    border:
+      "1px solid #e2e8f0",
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
@@ -620,19 +544,13 @@ export default function AdminMerchantApplicationDetailPage() {
   const [branches, setBranches] =
     useState([]);
 
-  const [rateCards, setRateCards] =
-    useState([]);
-
   const [loading, setLoading] =
     useState(false);
 
-  const [pageLoading, setPageLoading] =
-    useState(true);
-
   const [
-    rateCardsLoading,
-    setRateCardsLoading,
-  ] = useState(false);
+    pageLoading,
+    setPageLoading,
+  ] = useState(true);
 
   const [
     realtimeConnected,
@@ -670,7 +588,9 @@ export default function AdminMerchantApplicationDetailPage() {
   ] = useState(false);
 
   const [form] = Form.useForm();
-  const [rejectForm] = Form.useForm();
+  const [rejectForm] =
+    Form.useForm();
+
   const [moreInfoForm] =
     Form.useForm();
 
@@ -685,55 +605,6 @@ export default function AdminMerchantApplicationDetailPage() {
       ).toLowerCase(),
     );
 
-  const loadRateCards =
-    useCallback(async () => {
-      try {
-        setRateCardsLoading(true);
-
-        const response = await api.get(
-          RATE_CARDS_ENDPOINT,
-          {
-            params: {
-              status: "active",
-              per_page: 100,
-            },
-          },
-        );
-
-        const rows =
-          normalizeCollection(response)
-            .filter((item) => {
-              const status =
-                String(
-                  item?.status || "",
-                ).toLowerCase();
-
-              return (
-                !status ||
-                [
-                  "active",
-                  "approved",
-                ].includes(status)
-              );
-            });
-
-        setRateCards(rows);
-
-        return rows;
-      } catch (error) {
-        console.error(
-          "Could not load rate cards:",
-          error,
-        );
-
-        setRateCards([]);
-
-        throw error;
-      } finally {
-        setRateCardsLoading(false);
-      }
-    }, []);
-
   const load = useCallback(
     async ({
       silent = false,
@@ -743,38 +614,24 @@ export default function AdminMerchantApplicationDetailPage() {
           setPageLoading(true);
         }
 
-        const [merchantResult, branchResult] =
-          await Promise.all([
-            getMerchantApplication(
-              params.id,
-            ),
+        const [
+          merchantResult,
+          branchResult,
+        ] = await Promise.all([
+          getMerchantApplication(
+            params.id,
+          ),
 
-            getBranches(),
-          ]);
+          getBranches(),
+        ]);
 
-        setMerchant(merchantResult);
+        setMerchant(
+          merchantResult,
+        );
+
         setBranches(
           branchResult || [],
         );
-
-        const storeManagerApplication =
-          merchantResult
-            ?.application_source ===
-          "store_manager";
-
-        if (storeManagerApplication) {
-          try {
-            await loadRateCards();
-          } catch {
-            if (!silent) {
-              message.warning(
-                "The application loaded, but active rate cards could not be loaded.",
-              );
-            }
-          }
-        } else {
-          setRateCards([]);
-        }
 
         const requestedServices =
           Array.isArray(
@@ -783,7 +640,8 @@ export default function AdminMerchantApplicationDetailPage() {
           ) &&
           merchantResult
             .approved_services.length
-            ? merchantResult.approved_services
+            ? merchantResult
+                .approved_services
             : merchantResult
                 ?.requested_services || [];
 
@@ -801,11 +659,6 @@ export default function AdminMerchantApplicationDetailPage() {
             merchantResult
               ?.suggested_sub_branch_id ||
             undefined,
-
-          rate_card_id:
-            getExistingRateCardId(
-              merchantResult,
-            ),
 
           approved_services:
             requestedServices.filter(
@@ -837,7 +690,6 @@ export default function AdminMerchantApplicationDetailPage() {
     [
       params.id,
       form,
-      loadRateCards,
     ],
   );
 
@@ -845,9 +697,6 @@ export default function AdminMerchantApplicationDetailPage() {
     load();
   }, [load]);
 
-  /*
-   * Realtime detail refresh.
-   */
   useEffect(() => {
     const echo = getEcho();
 
@@ -859,13 +708,15 @@ export default function AdminMerchantApplicationDetailPage() {
       echo?.connector?.pusher
         ?.connection;
 
-    const connectedHandler = () => {
-      setRealtimeConnected(true);
-    };
+    const connectedHandler =
+      () => {
+        setRealtimeConnected(true);
+      };
 
-    const disconnectedHandler = () => {
-      setRealtimeConnected(false);
-    };
+    const disconnectedHandler =
+      () => {
+        setRealtimeConnected(false);
+      };
 
     connection?.bind(
       "connected",
@@ -882,29 +733,31 @@ export default function AdminMerchantApplicationDetailPage() {
         "connected",
     );
 
-    const channel = echo.private(
-      "admin.merchant-applications",
-    );
-
-    const handleMerchantChange = (
-      payload,
-    ) => {
-      if (
-        Number(payload?.merchant_id) !==
-        Number(params.id)
-      ) {
-        return;
-      }
-
-      console.info(
-        "[Merchant Application Detail] realtime event",
-        payload,
+    const channel =
+      echo.private(
+        "admin.merchant-applications",
       );
 
-      load({
-        silent: true,
-      });
-    };
+    const handleMerchantChange =
+      (payload) => {
+        if (
+          Number(
+            payload?.merchant_id,
+          ) !==
+          Number(params.id)
+        ) {
+          return;
+        }
+
+        console.info(
+          "[Merchant Application Detail] realtime event",
+          payload,
+        );
+
+        load({
+          silent: true,
+        });
+      };
 
     channel.listen(
       ".merchant.application.changed",
@@ -981,7 +834,9 @@ export default function AdminMerchantApplicationDetailPage() {
           .map((branch) => ({
             value: branch.id,
             label:
-              getBranchLabel(branch),
+              getBranchLabel(
+                branch,
+              ),
           })),
       [branches],
     );
@@ -1002,7 +857,9 @@ export default function AdminMerchantApplicationDetailPage() {
               return false;
             }
 
-            if (selectedBranchId) {
+            if (
+              selectedBranchId
+            ) {
               return (
                 Number(
                   branch.parent_id,
@@ -1021,34 +878,14 @@ export default function AdminMerchantApplicationDetailPage() {
           .map((branch) => ({
             value: branch.id,
             label:
-              getBranchLabel(branch),
+              getBranchLabel(
+                branch,
+              ),
           })),
       [
         branches,
         selectedBranchId,
       ],
-    );
-
-  const rateCardOptions =
-    useMemo(
-      () =>
-        rateCards.map(
-          (rateCard) => ({
-            value: rateCard.id,
-
-            label: [
-              rateCard.name ||
-                `Rate Card #${rateCard.id}`,
-
-              rateCard.code
-                ? `(${rateCard.code})`
-                : null,
-            ]
-              .filter(Boolean)
-              .join(" "),
-          }),
-        ),
-      [rateCards],
     );
 
   const uploadedTypes =
@@ -1077,12 +914,15 @@ export default function AdminMerchantApplicationDetailPage() {
       if (
         merchant?.pickup_location
       ) {
-        return merchant.pickup_location;
+        return (
+          merchant.pickup_location
+        );
       }
 
       const locations =
         merchant?.pickup_locations ||
-        merchant?.pickupLocations ||
+        merchant
+          ?.pickupLocations ||
         [];
 
       return (
@@ -1097,11 +937,11 @@ export default function AdminMerchantApplicationDetailPage() {
 
   const canApprove =
     missingDocs.length === 0 &&
-    !isApproved &&
-    (!isStoreManager ||
-      rateCardOptions.length > 0);
+    !isApproved;
 
-  const openDoc = async (doc) => {
+  const openDoc = async (
+    doc,
+  ) => {
     if (!doc?.id) {
       return;
     }
@@ -1117,7 +957,9 @@ export default function AdminMerchantApplicationDetailPage() {
         );
 
       setPreviewUrl(
-        URL.createObjectURL(blob),
+        URL.createObjectURL(
+          blob,
+        ),
       );
 
       setPreviewOpen(true);
@@ -1149,10 +991,14 @@ export default function AdminMerchantApplicationDetailPage() {
         );
 
       const url =
-        URL.createObjectURL(blob);
+        URL.createObjectURL(
+          blob,
+        );
 
       const anchor =
-        document.createElement("a");
+        document.createElement(
+          "a",
+        );
 
       anchor.href = url;
 
@@ -1198,9 +1044,6 @@ export default function AdminMerchantApplicationDetailPage() {
         };
 
         if (isStoreManager) {
-          payload.rate_card_id =
-            values.rate_card_id;
-
           payload.approved_services =
             values.approved_services;
         }
@@ -1220,7 +1063,9 @@ export default function AdminMerchantApplicationDetailPage() {
           silent: true,
         });
       } catch (error) {
-        if (error?.errorFields) {
+        if (
+          error?.errorFields
+        ) {
           return;
         }
 
@@ -1257,7 +1102,8 @@ export default function AdminMerchantApplicationDetailPage() {
     async () => {
       try {
         const { reason } =
-          await rejectForm.validateFields();
+          await rejectForm
+            .validateFields();
 
         setLoading(true);
 
@@ -1277,7 +1123,9 @@ export default function AdminMerchantApplicationDetailPage() {
           silent: true,
         });
       } catch (error) {
-        if (error?.errorFields) {
+        if (
+          error?.errorFields
+        ) {
           return;
         }
 
@@ -1294,8 +1142,12 @@ export default function AdminMerchantApplicationDetailPage() {
   const submitMoreInfo =
     async () => {
       try {
-        const { message: requestMessage } =
-          await moreInfoForm.validateFields();
+        const {
+          message:
+            requestMessage,
+        } =
+          await moreInfoForm
+            .validateFields();
 
         setLoading(true);
 
@@ -1315,7 +1167,9 @@ export default function AdminMerchantApplicationDetailPage() {
           silent: true,
         });
       } catch (error) {
-        if (error?.errorFields) {
+        if (
+          error?.errorFields
+        ) {
           return;
         }
 
@@ -1357,7 +1211,10 @@ export default function AdminMerchantApplicationDetailPage() {
       key: "thumb",
       width: 56,
 
-      render: (_, doc) => (
+      render: (
+        _,
+        doc,
+      ) => (
         <DocThumb
           doc={doc}
           onClick={() =>
@@ -1371,7 +1228,10 @@ export default function AdminMerchantApplicationDetailPage() {
       title: "Document",
       key: "document",
 
-      render: (_, doc) => (
+      render: (
+        _,
+        doc,
+      ) => (
         <div>
           <div
             style={{
@@ -1381,13 +1241,18 @@ export default function AdminMerchantApplicationDetailPage() {
             }}
           >
             {String(
-              doc.document_type || "",
+              doc.document_type ||
+                "",
             )
-              .replace(/_/g, " ")
+              .replace(
+                /_/g,
+                " ",
+              )
               .replace(
                 /\b\w/g,
                 (character) =>
-                  character.toUpperCase(),
+                  character
+                    .toUpperCase(),
               )}
           </div>
 
@@ -1397,7 +1262,8 @@ export default function AdminMerchantApplicationDetailPage() {
               color: "#94a3b8",
             }}
           >
-            {doc.original_name || "—"}
+            {doc.original_name ||
+              "—"}
           </div>
         </div>
       ),
@@ -1439,13 +1305,18 @@ export default function AdminMerchantApplicationDetailPage() {
       width: 85,
       align: "center",
 
-      render: (_, doc) => (
+      render: (
+        _,
+        doc,
+      ) => (
         <Space size={4}>
           <Tooltip title="Preview">
             <Button
               type="text"
               size="small"
-              icon={<EyeOutlined />}
+              icon={
+                <EyeOutlined />
+              }
               loading={
                 previewLoading &&
                 previewDoc?.id ===
@@ -1526,16 +1397,19 @@ export default function AdminMerchantApplicationDetailPage() {
                 <div
                   style={{
                     display: "flex",
-                    alignItems: "center",
+                    alignItems:
+                      "center",
                     gap: 8,
-                    flexWrap: "wrap",
+                    flexWrap:
+                      "wrap",
                   }}
                 >
                   <Text
                     style={{
                       fontSize: 15,
                       fontWeight: 700,
-                      color: "#0f172a",
+                      color:
+                        "#0f172a",
                     }}
                   >
                     {merchant.name}
@@ -1544,17 +1418,20 @@ export default function AdminMerchantApplicationDetailPage() {
                   <Text
                     style={{
                       fontSize: 12,
-                      color: "#94a3b8",
+                      color:
+                        "#94a3b8",
                     }}
                   >
                     #
-                    {merchant.application_number ||
+                    {merchant
+                      .application_number ||
                       merchant.id}
                   </Text>
 
                   <SourceTag
                     source={
-                      merchant.application_source
+                      merchant
+                        .application_source
                     }
                   />
 
@@ -1564,10 +1441,12 @@ export default function AdminMerchantApplicationDetailPage() {
                     }
                   />
 
-                  {merchant.verification_status && (
+                  {merchant
+                    .verification_status && (
                     <StatusPill
                       status={
-                        merchant.verification_status
+                        merchant
+                          .verification_status
                       }
                     />
                   )}
@@ -1589,11 +1468,13 @@ export default function AdminMerchantApplicationDetailPage() {
                   </Tag>
                 </div>
 
-                {merchant.default_branch && (
+                {merchant
+                  .default_branch && (
                   <Text
                     style={{
                       fontSize: 11,
-                      color: "#94a3b8",
+                      color:
+                        "#94a3b8",
                     }}
                   >
                     Branch:{" "}
@@ -1609,7 +1490,10 @@ export default function AdminMerchantApplicationDetailPage() {
           </Col>
 
           <Col>
-            <Space size={6} wrap>
+            <Space
+              size={6}
+              wrap
+            >
               <Button
                 size="small"
                 icon={
@@ -1629,9 +1513,13 @@ export default function AdminMerchantApplicationDetailPage() {
                 icon={
                   <InfoCircleOutlined />
                 }
-                disabled={isApproved}
+                disabled={
+                  isApproved
+                }
                 onClick={() =>
-                  setMoreInfoOpen(true)
+                  setMoreInfoOpen(
+                    true,
+                  )
                 }
               >
                 Request Info
@@ -1640,10 +1528,16 @@ export default function AdminMerchantApplicationDetailPage() {
               <Button
                 size="small"
                 danger
-                icon={<StopOutlined />}
-                disabled={isApproved}
+                icon={
+                  <StopOutlined />
+                }
+                disabled={
+                  isApproved
+                }
                 onClick={() =>
-                  setRejectOpen(true)
+                  setRejectOpen(
+                    true,
+                  )
                 }
               >
                 Reject
@@ -1656,7 +1550,9 @@ export default function AdminMerchantApplicationDetailPage() {
                   <CheckCircleOutlined />
                 }
                 loading={loading}
-                disabled={!canApprove}
+                disabled={
+                  !canApprove
+                }
                 onClick={
                   handleApprove
                 }
@@ -1669,7 +1565,8 @@ export default function AdminMerchantApplicationDetailPage() {
           </Col>
         </Row>
 
-        {merchant.more_info_message && (
+        {merchant
+          .more_info_message && (
           <Alert
             type="warning"
             showIcon
@@ -1678,12 +1575,14 @@ export default function AdminMerchantApplicationDetailPage() {
               marginTop: 8,
             }}
             message={
-              merchant.more_info_message
+              merchant
+                .more_info_message
             }
           />
         )}
 
-        {merchant.rejected_reason && (
+        {merchant
+          .rejected_reason && (
           <Alert
             type="error"
             showIcon
@@ -1692,12 +1591,14 @@ export default function AdminMerchantApplicationDetailPage() {
               marginTop: 8,
             }}
             message={
-              merchant.rejected_reason
+              merchant
+                .rejected_reason
             }
           />
         )}
 
-        {missingDocs.length > 0 && (
+        {missingDocs.length >
+          0 && (
           <Alert
             type="warning"
             showIcon
@@ -1715,25 +1616,13 @@ export default function AdminMerchantApplicationDetailPage() {
               .join(", ")}`}
           />
         )}
-
-        {isStoreManager &&
-          !rateCardsLoading &&
-          rateCardOptions.length ===
-            0 && (
-            <Alert
-              type="error"
-              showIcon
-              banner
-              style={{
-                marginTop: 8,
-              }}
-              message="No active rate cards were found. Create or activate a rate card before approving this Store integration."
-            />
-          )}
       </Card>
 
       <Row gutter={[12, 12]}>
-        <Col xs={24} lg={14}>
+        <Col
+          xs={24}
+          lg={14}
+        >
           <Card
             bordered={false}
             styles={{
@@ -1751,11 +1640,15 @@ export default function AdminMerchantApplicationDetailPage() {
               Business Profile
             </SectionTitle>
 
-            <Row gutter={[16, 0]}>
+            <Row
+              gutter={[16, 0]}
+            >
               <Col span={12}>
                 <Field
                   label="Legal Name"
-                  value={merchant.name}
+                  value={
+                    merchant.name
+                  }
                 />
               </Col>
 
@@ -1763,7 +1656,8 @@ export default function AdminMerchantApplicationDetailPage() {
                 <Field
                   label="Owner"
                   value={
-                    merchant.owner_name
+                    merchant
+                      .owner_name
                   }
                 />
               </Col>
@@ -1772,7 +1666,8 @@ export default function AdminMerchantApplicationDetailPage() {
                 <Field
                   label="Contact Person"
                   value={
-                    merchant.contact_person
+                    merchant
+                      .contact_person
                   }
                 />
               </Col>
@@ -1781,7 +1676,8 @@ export default function AdminMerchantApplicationDetailPage() {
                 <Field
                   label="Business Type"
                   value={
-                    merchant.business_type
+                    merchant
+                      .business_type
                   }
                 />
               </Col>
@@ -1789,7 +1685,9 @@ export default function AdminMerchantApplicationDetailPage() {
               <Col span={12}>
                 <Field
                   label="Email"
-                  value={merchant.email}
+                  value={
+                    merchant.email
+                  }
                   copy
                 />
               </Col>
@@ -1797,7 +1695,9 @@ export default function AdminMerchantApplicationDetailPage() {
               <Col span={12}>
                 <Field
                   label="Phone"
-                  value={merchant.phone}
+                  value={
+                    merchant.phone
+                  }
                   copy
                 />
               </Col>
@@ -1806,7 +1706,8 @@ export default function AdminMerchantApplicationDetailPage() {
                 <Field
                   label="PAN / VAT"
                   value={
-                    merchant.pan_vat_number
+                    merchant
+                      .pan_vat_number
                   }
                 />
               </Col>
@@ -1815,7 +1716,8 @@ export default function AdminMerchantApplicationDetailPage() {
                 <Field
                   label="Registration Number"
                   value={
-                    merchant.registration_number
+                    merchant
+                      .registration_number
                   }
                 />
               </Col>
@@ -1832,7 +1734,10 @@ export default function AdminMerchantApplicationDetailPage() {
           </Card>
         </Col>
 
-        <Col xs={24} lg={10}>
+        <Col
+          xs={24}
+          lg={10}
+        >
           <Card
             bordered={false}
             styles={{
@@ -1863,14 +1768,16 @@ export default function AdminMerchantApplicationDetailPage() {
             <Field
               label="Account Name"
               value={
-                merchant.bank_account_name
+                merchant
+                  .bank_account_name
               }
             />
 
             <Field
               label="Account Number"
               value={
-                merchant.bank_account_number
+                merchant
+                  .bank_account_number
               }
               copy
             />
@@ -1878,7 +1785,8 @@ export default function AdminMerchantApplicationDetailPage() {
             <Field
               label="Bank Branch"
               value={
-                merchant.bank_branch
+                merchant
+                  .bank_branch
               }
             />
           </Card>
@@ -1890,56 +1798,78 @@ export default function AdminMerchantApplicationDetailPage() {
           bordered={false}
           styles={{
             body: {
-              padding: "14px 16px",
+              padding:
+                "14px 16px",
             },
           }}
         >
           <SectionTitle
-            icon={<ApiOutlined />}
+            icon={
+              <ApiOutlined />
+            }
           >
             Store Integration
           </SectionTitle>
 
           <Row gutter={[16, 0]}>
-            <Col xs={24} md={8}>
+            <Col
+              xs={24}
+              md={8}
+            >
               <Field
                 label="Application Number"
                 value={
-                  merchant.application_number
+                  merchant
+                    .application_number
                 }
                 copy
               />
             </Col>
 
-            <Col xs={24} md={8}>
+            <Col
+              xs={24}
+              md={8}
+            >
               <Field
                 label="External Store ID"
                 value={
-                  merchant.external_store_id
+                  merchant
+                    .external_store_id
                 }
                 copy
               />
             </Col>
 
-            <Col xs={24} md={8}>
+            <Col
+              xs={24}
+              md={8}
+            >
               <Field
                 label="Platform"
                 value={
-                  merchant.external_platform
+                  merchant
+                    .external_platform
                 }
               />
             </Col>
 
-            <Col xs={24} md={8}>
+            <Col
+              xs={24}
+              md={8}
+            >
               <Field
                 label="Store Category"
                 value={
-                  merchant.store_category
+                  merchant
+                    .store_category
                 }
               />
             </Col>
 
-            <Col xs={24} md={8}>
+            <Col
+              xs={24}
+              md={8}
+            >
               <div
                 style={{
                   marginBottom: 10,
@@ -1948,7 +1878,8 @@ export default function AdminMerchantApplicationDetailPage() {
                 <div
                   style={{
                     fontSize: 11,
-                    color: "#94a3b8",
+                    color:
+                      "#94a3b8",
                     marginBottom: 4,
                   }}
                 >
@@ -1957,13 +1888,17 @@ export default function AdminMerchantApplicationDetailPage() {
 
                 <StatusPill
                   status={
-                    merchant.integration_status
+                    merchant
+                      .integration_status
                   }
                 />
               </div>
             </Col>
 
-            <Col xs={24} md={8}>
+            <Col
+              xs={24}
+              md={8}
+            >
               <div
                 style={{
                   marginBottom: 10,
@@ -1972,7 +1907,8 @@ export default function AdminMerchantApplicationDetailPage() {
                 <div
                   style={{
                     fontSize: 11,
-                    color: "#94a3b8",
+                    color:
+                      "#94a3b8",
                     marginBottom: 4,
                   }}
                 >
@@ -1981,7 +1917,8 @@ export default function AdminMerchantApplicationDetailPage() {
 
                 <StatusPill
                   status={
-                    merchant.integration_callback_status ||
+                    merchant
+                      .integration_callback_status ||
                     "pending"
                   }
                 />
@@ -1992,7 +1929,8 @@ export default function AdminMerchantApplicationDetailPage() {
               <Field
                 label="Callback URL"
                 value={
-                  merchant.integration_callback_url
+                  merchant
+                    .integration_callback_url
                 }
                 copy
               />
@@ -2007,36 +1945,47 @@ export default function AdminMerchantApplicationDetailPage() {
                 <div
                   style={{
                     fontSize: 11,
-                    color: "#94a3b8",
+                    color:
+                      "#94a3b8",
                     marginBottom: 5,
                   }}
                 >
                   Requested Services
                 </div>
 
-                <Space size={[4, 4]} wrap>
+                <Space
+                  size={[4, 4]}
+                  wrap
+                >
                   {(
-                    merchant.requested_services ||
+                    merchant
+                      .requested_services ||
                     []
                   ).length ? (
-                    merchant.requested_services.map(
-                      (service) => (
-                        <Tag
-                          key={service}
-                          color="purple"
-                          style={{
-                            margin: 0,
-                          }}
-                        >
-                          {SERVICE_OPTIONS.find(
-                            (option) =>
-                              option.value ===
-                              service,
-                          )?.label ||
-                            service}
-                        </Tag>
-                      ),
-                    )
+                    merchant
+                      .requested_services
+                      .map(
+                        (service) => (
+                          <Tag
+                            key={
+                              service
+                            }
+                            color="purple"
+                            style={{
+                              margin: 0,
+                            }}
+                          >
+                            {SERVICE_OPTIONS.find(
+                              (
+                                option,
+                              ) =>
+                                option.value ===
+                                service,
+                            )?.label ||
+                              service}
+                          </Tag>
+                        ),
+                      )
                   ) : (
                     <Text
                       type="secondary"
@@ -2044,7 +1993,8 @@ export default function AdminMerchantApplicationDetailPage() {
                         fontSize: 12,
                       }}
                     >
-                      No requested services
+                      No requested
+                      services
                     </Text>
                   )}
                 </Space>
@@ -2071,7 +2021,10 @@ export default function AdminMerchantApplicationDetailPage() {
         </SectionTitle>
 
         <Row gutter={[12, 12]}>
-          <Col xs={24} lg={8}>
+          <Col
+            xs={24}
+            lg={8}
+          >
             <Field
               label="Pickup Name"
               value={
@@ -2082,19 +2035,25 @@ export default function AdminMerchantApplicationDetailPage() {
             <Field
               label="Pickup Address"
               value={
-                pickupLocation?.address ||
-                merchant.pickup_address
+                pickupLocation
+                  ?.address ||
+                merchant
+                  .pickup_address
               }
             />
 
             <Field
               label="City / Area"
               value={[
-                pickupLocation?.city ||
-                  merchant.pickup_city,
+                pickupLocation
+                  ?.city ||
+                  merchant
+                    .pickup_city,
 
-                pickupLocation?.area ||
-                  merchant.pickup_area,
+                pickupLocation
+                  ?.area ||
+                  merchant
+                    .pickup_area,
               ]
                 .filter(Boolean)
                 .join(", ")}
@@ -2103,14 +2062,19 @@ export default function AdminMerchantApplicationDetailPage() {
             <Field
               label="Coordinates"
               value={
-                pickupLocation?.latitude ||
+                pickupLocation
+                  ?.latitude ||
                 merchant.pickup_lat
                   ? `${
-                      pickupLocation?.latitude ||
-                      merchant.pickup_lat
+                      pickupLocation
+                        ?.latitude ||
+                      merchant
+                        .pickup_lat
                     }, ${
-                      pickupLocation?.longitude ||
-                      merchant.pickup_lng
+                      pickupLocation
+                        ?.longitude ||
+                      merchant
+                        .pickup_lng
                     }`
                   : null
               }
@@ -2118,16 +2082,22 @@ export default function AdminMerchantApplicationDetailPage() {
 
             <Field
               label="Suggested Branch"
-              value={getBranchLabel(
-                merchant.suggested_branch,
-              )}
+              value={
+                getBranchLabel(
+                  merchant
+                    .suggested_branch,
+                )
+              }
             />
 
             <Field
               label="Suggested Sub-Branch"
-              value={getBranchLabel(
-                merchant.suggested_sub_branch,
-              )}
+              value={
+                getBranchLabel(
+                  merchant
+                    .suggested_sub_branch,
+                )
+              }
             />
           </Col>
 
@@ -2157,7 +2127,8 @@ export default function AdminMerchantApplicationDetailPage() {
           bordered={false}
           styles={{
             body: {
-              padding: "14px 16px",
+              padding:
+                "14px 16px",
             },
           }}
         >
@@ -2187,7 +2158,10 @@ export default function AdminMerchantApplicationDetailPage() {
           </Row>
 
           <Row gutter={12}>
-            <Col xs={24} md={12}>
+            <Col
+              xs={24}
+              md={12}
+            >
               <Form.Item
                 name="branch_id"
                 label="Primary Branch"
@@ -2204,21 +2178,30 @@ export default function AdminMerchantApplicationDetailPage() {
               >
                 <Select
                   showSearch
-                  options={branchOptions}
+                  options={
+                    branchOptions
+                  }
                   optionFilterProp="label"
                   placeholder="Select primary branch"
-                  disabled={isApproved}
+                  disabled={
+                    isApproved
+                  }
                   onChange={() => {
-                    form.setFieldsValue({
-                      sub_branch_id:
-                        undefined,
-                    });
+                    form.setFieldsValue(
+                      {
+                        sub_branch_id:
+                          undefined,
+                      },
+                    );
                   }}
                 />
               </Form.Item>
             </Col>
 
-            <Col xs={24} md={12}>
+            <Col
+              xs={24}
+              md={12}
+            >
               <Form.Item
                 name="sub_branch_id"
                 label="Sub-Branch (optional)"
@@ -2234,7 +2217,9 @@ export default function AdminMerchantApplicationDetailPage() {
                   }
                   optionFilterProp="label"
                   placeholder="Select sub-branch"
-                  disabled={isApproved}
+                  disabled={
+                    isApproved
+                  }
                 />
               </Form.Item>
             </Col>
@@ -2255,7 +2240,9 @@ export default function AdminMerchantApplicationDetailPage() {
             }}
           >
             <SectionTitle
-              icon={<ApiOutlined />}
+              icon={
+                <ApiOutlined />
+              }
             >
               Store Integration Approval
             </SectionTitle>
@@ -2266,45 +2253,11 @@ export default function AdminMerchantApplicationDetailPage() {
               style={{
                 marginBottom: 14,
               }}
-              message="The selected services and rate card will be assigned before Tukaatu sends API credentials to the Store callback URL."
+              message="The selected services will be assigned before Tukaatu sends API credentials to the Store callback URL. Delivery charges will use the active global Pricing Settings version."
             />
 
             <Row gutter={12}>
-              <Col xs={24} md={10}>
-                <Form.Item
-                  name="rate_card_id"
-                  label="Rate Card"
-                  rules={[
-                    {
-                      required: true,
-                      message:
-                        "Select a rate card.",
-                    },
-                  ]}
-                >
-                  <Select
-                    showSearch
-                    optionFilterProp="label"
-                    placeholder="Select active rate card"
-                    options={
-                      rateCardOptions
-                    }
-                    loading={
-                      rateCardsLoading
-                    }
-                    disabled={
-                      isApproved
-                    }
-                    notFoundContent={
-                      rateCardsLoading
-                        ? "Loading…"
-                        : "No active rate cards"
-                    }
-                  />
-                </Form.Item>
-              </Col>
-
-              <Col xs={24} md={14}>
+              <Col xs={24}>
                 <Form.Item
                   name="approved_services"
                   label="Approved Services"
@@ -2383,7 +2336,8 @@ export default function AdminMerchantApplicationDetailPage() {
           size="small"
           columns={docColumns}
           dataSource={
-            merchant.documents || []
+            merchant.documents ||
+            []
           }
           pagination={false}
           scroll={{
@@ -2418,7 +2372,8 @@ export default function AdminMerchantApplicationDetailPage() {
                 fontWeight: 600,
               }}
             >
-              {previewDoc?.original_name ||
+              {previewDoc
+                ?.original_name ||
                 "Document Preview"}
             </div>
 
@@ -2428,8 +2383,13 @@ export default function AdminMerchantApplicationDetailPage() {
                 color: "#94a3b8",
               }}
             >
-              {previewDoc?.document_type} ·{" "}
-              {previewDoc?.mime_type}
+              {previewDoc
+                ?.document_type}{" "}
+              ·{" "}
+              {
+                previewDoc
+                  ?.mime_type
+              }
             </div>
           </div>
         }
@@ -2438,7 +2398,10 @@ export default function AdminMerchantApplicationDetailPage() {
             key="close"
             size="small"
             onClick={() => {
-              setPreviewOpen(false);
+              setPreviewOpen(
+                false,
+              );
+
               cleanPreview();
             }}
           >
@@ -2453,7 +2416,9 @@ export default function AdminMerchantApplicationDetailPage() {
               <DownloadOutlined />
             }
             onClick={() =>
-              downloadDoc(previewDoc)
+              downloadDoc(
+                previewDoc,
+              )
             }
           >
             Download
@@ -2465,26 +2430,33 @@ export default function AdminMerchantApplicationDetailPage() {
         {previewLoading ||
         !previewUrl ? (
           <Card loading />
-        ) : isImage(previewDoc) ? (
+        ) : isImage(
+            previewDoc,
+          ) ? (
           <div
             style={{
               background: "#111",
               padding: 12,
               borderRadius: 8,
-              textAlign: "center",
+              textAlign:
+                "center",
             }}
           >
             <Image
               src={previewUrl}
               alt=""
               style={{
-                maxHeight: "70vh",
-                objectFit: "contain",
+                maxHeight:
+                  "70vh",
+                objectFit:
+                  "contain",
               }}
               preview={false}
             />
           </div>
-        ) : isPdf(previewDoc) ? (
+        ) : isPdf(
+            previewDoc,
+          ) ? (
           <iframe
             src={previewUrl}
             title="PDF"
@@ -2544,8 +2516,12 @@ export default function AdminMerchantApplicationDetailPage() {
         title="Request More Information"
         open={moreInfoOpen}
         onCancel={() => {
-          setMoreInfoOpen(false);
-          moreInfoForm.resetFields();
+          setMoreInfoOpen(
+            false,
+          );
+
+          moreInfoForm
+            .resetFields();
         }}
         onOk={submitMoreInfo}
         confirmLoading={loading}
