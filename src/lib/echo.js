@@ -1,67 +1,149 @@
+"use client";
+
 import Echo from "laravel-echo";
 import Pusher from "pusher-js";
 
-let echo = null;
+let echoInstance = null;
 
 function getAuthToken() {
-  if (typeof window === "undefined") return null;
+  if (typeof window === "undefined") {
+    return null;
+  }
 
-  return (
+  const stored =
     localStorage.getItem("token") ||
     localStorage.getItem("auth_token") ||
-    localStorage.getItem("access_token")
-  );
+    localStorage.getItem("access_token");
+
+  if (!stored) {
+    return null;
+  }
+
+  return stored.replace(/^Bearer\s+/i, "");
 }
 
 export function getEcho() {
-  if (typeof window === "undefined") return null;
+  if (typeof window === "undefined") {
+    return null;
+  }
 
-  if (echo) return echo;
+  if (echoInstance) {
+    return echoInstance;
+  }
 
   window.Pusher = Pusher;
 
   const token = getAuthToken();
 
-  const reverbHost =
-    process.env.NEXT_PUBLIC_REVERB_HOST || "ws.tukaatuexpress.com";
+  const secure =
+    window.location.protocol === "https:";
 
-  const reverbPort = Number(process.env.NEXT_PUBLIC_REVERB_PORT || 443);
+  const scheme =
+    process.env.NEXT_PUBLIC_REVERB_SCHEME ||
+    (secure ? "https" : "http");
 
-  const reverbScheme =
-    process.env.NEXT_PUBLIC_REVERB_SCHEME || "https";
+  const forceTLS =
+    scheme === "https";
+
+  const host =
+    process.env.NEXT_PUBLIC_REVERB_HOST ||
+    window.location.hostname;
+
+  const port = Number(
+    process.env.NEXT_PUBLIC_REVERB_PORT ||
+      (forceTLS ? 443 : 8080)
+  );
 
   const apiOrigin =
-    process.env.NEXT_PUBLIC_API_ORIGIN || "https://api.tukaatuexpress.com";
+    process.env.NEXT_PUBLIC_API_ORIGIN ||
+    (
+      secure
+        ? "https://api.tukaatuexpress.com"
+        : "http://localhost:8081"
+    );
 
-  echo = new Echo({
+  echoInstance = new Echo({
     broadcaster: "reverb",
-    key: process.env.NEXT_PUBLIC_REVERB_APP_KEY,
 
-    wsHost: reverbHost,
-    wsPort: reverbPort,
-    wssPort: reverbPort,
+    key:
+      process.env.NEXT_PUBLIC_REVERB_APP_KEY,
 
-    forceTLS: reverbScheme === "https",
-    encrypted: reverbScheme === "https",
+    wsHost: host,
+    wsPort: port,
+    wssPort: port,
 
-    enabledTransports: ["ws", "wss"],
+    forceTLS,
+    encrypted: forceTLS,
 
-    authEndpoint: `${apiOrigin}/broadcasting/auth`,
+    enabledTransports: forceTLS
+      ? ["wss"]
+      : ["ws", "wss"],
+
+    authEndpoint:
+      `${apiOrigin}/broadcasting/auth`,
 
     auth: {
       headers: {
-        Authorization: token ? `Bearer ${token}` : "",
+        ...(token
+          ? {
+              Authorization:
+                `Bearer ${token}`,
+            }
+          : {}),
+
         Accept: "application/json",
       },
     },
+
+    disableStats: true,
   });
 
-  return echo;
+  window.deliveryEcho = echoInstance;
+
+  const connection =
+    echoInstance.connector.pusher.connection;
+
+  connection.bind(
+    "connected",
+    () => {
+      console.info(
+        "[Reverb] Connected",
+        connection.socket_id
+      );
+    }
+  );
+
+  connection.bind(
+    "error",
+    (error) => {
+      console.error(
+        "[Reverb] Connection error",
+        error
+      );
+    }
+  );
+
+  connection.bind(
+    "disconnected",
+    () => {
+      console.warn(
+        "[Reverb] Disconnected"
+      );
+    }
+  );
+
+  return echoInstance;
 }
 
 export function disconnectEcho() {
-  if (echo) {
-    echo.disconnect();
-    echo = null;
+  if (!echoInstance) {
+    return;
+  }
+
+  echoInstance.disconnect();
+  echoInstance = null;
+
+  if (typeof window !== "undefined") {
+    delete window.deliveryEcho;
   }
 }
