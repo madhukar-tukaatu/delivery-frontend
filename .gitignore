@@ -9,6 +9,8 @@ out/
 # Production build output
 build/
 dist/
+Dockerfile
+src/lib/echo.js
 
 # Environment files
 .env
@@ -42,3 +44,4 @@ Thumbs.db
 # Temporary files
 *.tmp
 *.temp
+

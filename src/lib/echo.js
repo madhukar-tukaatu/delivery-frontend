@@ -5,22 +5,54 @@ import Pusher from "pusher-js";
 
 let echoInstance = null;
 
+/**
+ * Return the current authentication token.
+ * The token is read again whenever a private channel
+ * needs authorization.
+ */
 function getAuthToken() {
   if (typeof window === "undefined") {
     return null;
   }
 
   const token =
-    localStorage.getItem("access_token") ||
-    localStorage.getItem("admin_token") ||
-    localStorage.getItem("token") ||
-    localStorage.getItem("auth_token");
+    window.localStorage.getItem("access_token") ||
+    window.localStorage.getItem("admin_token") ||
+    window.localStorage.getItem("token") ||
+    window.localStorage.getItem("auth_token") ||
+    window.sessionStorage.getItem("access_token") ||
+    window.sessionStorage.getItem("token");
 
-  return token
-    ? token.replace(/^Bearer\s+/i, "")
-    : null;
+  if (!token) {
+    return null;
+  }
+
+  return token.replace(/^Bearer\s+/i, "").trim();
 }
 
+/**
+ * Safely read an API response.
+ */
+async function readResponse(response) {
+  const contentType =
+    response.headers.get("content-type") || "";
+
+  if (contentType.includes("application/json")) {
+    return response.json();
+  }
+
+  const text = await response.text();
+
+  return {
+    message:
+      text ||
+      `Broadcast authorization failed (${response.status}).`,
+  };
+}
+
+/**
+ * Create or return the Laravel Echo instance.
+ */
 export function getEcho() {
   if (typeof window === "undefined") {
     return null;
@@ -33,52 +65,55 @@ export function getEcho() {
   window.Pusher = Pusher;
 
   const scheme =
-    process.env
-      .NEXT_PUBLIC_REVERB_SCHEME ||
-    "http";
+    process.env.NEXT_PUBLIC_REVERB_SCHEME ||
+    (window.location.protocol === "https:"
+      ? "https"
+      : "http");
 
-  const secure =
-    scheme === "https";
+  const secure = scheme === "https";
 
   const host =
-    process.env
-      .NEXT_PUBLIC_REVERB_HOST ||
+    process.env.NEXT_PUBLIC_REVERB_HOST ||
     "localhost";
 
-  const port = Number(
-    process.env
-      .NEXT_PUBLIC_REVERB_PORT ||
-      (secure ? 443 : 8080)
+  const configuredPort = Number(
+    process.env.NEXT_PUBLIC_REVERB_PORT
   );
 
+  const port = Number.isFinite(configuredPort)
+    ? configuredPort
+    : secure
+      ? 443
+      : 8080;
+
   const appKey =
-    process.env
-      .NEXT_PUBLIC_REVERB_APP_KEY ||
+    process.env.NEXT_PUBLIC_REVERB_APP_KEY ||
     "delivery-key";
 
-  const apiOrigin =
-    process.env
-      .NEXT_PUBLIC_API_ORIGIN ||
-    "http://localhost:8081";
+  const apiOrigin = (
+    process.env.NEXT_PUBLIC_API_ORIGIN ||
+    "http://localhost:8081"
+  ).replace(/\/+$/, "");
 
   echoInstance = new Echo({
     broadcaster: "reverb",
+
     key: appKey,
 
     wsHost: host,
     wsPort: port,
     wssPort: port,
 
+    /*
+     * For production:
+     * enabledTransports remains "ws".
+     * forceTLS=true makes Pusher use wss://.
+     */
     forceTLS: secure,
-    encrypted: secure,
-
-    enabledTransports: secure
-      ? ["wss"]
-      : ["ws"],
+    enabledTransports: ["ws"],
 
     /*
-     * Reads the current token each time a private
-     * channel is authorized.
+     * Authorize private and presence channels.
      */
     authorizer: (channel) => ({
       authorize: async (
@@ -86,45 +121,37 @@ export function getEcho() {
         callback
       ) => {
         try {
-          const token =
-            getAuthToken();
+          const token = getAuthToken();
 
-          const response =
-            await fetch(
-              `${apiOrigin}/api/broadcasting/auth`,
-              {
-                method: "POST",
+          const response = await fetch(
+            `${apiOrigin}/api/broadcasting/auth`,
+            {
+              method: "POST",
 
-                credentials:
-                  "include",
+              credentials: "include",
 
-                headers: {
-                  "Content-Type":
-                    "application/json",
+              headers: {
+                Accept: "application/json",
+                "Content-Type":
+                  "application/json",
 
-                  Accept:
-                    "application/json",
+                ...(token
+                  ? {
+                      Authorization:
+                        `Bearer ${token}`,
+                    }
+                  : {}),
+              },
 
-                  ...(token
-                    ? {
-                        Authorization:
-                          `Bearer ${token}`,
-                      }
-                    : {}),
-                },
-
-                body: JSON.stringify({
-                  socket_id:
-                    socketId,
-
-                  channel_name:
-                    channel.name,
-                }),
-              }
-            );
+              body: JSON.stringify({
+                socket_id: socketId,
+                channel_name: channel.name,
+              }),
+            }
+          );
 
           const body =
-            await response.json();
+            await readResponse(response);
 
           if (!response.ok) {
             throw new Error(
@@ -133,20 +160,14 @@ export function getEcho() {
             );
           }
 
-          callback(
-            false,
-            body
-          );
+          callback(false, body);
         } catch (error) {
           console.error(
             "[Reverb] Channel authorization failed",
             error
           );
 
-          callback(
-            true,
-            error
-          );
+          callback(true, error);
         }
       },
     }),
@@ -154,12 +175,25 @@ export function getEcho() {
     disableStats: true,
   });
 
-  window.deliveryEcho =
-    echoInstance;
+  window.deliveryEcho = echoInstance;
 
   const connection =
     echoInstance.connector
-      ?.pusher?.connection;
+      ?.pusher
+      ?.connection;
+
+  connection?.bind(
+    "state_change",
+    ({ previous, current }) => {
+      console.info(
+        "[Reverb] State changed",
+        {
+          previous,
+          current,
+        }
+      );
+    }
+  );
 
   connection?.bind(
     "connected",
@@ -169,7 +203,6 @@ export function getEcho() {
         {
           socketId:
             connection.socket_id,
-
           host,
           port,
           scheme,
@@ -197,20 +230,41 @@ export function getEcho() {
     }
   );
 
+  connection?.bind(
+    "failed",
+    () => {
+      console.error(
+        "[Reverb] Connection failed",
+        {
+          host,
+          port,
+          scheme,
+        }
+      );
+    }
+  );
+
   return echoInstance;
 }
 
+/**
+ * Disconnect and remove the existing Echo instance.
+ */
 export function disconnectEcho() {
-  if (!echoInstance) {
-    return;
+  if (echoInstance) {
+    try {
+      echoInstance.disconnect();
+    } catch (error) {
+      console.warn(
+        "[Reverb] Disconnect warning",
+        error
+      );
+    }
   }
 
-  echoInstance.disconnect();
   echoInstance = null;
 
-  if (
-    typeof window !== "undefined"
-  ) {
+  if (typeof window !== "undefined") {
     delete window.deliveryEcho;
   }
 }
