@@ -24,13 +24,13 @@ import {
   ShopOutlined,
 } from "@ant-design/icons";
 
-import * as branchApi from "@/services/branchAllocationApi";
+import * as adminBranchService from "@/services/adminBranchService";
+import { getCoverageLocations } from "@/services/coverageLocationApi";
 import BranchAssignmentForm from "@/components/branches/BranchAssignmentForm";
 
 import {
   apiErrorMessage,
   normalizeRows,
-  unwrapRecord,
 } from "@/components/branches/branch-office/branchOfficeUtils";
 
 const { Text, Title } = Typography;
@@ -39,55 +39,143 @@ function normalizeType(value) {
   return value === "sub_branch" ? "sub_branch" : "franchise_branch";
 }
 
-// function isUnassignedCoverage(item) {
-//   console.log("Checking coverage item:", item);
-//   return (
-//     String(item?.status || "").toLowerCase() === "inactive" &&
-//     !item?.branch_id &&
-//     !item?.assigned_branch_id &&
-//     !item?.assigned_to_branch_id &&
-//     !item?.branch?.id
-//   );
-// }
+function normalizeCoverageType(value) {
+  const type = String(value || "")
+    .trim()
+    .toLowerCase();
 
-function isUnassignedCoverage(item) {
+  if (
+    [
+      "main_branch_zone",
+      "main_zone",
+      "main_branch",
+      "franchise_branch_zone",
+      "franchise_zone",
+    ].includes(type)
+  ) {
+    return "main_branch_zone";
+  }
+
+  if (
+    [
+      "sub_branch_zone",
+      "sub_zone",
+      "sub_branch",
+    ].includes(type)
+  ) {
+    return "sub_branch_zone";
+  }
+
+  return type;
+}
+
+function normalizeId(value) {
+  const number = Number(value);
+
+  return Number.isFinite(number) && number > 0
+    ? number
+    : null;
+}
+
+function getAssignedBranchCount(item) {
   const assignedBranches = Array.isArray(item?.assigned_branches)
     ? item.assigned_branches
     : Array.isArray(item?.assignedBranches)
       ? item.assignedBranches
       : [];
 
-  const directlyAssignedBranchId =
-    item?.branch_id ||
-    item?.assigned_branch_id ||
-    item?.assigned_to_branch_id ||
-    item?.branch?.id ||
-    null;
+  const rawCount =
+    item?.assigned_branches_count ??
+    item?.assignedBranchesCount ??
+    item?.branch_assignments_count ??
+    assignedBranches.length ??
+    0;
 
+  const count = Number(rawCount);
+
+  return Number.isFinite(count) ? count : 0;
+}
+
+function isUnassignedCoverage(item) {
   const status = String(item?.status || "")
     .trim()
     .toLowerCase();
 
-  const isInactive = status === "inactive";
-  const hasDirectAssignment = Boolean(directlyAssignedBranchId);
-  const hasReverseAssignment = assignedBranches.length > 0;
+  if (status !== "active") {
+    return false;
+  }
 
-  console.log("Coverage assignment check:", {
-    id: item?.id,
-    name: item?.name,
-    status,
-    branch_id: item?.branch_id,
-    branch: item?.branch,
-    assigned_branches: item?.assigned_branches,
-    assignedBranches: item?.assignedBranches,
-    assignedBranchesCount: assignedBranches.length,
-    isInactive,
-    hasDirectAssignment,
-    hasReverseAssignment,
-    available: isInactive && !hasDirectAssignment && !hasReverseAssignment,
-  });
+  const directlyAssignedBranchId =
+    item?.branch_id ||
+    item?.assigned_branch_id ||
+    item?.assigned_to_branch_id ||
+    item?.branch_office_id ||
+    item?.franchise_id ||
+    item?.franchise_branch_id ||
+    item?.assigned_franchise_id ||
+    item?.branch?.id ||
+    item?.assigned_branch?.id ||
+    item?.assignedBranch?.id ||
+    item?.franchise?.id ||
+    null;
 
-  return isInactive && !hasDirectAssignment && !hasReverseAssignment;
+  return (
+    !directlyAssignedBranchId &&
+    getAssignedBranchCount(item) === 0
+  );
+}
+
+function selectedParentCoverageId(parent) {
+  return normalizeId(
+    parent?.coverage_location_id ||
+      parent?.coverage_location?.id ||
+      parent?.coverageLocation?.id,
+  );
+}
+
+function getCoverageParentRelationIds(item) {
+  return [
+    item?.parent_branch_id,
+    item?.main_branch_id,
+    item?.owner_branch_id,
+    item?.branch_parent_id,
+    item?.parent_branch?.id,
+    item?.parentBranch?.id,
+    item?.main_branch?.id,
+    item?.mainBranch?.id,
+
+    item?.parent_id,
+    item?.parent_location_id,
+    item?.parent_coverage_location_id,
+    item?.parentCoverageLocationId,
+    item?.main_branch_zone_id,
+    item?.main_coverage_location_id,
+    item?.parent_zone_id,
+    item?.parent?.id,
+    item?.parent_location?.id,
+    item?.parentLocation?.id,
+    item?.parent_coverage_location?.id,
+    item?.parentCoverageLocation?.id,
+    item?.main_branch_zone?.id,
+    item?.mainBranchZone?.id,
+  ]
+    .map(normalizeId)
+    .filter(Boolean);
+}
+
+function coverageBelongsToParent(location, parentBranch) {
+  if (!parentBranch) {
+    return false;
+  }
+
+  const parentBranchId = normalizeId(parentBranch.id);
+  const parentCoverageId = selectedParentCoverageId(parentBranch);
+  const relationIds = getCoverageParentRelationIds(location);
+
+  return (
+    (parentBranchId && relationIds.includes(parentBranchId)) ||
+    (parentCoverageId && relationIds.includes(parentCoverageId))
+  );
 }
 
 function normalizePayload(values) {
@@ -102,8 +190,8 @@ function normalizePayload(values) {
 
   const payload = {
     ...values,
-    name: String(values.name || values.legal_name || "").trim(),
-    legal_name: String(values.legal_name || values.name || "").trim(),
+    name: String(values.name || "").trim(),
+    legal_name: String(values.legal_name || "").trim(),
     email: managerEmail || null,
     parent_id:
       values.type === "franchise_branch" ? null : values.parent_id || null,
@@ -163,11 +251,22 @@ export default function CreateBranchOfficePage() {
     ? Number(searchParams.get("parent_id"))
     : null;
 
+  const isSubBranch = requestedType === "sub_branch";
+
   const [allBranches, setAllBranches] = useState([]);
   const [coverageLocations, setCoverageLocations] = useState([]);
+  const [selectedParentId, setSelectedParentId] = useState(
+    isSubBranch ? requestedParentId : null,
+  );
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [loadError, setLoadError] = useState("");
+
+  useEffect(() => {
+    setSelectedParentId(
+      requestedType === "sub_branch" ? requestedParentId : null,
+    );
+  }, [requestedType, requestedParentId]);
 
   const parentOptions = useMemo(
     () =>
@@ -184,7 +283,10 @@ export default function CreateBranchOfficePage() {
           type: item.type,
           status: item.status,
           coverage_location_id:
-            item.coverage_location_id || item.coverage_location?.id || null,
+            item.coverage_location_id ||
+            item.coverage_location?.id ||
+            item.coverageLocation?.id ||
+            null,
           coverage_location:
             item.coverage_location || item.coverageLocation || null,
           label: `${item.name} (${item.code || item.type})`,
@@ -197,26 +299,56 @@ export default function CreateBranchOfficePage() {
     [coverageLocations],
   );
 
-  const mainAllocationCount = useMemo(
+  const unassignedMainAllocations = useMemo(
     () =>
       unassignedCoverageLocations.filter(
-        (item) => item.type === "main_branch_zone",
-      ).length,
+        (item) =>
+          normalizeCoverageType(item?.type) === "main_branch_zone",
+      ),
     [unassignedCoverageLocations],
   );
 
-  const subAllocationCount = useMemo(
+  const unassignedSubAllocations = useMemo(
     () =>
       unassignedCoverageLocations.filter(
-        (item) => item.type === "sub_branch_zone",
-      ).length,
+        (item) => normalizeCoverageType(item?.type) === "sub_branch_zone",
+      ),
     [unassignedCoverageLocations],
   );
 
-  const availableCoverageCount =
-    requestedType === "franchise_branch"
-      ? mainAllocationCount
-      : subAllocationCount;
+  const selectedParentBranch = useMemo(() => {
+    if (!selectedParentId) {
+      return null;
+    }
+
+    return (
+      parentOptions.find(
+        (item) => Number(item.id) === Number(selectedParentId),
+      ) || null
+    );
+  }, [parentOptions, selectedParentId]);
+
+  const availableSubAllocations = useMemo(() => {
+    if (!isSubBranch || !selectedParentBranch) {
+      return [];
+    }
+
+    return unassignedSubAllocations.filter((location) =>
+      coverageBelongsToParent(location, selectedParentBranch),
+    );
+  }, [isSubBranch, selectedParentBranch, unassignedSubAllocations]);
+
+  const availableCoverageLocations = useMemo(
+    () =>
+      requestedType === "franchise_branch"
+        ? unassignedMainAllocations
+        : availableSubAllocations,
+    [requestedType, unassignedMainAllocations, availableSubAllocations],
+  );
+
+  const mainAllocationCount = unassignedMainAllocations.length;
+  const subAllocationCount = unassignedSubAllocations.length;
+  const availableCoverageCount = availableCoverageLocations.length;
 
   const loadSupportData = useCallback(async () => {
     try {
@@ -224,8 +356,8 @@ export default function CreateBranchOfficePage() {
       setLoadError("");
 
       const [branchesResponse, coverageResponse] = await Promise.all([
-        branchApi.getBranches({ all: 1 }),
-        branchApi.getCoverageLocations({ all: 1 }),
+        adminBranchService.getBranches({ all: 1 }),
+        getCoverageLocations({ all: 1 }),
       ]);
 
       setAllBranches(normalizeRows(branchesResponse));
@@ -243,36 +375,41 @@ export default function CreateBranchOfficePage() {
 
   const handleSubmit = useCallback(
     async (values) => {
-      const createRequest =
-        branchApi.createBranch ||
-        branchApi.storeBranch ||
-        branchApi.createBranchOffice;
-
-      if (typeof createRequest !== "function") {
-        message.error(
-          "branchAllocationApi must export createBranch, storeBranch, or createBranchOffice.",
-        );
-        return;
-      }
-
       try {
         setSaving(true);
 
-        const response = await createRequest(normalizePayload(values));
-        const createdBranch = unwrapRecord(response);
+        /*
+         * One atomic multipart request:
+         * branch + coverage assignment + team + documents.
+         * There is no second document-upload request during creation.
+         */
+        const createdBranch = await adminBranchService.createBranch(
+          normalizePayload(values),
+        );
+
+        const branchId =
+          createdBranch?.id ||
+          createdBranch?.branch?.id ||
+          createdBranch?.data?.id ||
+          null;
 
         message.success(
-          response?.data?.message || "Branch office created successfully.",
+          "Branch, coverage assignment and documents created successfully.",
         );
 
         router.replace(
-          createdBranch?.id
-            ? `/admin/branch-offices/${createdBranch.id}`
+          branchId
+            ? `/admin/branch-offices/${branchId}`
             : "/admin/branch-offices",
         );
       } catch (error) {
+        console.error("Branch creation failed:", error);
+
         message.error(
-          apiErrorMessage(error, "Could not create branch office."),
+          apiErrorMessage(
+            error,
+            "Could not create the branch. No branch was saved.",
+          ),
         );
       } finally {
         setSaving(false);
@@ -319,8 +456,6 @@ export default function CreateBranchOfficePage() {
       </div>
     );
   }
-
-  const isSubBranch = requestedType === "sub_branch";
 
   return (
     <div
@@ -387,7 +522,7 @@ export default function CreateBranchOfficePage() {
                   >
                     {isSubBranch
                       ? "Choose the parent branch first. Only its available sub-branch allocations will be shown."
-                      : "Only inactive and unassigned main-branch allocations are available for selection."}
+                      : "Only active main coverage locations that are not assigned to any franchise are available for selection."}
                   </Text>
                 </div>
               </Space>
@@ -495,13 +630,17 @@ export default function CreateBranchOfficePage() {
             showIcon
             message={
               isSubBranch
-                ? "No unassigned sub-branch allocation is currently available."
-                : "No unassigned main-branch allocation is currently available."
+                ? selectedParentId
+                  ? "No unassigned sub-branch allocation is available for the selected parent branch."
+                  : "Select a parent branch to view its available sub-branch allocations."
+                : "No active, unassigned main-branch allocation is currently available."
             }
             description={
               isSubBranch
-                ? "Create or release an inactive sub-branch allocation under the selected main branch."
-                : "Create or release an inactive main-branch allocation before saving this branch."
+                ? selectedParentId
+                  ? "Create an active sub-branch coverage location under the selected parent, or release one that is already assigned."
+                  : "Select a parent branch first to load its unassigned sub-branch allocations."
+                : "Create an active main coverage location, or release one that is already assigned to a franchise."
             }
             style={{ marginBottom: 12, borderRadius: 12 }}
           />
@@ -533,8 +672,11 @@ export default function CreateBranchOfficePage() {
             ],
           }}
           parentOptions={parentOptions}
-          coverageLocations={unassignedCoverageLocations}
+          coverageLocations={availableCoverageLocations}
           existingBranches={allBranches}
+          onParentChange={(parentId) => {
+            setSelectedParentId(parentId ? Number(parentId) : null);
+          }}
           onSubmit={handleSubmit}
           onCancel={() => router.push("/admin/branch-offices")}
         />

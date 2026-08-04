@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { Card, Space, Typography, message } from "antd";
 import { useRouter } from "next/navigation";
 import { createBranch } from "@/services/adminBranchService";
@@ -9,9 +10,14 @@ const { Title, Text } = Typography;
 
 export default function CreateBranchPage() {
   const router = useRouter();
+  const [saving, setSaving] = useState(false);
 
   const handleSubmit = async (payload) => {
     try {
+      setSaving(true);
+
+      // Generic branch creation also uses the same admin branch endpoint.
+      // This screen does not call branchAllocationApi.
       const branch = await createBranch(payload);
 
       message.success("Branch created successfully.");
@@ -32,6 +38,8 @@ export default function CreateBranchPage() {
 
       message.error(messageText);
       throw error;
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -48,7 +56,7 @@ export default function CreateBranchPage() {
         </Text>
       </Card>
 
-      <BranchForm mode="create" onSubmit={handleSubmit} />
+      <BranchForm mode="create" loading={saving} onSubmit={handleSubmit} />
     </Space>
   );
 }

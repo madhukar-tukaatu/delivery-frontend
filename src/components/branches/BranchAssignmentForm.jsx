@@ -200,17 +200,34 @@ function isMainBranch(type) {
   return type === "franchise_branch";
 }
 
-function makeCode(name, type) {
-  const prefix = type === "franchise_branch" ? "FR" : "SUB";
+function normalizeCoverageType(value) {
+  const type = String(value || "")
+    .trim()
+    .toLowerCase();
 
-  return (
-    prefix +
-    "-" +
-    String(name || "")
-      .toUpperCase()
-      .replace(/[^A-Z0-9]+/g, "-")
-      .replace(/^-|-$/g, "")
-  );
+  if (
+    [
+      "main_branch_zone",
+      "main_zone",
+      "main_branch",
+      "franchise_branch_zone",
+      "franchise_zone",
+    ].includes(type)
+  ) {
+    return "main_branch_zone";
+  }
+
+  if (
+    [
+      "sub_branch_zone",
+      "sub_zone",
+      "sub_branch",
+    ].includes(type)
+  ) {
+    return "sub_branch_zone";
+  }
+
+  return type;
 }
 
 function getRequiredDocumentTypes(type) {
@@ -250,6 +267,36 @@ function selectedParentCoverageId(parent) {
   );
 }
 
+function getCoverageParentRelationIds(location) {
+  return [
+    location?.parent_branch_id,
+    location?.main_branch_id,
+    location?.owner_branch_id,
+    location?.branch_parent_id,
+    location?.parent_branch?.id,
+    location?.parentBranch?.id,
+    location?.main_branch?.id,
+    location?.mainBranch?.id,
+
+    location?.parent_id,
+    location?.parent_location_id,
+    location?.parent_coverage_id,
+    location?.parent_coverage_location_id,
+    location?.main_branch_zone_id,
+    location?.main_coverage_location_id,
+    location?.parent_zone_id,
+    location?.parent?.id,
+    location?.parent_location?.id,
+    location?.parentLocation?.id,
+    location?.parent_coverage_location?.id,
+    location?.parentCoverageLocation?.id,
+    location?.main_branch_zone?.id,
+    location?.mainBranchZone?.id,
+  ]
+    .map(normalizeId)
+    .filter(Boolean);
+}
+
 function coverageBelongsToParent(location, parentBranch) {
   if (!parentBranch) {
     return false;
@@ -257,45 +304,67 @@ function coverageBelongsToParent(location, parentBranch) {
 
   const parentBranchId = normalizeId(parentBranch.id);
   const parentCoverageId = selectedParentCoverageId(parentBranch);
-
-  const branchRelationIds = [
-    location?.parent_branch_id,
-    location?.main_branch_id,
-    location?.owner_branch_id,
-    location?.branch_parent_id,
-    location?.parent_branch?.id,
-    location?.main_branch?.id,
-  ]
-    .map(normalizeId)
-    .filter(Boolean);
-
-  const coverageRelationIds = [
-    location?.parent_id,
-    location?.parent_location_id,
-    location?.parent_coverage_location_id,
-    location?.main_branch_zone_id,
-    location?.main_coverage_location_id,
-    location?.parent?.id,
-    location?.parent_location?.id,
-    location?.parent_coverage_location?.id,
-    location?.main_branch_zone?.id,
-  ]
-    .map(normalizeId)
-    .filter(Boolean);
+  const relationIds = getCoverageParentRelationIds(location);
 
   return (
-    (parentBranchId && branchRelationIds.includes(parentBranchId)) ||
-    (parentCoverageId && coverageRelationIds.includes(parentCoverageId))
+    (parentBranchId &&
+      relationIds.includes(parentBranchId)) ||
+    (parentCoverageId &&
+      relationIds.includes(parentCoverageId))
   );
 }
 
+function getAssignedBranchCount(item) {
+  const assignedBranches = Array.isArray(
+    item?.assigned_branches,
+  )
+    ? item.assigned_branches
+    : Array.isArray(
+          item?.assignedBranches,
+        )
+      ? item.assignedBranches
+      : [];
+
+  const rawCount =
+    item?.assigned_branches_count ??
+    item?.assignedBranchesCount ??
+    item?.branches_count ??
+    item?.branch_count ??
+    assignedBranches.length ??
+    0;
+
+  const count = Number(rawCount);
+
+  return Number.isFinite(count)
+    ? count
+    : 0;
+}
+
 function isUnassignedCoverage(item) {
+  const status = String(
+    item?.status || "",
+  )
+    .trim()
+    .toLowerCase();
+
+  const directlyAssignedId =
+    item?.branch_id ||
+    item?.assigned_branch_id ||
+    item?.assigned_to_branch_id ||
+    item?.branch_office_id ||
+    item?.franchise_id ||
+    item?.franchise_branch_id ||
+    item?.assigned_franchise_id ||
+    item?.branch?.id ||
+    item?.assigned_branch?.id ||
+    item?.assignedBranch?.id ||
+    item?.franchise?.id ||
+    null;
+
   return (
-    String(item?.status || "").toLowerCase() === "inactive" &&
-    !item?.branch_id &&
-    !item?.assigned_branch_id &&
-    !item?.assigned_to_branch_id &&
-    !item?.branch?.id
+    status === "active" &&
+    !directlyAssignedId &&
+    getAssignedBranchCount(item) === 0
   );
 }
 
@@ -460,12 +529,22 @@ function CompactDocumentRow({
             showUploadList={false}
             fileList={document.fileList}
             accept=".pdf,.jpg,.jpeg,.png,.webp,.doc,.docx"
-            onChange={({ fileList }) => {
+            onChange={({ file, fileList }) => {
               const nextFileList = fileList.slice(-1);
+              const uploadEntry = nextFileList[0] || file || null;
+              const nativeFile =
+                uploadEntry?.originFileObj ||
+                (typeof File !== "undefined" && uploadEntry instanceof File
+                  ? uploadEntry
+                  : null);
+
+              if (!nativeFile) {
+                message.error("The selected item is not a valid browser file.");
+              }
 
               onUpdate(document.uid, {
                 fileList: nextFileList,
-                file: nextFileList?.[0]?.originFileObj || null,
+                file: nativeFile,
               });
             }}
           >
@@ -546,6 +625,7 @@ export default function BranchAssignmentForm({
   existingBranches = [],
   loading = false,
   onTypeChange,
+  onParentChange,
   onSubmit,
   onCancel,
   compact = false,
@@ -572,46 +652,98 @@ export default function BranchAssignmentForm({
   const selectedCoverageLocation = useMemo(
     () =>
       coverageLocations.find(
-        (item) => Number(item.id) === Number(coverageLocationId),
+        (item) =>
+          Number(item.id) ===
+          Number(coverageLocationId),
       ) || null,
-    [coverageLocations, coverageLocationId],
+    [
+      coverageLocations,
+      coverageLocationId,
+    ],
   );
 
-  const filteredCoverageLocations = useMemo(() => {
-    const requiredType = isMainBranch(type)
-      ? "main_branch_zone"
-      : "sub_branch_zone";
+  const filteredCoverageLocations =
+    useMemo(() => {
+      const requiredType =
+        isMainBranch(type)
+          ? "main_branch_zone"
+          : "sub_branch_zone";
 
-    return coverageLocations.filter((item) => {
-      const matchesType = item.type === requiredType;
-      const isCurrentlySelected =
-        Number(item.id) === Number(coverageLocationId);
-
-      if (!matchesType) {
-        return false;
+      if (
+        !isMainBranch(type) &&
+        !parentId
+      ) {
+        return [];
       }
 
-      if (isCurrentlySelected && mode === "edit") {
-        return true;
-      }
+      return coverageLocations.filter(
+        (item) => {
+          const matchesType =
+            normalizeCoverageType(
+              item?.type,
+            ) === requiredType;
 
-      if (!isUnassignedCoverage(item)) {
-        return false;
-      }
+          const isCurrentlySelected =
+            Number(item.id) ===
+            Number(
+              coverageLocationId,
+            );
 
-      if (isMainBranch(type)) {
-        return true;
-      }
+          if (!matchesType) {
+            return false;
+          }
 
-      return coverageBelongsToParent(item, selectedParentBranch);
-    });
-  }, [
-    coverageLocations,
-    coverageLocationId,
-    mode,
-    selectedParentBranch,
-    type,
-  ]);
+          if (
+            isCurrentlySelected &&
+            mode === "edit"
+          ) {
+            return true;
+          }
+
+          if (
+            !isUnassignedCoverage(
+              item,
+            )
+          ) {
+            return false;
+          }
+
+          if (isMainBranch(type)) {
+            return true;
+          }
+
+          /*
+           * The create page normally passes a list already
+           * chained to the selected parent. When the API
+           * includes parent relation IDs, verify them here.
+           * When those relation fields are absent, trust the
+           * parent page's already-filtered list.
+           */
+          const relationIds =
+            getCoverageParentRelationIds(
+              item,
+            );
+
+          if (
+            relationIds.length === 0
+          ) {
+            return true;
+          }
+
+          return coverageBelongsToParent(
+            item,
+            selectedParentBranch,
+          );
+        },
+      );
+    }, [
+      coverageLocations,
+      coverageLocationId,
+      mode,
+      parentId,
+      selectedParentBranch,
+      type,
+    ]);
 
   const officeMapValue = useMemo(
     () => ({
@@ -658,6 +790,15 @@ export default function BranchAssignmentForm({
     });
   }
 
+  const initialValuesSignature =
+    useMemo(
+      () =>
+        JSON.stringify(
+          initialValues || {},
+        ),
+      [initialValues],
+    );
+
   useEffect(() => {
     const values = {
       type: "franchise_branch",
@@ -681,8 +822,33 @@ export default function BranchAssignmentForm({
     };
 
     form.setFieldsValue(values);
-    syncRequiredDocuments(values.type);
-  }, [form, initialValues]);
+    syncRequiredDocuments(
+      values.type,
+    );
+    // initialValuesSignature prevents an inline initialValues
+    // object from resetting the user's selections on every render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    form,
+    initialValuesSignature,
+  ]);
+
+  useEffect(() => {
+    if (
+      type !== "sub_branch"
+    ) {
+      onParentChange?.(null);
+      return;
+    }
+
+    onParentChange?.(
+      parentId || null,
+    );
+  }, [
+    type,
+    parentId,
+    onParentChange,
+  ]);
 
   function addDocumentRow(documentType = "other") {
     setDocuments((previousDocuments) => [
@@ -779,7 +945,8 @@ export default function BranchAssignmentForm({
 
       const payload = {
         ...values,
-        code: values.code || makeCode(values.name, values.type),
+        name: String(values.name || "").trim(),
+        legal_name: String(values.legal_name || "").trim(),
         documents: documents
           .filter((item) => item.file)
           .map((item) => ({
@@ -789,6 +956,9 @@ export default function BranchAssignmentForm({
             file: item.file,
           })),
       };
+
+      /* Branch code is generated uniquely by the backend. */
+      delete payload.code;
 
       if (isMainBranch(payload.type)) {
         payload.parent_id = null;
@@ -907,8 +1077,8 @@ export default function BranchAssignmentForm({
                       title="Branch assignment"
                       description={
                         isMainBranch(type)
-                          ? "Choose an inactive, unassigned main allocation."
-                          : "Choose a parent branch, then select one of its unassigned sub allocations."
+                          ? "Choose an active, unassigned main coverage allocation."
+                          : "Choose a parent branch, then select one of its active, unassigned sub allocations."
                       }
                       extra={
                         <Tag
@@ -1007,7 +1177,7 @@ export default function BranchAssignmentForm({
                         placeholder={
                           allocationDisabled
                             ? "Select parent branch first"
-                            : "Select an inactive, unassigned allocation"
+                            : "Select an active, unassigned allocation"
                         }
                         optionFilterProp="label"
                         notFoundContent={
@@ -1072,8 +1242,23 @@ export default function BranchAssignmentForm({
                             <Text type="secondary" style={{ fontSize: 11 }}>
                               Status
                             </Text>
-                            <Tag color="orange" style={{ display: "block", width: "fit-content" }}>
-                              {selectedCoverageLocation.status || "inactive"}
+                            <Tag
+                              color={
+                                String(
+                                  selectedCoverageLocation.status ||
+                                    "",
+                                ).toLowerCase() ===
+                                "active"
+                                  ? "green"
+                                  : "orange"
+                              }
+                              style={{
+                                display: "block",
+                                width: "fit-content",
+                              }}
+                            >
+                              {selectedCoverageLocation.status ||
+                                "active"}
                             </Tag>
                           </Col>
 
@@ -1217,12 +1402,17 @@ export default function BranchAssignmentForm({
                       description="Registered business, contact and login-account details."
                     />
 
-                    <Form.Item name="name" hidden>
-                      <Input />
-                    </Form.Item>
-
-                    <Form.Item name="code" hidden>
-                      <Input />
+                    <Form.Item
+                      label="Branch Name"
+                      name="name"
+                      rules={[
+                        {
+                          required: true,
+                          message: "Branch name is required.",
+                        },
+                      ]}
+                    >
+                      <Input placeholder="Example: Chitwan Franchise Branch" />
                     </Form.Item>
 
                     <Row gutter={[12, 0]}>
@@ -1243,12 +1433,12 @@ export default function BranchAssignmentForm({
 
                       <Col xs={24} md={12}>
                         <Form.Item
-                          label="Owner / Manager Name"
+                          label="Owner Name"
                           name="owner_name"
                           rules={[
                             {
                               required: isMainBranch(type),
-                              message: "Owner or manager name is required.",
+                              message: "Owner name is required.",
                             },
                           ]}
                         >
@@ -1264,7 +1454,9 @@ export default function BranchAssignmentForm({
                           name="email"
                           rules={[
                             {
-                              required: isMainBranch(type),
+                              required:
+                                mode === "create" &&
+                                ["franchise_branch", "sub_branch"].includes(type),
                               message: "Manager email is required.",
                             },
                             {
@@ -1499,7 +1691,7 @@ export default function BranchAssignmentForm({
                 <Row justify="space-between" align="middle" gutter={[10, 10]}>
                   <Col xs={24} sm="auto">
                     <Text type="secondary" style={{ fontSize: 12 }}>
-                      Only unassigned allocations can be selected during creation.
+                      Only active, unassigned allocations can be selected during creation.
                     </Text>
                   </Col>
 
