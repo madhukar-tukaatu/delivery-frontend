@@ -41,8 +41,8 @@ const BENTO_FEATURES = [
   },
   {
     tag: "FINANCIAL OS",
-    title: "Same-Day COD",
-    desc: "Cash settled into merchant bank accounts daily.",
+    title: "Same-Day POD",
+    desc: "Payment settled into merchant bank accounts daily.",
     accent: "#4ADE80",
     icon: (
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#4ADE80" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -741,7 +741,7 @@ export default function SiteClient() {
             {/* Sub-headline */}
             <p className={styles.heroSubtitle}>
               Tukaatu Express unifies live parcel tracking, instant rate calculation,
-              on-demand rider pickups, and same-day COD settlement into one platform.
+              on-demand rider pickups, and same-day POD settlement into one platform.
             </p>
 
             {/* CTA row */}
@@ -777,7 +777,7 @@ export default function SiteClient() {
                 { value: '500K+', label: 'Parcels', badge: '99.4% SLA' },
                 { value: '77/77', label: 'Districts', badge: 'Full Nepal' },
                 { value: '< 4h', label: 'City SLA', badge: 'Express' },
-                { value: 'Daily', label: 'COD Pay', badge: 'Same-Day' },
+                { value: 'Daily', label: 'POD Pay', badge: 'Same-Day' },
               ].map((s) => (
                 <div key={s.label} className={styles.heroStatCard}>
                   <div className={styles.heroStatBadge}>{s.badge}</div>
@@ -1356,12 +1356,12 @@ export default function SiteClient() {
             <div className={styles.sectionCategory} style={{ color: '#FFD026' }}>Merchant Platform</div>
             <h2 className={styles.merchantTitle}>Unified Delivery Operations for Online Sellers</h2>
             <p className={styles.merchantCopy}>
-              Monitor active deliveries, generate COD statements, request inventory pickups, 
+              Monitor active deliveries, generate POD statements, request inventory pickups, 
               and download analytics from a single dashboard.
             </p>
 
             <div className={styles.merchantFeatureGrid}>
-              {["Bulk order dispatch", "On-demand rider pickup", "e-POD verification", "Automated COD ledger", "REST API integration", "Live tracking links"].map((f) => (
+              {["Bulk order dispatch", "On-demand rider pickup", "e-POD verification", "Automated POD ledger", "REST API integration", "Live tracking links"].map((f) => (
                 <div key={f} className={styles.merchantFeatureCheck}>
                   <span className={styles.checkDot}></span>
                   <span>{f}</span>
@@ -1397,7 +1397,7 @@ export default function SiteClient() {
                 <div style={{ fontSize: 22, fontWeight: 900, marginTop: 4, color: '#0B8CB7' }}>94</div>
               </div>
               <div style={{ background: inputBg, padding: 14, borderRadius: 14 }}>
-                <div style={{ fontSize: 11, color: mc }}>Pending COD</div>
+                <div style={{ fontSize: 11, color: mc }}>Pending POD</div>
                 <div style={{ fontSize: 22, fontWeight: 900, marginTop: 4, color: '#FFD026' }}>NPR 285K</div>
               </div>
               <div style={{ background: inputBg, padding: 14, borderRadius: 14 }}>
@@ -1529,7 +1529,7 @@ export default function SiteClient() {
                 <ul className={styles.pricingFeatureList}>
                   <li className={styles.pricingFeatureItem}><span style={{ color: '#FFD026' }}>✓</span> All 77 Districts Covered</li>
                   <li className={styles.pricingFeatureItem}><span style={{ color: '#FFD026' }}>✓</span> 24–48 Hours Delivery SLA</li>
-                  <li className={styles.pricingFeatureItem}><span style={{ color: '#FFD026' }}>✓</span> Same-Day COD Settlement</li>
+                  <li className={styles.pricingFeatureItem}><span style={{ color: '#FFD026' }}>✓</span> Same-Day POD Settlement</li>
                   <li className={styles.pricingFeatureItem}><span style={{ color: '#FFD026' }}>✓</span> Barcode Hub Sorting</li>
                 </ul>
                 <Link href="/public/merchant-register" className={`${styles.pricingBtn} ${styles.pricingBtnPrimary}`}>Start Shipping Now</Link>
@@ -1601,7 +1601,7 @@ export default function SiteClient() {
                   <img src="/logo-full.png" alt="Tukaatu Express" style={{ height: 44, width: 'auto', objectFit: 'contain' }} />
                 </Link>
                 <p className={styles.footerBrandDesc}>
-                  Nepal's Next-Generation Logistics OS. Unifying live parcel tracking, same-day COD cash settlement, and AI route optimization into one SaaS platform.
+                  Nepal's Next-Generation Logistics OS. Unifying live parcel tracking, same-day POD cash settlement, and AI route optimization into one SaaS platform.
                 </p>
                 <div className={styles.footerStatusBadge}>
                   <span className={styles.liveDotGreen}></span> System Status: 100% Operational
@@ -1626,7 +1626,7 @@ export default function SiteClient() {
                 <div className={styles.footerLinkList}>
                   <span className={styles.footerLink}>Intra-City SLA (&lt; 4 Hrs)</span>
                   <span className={styles.footerLink}>Barcode Hub Sorting</span>
-                  <span className={styles.footerLink}>Automated Same-Day COD</span>
+                  <span className={styles.footerLink}>Automated Same-Day POD</span>
                   <span className={styles.footerLink}>Digital e-POD Signatures</span>
                   <span className={styles.footerLink}>Live GPS Telemetry</span>
                 </div>

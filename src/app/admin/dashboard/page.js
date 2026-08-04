@@ -241,10 +241,10 @@ export default function DashboardPage() {
           <StatCard title="Active Merchants" value={merchants?.active} prefix={<ShopOutlined />} color="#22c55e" loading={loading} />
         </Col>
         <Col xs={12} sm={6}>
-          <StatCard title="Total COD" value={pod?.total_cod} prefix={<BankOutlined />} color="#3b82f6" loading={loading} />
+          <StatCard title="Total POD" value={pod?.total_cod} prefix={<BankOutlined />} color="#3b82f6" loading={loading} />
         </Col>
         <Col xs={12} sm={6}>
-          <StatCard title="COD Pending" value={pod?.pending} prefix={<BankOutlined />} color="#f59e0b" loading={loading} />
+          <StatCard title="POD Pending" value={pod?.pending} prefix={<BankOutlined />} color="#f59e0b" loading={loading} />
         </Col>
       </Row>
 
@@ -309,7 +309,7 @@ export default function DashboardPage() {
         <Col xs={24} md={12}>
           <Card
             size="small"
-            title={<Space size={6}><BankOutlined />COD / POD by Status</Space>}
+            title={<Space size={6}><BankOutlined /> POD by Status</Space>}
           >
             <Table
               rowKey="status"

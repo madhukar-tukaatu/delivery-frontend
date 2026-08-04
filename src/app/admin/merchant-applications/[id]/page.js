@@ -90,8 +90,8 @@ const SERVICE_OPTIONS = [
     label: "Webhooks",
   },
   {
-    value: "cod",
-    label: "Cash on Delivery",
+    value: "pod",
+    label: "Payment on Delivery",
   },
   {
     value: "returns",

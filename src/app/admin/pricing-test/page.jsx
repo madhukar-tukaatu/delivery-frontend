@@ -183,7 +183,7 @@ export default function PricingSimulatorPage() {
                   <Form.Item label="Payment Type" name="payment_type" rules={[{ required: true }]}>
                     <Select options={[
                       { value: "prepaid", label: "Prepaid" },
-                      { value: "pod", label: "POD / COD" },
+                      { value: "pod", label: "POD" },
                     ]} />
                   </Form.Item>
                 </Col>

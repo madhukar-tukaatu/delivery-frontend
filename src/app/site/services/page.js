@@ -46,7 +46,7 @@ export default function ServicesPage() {
 
           <div className={styles.serviceCard}>
             <h3>POD Collection</h3>
-            <p>Cash collection, tracking and merchant settlement support.</p>
+            <p>Payment collection, tracking and merchant settlement support.</p>
           </div>
 
           <div className={styles.serviceCard}>

@@ -691,7 +691,7 @@ export default function CreateShipmentForm() {
                     <Select
                       options={[
                         { value: "prepaid", label: "Prepaid" },
-                        { value: "pod", label: "Cash on Delivery" },
+                        { value: "pod", label: "Payment on Delivery" },
                       ]}
                     />
                   </Form.Item>

@@ -338,7 +338,7 @@ export default function LoginClient() {
               }}
             >
               Manage branches, franchises, merchants, shipments, pricing,
-              pickups, deliveries, COD and reports from one secure system.
+              pickups, deliveries, POD and reports from one secure system.
             </Paragraph>
 
             <div
