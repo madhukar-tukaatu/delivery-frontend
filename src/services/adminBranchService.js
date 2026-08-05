@@ -45,6 +45,17 @@ function appendArray(formData, key, values) {
   });
 }
 
+async function postMultipart(url, formData) {
+  const response = await api.post(url, formData, {
+    headers: {
+      "Content-Type": undefined,
+    },
+    transformRequest: [(data) => data],
+  });
+
+  return response;
+}
+
 /**
  * Build the single multipart branch-create request.
  * Files must remain native browser File objects until FormData.append().
@@ -88,7 +99,7 @@ export function makeBranchCreateFormData(payload = {}) {
     if (!file) {
       throw new Error(
         `The selected file for ${
-          document?.title || document?.document_type || `document ${index + 1}`
+          document?.document_type || `document ${index + 1}`
         } is not a browser File object.`,
       );
     }
@@ -98,20 +109,12 @@ export function makeBranchCreateFormData(payload = {}) {
       String(document?.document_type || "other"),
     );
 
-    formData.append(
-      `documents[${index}][title]`,
-      String(
-        document?.title ||
-          document?.document_type ||
-          file.name ||
-          "Branch document",
-      ),
-    );
+    const remarks = document?.remarks ?? document?.notes ?? "";
 
-    if (document?.notes) {
+    if (remarks !== "") {
       formData.append(
-        `documents[${index}][notes]`,
-        String(document.notes),
+        `documents[${index}][remarks]`,
+        String(remarks),
       );
     }
 
@@ -207,9 +210,67 @@ export async function getBranchParentOptions(type) {
  * It is no longer used by the initial branch-assignment create flow.
  */
 export async function uploadBranchDocument(branchId, formData) {
-  const response = await api.post(
+  if (!branchId) {
+    throw new Error("Branch ID is required for document upload.");
+  }
+
+  if (
+    typeof FormData === "undefined" ||
+    !(formData instanceof FormData)
+  ) {
+    throw new Error("Document upload requires FormData.");
+  }
+
+  const response = await postMultipart(
     `/admin/branches/${branchId}/documents`,
     formData,
+  );
+
+  return unwrapData(response);
+}
+
+export async function updateBranchDocument(documentId, formData) {
+  if (!documentId) {
+    throw new Error("Document ID is required for document update.");
+  }
+
+  if (
+    typeof FormData === "undefined" ||
+    !(formData instanceof FormData)
+  ) {
+    throw new Error("Document update requires FormData.");
+  }
+
+  formData.set("_method", "PUT");
+
+  const response = await postMultipart(
+    `/admin/branch-documents/${documentId}`,
+    formData,
+  );
+
+  return unwrapData(response);
+}
+
+export async function deleteBranchDocument(documentId) {
+  if (!documentId) {
+    throw new Error("Document ID is required for document deletion.");
+  }
+
+  const response = await api.delete(
+    `/admin/branch-documents/${documentId}`,
+  );
+
+  return response.data;
+}
+
+export async function verifyBranchDocument(documentId, payload = {}) {
+  if (!documentId) {
+    throw new Error("Document ID is required for document verification.");
+  }
+
+  const response = await api.patch(
+    `/admin/branch-documents/${documentId}/verify`,
+    payload,
   );
 
   return unwrapData(response);

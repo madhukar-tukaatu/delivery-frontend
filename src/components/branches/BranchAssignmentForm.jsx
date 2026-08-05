@@ -246,8 +246,7 @@ function makeDocumentRow(documentType, required = false) {
   return {
     uid: `${Date.now()}-${documentType}-${Math.random()}`,
     document_type: documentType,
-    title: documentLabel(documentType),
-    notes: "",
+    remarks: "",
     file: null,
     fileList: [],
     required,
@@ -516,7 +515,6 @@ function CompactDocumentRow({
             onChange={(value) =>
               onUpdate(document.uid, {
                 document_type: value,
-                title: documentLabel(value),
               })
             }
           />
@@ -576,11 +574,11 @@ function CompactDocumentRow({
 
         <Col xs={24} md={6}>
           <Input
-            value={document.notes}
-            placeholder="Optional note"
+            value={document.remarks}
+            placeholder="Optional remark"
             onChange={(event) =>
               onUpdate(document.uid, {
-                notes: event.target.value,
+                remarks: event.target.value,
               })
             }
           />
@@ -758,6 +756,17 @@ export default function BranchAssignmentForm({
     [type],
   );
 
+  const requiredDocumentsAttached = useMemo(
+    () =>
+      getRequiredDocumentTypes(type).every((documentType) =>
+        documents.some(
+          (item) =>
+            item.document_type === documentType && Boolean(item.file),
+        ),
+      ),
+    [documents, type],
+  );
+
   function syncRequiredDocuments(nextType) {
     const requiredTypes = getRequiredDocumentTypes(nextType);
 
@@ -769,7 +778,6 @@ export default function BranchAssignmentForm({
       const normalizedRows = keptRows.map((item) => ({
         ...item,
         required: requiredTypes.includes(item.document_type),
-        title: item.title || documentLabel(item.document_type),
       }));
 
       const existingTypes = normalizedRows.map((item) => item.document_type);
@@ -851,10 +859,23 @@ export default function BranchAssignmentForm({
   ]);
 
   function addDocumentRow(documentType = "other") {
-    setDocuments((previousDocuments) => [
-      ...previousDocuments,
-      makeDocumentRow(documentType, false),
-    ]);
+    setDocuments((previousDocuments) => {
+      const duplicate = previousDocuments.some(
+        (item) => item.document_type === documentType,
+      );
+
+      if (duplicate) {
+        message.warning(
+          `${documentLabel(documentType)} has already been added.`,
+        );
+        return previousDocuments;
+      }
+
+      return [
+        ...previousDocuments,
+        makeDocumentRow(documentType, false),
+      ];
+    });
   }
 
   function removeDocumentRow(uid) {
@@ -864,11 +885,26 @@ export default function BranchAssignmentForm({
   }
 
   function updateDocumentRow(uid, changes) {
-    setDocuments((previousDocuments) =>
-      previousDocuments.map((item) =>
+    setDocuments((previousDocuments) => {
+      if (changes.document_type) {
+        const duplicate = previousDocuments.some(
+          (item) =>
+            item.uid !== uid &&
+            item.document_type === changes.document_type,
+        );
+
+        if (duplicate) {
+          message.warning(
+            `${documentLabel(changes.document_type)} has already been added.`,
+          );
+          return previousDocuments;
+        }
+      }
+
+      return previousDocuments.map((item) =>
         item.uid === uid ? { ...item, ...changes } : item,
-      ),
-    );
+      );
+    });
   }
 
   function onOfficeMapChange(location) {
@@ -951,8 +987,7 @@ export default function BranchAssignmentForm({
           .filter((item) => item.file)
           .map((item) => ({
             document_type: item.document_type,
-            title: item.title,
-            notes: item.notes,
+            remarks: item.remarks,
             file: item.file,
           })),
       };
@@ -1637,12 +1672,7 @@ export default function BranchAssignmentForm({
                       description="Required documents are prepared automatically for the selected branch type."
                       extra={
                         <Tag
-                          color={
-                            documents.filter((item) => item.file).length ===
-                            getRequiredDocumentTypes(type).length
-                              ? "green"
-                              : "orange"
-                          }
+                          color={requiredDocumentsAttached ? "green" : "orange"}
                           style={{ margin: 0 }}
                         >
                           {documents.filter((item) => item.file).length}/

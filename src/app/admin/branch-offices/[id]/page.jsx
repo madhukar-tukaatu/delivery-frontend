@@ -16,21 +16,23 @@ import {
   Card,
   Col,
   Descriptions,
-  Divider,
   Empty,
   Form,
   Input,
   InputNumber,
   Modal,
+  Popconfirm,
   Result,
   Row,
   Select,
   Skeleton,
+  Spin,
   Space,
   Switch,
   Table,
   Tag,
   Typography,
+  Upload,
   message,
 } from "antd";
 import {
@@ -39,20 +41,30 @@ import {
   BankOutlined,
   CalendarOutlined,
   CheckCircleOutlined,
+  DeleteOutlined,
+  DownloadOutlined,
+  EditOutlined,
   EnvironmentOutlined,
+  EyeOutlined,
   FileTextOutlined,
   MailOutlined,
   PlusOutlined,
   ReloadOutlined,
-  SafetyCertificateOutlined,
   ShopOutlined,
   StopOutlined,
   TeamOutlined,
   ThunderboltOutlined,
-  UserOutlined,
+  UploadOutlined,
 } from "@ant-design/icons";
 
 import * as branchApi from "@/services/branchAllocationApi";
+import {
+  deleteBranchDocument,
+  downloadBranchDocument,
+  previewBranchDocument,
+  updateBranchDocument,
+  uploadBranchDocument,
+} from "@/services/adminBranchService";
 import BranchInvitationActions from "@/components/branches/BranchInvitationActions";
 import BranchInvitationStatusTag from "@/components/branches/BranchInvitationStatusTag";
 import EditableSectionCard from "@/components/branches/branch-office/EditableSectionCard";
@@ -116,6 +128,15 @@ const OPERATING_DAY_OPTIONS = [
   { value: "thursday", label: "Thursday" },
   { value: "friday", label: "Friday" },
   { value: "saturday", label: "Saturday" },
+];
+
+const DOCUMENT_TYPE_OPTIONS = [
+  { value: "pan_vat_certificate", label: "PAN / VAT Certificate" },
+  { value: "company_registration", label: "Company Registration Certificate" },
+  { value: "owner_id", label: "Owner Citizenship / ID" },
+  { value: "agreement", label: "Franchise / Branch Agreement" },
+  { value: "office_photo", label: "Office / Pickup Location Photo" },
+  { value: "other", label: "Other Supporting Document" },
 ];
 
 const EDITABLE_SECTIONS = ["identity", "business", "office", "operations"];
@@ -202,6 +223,7 @@ export default function BranchOfficeWorkspacePage() {
   const [businessForm] = Form.useForm();
   const [officeForm] = Form.useForm();
   const [operationsForm] = Form.useForm();
+  const [documentForm] = Form.useForm();
 
   const [record, setRecord] = useState(null);
   const [allBranches, setAllBranches] = useState([]);
@@ -219,6 +241,23 @@ export default function BranchOfficeWorkspacePage() {
     submitting: false,
   });
 
+  const [documentModal, setDocumentModal] = useState({
+    open: false,
+    document: null,
+    saving: false,
+  });
+  const [documentFileList, setDocumentFileList] = useState([]);
+  const [documentActionId, setDocumentActionId] = useState(null);
+  const [documentPreview, setDocumentPreview] = useState({
+    open: false,
+    loading: false,
+    url: "",
+    mimeType: "",
+    name: "",
+    error: "",
+    document: null,
+  });
+
   const watchedType = Form.useWatch("type", identityForm) || record?.type;
   const watchedCoverageId = Form.useWatch(
     "coverage_location_id",
@@ -226,6 +265,16 @@ export default function BranchOfficeWorkspacePage() {
   );
   const watchedOfficeLatitude = Form.useWatch("office_latitude", officeForm);
   const watchedOfficeLongitude = Form.useWatch("office_longitude", officeForm);
+
+  useEffect(() => {
+    const previewUrl = documentPreview.url;
+
+    return () => {
+      if (previewUrl) {
+        URL.revokeObjectURL(previewUrl);
+      }
+    };
+  }, [documentPreview.url]);
 
   const loadPage = useCallback(async () => {
     if (!branchId) return;
@@ -454,6 +503,32 @@ export default function BranchOfficeWorkspacePage() {
     [forms, handleSectionValuesChange],
   );
 
+  const handleOfficeMapChange = useCallback(
+    (location) => {
+      officeForm.setFieldsValue({
+        office_latitude:
+          location.latitude ?? officeForm.getFieldValue("office_latitude"),
+        office_longitude:
+          location.longitude ?? officeForm.getFieldValue("office_longitude"),
+        office_address:
+          location.address || officeForm.getFieldValue("office_address"),
+        office_city:
+          location.city || officeForm.getFieldValue("office_city"),
+        office_area:
+          location.area || officeForm.getFieldValue("office_area"),
+        office_street:
+          location.street || officeForm.getFieldValue("office_street"),
+        office_landmark:
+          location.landmark || officeForm.getFieldValue("office_landmark"),
+      });
+
+      // Ant Design setFieldsValue does not trigger onValuesChange.
+      // Recalculate manually so the section becomes saveable after a map move.
+      recalculateSectionChanges("office");
+    },
+    [officeForm, recalculateSectionChanges],
+  );
+
   const saveSection = useCallback(
     async (section, values) => {
       const updateRequest =
@@ -577,6 +652,216 @@ export default function BranchOfficeWorkspacePage() {
     router.push("/admin/branch-offices");
   }, [changedFieldCount, editingSection, router]);
 
+  const openAddDocument = useCallback(() => {
+    documentForm.resetFields();
+    documentForm.setFieldsValue({
+      document_type: undefined,
+      remarks: "",
+    });
+    setDocumentFileList([]);
+    setDocumentModal({
+      open: true,
+      document: null,
+      saving: false,
+    });
+  }, [documentForm]);
+
+  const openEditDocument = useCallback(
+    (document) => {
+      documentForm.resetFields();
+      documentForm.setFieldsValue({
+        document_type: document?.document_type || "other",
+        remarks: document?.remarks || "",
+      });
+      setDocumentFileList([]);
+      setDocumentModal({
+        open: true,
+        document,
+        saving: false,
+      });
+    },
+    [documentForm],
+  );
+
+  const closeDocumentModal = useCallback(() => {
+    if (documentModal.saving) return;
+
+    documentForm.resetFields();
+    setDocumentFileList([]);
+    setDocumentModal({
+      open: false,
+      document: null,
+      saving: false,
+    });
+  }, [documentForm, documentModal.saving]);
+
+  const saveDocument = useCallback(async () => {
+    try {
+      const values = await documentForm.validateFields();
+      const uploadEntry = documentFileList[0];
+      const fileCandidate = uploadEntry?.originFileObj || uploadEntry || null;
+      const file =
+        typeof File !== "undefined" && fileCandidate instanceof File
+          ? fileCandidate
+          : null;
+      const isEditing = Boolean(documentModal.document?.id);
+
+      if (!isEditing && !file) {
+        message.warning("Please choose a document file.");
+        return;
+      }
+
+      const formData = new FormData();
+      formData.append("document_type", values.document_type);
+      formData.append("remarks", values.remarks || "");
+
+      if (file) {
+        formData.append("file", file, file.name);
+      }
+
+      setDocumentModal((previous) => ({
+        ...previous,
+        saving: true,
+      }));
+
+      if (isEditing) {
+        await updateBranchDocument(documentModal.document.id, formData);
+        message.success("Document updated successfully.");
+      } else {
+        await uploadBranchDocument(branchId, formData);
+        message.success("Document added successfully.");
+      }
+
+      documentForm.resetFields();
+      setDocumentFileList([]);
+      setDocumentModal({
+        open: false,
+        document: null,
+        saving: false,
+      });
+
+      await refreshRecord();
+    } catch (error) {
+      if (error?.errorFields) return;
+
+      setDocumentModal((previous) => ({
+        ...previous,
+        saving: false,
+      }));
+      message.error(apiErrorMessage(error, "Could not save document."));
+    }
+  }, [
+    branchId,
+    documentFileList,
+    documentForm,
+    documentModal.document,
+    refreshRecord,
+  ]);
+
+  const closeDocumentPreview = useCallback(() => {
+    setDocumentPreview({
+      open: false,
+      loading: false,
+      url: "",
+      mimeType: "",
+      name: "",
+      error: "",
+      document: null,
+    });
+  }, []);
+
+  const previewDocument = useCallback(async (document) => {
+    if (!document?.id) return;
+
+    const name =
+      document.original_name ||
+      document.file_name ||
+      `branch-document-${document.id}`;
+
+    setDocumentPreview({
+      open: true,
+      loading: true,
+      url: "",
+      mimeType: document.mime_type || "",
+      name,
+      error: "",
+      document,
+    });
+
+    try {
+      setDocumentActionId(document.id);
+      const blob = await previewBranchDocument(document.id);
+      const url = URL.createObjectURL(blob);
+
+      setDocumentPreview({
+        open: true,
+        loading: false,
+        url,
+        mimeType: blob.type || document.mime_type || "",
+        name,
+        error: "",
+        document,
+      });
+    } catch (error) {
+      const errorMessage = apiErrorMessage(
+        error,
+        "Could not preview document.",
+      );
+
+      setDocumentPreview((previous) => ({
+        ...previous,
+        loading: false,
+        error: errorMessage,
+      }));
+
+      message.error(errorMessage);
+    } finally {
+      setDocumentActionId(null);
+    }
+  }, []);
+
+  const downloadDocument = useCallback(async (document) => {
+    if (!document?.id) return;
+
+    try {
+      setDocumentActionId(document.id);
+      const blob = await downloadBranchDocument(document.id);
+      const url = URL.createObjectURL(blob);
+      const link = window.document.createElement("a");
+      link.href = url;
+      link.download =
+        document.original_name ||
+        document.file_name ||
+        `branch-document-${document.id}`;
+      window.document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      message.error(apiErrorMessage(error, "Could not download document."));
+    } finally {
+      setDocumentActionId(null);
+    }
+  }, []);
+
+  const removeDocument = useCallback(
+    async (document) => {
+      if (!document?.id) return;
+
+      try {
+        setDocumentActionId(document.id);
+        await deleteBranchDocument(document.id);
+        message.success("Document deleted successfully.");
+        await refreshRecord();
+      } catch (error) {
+        message.error(apiErrorMessage(error, "Could not delete document."));
+      } finally {
+        setDocumentActionId(null);
+      }
+    },
+    [refreshRecord],
+  );
+
   const childColumns = [
     {
       title: "Branch",
@@ -610,27 +895,107 @@ export default function BranchOfficeWorkspacePage() {
   ];
 
   const documentColumns = [
-    { title: "Title", dataIndex: "title", render: (value) => value || "—" },
+    {
+      title: "File",
+      dataIndex: "original_name",
+      render: (value, document) => (
+        <Space direction="vertical" size={0}>
+          <Text strong>{value || document.file_name || "Unnamed document"}</Text>
+          <Text type="secondary" style={{ fontSize: 11 }}>
+            {document.mime_type || "Stored document"}
+          </Text>
+        </Space>
+      ),
+    },
     {
       title: "Type",
       dataIndex: "document_type",
-      render: (value) => value || "—",
+      render: (value) =>
+        DOCUMENT_TYPE_OPTIONS.find((option) => option.value === value)?.label ||
+        value ||
+        "—",
     },
-    { title: "Notes", dataIndex: "notes", render: (value) => value || "—" },
-  ];
-
-  const agreementColumns = [
-    { title: "Title", dataIndex: "title", render: (value) => value || "—" },
     {
-      title: "Type",
-      dataIndex: "agreement_type",
+      title: "Remarks",
+      dataIndex: "remarks",
       render: (value) => value || "—",
     },
     {
       title: "Status",
       dataIndex: "status",
-      width: 120,
-      render: (value) => (value ? <Tag>{value}</Tag> : "—"),
+      width: 110,
+      render: (value) => {
+        const status = value || "pending";
+        const color =
+          status === "verified"
+            ? "green"
+            : status === "rejected"
+              ? "red"
+              : "gold";
+
+        return <Tag color={color}>{status}</Tag>;
+      },
+    },
+    {
+      title: "Size",
+      dataIndex: "size_bytes",
+      width: 100,
+      render: (value) =>
+        value ? `${(Number(value) / 1024).toFixed(1)} KB` : "—",
+    },
+    {
+      title: "Actions",
+      key: "actions",
+      width: 210,
+      render: (_, document) => {
+        const busy = Number(documentActionId) === Number(document.id);
+
+        return (
+          <Space size={4} wrap>
+            <Button
+              size="small"
+              type="text"
+              title="Preview"
+              icon={<EyeOutlined />}
+              disabled={busy}
+              onClick={() => previewDocument(document)}
+            />
+            <Button
+              size="small"
+              type="text"
+              title="Download"
+              icon={<DownloadOutlined />}
+              disabled={busy}
+              onClick={() => downloadDocument(document)}
+            />
+            <Button
+              size="small"
+              type="text"
+              title="Edit"
+              icon={<EditOutlined />}
+              disabled={busy}
+              onClick={() => openEditDocument(document)}
+            />
+            <Popconfirm
+              title="Delete document?"
+              description="The stored file and document record will be removed."
+              okText="Delete"
+              cancelText="Cancel"
+              okButtonProps={{ danger: true }}
+              onConfirm={() => removeDocument(document)}
+            >
+              <Button
+                size="small"
+                danger
+                type="text"
+                title="Delete"
+                icon={<DeleteOutlined />}
+                loading={busy}
+              />
+            </Popconfirm>
+          </Space>
+        );
+      },
     },
   ];
 
@@ -1145,29 +1510,9 @@ export default function BranchOfficeWorkspacePage() {
                       showExisting={false}
                       showBranches={false}
                       height={370}
-                      onChange={(location) =>
-                        officeForm.setFieldsValue({
-                          office_latitude:
-                            location.latitude ??
-                            officeForm.getFieldValue("office_latitude"),
-                          office_longitude:
-                            location.longitude ??
-                            officeForm.getFieldValue("office_longitude"),
-                          office_address:
-                            location.address ||
-                            officeForm.getFieldValue("office_address"),
-                          office_city:
-                            location.city || officeForm.getFieldValue("office_city"),
-                          office_area:
-                            location.area || officeForm.getFieldValue("office_area"),
-                          office_street:
-                            location.street ||
-                            officeForm.getFieldValue("office_street"),
-                          office_landmark:
-                            location.landmark ||
-                            officeForm.getFieldValue("office_landmark"),
-                        })
-                      }
+                      clickable
+                      showSearch
+                      onChange={handleOfficeMapChange}
                     />
                   </Form>
                 ) : (
@@ -1353,6 +1698,16 @@ export default function BranchOfficeWorkspacePage() {
                     Documents ({record.documents?.length || 0})
                   </Space>
                 }
+                extra={
+                  <Button
+                    type="primary"
+                    size="small"
+                    icon={<PlusOutlined />}
+                    onClick={openAddDocument}
+                  >
+                    Add document
+                  </Button>
+                }
                 style={{ borderRadius: 18, border: "1px solid #e5eaf0" }}
               >
                 <Table
@@ -1361,29 +1716,11 @@ export default function BranchOfficeWorkspacePage() {
                   columns={documentColumns}
                   dataSource={record.documents || []}
                   pagination={false}
+                  scroll={{ x: 800 }}
                   locale={{ emptyText: "No documents uploaded." }}
                 />
               </Card>
 
-              <Card
-                variant="borderless"
-                title={
-                  <Space>
-                    <SafetyCertificateOutlined />
-                    Agreements ({record.agreements?.length || 0})
-                  </Space>
-                }
-                style={{ borderRadius: 18, border: "1px solid #e5eaf0" }}
-              >
-                <Table
-                  rowKey="id"
-                  size="small"
-                  columns={agreementColumns}
-                  dataSource={record.agreements || []}
-                  pagination={false}
-                  locale={{ emptyText: "No agreements found." }}
-                />
-              </Card>
             </Space>
           </Col>
 
@@ -1482,6 +1819,168 @@ export default function BranchOfficeWorkspacePage() {
           </Col>
         </Row>
       </Space>
+
+      <Modal
+        open={documentPreview.open}
+        title={documentPreview.name || "Document preview"}
+        width={
+          documentPreview.mimeType === "application/pdf" ? 1100 : 900
+        }
+        centered
+        destroyOnClose
+        onCancel={closeDocumentPreview}
+        footer={[
+          <Button key="close" onClick={closeDocumentPreview}>
+            Close
+          </Button>,
+          <Button
+            key="download"
+            type="primary"
+            icon={<DownloadOutlined />}
+            disabled={!documentPreview.document}
+            onClick={() => downloadDocument(documentPreview.document)}
+          >
+            Download
+          </Button>,
+        ]}
+      >
+        {documentPreview.loading ? (
+          <div
+            style={{
+              minHeight: 360,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+          >
+            <Spin size="large" tip="Loading preview..." />
+          </div>
+        ) : documentPreview.error ? (
+          <Result
+            status="error"
+            title="Document preview failed"
+            subTitle={documentPreview.error}
+          />
+        ) : documentPreview.url &&
+          documentPreview.mimeType.startsWith("image/") ? (
+          <div
+            style={{
+              minHeight: 360,
+              maxHeight: "72vh",
+              overflow: "auto",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              padding: 12,
+              borderRadius: 12,
+              background: "#f8fafc",
+            }}
+          >
+            <img
+              src={documentPreview.url}
+              alt={documentPreview.name || "Branch document"}
+              style={{
+                display: "block",
+                maxWidth: "100%",
+                maxHeight: "68vh",
+                objectFit: "contain",
+                borderRadius: 8,
+              }}
+            />
+          </div>
+        ) : documentPreview.url &&
+          documentPreview.mimeType === "application/pdf" ? (
+          <iframe
+            title={documentPreview.name || "Document preview"}
+            src={documentPreview.url}
+            style={{
+              width: "100%",
+              height: "72vh",
+              border: 0,
+              borderRadius: 10,
+              background: "#f8fafc",
+            }}
+          />
+        ) : (
+          <Result
+            status="info"
+            title="Preview is not available for this file type"
+            subTitle="Download the document to view it on your device."
+          />
+        )}
+      </Modal>
+
+      <Modal
+        open={documentModal.open}
+        title={
+          documentModal.document
+            ? "Edit branch document"
+            : "Add branch document"
+        }
+        okText={documentModal.document ? "Save document" : "Upload document"}
+        confirmLoading={documentModal.saving}
+        destroyOnClose
+        onCancel={closeDocumentModal}
+        onOk={saveDocument}
+      >
+        <Form form={documentForm} layout="vertical">
+          <Form.Item
+            name="document_type"
+            label="Document type"
+            rules={[
+              {
+                required: true,
+                message: "Document type is required.",
+              },
+            ]}
+          >
+            <Select
+              options={DOCUMENT_TYPE_OPTIONS}
+              placeholder="Select document type"
+            />
+          </Form.Item>
+
+          <Alert
+            type="info"
+            showIcon
+            style={{ marginBottom: 16, borderRadius: 10 }}
+            message="One file is kept for each document type"
+            description="Adding a document type that already exists replaces its current file."
+          />
+
+          <Form.Item name="remarks" label="Remarks">
+            <Input.TextArea rows={3} placeholder="Optional document remarks" />
+          </Form.Item>
+
+          <Form.Item
+            label={
+              documentModal.document ? "Replacement file" : "Document file"
+            }
+            required={!documentModal.document}
+            extra={
+              documentModal.document
+                ? "Leave empty to update only the type or remarks."
+                : "PDF, JPG, PNG, WebP, DOC or DOCX. Maximum size: 10 MB."
+            }
+          >
+            <Upload
+              beforeUpload={() => false}
+              maxCount={1}
+              fileList={documentFileList}
+              accept=".pdf,.jpg,.jpeg,.png,.webp,.doc,.docx"
+              onChange={({ fileList }) => {
+                setDocumentFileList(fileList.slice(-1));
+              }}
+            >
+              <Button icon={<UploadOutlined />}>
+                {documentModal.document
+                  ? "Choose replacement file"
+                  : "Choose file"}
+              </Button>
+            </Upload>
+          </Form.Item>
+        </Form>
+      </Modal>
 
       <Modal
         open={actionModal.open}
