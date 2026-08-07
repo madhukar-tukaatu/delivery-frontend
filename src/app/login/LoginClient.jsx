@@ -99,6 +99,7 @@ export default function LoginClient() {
       <div className={styles.ambientTwo} aria-hidden="true" />
       <div className={styles.ambientThree} aria-hidden="true" />
 
+      <div className={styles.cardWrap}>
       <div className={styles.card}>
         {/* Brand */}
         <div className={styles.brand}>
@@ -213,6 +214,7 @@ export default function LoginClient() {
         </p>
       </div>
 
+      </div>
       <p className={styles.footer}>© {new Date().getFullYear()} Tukaatu Express · Authorized access only</p>
     </main>
   );

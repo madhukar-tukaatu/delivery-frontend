@@ -781,7 +781,7 @@ export default function SiteClient() {
             {/* Sub-headline */}
             <p className={styles.heroSubtitle}>
               Tukaatu Express unifies live parcel tracking, instant rate calculation,
-              on-demand rider pickups, and same-day COD settlement into one platform.
+              on-demand rider pickups, and same-day POD settlement into one platform.
             </p>
 
             {/* CTA row */}
@@ -817,7 +817,7 @@ export default function SiteClient() {
                 { value: '500K+', label: 'Parcels', badge: '99.4% SLA' },
                 { value: '77/77', label: 'Districts', badge: 'Full Nepal' },
                 { value: '< 4h', label: 'City SLA', badge: 'Express' },
-                { value: 'Daily', label: 'COD Pay', badge: 'Same-Day' },
+                { value: 'Daily', label: 'POD Pay', badge: 'Same-Day' },
               ].map((s) => (
                 <div key={s.label} className={styles.heroStatCard}>
                   <div className={styles.heroStatBadge}>{s.badge}</div>
