@@ -1601,8 +1601,266 @@
 }
 
 .pricingInner {
-  max-width: 1320px;
+  max-width: 1240px;
   margin: 0 auto;
+}
+
+.pricingSection .sectionHeaderCenter {
+  max-width: 760px;
+  margin-bottom: 28px;
+}
+
+.pricingSection .sectionTitle {
+  font-size: clamp(34px, 3.4vw, 50px);
+}
+
+.pricingEstimatorCard {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 300px;
+  gap: 24px;
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 28px;
+  border: 1px solid var(--glass-border, rgba(255,255,255,0.14));
+  border-radius: 30px;
+  background:
+    linear-gradient(145deg, rgba(255,255,255,0.1), transparent 38%),
+    var(--glass-bg, rgba(13,30,43,0.6));
+  box-shadow: var(--glass-shadow, 0 28px 70px rgba(0,0,0,0.3));
+  backdrop-filter: blur(26px) saturate(1.7);
+  -webkit-backdrop-filter: blur(26px) saturate(1.7);
+}
+
+.pricingEstimatorForm {
+  min-width: 0;
+}
+
+.pricingLocationGrid,
+.pricingDetailsGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.pricingLocationGrid {
+  margin-bottom: 18px;
+}
+
+.pricingDetailsGrid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+  margin-bottom: 18px;
+}
+
+.pricingField {
+  display: grid;
+  gap: 7px;
+  min-width: 0;
+}
+
+.pricingField span,
+.pricingEstimateResult > span {
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 850;
+  letter-spacing: 0.06em;
+}
+
+.pricingField input,
+.pricingField select {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  min-height: 52px;
+  padding: 13px 15px;
+  border: 1px solid var(--border-card);
+  border-radius: 14px;
+  outline: none;
+  background: rgba(255,255,255,0.06);
+  color: var(--text-dark);
+  font: inherit;
+  font-size: 15px;
+  font-weight: 650;
+}
+
+.pricingField input:focus,
+.pricingField select:focus {
+  border-color: rgba(2,113,150,0.55);
+  box-shadow: 0 0 0 3px rgba(2,113,150,0.1);
+}
+
+.pricingCalculateBtn {
+  width: 100%;
+  min-height: 56px;
+  padding: 14px 20px;
+  border: 1px solid rgba(255,255,255,0.5);
+  border-radius: 15px;
+  background: linear-gradient(135deg, #FFE26A, #FFD026 52%, #F0B900);
+  color: #071722;
+  cursor: pointer;
+  font-size: 15px;
+  font-weight: 900;
+  box-shadow: 0 10px 26px rgba(255,208,38,0.24), inset 0 1px 0 rgba(255,255,255,0.72);
+}
+
+.pricingCalculateBtn:disabled {
+  cursor: wait;
+  opacity: 0.68;
+}
+
+.pricingError {
+  margin-bottom: 12px;
+  padding: 10px 12px;
+  border: 1px solid rgba(239,68,68,0.25);
+  border-radius: 10px;
+  background: rgba(239,68,68,0.1);
+  color: #FCA5A5;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.pricingEstimateResult {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  min-width: 0;
+  padding: 26px;
+  border: 1px solid rgba(255,255,255,0.09);
+  border-radius: 24px;
+  background:
+    radial-gradient(circle at 90% 8%, rgba(11,140,183,0.2), transparent 38%),
+    rgba(4,20,30,0.54);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.08), 0 18px 42px rgba(0,0,0,0.12);
+}
+
+.pricingEstimateResult strong {
+  margin-top: 10px;
+  color: #FFD026;
+  font-size: clamp(30px, 3vw, 44px);
+  line-height: 1;
+  letter-spacing: -0.04em;
+}
+
+.pricingEstimateResult b {
+  display: block;
+  margin-top: 7px;
+  color: #4ADE80;
+  font-size: 18px;
+}
+
+.pricingEstimateResult small {
+  margin-top: auto;
+  padding-top: 18px;
+  color: var(--text-muted);
+  line-height: 1.5;
+}
+
+.pricingResultDivider {
+  height: 1px;
+  margin: 24px 0 20px;
+  background: var(--border-card);
+}
+
+.pricingResultTopline {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  width: fit-content;
+  margin-bottom: 26px;
+  padding: 6px 10px;
+  border: 1px solid rgba(56,189,248,0.18);
+  border-radius: 999px;
+  background: rgba(56,189,248,0.08);
+  color: #38BDF8;
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+}
+
+.pricingResultIcon {
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #027196;
+  color: #fff;
+  font-size: 11px;
+}
+
+.pricingResultMeta {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.pricingResultMeta > div {
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 14px;
+  background: rgba(255,255,255,0.04);
+}
+
+.pricingResultMeta span {
+  color: var(--text-muted);
+  font-size: 9px;
+  font-weight: 850;
+  letter-spacing: 0.05em;
+}
+
+.pricingResultMeta b {
+  font-size: 14px;
+}
+
+.pricingEstimatorCard :global(.tukaatu-location-control) {
+  gap: 9px !important;
+}
+
+.pricingEstimatorCard :global(.tukaatu-location-main-button) {
+  min-height: 64px;
+  padding: 12px 14px !important;
+  border-radius: 14px !important;
+}
+
+.pricingEstimatorCard :global(.tukaatu-location-change-button),
+.pricingEstimatorCard :global(.tukaatu-location-clear-button) {
+  border-radius: 14px !important;
+}
+
+.pricingEstimatorCard :global(.tukaatu-location-change-button) {
+  padding-inline: 17px !important;
+  background: linear-gradient(135deg, #027196, #0B8CB7) !important;
+  box-shadow: 0 8px 20px rgba(2,113,150,0.2);
+}
+
+.site[data-theme="light"] .pricingEstimatorCard {
+  background: linear-gradient(145deg, rgba(255,255,255,0.94), rgba(218,241,247,0.56));
+  border-color: rgba(255,255,255,0.95);
+}
+
+.site[data-theme="light"] .pricingField input,
+.site[data-theme="light"] .pricingField select,
+.site[data-theme="light"] .pricingEstimateResult {
+  background: rgba(255,255,255,0.62);
+  border-color: rgba(255,255,255,0.94);
+  color: #0F172A;
+}
+
+.site[data-theme="light"] .pricingEstimateResult strong {
+  color: #027196;
+}
+
+.site[data-theme="light"] .pricingEstimateResult {
+  background:
+    radial-gradient(circle at 90% 8%, rgba(11,140,183,0.11), transparent 40%),
+    rgba(255,255,255,0.66);
+  box-shadow: inset 0 1px 0 #fff, 0 18px 42px rgba(15,23,42,0.07);
+}
+
+.site[data-theme="light"] .pricingResultMeta > div {
+  border-color: rgba(2,113,150,0.08);
+  background: rgba(2,113,150,0.035);
 }
 
 .pricingGrid {
@@ -2913,6 +3171,15 @@
     gap: 14px;
   }
 
+  .pricingEstimatorCard {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 16px;
+  }
+
+  .pricingEstimateResult {
+    min-height: 150px;
+  }
+
   .footer {
     min-height: calc(100svh - 174px);
     padding-top: 34px;
@@ -2955,6 +3222,46 @@
   .pricingCardFeatured,
   .pricingCardFeatured:hover {
     transform: none;
+  }
+
+  .pricingSection {
+    padding-inline: 16px;
+  }
+
+  .pricingSection .sectionHeaderCenter {
+    margin-bottom: 14px;
+  }
+
+  .pricingSection .sectionTitle {
+    font-size: 28px;
+  }
+
+  .pricingSection .sectionSubtitle {
+    font-size: 13px;
+  }
+
+  .pricingEstimatorCard {
+    padding: 16px;
+    border-radius: 20px;
+  }
+
+  .pricingLocationGrid,
+  .pricingDetailsGrid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 10px;
+  }
+
+  .pricingDetailsGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .pricingEstimateResult {
+    min-height: 120px;
+    padding: 18px;
+  }
+
+  .pricingEstimateResult strong {
+    font-size: 30px;
   }
 
   .merchantSection {

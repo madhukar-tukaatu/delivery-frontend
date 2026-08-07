@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useEffect, useRef } from "react";
+import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import styles from "./site.module.css";
 import dynamic from "next/dynamic";
@@ -270,16 +270,6 @@ export default function SiteClient() {
     if (!activeSlide) return;
     activeSlide.scrollTo({ top: 0, left: 0, behavior: "auto" });
   }, [currentSlide]);
-
-  // Rate Calculator Math
-  const calculatedRate = useMemo(() => {
-    const isLocal = rateOrigin === rateDestination || 
-      (rateOrigin === "Kathmandu" && (rateDestination === "Lalitpur" || rateDestination === "Bhaktapur"));
-    let basePrice = isLocal ? 120 : 180;
-    if (rateSpeed === "express") basePrice += 50;
-    const time = rateSpeed === "express" ? (isLocal ? "Same-Day (< 4 Hours)" : "24 Hours") : (isLocal ? "24 Hours" : "48 Hours");
-    return { total: basePrice + Math.max(0, rateWeight - 1) * 35, time };
-  }, [rateOrigin, rateDestination, rateWeight, rateSpeed]);
 
   const handleRateEstimate = async (event) => {
     event?.preventDefault();
@@ -866,15 +856,6 @@ export default function SiteClient() {
                         <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
                       </svg>
                       <span style={{ whiteSpace: 'nowrap' }}>Live Tracker</span>
-                    </button>
-                    <button
-                      onClick={() => setConsoleTab("rate")}
-                      className={`${styles.consoleTabBtn} ${consoleTab === "rate" ? styles.consoleTabActive : ""}`}
-                    >
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                        <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
-                      </svg>
-                      <span style={{ whiteSpace: 'nowrap' }}>Rate Estimator</span>
                     </button>
                   </div>
 
@@ -1523,57 +1504,108 @@ export default function SiteClient() {
         <section id="pricing" className={styles.pricingSection}>
           <div className={styles.pricingInner}>
             <div className={styles.sectionHeaderCenter}>
-              <div className={styles.sectionCategory}>Service Pricing</div>
-              <h2 className={styles.sectionTitle}>Transparent Pricing,<br />Zero Hidden Fees</h2>
+              <div className={styles.sectionCategory}>Live Rate Calculator</div>
+              <h2 className={styles.sectionTitle}>Calculate Your Delivery Price</h2>
               <p className={styles.sectionSubtitle}>
-                Predictable courier delivery rates engineered for online brands and enterprises.
+                Select pickup and delivery points, enter parcel details, and get a live delivery estimate.
               </p>
             </div>
 
-            <div className={styles.pricingGrid}>
-              {/* Card 1 */}
-              <div className={styles.pricingCard}>
-                <div className={styles.pricingCardTag}>Intra-City</div>
-                <h3 className={styles.pricingTitle}>Express Delivery</h3>
-                <div className={styles.pricingPrice}>NPR 120</div>
-                <ul className={styles.pricingFeatureList}>
-                  <li className={styles.pricingFeatureItem}><span style={{ color: '#027196' }}>✓</span> Kathmandu Valley (&lt; 4 Hours)</li>
-                  <li className={styles.pricingFeatureItem}><span style={{ color: '#027196' }}>✓</span> Free Doorstep Collection</li>
-                  <li className={styles.pricingFeatureItem}><span style={{ color: '#027196' }}>✓</span> Real-time GPS Telemetry</li>
-                  <li className={styles.pricingFeatureItem}><span style={{ color: '#027196' }}>✓</span> Digital e-POD Signature</li>
-                </ul>
-                <Link href="/public/merchant-register" className={`${styles.pricingBtn} ${styles.pricingBtnSecondary}`}>Get Started</Link>
-              </div>
+            <div className={styles.pricingEstimatorCard} data-prevent-slide-wheel="true">
+              <form onSubmit={handleRateEstimate} className={styles.pricingEstimatorForm}>
+                <div className={styles.pricingLocationGrid}>
+                  <LocationPicker
+                    label="PICKUP LOCATION"
+                    value={pickupLocation}
+                    isDark={isDark}
+                    allowCurrentLocation
+                    placeholder="Choose pickup point"
+                    onChange={(location) => {
+                      setPickupLocation(location);
+                      setRateEstimate(null);
+                      setRateError("");
+                    }}
+                  />
+                  <LocationPicker
+                    label="DELIVERY LOCATION"
+                    value={deliveryLocation}
+                    isDark={isDark}
+                    allowCurrentLocation={false}
+                    placeholder="Choose delivery point"
+                    onChange={(location) => {
+                      setDeliveryLocation(location);
+                      setRateEstimate(null);
+                      setRateError("");
+                    }}
+                  />
+                </div>
 
-              {/* Card 2 — Featured */}
-              <div className={`${styles.pricingCard} ${styles.pricingCardFeatured}`}>
-                <div className={styles.pricingBadge}>MOST POPULAR</div>
-                <div className={styles.pricingCardTag} style={{ color: '#FFD026' }}>Inter-District</div>
-                <h3 className={styles.pricingTitle}>Standard Delivery</h3>
-                <div className={styles.pricingPrice}>NPR 180</div>
-                <ul className={styles.pricingFeatureList}>
-                  <li className={styles.pricingFeatureItem}><span style={{ color: '#FFD026' }}>✓</span> All 77 Districts Covered</li>
-                  <li className={styles.pricingFeatureItem}><span style={{ color: '#FFD026' }}>✓</span> 24–48 Hours Delivery SLA</li>
-                  <li className={styles.pricingFeatureItem}><span style={{ color: '#FFD026' }}>✓</span> Same-Day COD Settlement</li>
-                  <li className={styles.pricingFeatureItem}><span style={{ color: '#FFD026' }}>✓</span> Barcode Hub Sorting</li>
-                </ul>
-                <Link href="/public/merchant-register" className={`${styles.pricingBtn} ${styles.pricingBtnPrimary}`}>Start Shipping Now</Link>
-              </div>
+                <div className={styles.pricingDetailsGrid}>
+                  <label className={styles.pricingField}>
+                    <span>ACTUAL WEIGHT (KG)</span>
+                    <input required type="number" min="0.01" max="5000" step="0.01" value={rateParcel.actualWeightKg}
+                      onChange={(event) => setRateParcel((previous) => ({ ...previous, actualWeightKg: event.target.value }))} />
+                  </label>
+                  <label className={styles.pricingField}>
+                    <span>PARCEL TYPE</span>
+                    <select value={rateParcel.parcelType}
+                      onChange={(event) => setRateParcel((previous) => ({ ...previous, parcelType: event.target.value }))}>
+                      <option value="non_fragile">Non-fragile</option>
+                      <option value="fragile">Fragile</option>
+                    </select>
+                  </label>
+                  <label className={styles.pricingField}>
+                    <span>LENGTH (CM)</span>
+                    <input required type="number" min="0.01" max="1000" step="0.01" value={rateParcel.lengthCm}
+                      onChange={(event) => setRateParcel((previous) => ({ ...previous, lengthCm: event.target.value }))} />
+                  </label>
+                  <label className={styles.pricingField}>
+                    <span>WIDTH (CM)</span>
+                    <input required type="number" min="0.01" max="1000" step="0.01" value={rateParcel.widthCm}
+                      onChange={(event) => setRateParcel((previous) => ({ ...previous, widthCm: event.target.value }))} />
+                  </label>
+                  <label className={styles.pricingField}>
+                    <span>HEIGHT (CM)</span>
+                    <input required type="number" min="0.01" max="1000" step="0.01" value={rateParcel.heightCm}
+                      onChange={(event) => setRateParcel((previous) => ({ ...previous, heightCm: event.target.value }))} />
+                  </label>
+                  <label className={styles.pricingField}>
+                    <span>SERVICE TYPE</span>
+                    <select value={rateServiceType} onChange={(event) => setRateServiceType(event.target.value)}>
+                      <option value="standard">Standard</option>
+                      <option value="express">Express</option>
+                    </select>
+                  </label>
+                </div>
 
-              {/* Card 3 */}
-              <div className={styles.pricingCard}>
-                <div className={styles.pricingCardTag}>Enterprise</div>
-                <h3 className={styles.pricingTitle}>Custom Logistics</h3>
-                <div className={styles.pricingPrice}>Custom</div>
-                <ul className={styles.pricingFeatureList}>
-                  <li className={styles.pricingFeatureItem}><span style={{ color: '#027196' }}>✓</span> Dedicated Account Manager</li>
-                  <li className={styles.pricingFeatureItem}><span style={{ color: '#027196' }}>✓</span> Custom API & Webhooks</li>
-                  <li className={styles.pricingFeatureItem}><span style={{ color: '#027196' }}>✓</span> Volume Rate Discounts</li>
-                  <li className={styles.pricingFeatureItem}><span style={{ color: '#027196' }}>✓</span> Priority SLA Guarantee</li>
-                </ul>
-                <Link href="/site/contact" className={`${styles.pricingBtn} ${styles.pricingBtnSecondary}`}>Contact Sales</Link>
-              </div>
+                {rateError && <div className={styles.pricingError}>{rateError}</div>}
+                <button type="submit" disabled={isLoadingRate} className={styles.pricingCalculateBtn}>
+                  {isLoadingRate ? "Calculating real price..." : "Calculate Delivery Price"}
+                </button>
+              </form>
+
+              <aside className={styles.pricingEstimateResult}>
+                <div className={styles.pricingResultTopline}>
+                  <span className={styles.pricingResultIcon}>↗</span>
+                  <span>{rateEstimate ? "LIVE QUOTE READY" : "YOUR LIVE QUOTE"}</span>
+                </div>
+                <span>ESTIMATED PRICE</span>
+                <strong>{rateEstimate ? `${rateEstimate.currency || "NPR"} ${Number(rateEstimate.price ?? 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "NPR —"}</strong>
+                <div className={styles.pricingResultDivider} />
+                <div className={styles.pricingResultMeta}>
+                  <div>
+                    <span>ESTIMATED SLA</span>
+                    <b>{rateEstimate?.estimated_delivery_label || (rateEstimate?.estimated_delivery_hours ? `${rateEstimate.estimated_delivery_hours} Hours` : "—")}</b>
+                  </div>
+                  <div>
+                    <span>CHARGEABLE WEIGHT</span>
+                    <b>{rateEstimate ? `${Number(rateEstimate.chargeable_weight_kg ?? 0)} kg` : "—"}</b>
+                  </div>
+                </div>
+                <small>Final pricing may change after physical parcel verification.</small>
+              </aside>
             </div>
+
           </div>
         </section>
       </div>

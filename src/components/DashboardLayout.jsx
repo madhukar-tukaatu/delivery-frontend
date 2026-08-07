@@ -257,7 +257,7 @@ export default function DashboardLayout({ section = "admin", children }) {
 
       <Layout style={{ background: "#F8FAFC" }}>
         {/* Top Header */}
-        <div style={{
+        <Header style={{
           background: "#fff",
           padding: "0 24px",
           height: 64,
