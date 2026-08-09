@@ -1,9 +1,7 @@
 export function extractCollection(payload) {
-  const candidates = [
-    payload,
-    payload?.data,
-    payload?.data?.data,
-  ].filter(Boolean);
+  const candidates = [payload, payload?.data, payload?.data?.data].filter(
+    Boolean,
+  );
 
   for (const candidate of candidates) {
     if (Array.isArray(candidate)) {
@@ -16,36 +14,22 @@ export function extractCollection(payload) {
       };
     }
 
-    if (
-      candidate &&
-      Array.isArray(candidate.data)
-    ) {
+    if (candidate && Array.isArray(candidate.data)) {
       return {
         rows: candidate.data,
 
-        currentPage: Number(
-          candidate.current_page ??
-            candidate.page ??
-            1
-        ),
+        currentPage: Number(candidate.current_page ?? candidate.page ?? 1),
 
         pageSize: Number(
           candidate.per_page ??
             candidate.page_size ??
             candidate.data.length ??
-            20
+            20,
         ),
 
-        total: Number(
-          candidate.total ??
-            candidate.data.length ??
-            0
-        ),
+        total: Number(candidate.total ?? candidate.data.length ?? 0),
 
-        lastPage: Number(
-          candidate.last_page ??
-            1
-        ),
+        lastPage: Number(candidate.last_page ?? 1),
       };
     }
   }
@@ -60,134 +44,82 @@ export function extractCollection(payload) {
 }
 
 export function toBoolean(value) {
-  return (
-    value === true ||
-    value === 1 ||
-    value === "1" ||
-    value === "true"
-  );
+  return value === true || value === 1 || value === "1" || value === "true";
 }
 
-export function toNumber(
-  value,
-  fallback = 0
-) {
+export function toNumber(value, fallback = 0) {
   const number = Number(value);
 
-  return Number.isFinite(number)
-    ? number
-    : fallback;
+  return Number.isFinite(number) ? number : fallback;
 }
 
 export function nullableNumber(value) {
-  if (
-    value === "" ||
-    value === null ||
-    value === undefined
-  ) {
+  if (value === "" || value === null || value === undefined) {
     return null;
   }
 
   const number = Number(value);
 
-  return Number.isFinite(number)
-    ? number
-    : null;
+  return Number.isFinite(number) ? number : null;
 }
 
 function hasValidCoordinates(branch) {
   return (
-    Number.isFinite(
-      Number(branch?.latitude)
-    ) &&
-    Number.isFinite(
-      Number(branch?.longitude)
-    )
+    Number.isFinite(Number(branch?.latitude)) &&
+    Number.isFinite(Number(branch?.longitude))
   );
 }
-
-export function normalizeBranch(branch) {
-  if (!branch) {
-    return null;
-  }
-
-  const coverage =
-    branch.coverage_location ??
-    branch.coverageLocation ??
-    branch.coverage ??
-    {};
-
-  const latitude = nullableNumber(
+export function normalizeBranch(branch = {}) {
+  const latitude =
     branch.latitude ??
-      branch.lat ??
-      branch.center_latitude ??
-      coverage.latitude ??
-      coverage.lat ??
-      coverage.center_latitude
-  );
+    branch.lat ??
+    branch.location?.latitude ??
+    branch.coordinates?.latitude ??
+    branch.geo?.latitude ??
+    null;
 
-  const longitude = nullableNumber(
+  const longitude =
     branch.longitude ??
-      branch.lng ??
-      branch.lon ??
-      branch.center_longitude ??
-      coverage.longitude ??
-      coverage.lng ??
-      coverage.lon ??
-      coverage.center_longitude
-  );
+    branch.lng ??
+    branch.lon ??
+    branch.location?.longitude ??
+    branch.coordinates?.longitude ??
+    branch.geo?.longitude ??
+    null;
 
   return {
     ...branch,
 
-    id: nullableNumber(
-      branch.id ??
-        branch.branch_id
-    ),
+    id: Number(branch.id ?? branch.branch_id),
 
-    name:
-      branch.name ??
-      branch.label ??
-      `Branch ${branch.id ?? ""}`,
+    name: branch.name ?? branch.branch_name ?? branch.title ?? "-",
 
-    code:
-      branch.code ??
-      branch.branch_code ??
-      "",
+    code: branch.code ?? branch.branch_code ?? null,
 
-    latitude,
-    longitude,
+    latitude:
+      latitude !== null && latitude !== undefined && latitude !== ""
+        ? Number(latitude)
+        : null,
 
-    coverage_location:
-      branch.coverage_location ??
-      branch.coverageLocation ??
-      null,
+    longitude:
+      longitude !== null && longitude !== undefined && longitude !== ""
+        ? Number(longitude)
+        : null,
   };
 }
 
-export function enrichBranch(
-  branch,
-  branchesById
-) {
+export function enrichBranch(branch, branchesById) {
   if (!branch) {
     return null;
   }
 
-  const branchId = nullableNumber(
-    branch.id ??
-      branch.branch_id
-  );
+  const branchId = nullableNumber(branch.id ?? branch.branch_id);
 
-  const partialBranch =
-    normalizeBranch(branch);
+  const partialBranch = normalizeBranch(branch);
 
   const fullBranch =
     branchId !== null
-      ? normalizeBranch(
-          branchesById.get(
-            Number(branchId)
-          )
-        )
+      ? normalizeBranch(branchesById.get(Number(branchId)))
       : null;
 
   /*
@@ -203,9 +135,7 @@ export function enrichBranch(
     ...(fullBranch ?? {}),
     ...branch,
 
-    id:
-      branchId ??
-      fullBranch?.id,
+    id: branchId ?? fullBranch?.id,
 
     coverage_location:
       branch.coverage_location ??
@@ -214,70 +144,44 @@ export function enrichBranch(
       null,
   });
 
-  if (
-    !hasValidCoordinates(merged) &&
-    hasValidCoordinates(fullBranch)
-  ) {
+  if (!hasValidCoordinates(merged) && hasValidCoordinates(fullBranch)) {
     return {
       ...merged,
 
-      latitude:
-        fullBranch.latitude,
+      latitude: fullBranch.latitude,
 
-      longitude:
-        fullBranch.longitude,
+      longitude: fullBranch.longitude,
     };
   }
 
-  if (
-    !hasValidCoordinates(merged) &&
-    hasValidCoordinates(partialBranch)
-  ) {
+  if (!hasValidCoordinates(merged) && hasValidCoordinates(partialBranch)) {
     return {
       ...merged,
 
-      latitude:
-        partialBranch.latitude,
+      latitude: partialBranch.latitude,
 
-      longitude:
-        partialBranch.longitude,
+      longitude: partialBranch.longitude,
     };
   }
 
   return merged;
 }
 
-export function buildBranchMap(
-  branches
-) {
+export function buildBranchMap(branches) {
   return new Map(
     branches
-      .filter((branch) =>
-        Number.isFinite(
-          Number(branch?.id)
-        )
-      )
-      .map((branch) => [
-        Number(branch.id),
-        normalizeBranch(branch),
-      ])
+      .filter((branch) => Number.isFinite(Number(branch?.id)))
+      .map((branch) => [Number(branch.id), normalizeBranch(branch)]),
   );
 }
 
-export function normalizeBranchRate(
-  row,
-  branchesById
-) {
+export function normalizeBranchRate(row, branchesById) {
   const pickupId = nullableNumber(
-    row.pickup_branch_id ??
-      row.pickupBranch?.id ??
-      row.pickup_branch?.id
+    row.pickup_branch_id ?? row.pickupBranch?.id ?? row.pickup_branch?.id,
   );
 
   const deliveryId = nullableNumber(
-    row.delivery_branch_id ??
-      row.deliveryBranch?.id ??
-      row.delivery_branch?.id
+    row.delivery_branch_id ?? row.deliveryBranch?.id ?? row.delivery_branch?.id,
   );
 
   return {
@@ -285,54 +189,37 @@ export function normalizeBranchRate(
 
     id: nullableNumber(row.id),
 
-    pickup_branch_id:
-      pickupId,
+    pickup_branch_id: pickupId,
 
-    delivery_branch_id:
-      deliveryId,
+    delivery_branch_id: deliveryId,
 
-    pickup_branch:
-      enrichBranch(
-        row.pickup_branch ??
-          row.pickupBranch ??
-          branchesById.get(
-            Number(pickupId)
-          ),
-        branchesById
-      ),
+    pickup_branch: enrichBranch(
+      row.pickup_branch ??
+        row.pickupBranch ??
+        branchesById.get(Number(pickupId)),
+      branchesById,
+    ),
 
-    delivery_branch:
-      enrichBranch(
-        row.delivery_branch ??
-          row.deliveryBranch ??
-          branchesById.get(
-            Number(deliveryId)
-          ),
-        branchesById
-      ),
+    delivery_branch: enrichBranch(
+      row.delivery_branch ??
+        row.deliveryBranch ??
+        branchesById.get(Number(deliveryId)),
+      branchesById,
+    ),
 
-    base_rate:
-      toNumber(row.base_rate),
+    base_rate: toNumber(row.base_rate),
 
-    is_active:
-      toBoolean(row.is_active),
+    is_active: toBoolean(row.is_active),
   };
 }
 
-export function normalizeTransferLane(
-  row,
-  branchesById
-) {
+export function normalizeTransferLane(row, branchesById) {
   const fromId = nullableNumber(
-    row.from_branch_id ??
-      row.fromBranch?.id ??
-      row.from_branch?.id
+    row.from_branch_id ?? row.fromBranch?.id ?? row.from_branch?.id,
   );
 
   const toId = nullableNumber(
-    row.to_branch_id ??
-      row.toBranch?.id ??
-      row.to_branch?.id
+    row.to_branch_id ?? row.toBranch?.id ?? row.to_branch?.id,
   );
 
   return {
@@ -340,87 +227,47 @@ export function normalizeTransferLane(
 
     id: nullableNumber(row.id),
 
-    from_branch_id:
-      fromId,
+    from_branch_id: fromId,
 
-    to_branch_id:
-      toId,
+    to_branch_id: toId,
 
-    from_branch:
-      enrichBranch(
-        row.from_branch ??
-          row.fromBranch ??
-          branchesById.get(
-            Number(fromId)
-          ),
-        branchesById
-      ),
+    from_branch: enrichBranch(
+      row.from_branch ?? row.fromBranch ?? branchesById.get(Number(fromId)),
+      branchesById,
+    ),
 
-    to_branch:
-      enrichBranch(
-        row.to_branch ??
-          row.toBranch ??
-          branchesById.get(
-            Number(toId)
-          ),
-        branchesById
-      ),
+    to_branch: enrichBranch(
+      row.to_branch ?? row.toBranch ?? branchesById.get(Number(toId)),
+      branchesById,
+    ),
 
-    distance_km:
-      toNumber(row.distance_km),
+    distance_km: toNumber(row.distance_km),
 
-    estimated_hours:
-      toNumber(
-        row.estimated_hours,
-        1
-      ),
+    estimated_hours: toNumber(row.estimated_hours, 1),
 
-    priority:
-      toNumber(
-        row.priority,
-        100
-      ),
+    priority: toNumber(row.priority, 100),
 
-    is_bidirectional:
-      toBoolean(
-        row.is_bidirectional
-      ),
+    is_bidirectional: toBoolean(row.is_bidirectional),
 
-    is_active:
-      toBoolean(
-        row.is_active
-      ),
+    is_active: toBoolean(row.is_active),
   };
 }
 
-function pushUniqueBranch(
-  nodes,
-  branch
-) {
+function pushUniqueBranch(nodes, branch) {
   if (!branch) {
     return;
   }
 
-  const previous =
-    nodes.length > 0
-      ? nodes[nodes.length - 1]
-      : null;
+  const previous = nodes.length > 0 ? nodes[nodes.length - 1] : null;
 
-  if (
-    previous &&
-    Number(previous.id) ===
-      Number(branch.id)
-  ) {
+  if (previous && Number(previous.id) === Number(branch.id)) {
     return;
   }
 
   nodes.push(branch);
 }
 
-function buildPathFromLanes(
-  row,
-  branchesById
-) {
+function buildPathFromLanes(row, branchesById) {
   const laneMappings =
     row.lanes ??
     row.route_lanes ??
@@ -432,79 +279,47 @@ function buildPathFromLanes(
     return [];
   }
 
-  const orderedMappings = [
-    ...laneMappings,
-  ].sort(
+  const orderedMappings = [...laneMappings].sort(
     (left, right) =>
-      Number(
-        left.sequence ??
-          left.sequence_number ??
-          0
-      ) -
-      Number(
-        right.sequence ??
-          right.sequence_number ??
-          0
-      )
+      Number(left.sequence ?? left.sequence_number ?? 0) -
+      Number(right.sequence ?? right.sequence_number ?? 0),
   );
 
   const path = [];
 
-  orderedMappings.forEach(
-    (mapping) => {
-      const lane =
-        mapping.branch_transfer_lane ??
-        mapping.branchTransferLane ??
-        mapping.transfer_lane ??
-        mapping.transferLane ??
-        mapping.lane ??
-        mapping;
+  orderedMappings.forEach((mapping) => {
+    const lane =
+      mapping.branch_transfer_lane ??
+      mapping.branchTransferLane ??
+      mapping.transfer_lane ??
+      mapping.transferLane ??
+      mapping.lane ??
+      mapping;
 
-      const fromBranchId =
-        nullableNumber(
-          lane.from_branch_id ??
-            lane.fromBranch?.id ??
-            lane.from_branch?.id
-        );
+    const fromBranchId = nullableNumber(
+      lane.from_branch_id ?? lane.fromBranch?.id ?? lane.from_branch?.id,
+    );
 
-      const toBranchId =
-        nullableNumber(
-          lane.to_branch_id ??
-            lane.toBranch?.id ??
-            lane.to_branch?.id
-        );
+    const toBranchId = nullableNumber(
+      lane.to_branch_id ?? lane.toBranch?.id ?? lane.to_branch?.id,
+    );
 
-      const fromBranch =
-        enrichBranch(
-          lane.from_branch ??
-            lane.fromBranch ??
-            branchesById.get(
-              Number(fromBranchId)
-            ),
-          branchesById
-        );
+    const fromBranch = enrichBranch(
+      lane.from_branch ??
+        lane.fromBranch ??
+        branchesById.get(Number(fromBranchId)),
+      branchesById,
+    );
 
-      const toBranch =
-        enrichBranch(
-          lane.to_branch ??
-            lane.toBranch ??
-            branchesById.get(
-              Number(toBranchId)
-            ),
-          branchesById
-        );
+    const toBranch = enrichBranch(
+      lane.to_branch ?? lane.toBranch ?? branchesById.get(Number(toBranchId)),
+      branchesById,
+    );
 
-      pushUniqueBranch(
-        path,
-        fromBranch
-      );
+    pushUniqueBranch(path, fromBranch);
 
-      pushUniqueBranch(
-        path,
-        toBranch
-      );
-    }
-  );
+    pushUniqueBranch(path, toBranch);
+  });
 
   return path;
 }
@@ -515,113 +330,70 @@ function buildPathFromLanes(
 |--------------------------------------------------------------------------
 */
 
-export function normalizeTransferRoute(
-  row,
-  branchesById
-) {
+export function normalizeTransferRoute(row, branchesById) {
   const originId = nullableNumber(
-    row.origin_branch_id ??
-      row.originBranch?.id ??
-      row.origin_branch?.id
+    row.origin_branch_id ?? row.originBranch?.id ?? row.origin_branch?.id,
   );
 
-  const destinationId =
-    nullableNumber(
-      row.destination_branch_id ??
-        row.destinationBranch?.id ??
-        row.destination_branch?.id
-    );
+  const destinationId = nullableNumber(
+    row.destination_branch_id ??
+      row.destinationBranch?.id ??
+      row.destination_branch?.id,
+  );
 
-  const originBranch =
-    enrichBranch(
-      row.origin_branch ??
-        row.originBranch ??
-        branchesById.get(
-          Number(originId)
-        ),
-      branchesById
-    );
+  const originBranch = enrichBranch(
+    row.origin_branch ?? row.originBranch ?? branchesById.get(Number(originId)),
+    branchesById,
+  );
 
-  const destinationBranch =
-    enrichBranch(
-      row.destination_branch ??
-        row.destinationBranch ??
-        branchesById.get(
-          Number(destinationId)
-        ),
-      branchesById
-    );
+  const destinationBranch = enrichBranch(
+    row.destination_branch ??
+      row.destinationBranch ??
+      branchesById.get(Number(destinationId)),
+    branchesById,
+  );
 
   /*
    * First choice:
    * path supplied by backend.
    */
-  const suppliedPath =
-    Array.isArray(row.path)
-      ? row.path
-          .map((branch) =>
-            enrichBranch(
-              branch,
-              branchesById
-            )
-          )
-          .filter(Boolean)
-      : [];
+  const suppliedPath = Array.isArray(row.path)
+    ? row.path
+        .map((branch) => enrichBranch(branch, branchesById))
+        .filter(Boolean)
+    : [];
 
   /*
    * Second choice:
    * rebuild from ordered lanes.
    */
-  const lanePath =
-    buildPathFromLanes(
-      row,
-      branchesById
-    );
+  const lanePath = buildPathFromLanes(row, branchesById);
 
   /*
    * Third choice:
    * origin + transit + destination.
    */
-  const transitSource =
-    row.transit_branches ??
-    row.transitBranches ??
-    [];
+  const transitSource = row.transit_branches ?? row.transitBranches ?? [];
 
-  const suppliedTransitBranches =
-    Array.isArray(transitSource)
-      ? transitSource
-          .map((branch) =>
-            enrichBranch(
-              branch,
-              branchesById
-            )
-          )
-          .filter(Boolean)
-      : [];
+  const suppliedTransitBranches = Array.isArray(transitSource)
+    ? transitSource
+        .map((branch) => enrichBranch(branch, branchesById))
+        .filter(Boolean)
+    : [];
 
-  const transitIds =
-    Array.isArray(
-      row.transit_branch_ids
+  const transitIds = Array.isArray(row.transit_branch_ids)
+    ? row.transit_branch_ids
+    : [];
+
+  const transitBranchesFromIds = transitIds
+    .map((branchId) =>
+      enrichBranch(branchesById.get(Number(branchId)), branchesById),
     )
-      ? row.transit_branch_ids
-      : [];
+    .filter(Boolean);
 
-  const transitBranchesFromIds =
-    transitIds
-      .map((branchId) =>
-        enrichBranch(
-          branchesById.get(
-            Number(branchId)
-          ),
-          branchesById
-        )
-      )
-      .filter(Boolean);
-
-  const fallbackTransitBranches =
-    suppliedTransitBranches.length
-      ? suppliedTransitBranches
-      : transitBranchesFromIds;
+  const fallbackTransitBranches = suppliedTransitBranches.length
+    ? suppliedTransitBranches
+    : transitBranchesFromIds;
 
   const fallbackPath = [
     originBranch,
@@ -637,64 +409,36 @@ export function normalizeTransferRoute(
         : fallbackPath;
 
   const transitBranches =
-    path.length > 2
-      ? path.slice(1, -1)
-      : fallbackTransitBranches;
+    path.length > 2 ? path.slice(1, -1) : fallbackTransitBranches;
 
   const transferCount =
-    path.length >= 2
-      ? path.length - 1
-      : toNumber(
-          row.transfer_count
-        );
+    path.length >= 2 ? path.length - 1 : toNumber(row.transfer_count);
 
   const transitCount =
     path.length >= 2
-      ? Math.max(
-          0,
-          path.length - 2
-        )
-      : toNumber(
-          row.transit_count
-        );
+      ? Math.max(0, path.length - 2)
+      : toNumber(row.transit_count);
 
   return {
     ...row,
 
-    id:
-      nullableNumber(row.id),
+    id: nullableNumber(row.id),
 
-    route_code:
-      row.route_code ??
-      row.code ??
-      "",
+    route_code: row.route_code ?? row.code ?? "",
 
-    name:
-      row.name ??
-      row.route_name ??
-      row.route_code ??
-      "Transfer route",
+    name: row.name ?? row.route_name ?? row.route_code ?? "Transfer route",
 
-    origin_branch_id:
-      originId,
+    origin_branch_id: originId,
 
-    destination_branch_id:
-      destinationId,
+    destination_branch_id: destinationId,
 
-    origin_branch:
-      originBranch,
+    origin_branch: originBranch,
 
-    destination_branch:
-      destinationBranch,
+    destination_branch: destinationBranch,
 
-    transit_branches:
-      transitBranches,
+    transit_branches: transitBranches,
 
-    transit_branch_ids:
-      transitBranches.map(
-        (branch) =>
-          Number(branch.id)
-      ),
+    transit_branch_ids: transitBranches.map((branch) => Number(branch.id)),
 
     /*
      * Example:
@@ -702,76 +446,39 @@ export function normalizeTransferRoute(
      */
     path,
 
-    path_text:
-      path.length
-        ? path
-            .map((branch) =>
-              branch.name
-            )
-            .join(" → ")
-        : row.path_text ?? "",
+    path_text: path.length
+      ? path.map((branch) => branch.name).join(" → ")
+      : (row.path_text ?? ""),
 
-    service_type:
-      row.service_type ??
-      "standard",
+    service_type: row.service_type ?? "standard",
 
-    base_rate:
-      toNumber(
-        row.base_rate
-      ),
+    base_rate: toNumber(row.base_rate),
 
-    currency:
-      row.currency ??
-      "NPR",
+    currency: row.currency ?? "NPR",
 
-    transfer_count:
-      transferCount,
+    transfer_count: transferCount,
 
-    transit_count:
-      transitCount,
+    transit_count: transitCount,
 
-    total_distance_km:
-      toNumber(
-        row.total_distance_km
-      ),
+    total_distance_km: toNumber(row.total_distance_km),
 
-    total_estimated_hours:
-      toNumber(
-        row.total_estimated_hours
-      ),
+    total_estimated_hours: toNumber(row.total_estimated_hours),
 
-    priority:
-      toNumber(
-        row.priority,
-        100
-      ),
+    priority: toNumber(row.priority, 100),
 
-    is_default:
-      toBoolean(
-        row.is_default
-      ),
+    is_default: toBoolean(row.is_default),
 
-    is_active:
-      toBoolean(
-        row.is_active
-      ),
+    is_active: toBoolean(row.is_active),
   };
 }
 
-export function formatMoney(
-  value,
-  currency = "NPR"
-) {
-  const amount =
-    toNumber(value);
+export function formatMoney(value, currency = "NPR") {
+  const amount = toNumber(value);
 
-  return `${currency} ${amount.toLocaleString(
-    "en-US",
-    {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    }
-  )}`;
+  return `${currency} ${amount.toLocaleString("en-US", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })}`;
 }
 
 export function formatDate(value) {
@@ -781,44 +488,24 @@ export function formatDate(value) {
 
   const date = new Date(value);
 
-  return Number.isNaN(
-    date.getTime()
-  )
-    ? "—"
-    : date.toLocaleString();
+  return Number.isNaN(date.getTime()) ? "—" : date.toLocaleString();
 }
 
 export function apiErrorMessage(
   error,
-  fallback =
-    "The request could not be completed."
+  fallback = "The request could not be completed.",
 ) {
-  const validationErrors =
-    error?.response?.data?.errors;
+  const validationErrors = error?.response?.data?.errors;
 
-  if (
-    validationErrors &&
-    typeof validationErrors ===
-      "object"
-  ) {
-    const firstError =
-      Object.values(
-        validationErrors
-      )
-        .flat()
-        .find(Boolean);
+  if (validationErrors && typeof validationErrors === "object") {
+    const firstError = Object.values(validationErrors).flat().find(Boolean);
 
     if (firstError) {
       return String(firstError);
     }
   }
 
-  return (
-    error?.response?.data
-      ?.message ??
-    error?.message ??
-    fallback
-  );
+  return error?.response?.data?.message ?? error?.message ?? fallback;
 }
 
 export function branchLabel(branch) {
@@ -826,7 +513,5 @@ export function branchLabel(branch) {
     return "Unknown branch";
   }
 
-  return branch.code
-    ? `${branch.name} (${branch.code})`
-    : branch.name;
+  return branch.code ? `${branch.name} (${branch.code})` : branch.name;
 }
