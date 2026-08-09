@@ -1,56 +1,58 @@
 import api from "@/lib/api";
 
-/*
-|--------------------------------------------------------------------------
-| Endpoint configuration
-|--------------------------------------------------------------------------
-|
-| Your api.js baseURL already includes /api/v1.
-|
-| Therefore:
-| /admin/branch-transfer-routes
-|
-| becomes:
-| https://api.tukaatuexpress.com/api/v1/admin/branch-transfer-routes
-|
-| Do not add /api/v1 again here.
-|
-*/
+/**
+ * Endpoint configuration
+ *
+ * api.js already includes /api/v1 in baseURL.
+ *
+ * Therefore:
+ *
+ * /admin/branch-route-rates
+ * becomes:
+ * /api/v1/admin/branch-route-rates
+ *
+ * Do not add /api/v1 here.
+ */
 
 const ADMIN_PREFIX = "/admin";
 
 const ENDPOINTS = Object.freeze({
+  // Reference data
   branches: `${ADMIN_PREFIX}/branches`,
   serviceTypes: `${ADMIN_PREFIX}/service-types`,
 
+  // Branch Pricing
   branchRouteRates: `${ADMIN_PREFIX}/branch-route-rates`,
 
+  // Direct physical transfer lanes
   transferLanes: `${ADMIN_PREFIX}/branch-transfer-lanes`,
 
+  // Complete transfer routes
   transferRoutes: `${ADMIN_PREFIX}/rate/branch-transfer-routes`,
 
+  // Pricing quotes
   pricingQuotes: `${ADMIN_PREFIX}/pricing-quotes`,
 });
 
-/*
-|--------------------------------------------------------------------------
-| Response helpers
-|--------------------------------------------------------------------------
-*/
+/**
+ * Response helpers
+ */
 
 function unwrapData(response) {
   return response?.data?.data ?? response?.data ?? null;
 }
 
-/*
- * Use this for list endpoints.
+/**
+ * Use this for Laravel list endpoints.
  *
- * It preserves Laravel pagination:
+ * Preserves pagination:
  *
  * {
- *   data: [...],
+ *   data: [],
  *   current_page: 1,
- *   total: 20
+ *   per_page: 25,
+ *   total: 100,
+ *   last_page: 4
  * }
  */
 function unwrapList(response) {
@@ -66,15 +68,25 @@ function unwrapList(response) {
     };
   }
 
-  return payload ?? {
-    data: [],
-    current_page: 1,
-    per_page: 0,
-    total: 0,
-    last_page: 1,
-  };
+  return (
+    payload ?? {
+      data: [],
+      current_page: 1,
+      per_page: 0,
+      total: 0,
+      last_page: 1,
+    }
+  );
 }
 
+/**
+ * Resolve an ID from:
+ *
+ * 123
+ * "123"
+ * { id: 123 }
+ * { branch: { id: 123 } }
+ */
 function resolveId(value, nestedKey = null) {
   if (value === null || value === undefined) {
     return null;
@@ -86,23 +98,17 @@ function resolveId(value, nestedKey = null) {
   ) {
     const id = Number(value);
 
-    return Number.isFinite(id)
-      ? id
-      : null;
+    return Number.isFinite(id) ? id : null;
   }
 
   if (typeof value === "object") {
     const possibleValue =
       value.id ??
-      (nestedKey
-        ? value[nestedKey]?.id
-        : null);
+      (nestedKey ? value[nestedKey]?.id : null);
 
     const id = Number(possibleValue);
 
-    return Number.isFinite(id)
-      ? id
-      : null;
+    return Number.isFinite(id) ? id : null;
   }
 
   return null;
@@ -111,17 +117,17 @@ function resolveId(value, nestedKey = null) {
 function normalizeBoolean(value) {
   return Boolean(
     value === true ||
-    value === 1 ||
-    value === "1" ||
-    value === "true"
+      value === 1 ||
+      value === "1" ||
+      value === "true"
   );
 }
 
-/*
-|--------------------------------------------------------------------------
-| Branch/reference data
-|--------------------------------------------------------------------------
-*/
+/**
+ * --------------------------------------------------------------------------
+ * Branch/reference data
+ * --------------------------------------------------------------------------
+ */
 
 export async function getRateBranches(params = {}) {
   const response = await api.get(
@@ -161,23 +167,21 @@ export async function getRateServiceTypes(params = {}) {
   return response.data;
 }
 
-/*
-|--------------------------------------------------------------------------
-| Branch route rates
-|--------------------------------------------------------------------------
-|
-| Manages:
-| branch_route_rates
-|
-| Example:
-| Kathmandu -> Pokhara
-| Kathmandu -> Biratnagar
-|
-*/
+/**
+ * --------------------------------------------------------------------------
+ * Branch route rates
+ *
+ * Database:
+ * branch_route_rates
+ *
+ * Example:
+ *
+ * Kathmandu -> Pokhara
+ * Kathmandu -> Biratnagar
+ * --------------------------------------------------------------------------
+ */
 
-export async function getBranchRouteRates(
-  params = {}
-) {
+export async function getBranchRouteRates(params = {}) {
   const response = await api.get(
     ENDPOINTS.branchRouteRates,
     {
@@ -196,9 +200,7 @@ export async function getBranchRouteRate(id) {
   return unwrapData(response);
 }
 
-export async function createBranchRouteRate(
-  payload
-) {
+export async function createBranchRouteRate(payload) {
   const response = await api.post(
     ENDPOINTS.branchRouteRates,
     payload
@@ -241,12 +243,15 @@ export async function deleteBranchRouteRate(id) {
   return response.data;
 }
 
-/*
- * Creates the reverse directional rate.
+/**
+ * Create reverse directional branch rate.
  *
  * Example:
+ *
  * KTM -> PKR
+ *
  * becomes:
+ *
  * PKR -> KTM
  */
 export async function createReverseBranchRouteRate(
@@ -263,28 +268,22 @@ export async function createReverseBranchRouteRate(
       routeRate?.delivery_branch
   );
 
-  if (
-    !pickupBranchId ||
-    !deliveryBranchId
-  ) {
+  if (!pickupBranchId || !deliveryBranchId) {
     throw new Error(
       "Pickup and delivery branch IDs are required to create the reverse rate."
     );
   }
 
   return createBranchRouteRate({
-    pickup_branch_id:
-      deliveryBranchId,
+    pickup_branch_id: deliveryBranchId,
 
-    delivery_branch_id:
-      pickupBranchId,
+    delivery_branch_id: pickupBranchId,
 
-    base_rate:
-      Number(
-        overrides.base_rate ??
+    base_rate: Number(
+      overrides.base_rate ??
         routeRate?.base_rate ??
         0
-      ),
+    ),
 
     is_active:
       overrides.is_active ??
@@ -295,20 +294,19 @@ export async function createReverseBranchRouteRate(
   });
 }
 
-/*
-|--------------------------------------------------------------------------
-| Direct transfer lanes
-|--------------------------------------------------------------------------
-|
-| Manages:
-| branch_transfer_lanes
-|
-| A lane is one direct physical connection:
-|
-| Kathmandu -> Pokhara
-| Pokhara -> Mustang
-|
-*/
+/**
+ * --------------------------------------------------------------------------
+ * Direct transfer lanes
+ *
+ * Database:
+ * branch_transfer_lanes
+ *
+ * Example:
+ *
+ * Kathmandu -> Pokhara
+ * Pokhara -> Mustang
+ * --------------------------------------------------------------------------
+ */
 
 export async function getBranchTransferLanes(
   params = {}
@@ -368,9 +366,7 @@ export async function updateBranchTransferLaneStatus(
   return unwrapData(response);
 }
 
-export async function deleteBranchTransferLane(
-  id
-) {
+export async function deleteBranchTransferLane(id) {
   const response = await api.delete(
     `${ENDPOINTS.transferLanes}/${id}`
   );
@@ -378,12 +374,15 @@ export async function deleteBranchTransferLane(
   return response.data;
 }
 
-/*
- * Creates an explicit reverse lane record.
+/**
+ * Create explicit reverse transfer lane.
  *
  * Example:
+ *
  * KTM -> PKR
+ *
  * becomes:
+ *
  * PKR -> KTM
  */
 export async function createReverseBranchTransferLane(
@@ -400,21 +399,16 @@ export async function createReverseBranchTransferLane(
       lane?.to_branch
   );
 
-  if (
-    !fromBranchId ||
-    !toBranchId
-  ) {
+  if (!fromBranchId || !toBranchId) {
     throw new Error(
       "From and to branch IDs are required to create the reverse lane."
     );
   }
 
   return createBranchTransferLane({
-    from_branch_id:
-      toBranchId,
+    from_branch_id: toBranchId,
 
-    to_branch_id:
-      fromBranchId,
+    to_branch_id: fromBranchId,
 
     service_type:
       overrides.service_type ??
@@ -426,26 +420,23 @@ export async function createReverseBranchTransferLane(
       lane?.transport_mode ??
       "road",
 
-    distance_km:
-      Number(
-        overrides.distance_km ??
+    distance_km: Number(
+      overrides.distance_km ??
         lane?.distance_km ??
         0
-      ),
+    ),
 
-    estimated_hours:
-      Number(
-        overrides.estimated_hours ??
+    estimated_hours: Number(
+      overrides.estimated_hours ??
         lane?.estimated_hours ??
         1
-      ),
+    ),
 
-    priority:
-      Number(
-        overrides.priority ??
+    priority: Number(
+      overrides.priority ??
         lane?.priority ??
         100
-      ),
+    ),
 
     is_bidirectional:
       overrides.is_bidirectional ??
@@ -460,25 +451,16 @@ export async function createReverseBranchTransferLane(
   });
 }
 
-/*
-|--------------------------------------------------------------------------
-| Complete transfer routes and route base rates
-|--------------------------------------------------------------------------
-|
-| Manages:
-|
-| branch_transfer_routes
-| branch_transfer_route_lanes
-|
-| Examples:
-|
-| KTM -> PKR
-| KTM -> PKR -> Mustang
-| Biratnagar -> KTM -> PKR
-|
-| The complete route base rate is stored here.
-|
-*/
+/**
+ * --------------------------------------------------------------------------
+ * Complete transfer routes
+ *
+ * Database:
+ *
+ * branch_transfer_routes
+ * branch_transfer_route_lanes
+ * --------------------------------------------------------------------------
+ */
 
 export async function getBranchTransferRoutes(
   params = {}
@@ -549,9 +531,7 @@ export async function updateBranchTransferRouteStatus(
   return unwrapData(response);
 }
 
-export async function deleteBranchTransferRoute(
-  id
-) {
+export async function deleteBranchTransferRoute(id) {
   const response = await api.delete(
     `${ENDPOINTS.transferRoutes}/${id}`
   );
@@ -559,19 +539,16 @@ export async function deleteBranchTransferRoute(
   return response.data;
 }
 
-/*
- * Build the reverse complete-route payload.
- *
- * Example:
+/**
+ * Build reverse complete-route payload.
  *
  * Original:
+ *
  * KTM -> PKR -> Mustang
  *
  * Reverse:
- * Mustang -> PKR -> KTM
  *
- * This only builds the payload.
- * Saving still uses createBranchTransferRoute().
+ * Mustang -> PKR -> KTM
  */
 export function buildReverseTransferRoutePayload(
   route,
@@ -582,53 +559,41 @@ export function buildReverseTransferRoutePayload(
       route?.origin_branch
   );
 
-  const destinationBranchId =
-    resolveId(
-      route?.destination_branch_id ??
-        route?.destination_branch
-    );
+  const destinationBranchId = resolveId(
+    route?.destination_branch_id ??
+      route?.destination_branch
+  );
 
-  if (
-    !originBranchId ||
-    !destinationBranchId
-  ) {
+  if (!originBranchId || !destinationBranchId) {
     throw new Error(
       "Origin and destination branches are required to create the reverse route."
     );
   }
 
-  const transitBranchIds = Array.isArray(
-    route?.transit_branch_ids
-  )
-    ? route.transit_branch_ids
-        .map((id) => Number(id))
-        .filter(Number.isFinite)
-    : Array.isArray(
-        route?.transit_branches
-      )
-      ? route.transit_branches
-          .map((branch) =>
-            resolveId(branch)
-          )
-          .filter(Boolean)
-      : [];
+  const transitBranchIds =
+    Array.isArray(route?.transit_branch_ids)
+      ? route.transit_branch_ids
+          .map((id) => Number(id))
+          .filter(Number.isFinite)
+      : Array.isArray(route?.transit_branches)
+        ? route.transit_branches
+            .map((branch) => resolveId(branch))
+            .filter(Boolean)
+        : [];
 
   const reverseTransitBranchIds = [
     ...transitBranchIds,
   ].reverse();
 
-  const originalCode =
-    String(
-      route?.route_code ?? ""
-    ).trim();
+  const originalCode = String(
+    route?.route_code ?? ""
+  ).trim();
 
   const generatedCode =
     overrides.route_code ??
-    (
-      originalCode
-        ? `${originalCode}-REV`
-        : `ROUTE-${destinationBranchId}-${originBranchId}`
-    );
+    (originalCode
+      ? `${originalCode}-REV`
+      : `ROUTE-${destinationBranchId}-${originBranchId}`);
 
   const originName =
     route?.origin_branch?.name ??
@@ -641,8 +606,7 @@ export function buildReverseTransferRoutePayload(
     "Destination";
 
   return {
-    route_code:
-      generatedCode,
+    route_code: generatedCode,
 
     name:
       overrides.name ??
@@ -662,24 +626,22 @@ export function buildReverseTransferRoutePayload(
       route?.service_type ??
       "standard",
 
-    base_rate:
-      Number(
-        overrides.base_rate ??
+    base_rate: Number(
+      overrides.base_rate ??
         route?.base_rate ??
         0
-      ),
+    ),
 
     currency:
       overrides.currency ??
       route?.currency ??
       "NPR",
 
-    priority:
-      Number(
-        overrides.priority ??
+    priority: Number(
+      overrides.priority ??
         route?.priority ??
         100
-      ),
+    ),
 
     is_default:
       overrides.is_default ??
@@ -693,11 +655,9 @@ export function buildReverseTransferRoutePayload(
 
     notes:
       overrides.notes ??
-      (
-        route?.route_code
-          ? `Reverse of ${route.route_code}`
-          : "Reverse transfer route"
-      ),
+      (route?.route_code
+        ? `Reverse of ${route.route_code}`
+        : "Reverse transfer route"),
 
     ...overrides,
   };
@@ -713,10 +673,6 @@ export async function createReverseBranchTransferRoute(
       overrides
     );
 
-  /*
-   * Preview first so the backend validates that
-   * all reverse direct lanes exist.
-   */
   await previewBranchTransferRoute({
     origin_branch_id:
       payload.origin_branch_id,
@@ -736,11 +692,11 @@ export async function createReverseBranchTransferRoute(
   );
 }
 
-/*
-|--------------------------------------------------------------------------
-| Pricing quotes
-|--------------------------------------------------------------------------
-*/
+/**
+ * --------------------------------------------------------------------------
+ * Pricing quotes
+ * --------------------------------------------------------------------------
+ */
 
 export async function getPricingQuotes(
   params = {}
@@ -763,14 +719,11 @@ export async function getPricingQuote(id) {
   return unwrapData(response);
 }
 
-/*
-|--------------------------------------------------------------------------
-| Compatibility aliases
-|--------------------------------------------------------------------------
-|
-| These aliases allow older/newer pages to use either naming pattern.
-|
-*/
+/**
+ * --------------------------------------------------------------------------
+ * Compatibility aliases
+ * --------------------------------------------------------------------------
+ */
 
 export const listBranchRouteRates =
   getBranchRouteRates;
@@ -802,12 +755,13 @@ export const deleteTransferRoute =
 export const previewTransferRoute =
   previewBranchTransferRoute;
 
-/*
- * Export helpers when a page needs to normalize
- * custom backend responses.
+/**
+ * Export helpers.
  */
 export {
   ENDPOINTS,
   unwrapData,
   unwrapList,
+  resolveId,
+  normalizeBoolean,
 };

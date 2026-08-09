@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+
 import {
   Button,
   Card,
@@ -22,6 +23,7 @@ import {
   Typography,
   message,
 } from "antd";
+
 import {
   DeleteOutlined,
   EditOutlined,
@@ -55,15 +57,33 @@ import {
 const { Title, Text } = Typography;
 
 const SERVICE_TYPES = [
-  { label: "Standard", value: "standard" },
-  { label: "Express", value: "express" },
-  { label: "Same Day", value: "same_day" },
+  {
+    label: "Standard",
+    value: "standard",
+  },
+  {
+    label: "Express",
+    value: "express",
+  },
+  {
+    label: "Same Day",
+    value: "same_day",
+  },
 ];
 
 const TRANSPORT_MODES = [
-  { label: "Road", value: "road" },
-  { label: "Air", value: "air" },
-  { label: "Mixed", value: "mixed" },
+  {
+    label: "Road",
+    value: "road",
+  },
+  {
+    label: "Air",
+    value: "air",
+  },
+  {
+    label: "Mixed",
+    value: "mixed",
+  },
 ];
 
 function statusTag(active) {
@@ -101,10 +121,7 @@ export default function BranchTransferLanesPage() {
     total: 0,
   });
 
-  const branchesById = useMemo(
-    () => buildBranchMap(branches),
-    [branches]
-  );
+  const branchesById = useMemo(() => buildBranchMap(branches), [branches]);
 
   const branchOptions = useMemo(
     () =>
@@ -112,7 +129,7 @@ export default function BranchTransferLanesPage() {
         value: Number(branch.id),
         label: branchLabel(branch),
       })),
-    [branches]
+    [branches],
   );
 
   const loadBranches = useCallback(async () => {
@@ -124,79 +141,70 @@ export default function BranchTransferLanesPage() {
 
       const collection = extractCollection(payload);
 
-      setBranches(
-        collection.rows
-          .map(normalizeBranch)
-          .filter((branch) => Number.isFinite(Number(branch?.id)))
-      );
+      const normalizedBranches = collection.rows
+        .map(normalizeBranch)
+        .filter((branch) => Number.isFinite(Number(branch?.id)));
+
+      setBranches(normalizedBranches);
     } catch (error) {
-      message.error(
-        apiErrorMessage(error, "Could not load branch options.")
-      );
+      message.error(apiErrorMessage(error, "Could not load branch options."));
     }
   }, []);
 
   const loadRows = useCallback(
-    async (
-      page = pagination.current,
-      pageSize = pagination.pageSize
-    ) => {
+    async (page = pagination.current, pageSize = pagination.pageSize) => {
       try {
         setLoading(true);
 
         const payload = await getBranchTransferLanes({
           page,
           per_page: pageSize,
-          search: filters.search || undefined,
-          from_branch_id:
-            filters.from_branch_id || undefined,
-          to_branch_id:
-            filters.to_branch_id || undefined,
-          service_type:
-            filters.service_type || undefined,
+
+          search: filters.search?.trim() || undefined,
+
+          from_branch_id: filters.from_branch_id || undefined,
+
+          to_branch_id: filters.to_branch_id || undefined,
+
+          service_type: filters.service_type || undefined,
+
           is_active:
-            filters.is_active === undefined
-              ? undefined
-              : filters.is_active,
+            filters.is_active === undefined ? undefined : filters.is_active,
         });
 
         const collection = extractCollection(payload);
 
         const normalized = collection.rows.map((row) =>
-          normalizeTransferLane(row, branchesById)
+          normalizeTransferLane(row, branchesById),
         );
 
         setRows(normalized);
 
         setSelected((current) => {
-          if (!normalized.length) return null;
+          if (!normalized.length) {
+            return null;
+          }
 
           return (
-            normalized.find(
-              (row) => Number(row.id) === Number(current?.id)
-            ) || normalized[0]
+            normalized.find((row) => Number(row.id) === Number(current?.id)) ||
+            normalized[0]
           );
         });
 
         setPagination({
           current: collection.currentPage || page,
+
           pageSize: collection.pageSize || pageSize,
-          total: collection.total,
+
+          total: collection.total ?? normalized.length,
         });
       } catch (error) {
-        message.error(
-          apiErrorMessage(error, "Could not load transfer lanes.")
-        );
+        message.error(apiErrorMessage(error, "Could not load transfer lanes."));
       } finally {
         setLoading(false);
       }
     },
-    [
-      branchesById,
-      filters,
-      pagination.current,
-      pagination.pageSize,
-    ]
+    [branchesById, filters, pagination.current, pagination.pageSize],
   );
 
   useEffect(() => {
@@ -204,20 +212,19 @@ export default function BranchTransferLanesPage() {
   }, [loadBranches]);
 
   useEffect(() => {
-    if (branches.length) {
+    if (branches.length > 0) {
       loadRows(1, pagination.pageSize);
     }
   }, [branches.length]);
 
   const stats = useMemo(() => {
     const active = rows.filter((row) => row.is_active).length;
-    const bidirectional = rows.filter(
-      (row) => row.is_bidirectional
-    ).length;
+
+    const bidirectional = rows.filter((row) => row.is_bidirectional).length;
 
     const distance = rows.reduce(
       (sum, row) => sum + Number(row.distance_km || 0),
-      0
+      0,
     );
 
     return {
@@ -250,45 +257,63 @@ export default function BranchTransferLanesPage() {
     setEditing(row);
 
     form.setFieldsValue({
-      from_branch_id: row.from_branch_id,
-      to_branch_id: row.to_branch_id,
+      from_branch_id: Number(row.from_branch_id),
+
+      to_branch_id: Number(row.to_branch_id),
+
       service_type: row.service_type || "standard",
+
       transport_mode: row.transport_mode || "road",
-      distance_km: Number(row.distance_km),
+
+      distance_km:
+        row.distance_km === null || row.distance_km === undefined
+          ? undefined
+          : Number(row.distance_km),
+
       estimated_hours: Number(row.estimated_hours || 1),
+
       priority: Number(row.priority || 100),
+
       is_bidirectional: Boolean(row.is_bidirectional),
+
       is_active: Boolean(row.is_active),
     });
 
     setModalOpen(true);
   };
 
+  const closeModal = () => {
+    setModalOpen(false);
+    setEditing(null);
+    form.resetFields();
+  };
+
   const saveLane = async () => {
     try {
       const values = await form.validateFields();
-
-      if (
-        Number(values.from_branch_id) ===
-        Number(values.to_branch_id)
-      ) {
-        message.error(
-          "From and to branches must be different."
-        );
-        return;
-      }
 
       const payload = {
         from_branch_id: Number(values.from_branch_id),
         to_branch_id: Number(values.to_branch_id),
         service_type: values.service_type,
         transport_mode: values.transport_mode || null,
+
         distance_km:
-          values.distance_km === undefined
+          values.distance_km === undefined || values.distance_km === null
             ? null
             : Number(values.distance_km),
-        estimated_hours: Number(values.estimated_hours || 1),
-        priority: Number(values.priority || 100),
+
+        estimated_hours:
+          values.estimated_hours === undefined ||
+          values.estimated_hours === null
+            ? 1
+            : Number(values.estimated_hours),
+
+        priority:
+          values.priority === undefined || values.priority === null
+            ? 100
+            : Number(values.priority),
+
         is_bidirectional: Boolean(values.is_bidirectional),
         is_active: Boolean(values.is_active),
       };
@@ -311,9 +336,7 @@ export default function BranchTransferLanesPage() {
     } catch (error) {
       if (error?.errorFields) return;
 
-      message.error(
-        apiErrorMessage(error, "Could not save transfer lane.")
-      );
+      message.error(apiErrorMessage(error, "Could not save transfer lane."));
     } finally {
       setSaving(false);
     }
@@ -321,20 +344,15 @@ export default function BranchTransferLanesPage() {
 
   const toggleStatus = async (row) => {
     try {
-      await updateBranchTransferLaneStatus(
-        row.id,
-        !row.is_active
-      );
+      await updateBranchTransferLaneStatus(row.id, !row.is_active);
 
       message.success(
-        `Transfer lane ${row.is_active ? "disabled" : "enabled"}.`
+        `Transfer lane ${row.is_active ? "disabled" : "enabled"}.`,
       );
 
-      await loadRows();
+      await loadRows(pagination.current, pagination.pageSize);
     } catch (error) {
-      message.error(
-        apiErrorMessage(error, "Could not update lane status.")
-      );
+      message.error(apiErrorMessage(error, "Could not update lane status."));
     }
   };
 
@@ -343,11 +361,10 @@ export default function BranchTransferLanesPage() {
       await createReverseBranchTransferLane(row);
 
       message.success("Reverse transfer lane created.");
-      await loadRows();
+
+      await loadRows(pagination.current, pagination.pageSize);
     } catch (error) {
-      message.error(
-        apiErrorMessage(error, "Could not create reverse lane.")
-      );
+      message.error(apiErrorMessage(error, "Could not create reverse lane."));
     }
   };
 
@@ -356,11 +373,10 @@ export default function BranchTransferLanesPage() {
       await deleteBranchTransferLane(row.id);
 
       message.success("Transfer lane deleted.");
-      await loadRows();
+
+      await loadRows(pagination.current, pagination.pageSize);
     } catch (error) {
-      message.error(
-        apiErrorMessage(error, "Could not delete transfer lane.")
-      );
+      message.error(apiErrorMessage(error, "Could not delete transfer lane."));
     }
   };
 
@@ -369,11 +385,14 @@ export default function BranchTransferLanesPage() {
       title: "Direct Lane",
       key: "lane",
       width: 290,
+
       render: (_, row) => (
         <Space direction="vertical" size={2}>
           <Text strong>
             {row.from_branch?.name || "Unknown"}
+
             {" → "}
+
             {row.to_branch?.name || "Unknown"}
           </Text>
 
@@ -383,107 +402,131 @@ export default function BranchTransferLanesPage() {
         </Space>
       ),
     },
+
     {
       title: "Service",
       dataIndex: "service_type",
       width: 120,
-      render: (value) => <Tag color="blue">{value}</Tag>,
+
+      render: (value) => <Tag color="blue">{value || "—"}</Tag>,
     },
+
     {
       title: "Transport",
       dataIndex: "transport_mode",
       width: 110,
+
       render: (value) => value || "—",
     },
+
     {
       title: "Distance",
       dataIndex: "distance_km",
       width: 110,
+
       render: (value) =>
-        `${Number(value || 0).toFixed(2)} km`,
+        value === null || value === undefined
+          ? "—"
+          : `${Number(value).toFixed(2)} km`,
     },
+
     {
       title: "ETA",
       dataIndex: "estimated_hours",
       width: 90,
+
       render: (value) => `${Number(value || 0)} hrs`,
     },
+
     {
       title: "Direction",
       dataIndex: "is_bidirectional",
       width: 130,
+
       render: (value) => (
         <Tag color={value ? "purple" : "default"}>
           {value ? "Bidirectional" : "One-way"}
         </Tag>
       ),
     },
+
     {
       title: "Status",
       dataIndex: "is_active",
       width: 110,
       render: statusTag,
     },
+
     {
       title: "Actions",
       key: "actions",
       width: 250,
       fixed: "right",
+
       render: (_, row) => (
         <Space wrap>
           {/* <PermissionGate permission="pricing.transfer_lanes.update"> */}
-            <Tooltip title="Edit lane">
-              <Button
-                size="small"
-                icon={<EditOutlined />}
-                onClick={(event) => {
-                  event.stopPropagation();
-                  openEdit(row);
-                }}
-              />
-            </Tooltip>
+          <Tooltip title="Edit lane">
+            <Button
+              size="small"
+              icon={<EditOutlined />}
+              onClick={(event) => {
+                event.stopPropagation();
+                openEdit(row);
+              }}
+            />
+          </Tooltip>
           {/* </PermissionGate> */}
 
           {/* <PermissionGate permission="pricing.transfer_lanes.create"> */}
-            <Tooltip title="Create reverse lane">
-              <Button
-                size="small"
-                icon={<SwapOutlined />}
-                onClick={(event) => {
-                  event.stopPropagation();
-                  createReverse(row);
-                }}
-              />
-            </Tooltip>
+          <Tooltip
+            title={
+              Number(row.from_branch_id) === Number(row.to_branch_id)
+                ? "Same-branch lane has no reverse route"
+                : "Create reverse lane"
+            }
+          >
+            <Button
+              size="small"
+              disabled={Number(row.from_branch_id) === Number(row.to_branch_id)}
+              icon={<SwapOutlined />}
+              onClick={(event) => {
+                event.stopPropagation();
+                createReverse(row);
+              }}
+            />
+          </Tooltip>
           {/* </PermissionGate> */}
 
           {/* <PermissionGate permission="pricing.transfer_lanes.status"> */}
-            <Button
-              size="small"
-              onClick={(event) => {
-                event.stopPropagation();
-                toggleStatus(row);
-              }}
-            >
-              {row.is_active ? "Disable" : "Enable"}
-            </Button>
+          <Button
+            size="small"
+            onClick={(event) => {
+              event.stopPropagation();
+              toggleStatus(row);
+            }}
+          >
+            {row.is_active ? "Disable" : "Enable"}
+          </Button>
           {/* </PermissionGate> */}
 
           {/* <PermissionGate permission="pricing.transfer_lanes.delete"> */}
-            <Popconfirm
-              title="Delete this transfer lane?"
-              description="Routes using this lane may stop working."
-              okText="Delete"
-              okButtonProps={{ danger: true }}
-              onConfirm={() => removeLane(row)}
-            >
-              <Button
-                danger
-                size="small"
-                icon={<DeleteOutlined />}
-                onClick={(event) => event.stopPropagation()}
-              />
-            </Popconfirm>
+          <Popconfirm
+            title="Delete this transfer lane?"
+            description="Routes using this lane may stop working."
+            okText="Delete"
+            okButtonProps={{
+              danger: true,
+            }}
+            onConfirm={() => removeLane(row)}
+          >
+            <Button
+              danger
+              size="small"
+              icon={<DeleteOutlined />}
+              onClick={(event) => event.stopPropagation()}
+            />
+          </Popconfirm>
           {/* </PermissionGate> */}
         </Space>
       ),
@@ -491,24 +534,20 @@ export default function BranchTransferLanesPage() {
   ];
 
   const selectedNodes = selected
-    ? [
-        selected.from_branch,
-        selected.to_branch,
-      ].filter(Boolean)
+    ? [selected.from_branch, selected.to_branch].filter(Boolean)
     : [];
 
   return (
     <Space direction="vertical" size={20} style={{ width: "100%" }}>
       <Card bordered={false}>
         <Row justify="space-between" align="middle" gutter={[16, 16]}>
-          <Col>
+          <Col flex="auto">
             <Title level={3} style={{ margin: 0 }}>
               Transfer Lanes
             </Title>
 
             <Text type="secondary">
-              Manage direct physical network segments. A lane is one
-              connection only, such as Kathmandu → Pokhara.
+              Manage direct physical network connections between branches.
             </Text>
           </Col>
 
@@ -516,20 +555,22 @@ export default function BranchTransferLanesPage() {
             <Space>
               <Button
                 icon={<ReloadOutlined />}
-                onClick={() => loadRows()}
+                onClick={() =>
+                  loadRows(pagination.current, pagination.pageSize)
+                }
               >
                 Refresh
               </Button>
 
-              <PermissionGate permission="pricing.transfer_lanes.create">
-                <Button
-                  type="primary"
-                  icon={<PlusOutlined />}
-                  onClick={() => openCreate()}
-                >
-                  Add Transfer Lane
-                </Button>
-              </PermissionGate>
+              {/* <PermissionGate permission="pricing.transfer_lanes.create"> */}
+              <Button
+                type="primary"
+                icon={<PlusOutlined />}
+                onClick={() => openCreate()}
+              >
+                Add Transfer Lane
+              </Button>
+              {/* </PermissionGate> */}
             </Space>
           </Col>
         </Row>
@@ -550,10 +591,7 @@ export default function BranchTransferLanesPage() {
 
         <Col xs={24} md={6}>
           <Card bordered={false}>
-            <Statistic
-              title="Bidirectional"
-              value={stats.bidirectional}
-            />
+            <Statistic title="Bidirectional" value={stats.bidirectional} />
           </Card>
         </Col>
 
@@ -591,7 +629,9 @@ export default function BranchTransferLanesPage() {
               showSearch
               optionFilterProp="label"
               placeholder="From branch"
-              style={{ width: "100%" }}
+              style={{
+                width: "100%",
+              }}
               options={branchOptions}
               value={filters.from_branch_id}
               onChange={(value) =>
@@ -609,7 +649,9 @@ export default function BranchTransferLanesPage() {
               showSearch
               optionFilterProp="label"
               placeholder="To branch"
-              style={{ width: "100%" }}
+              style={{
+                width: "100%",
+              }}
               options={branchOptions}
               value={filters.to_branch_id}
               onChange={(value) =>
@@ -625,7 +667,9 @@ export default function BranchTransferLanesPage() {
             <Select
               allowClear
               placeholder="Service"
-              style={{ width: "100%" }}
+              style={{
+                width: "100%",
+              }}
               options={SERVICE_TYPES}
               value={filters.service_type}
               onChange={(value) =>
@@ -641,7 +685,9 @@ export default function BranchTransferLanesPage() {
             <Select
               allowClear
               placeholder="Status"
-              style={{ width: "100%" }}
+              style={{
+                width: "100%",
+              }}
               value={filters.is_active}
               onChange={(value) =>
                 setFilters((current) => ({
@@ -650,18 +696,20 @@ export default function BranchTransferLanesPage() {
                 }))
               }
               options={[
-                { label: "Active", value: 1 },
-                { label: "Inactive", value: 0 },
+                {
+                  label: "Active",
+                  value: 1,
+                },
+                {
+                  label: "Inactive",
+                  value: 0,
+                },
               ]}
             />
           </Col>
 
           <Col xs={24} lg={3}>
-            <Button
-              block
-              type="primary"
-              onClick={() => loadRows(1)}
-            >
+            <Button block type="primary" onClick={() => loadRows(1)}>
               Apply
             </Button>
           </Col>
@@ -684,7 +732,9 @@ export default function BranchTransferLanesPage() {
               }
               onRow={(row) => ({
                 onClick: () => setSelected(row),
-                style: { cursor: "pointer" },
+                style: {
+                  cursor: "pointer",
+                },
               })}
               pagination={{
                 current: pagination.current,
@@ -692,9 +742,7 @@ export default function BranchTransferLanesPage() {
                 total: pagination.total,
                 showSizeChanger: true,
               }}
-              onChange={(next) =>
-                loadRows(next.current, next.pageSize)
-              }
+              onChange={(next) => loadRows(next.current, next.pageSize)}
             />
           </Card>
         </Col>
@@ -710,7 +758,9 @@ export default function BranchTransferLanesPage() {
             <Descriptions
               column={1}
               size="small"
-              style={{ marginTop: 18 }}
+              style={{
+                marginTop: 18,
+              }}
             >
               <Descriptions.Item label="From">
                 {selected?.from_branch?.name || "—"}
@@ -722,20 +772,20 @@ export default function BranchTransferLanesPage() {
 
               <Descriptions.Item label="Distance">
                 {selected
-                  ? `${Number(selected.distance_km).toFixed(2)} km`
+                  ? selected.distance_km === null
+                    ? "—"
+                    : `${Number(selected.distance_km).toFixed(2)} km`
                   : "—"}
               </Descriptions.Item>
 
               <Descriptions.Item label="ETA">
                 {selected
-                  ? `${Number(selected.estimated_hours)} hrs`
+                  ? `${Number(selected.estimated_hours || 0)} hrs`
                   : "—"}
               </Descriptions.Item>
 
               <Descriptions.Item label="Status">
-                {selected
-                  ? statusTag(selected.is_active)
-                  : "—"}
+                {selected ? statusTag(selected.is_active) : "—"}
               </Descriptions.Item>
             </Descriptions>
           </Card>
@@ -749,11 +799,7 @@ export default function BranchTransferLanesPage() {
         confirmLoading={saving}
         okText={editing ? "Update Lane" : "Create Lane"}
         onOk={saveLane}
-        onCancel={() => {
-          setModalOpen(false);
-          setEditing(null);
-          form.resetFields();
-        }}
+        onCancel={closeModal}
         destroyOnClose
       >
         <Form
@@ -761,10 +807,15 @@ export default function BranchTransferLanesPage() {
           layout="vertical"
           initialValues={{
             service_type: "standard",
+
             transport_mode: "road",
+
             estimated_hours: 1,
+
             priority: 100,
+
             is_bidirectional: false,
+
             is_active: true,
           }}
         >
@@ -773,7 +824,12 @@ export default function BranchTransferLanesPage() {
               <Form.Item
                 name="from_branch_id"
                 label="From Branch"
-                rules={[{ required: true }]}
+                rules={[
+                  {
+                    required: true,
+                    message: "Please select from branch.",
+                  },
+                ]}
               >
                 <Select
                   showSearch
@@ -787,7 +843,12 @@ export default function BranchTransferLanesPage() {
               <Form.Item
                 name="to_branch_id"
                 label="To Branch"
-                rules={[{ required: true }]}
+                rules={[
+                  {
+                    required: true,
+                    message: "Please select to branch.",
+                  },
+                ]}
               >
                 <Select
                   showSearch
@@ -803,34 +864,31 @@ export default function BranchTransferLanesPage() {
               <Form.Item
                 name="service_type"
                 label="Service Type"
-                rules={[{ required: true }]}
+                rules={[
+                  {
+                    required: true,
+                  },
+                ]}
               >
                 <Select options={SERVICE_TYPES} />
               </Form.Item>
             </Col>
 
             <Col span={8}>
-              <Form.Item
-                name="transport_mode"
-                label="Transport Mode"
-              >
-                <Select
-                  allowClear
-                  options={TRANSPORT_MODES}
-                />
+              <Form.Item name="transport_mode" label="Transport Mode">
+                <Select allowClear options={TRANSPORT_MODES} />
               </Form.Item>
             </Col>
 
             <Col span={8}>
-              <Form.Item
-                name="distance_km"
-                label="Distance"
-              >
+              <Form.Item name="distance_km" label="Distance">
                 <InputNumber
                   min={0}
                   precision={2}
                   addonAfter="km"
-                  style={{ width: "100%" }}
+                  style={{
+                    width: "100%",
+                  }}
                 />
               </Form.Item>
             </Col>
@@ -841,11 +899,17 @@ export default function BranchTransferLanesPage() {
               <Form.Item
                 name="estimated_hours"
                 label="Estimated Hours"
-                rules={[{ required: true }]}
+                rules={[
+                  {
+                    required: true,
+                  },
+                ]}
               >
                 <InputNumber
                   min={1}
-                  style={{ width: "100%" }}
+                  style={{
+                    width: "100%",
+                  }}
                 />
               </Form.Item>
             </Col>
@@ -854,11 +918,17 @@ export default function BranchTransferLanesPage() {
               <Form.Item
                 name="priority"
                 label="Priority"
-                rules={[{ required: true }]}
+                rules={[
+                  {
+                    required: true,
+                  },
+                ]}
               >
                 <InputNumber
                   min={1}
-                  style={{ width: "100%" }}
+                  style={{
+                    width: "100%",
+                  }}
                 />
               </Form.Item>
             </Col>
