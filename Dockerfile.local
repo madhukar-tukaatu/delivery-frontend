@@ -1,0 +1,43 @@
+FROM node:24-alpine
+
+WORKDIR /app
+
+ENV NEXT_TELEMETRY_DISABLED=1
+
+# =========================================================
+# Enable Corepack + pnpm
+# =========================================================
+
+RUN corepack enable \
+    && corepack prepare pnpm@10.15.0 --activate
+
+# =========================================================
+# Copy dependency files
+# =========================================================
+
+COPY package.json ./
+COPY pnpm-lock.yaml* ./
+COPY pnpm-workspace.yaml* ./
+
+# =========================================================
+# Install dependencies
+#
+# Do not require the dependencies at build time because
+# docker-compose.local.yml mounts node_modules as a volume.
+# =========================================================
+
+RUN if [ -f pnpm-lock.yaml ]; then \
+        pnpm install --frozen-lockfile; \
+    else \
+        pnpm install; \
+    fi
+
+# =========================================================
+# Development
+# =========================================================
+
+ENV NODE_ENV=development
+
+EXPOSE 3000
+
+CMD ["pnpm", "dev", "--hostname", "0.0.0.0"]

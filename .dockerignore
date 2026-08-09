@@ -1,7 +1,13 @@
 .git
 .github
+
 node_modules
 .next
+
 .env
 .env.*
-README.md
+!.env.example
+
+npm-debug.log*
+yarn-debug.log*
+pnpm-debug.log*
