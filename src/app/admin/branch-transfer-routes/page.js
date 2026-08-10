@@ -772,6 +772,51 @@ export default function BranchTransferRoutesPage() {
    * -------------------------------------------------------
    */
 
+  // const buildRouteDefinition = async () => {
+  //   const values = await form.validateFields([
+  //     "origin_branch_id",
+  //     "transit_branch_ids",
+  //     "destination_branch_id",
+  //     "service_type",
+  //   ]);
+
+  //   const originId = Number(values.origin_branch_id);
+
+  //   const destinationId = Number(values.destination_branch_id);
+
+  //   const transitIds = (values.transit_branch_ids || []).map(Number);
+
+  //   const isSelfTransfer = originId === destinationId;
+
+  //   if (isSelfTransfer && transitIds.length > 0) {
+  //     throw new Error("A self-transfer route cannot contain transit branches.");
+  //   }
+
+  //   if (!isSelfTransfer) {
+  //     const ids = [originId, ...transitIds, destinationId];
+
+  //     const uniqueIds = new Set(ids);
+
+  //     if (uniqueIds.size !== ids.length) {
+  //       throw new Error(
+  //         "Origin, transit, and destination branches must not repeat.",
+  //       );
+  //     }
+  //   }
+
+  //   return {
+  //     origin_branch_id: originId,
+
+  //     transit_branch_ids: transitIds,
+
+  //     destination_branch_id: destinationId,
+
+  //     service_type: values.service_type,
+
+  //     route_type: isSelfTransfer ? "local" : "transfer",
+  //   };
+  // };
+
   const buildRouteDefinition = async () => {
     const values = await form.validateFields([
       "origin_branch_id",
@@ -780,48 +825,75 @@ export default function BranchTransferRoutesPage() {
       "service_type",
     ]);
 
-    const originId = Number(values.origin_branch_id);
+    const originBranchId = Number(values.origin_branch_id);
 
-    const destinationId = Number(values.destination_branch_id);
+    const destinationBranchId = Number(values.destination_branch_id);
 
-    const transitIds = (values.transit_branch_ids || []).map(Number);
+    const transitBranchIds = (values.transit_branch_ids || [])
+      .map(Number)
+      .filter(Number.isFinite);
 
-    const isSelfTransfer = originId === destinationId;
-
-    if (isSelfTransfer && transitIds.length > 0) {
-      throw new Error("A self-transfer route cannot contain transit branches.");
+    if (!Number.isFinite(originBranchId) || originBranchId <= 0) {
+      throw new Error("Please select a valid origin branch.");
     }
 
-    if (!isSelfTransfer) {
-      const ids = [originId, ...transitIds, destinationId];
+    if (!Number.isFinite(destinationBranchId) || destinationBranchId <= 0) {
+      throw new Error("Please select a valid destination branch.");
+    }
 
-      const uniqueIds = new Set(ids);
+    if (originBranchId === destinationBranchId) {
+      throw new Error("Origin and destination branches must be different.");
+    }
 
-      if (uniqueIds.size !== ids.length) {
-        throw new Error(
-          "Origin, transit, and destination branches must not repeat.",
-        );
-      }
+    const allIds = [originBranchId, ...transitBranchIds, destinationBranchId];
+
+    if (new Set(allIds).size !== allIds.length) {
+      throw new Error(
+        "Origin, transit, and destination branches must not repeat.",
+      );
     }
 
     return {
-      origin_branch_id: originId,
+      route_type: "transfer",
 
-      transit_branch_ids: transitIds,
+      origin_branch_id: originBranchId,
 
-      destination_branch_id: destinationId,
+      transit_branch_ids: transitBranchIds,
 
-      service_type: values.service_type,
+      destination_branch_id: destinationBranchId,
 
-      route_type: isSelfTransfer ? "local" : "transfer",
+      service_type: values.service_type || "standard",
     };
   };
-
   /**
    * -------------------------------------------------------
    * Preview
    * -------------------------------------------------------
    */
+
+  // const previewRoute = async () => {
+  //   try {
+  //     setPreviewing(true);
+
+  //     const definition = await buildRouteDefinition();
+
+  //     const result = await previewBranchTransferRoute(definition);
+
+  //     setPreview(result);
+
+  //     message.success("Route validated successfully.");
+  //   } catch (error) {
+  //     if (error?.errorFields) {
+  //       return;
+  //     }
+
+  //     message.error(
+  //       apiErrorMessage(error, "Could not validate transfer route."),
+  //     );
+  //   } finally {
+  //     setPreviewing(false);
+  //   }
+  // };
 
   const previewRoute = async () => {
     try {
@@ -839,19 +911,120 @@ export default function BranchTransferRoutesPage() {
         return;
       }
 
+      console.error("TRANSFER ROUTE PREVIEW ERROR:", error);
+
       message.error(
-        apiErrorMessage(error, "Could not validate transfer route."),
+        apiErrorMessage(
+          error,
+          "This route could not be validated. Make sure every direct transfer lane exists and is active.",
+        ),
       );
     } finally {
       setPreviewing(false);
     }
   };
-
   /**
    * -------------------------------------------------------
    * Save route
    * -------------------------------------------------------
    */
+
+  // const saveRoute = async () => {
+  //   try {
+  //     const values = await form.validateFields();
+
+  //     const definition = await buildRouteDefinition();
+
+  //     /**
+  //      * Always validate the route before saving.
+  //      */
+  //     const routePreview = await previewBranchTransferRoute(definition);
+
+  //     setPreview(routePreview);
+
+  //     const calculatedBaseRate = getCalculatedBaseRate(routePreview);
+
+  //     if (!Number.isFinite(calculatedBaseRate)) {
+  //       throw new Error(
+  //         "The backend did not return a valid calculated route base rate.",
+  //       );
+  //     }
+
+  //     const routePayload = {
+  //       route_code: values.route_code.trim(),
+
+  //       name: values.name.trim(),
+
+  //       ...definition,
+
+  //       priority: Number(values.priority || 100),
+
+  //       is_default: Boolean(values.is_default),
+
+  //       is_active: Boolean(values.is_active),
+
+  //       notes: values.notes?.trim() || null,
+  //     };
+
+  //     const pricingPayload = buildRoutePricingProfilePayload(values);
+
+  //     setSaving(true);
+
+  //     const savedRoute = editing
+  //       ? await updateBranchTransferRoute(editing.id, routePayload)
+  //       : await createBranchTransferRoute(routePayload);
+
+  //     const savedRouteId = extractSavedRouteId(savedRoute, editing?.id);
+
+  //     /**
+  //      * Pricing profile is route-specific.
+  //      *
+  //      * Branch Pricing is NOT required.
+  //      */
+  //     const mustSavePricingProfile =
+  //       Boolean(editing) || pricingPayload.mode === "custom";
+
+  //     if (mustSavePricingProfile) {
+  //       if (!savedRouteId) {
+  //         message.warning(
+  //           "The route was saved, but its pricing profile could not be updated because the response did not include the route ID.",
+  //         );
+  //       } else {
+  //         try {
+  //           await updateTransferRoutePricingProfile(
+  //             savedRouteId,
+  //             pricingPayload,
+  //           );
+  //         } catch (pricingError) {
+  //           message.warning(
+  //             apiErrorMessage(
+  //               pricingError,
+  //               "The route was saved, but its pricing profile could not be updated.",
+  //             ),
+  //           );
+  //         }
+  //       }
+  //     }
+
+  //     message.success(
+  //       pricingPayload.mode === "custom"
+  //         ? "Transfer route and custom pricing saved."
+  //         : "Transfer route saved.",
+  //     );
+
+  //     resetModalState();
+
+  //     await loadRows();
+  //   } catch (error) {
+  //     if (error?.errorFields) {
+  //       return;
+  //     }
+
+  //     message.error(apiErrorMessage(error, "Could not save transfer route."));
+  //   } finally {
+  //     setSaving(false);
+  //   }
+  // };
 
   const saveRoute = async () => {
     try {
@@ -859,27 +1032,62 @@ export default function BranchTransferRoutesPage() {
 
       const definition = await buildRouteDefinition();
 
-      /**
-       * Always validate the route before saving.
-       */
-      const routePreview = await previewBranchTransferRoute(definition);
+      /*
+    |--------------------------------------------------------------------------
+    | IMPORTANT
+    |--------------------------------------------------------------------------
+    | Validate the complete route BEFORE creating it.
+    |
+    | Example:
+    |
+    | 185 -> 190
+    |
+    | The backend must have an ACTIVE transfer lane:
+    |
+    | 185 -> 190
+    |
+    | If it does not exist, preview should reject the route before
+    | we attempt to insert branch_transfer_routes.
+    |--------------------------------------------------------------------------
+    */
 
-      setPreview(routePreview);
+      setSaving(true);
 
-      const calculatedBaseRate = getCalculatedBaseRate(routePreview);
+      let routePreview;
 
-      if (!Number.isFinite(calculatedBaseRate)) {
-        throw new Error(
-          "The backend did not return a valid calculated route base rate.",
+      try {
+        routePreview = await previewBranchTransferRoute(definition);
+
+        setPreview(routePreview);
+      } catch (previewError) {
+        message.error(
+          apiErrorMessage(
+            previewError,
+            "This route cannot be created because one or more required transfer lanes are missing or inactive.",
+          ),
         );
+
+        return;
       }
 
       const routePayload = {
+        route_type: "transfer",
+
         route_code: values.route_code.trim(),
 
         name: values.name.trim(),
 
-        ...definition,
+        origin_branch_id: definition.origin_branch_id,
+
+        transit_branch_ids: definition.transit_branch_ids,
+
+        destination_branch_id: definition.destination_branch_id,
+
+        service_type: definition.service_type,
+
+        base_rate: calculatedBaseRate,
+
+        currency: values.currency || "NPR",
 
         priority: Number(values.priority || 100),
 
@@ -892,7 +1100,11 @@ export default function BranchTransferRoutesPage() {
 
       const pricingPayload = buildRoutePricingProfilePayload(values);
 
-      setSaving(true);
+      /*
+    |--------------------------------------------------------------------------
+    | Create / update route
+    |--------------------------------------------------------------------------
+    */
 
       const savedRoute = editing
         ? await updateBranchTransferRoute(editing.id, routePayload)
@@ -900,18 +1112,19 @@ export default function BranchTransferRoutesPage() {
 
       const savedRouteId = extractSavedRouteId(savedRoute, editing?.id);
 
-      /**
-       * Pricing profile is route-specific.
-       *
-       * Branch Pricing is NOT required.
-       */
+      /*
+    |--------------------------------------------------------------------------
+    | Save route pricing profile
+    |--------------------------------------------------------------------------
+    */
+
       const mustSavePricingProfile =
         Boolean(editing) || pricingPayload.mode === "custom";
 
       if (mustSavePricingProfile) {
         if (!savedRouteId) {
           message.warning(
-            "The route was saved, but its pricing profile could not be updated because the response did not include the route ID.",
+            "The route was saved, but its pricing profile could not be updated because the API did not return the route ID.",
           );
         } else {
           try {
@@ -923,7 +1136,7 @@ export default function BranchTransferRoutesPage() {
             message.warning(
               apiErrorMessage(
                 pricingError,
-                "The route was saved, but its pricing profile could not be updated.",
+                "The route was saved, but its pricing profile could not be updated. Reopen the route and save the pricing mode again.",
               ),
             );
           }
@@ -933,7 +1146,7 @@ export default function BranchTransferRoutesPage() {
       message.success(
         pricingPayload.mode === "custom"
           ? "Transfer route and custom pricing saved."
-          : "Transfer route saved.",
+          : "Transfer route saved with global pricing.",
       );
 
       resetModalState();
@@ -944,12 +1157,19 @@ export default function BranchTransferRoutesPage() {
         return;
       }
 
+      /*
+    |--------------------------------------------------------------------------
+    | Show the actual backend error when possible
+    |--------------------------------------------------------------------------
+    */
+
+      console.error("CREATE/UPDATE TRANSFER ROUTE ERROR:", error);
+
       message.error(apiErrorMessage(error, "Could not save transfer route."));
     } finally {
       setSaving(false);
     }
   };
-
   /**
    * -------------------------------------------------------
    * Route actions
