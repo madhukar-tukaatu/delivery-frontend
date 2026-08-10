@@ -1,5 +1,5 @@
 "use client";
-
+import dynamic from "next/dynamic";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import {
@@ -38,7 +38,7 @@ import {
   SwapOutlined,
 } from "@ant-design/icons";
 
-import RouteMapS from "@/components/rate-admin/RouteMapS";
+// import RouteMapS from "@/components/rate-admin/RouteMapS";
 
 import TransferRoutePricingSection from "@/components/rate-admin/TransferRoutePricingSection";
 
@@ -94,6 +94,25 @@ const SERVICE_TYPES = [
   },
 ];
 
+const RouteMapS = dynamic(() => import("@/components/rate-admin/RouteMapS"), {
+  ssr: false,
+  loading: () => (
+    <div
+      style={{
+        height: 340,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        background: "#f5f7fa",
+        borderRadius: 8,
+        color: "#8c8c8c",
+      }}
+    >
+      Loading map...
+    </div>
+  ),
+});
+
 /**
  * ---------------------------------------------------------
  * Helpers
@@ -135,8 +154,7 @@ function extractSavedRouteId(payload, fallbackId = null) {
   ];
 
   const found = candidates.find(
-    (value) =>
-      Number.isFinite(Number(value)) && Number(value) > 0
+    (value) => Number.isFinite(Number(value)) && Number(value) > 0,
   );
 
   return found ? Number(found) : null;
@@ -158,9 +176,7 @@ function getCalculatedBaseRate(preview) {
 
   const value = candidates.find(
     (item) =>
-      item !== undefined &&
-      item !== null &&
-      Number.isFinite(Number(item))
+      item !== undefined && item !== null && Number.isFinite(Number(item)),
   );
 
   return value !== undefined ? Number(value) : 0;
@@ -183,13 +199,9 @@ function getPreviewLanes(preview) {
 }
 
 function getLaneFromBranchIds(lane, branchesById) {
-  const fromId =
-    lane?.from_branch_id ??
-    lane?.origin_branch_id;
+  const fromId = lane?.from_branch_id ?? lane?.origin_branch_id;
 
-  const toId =
-    lane?.to_branch_id ??
-    lane?.destination_branch_id;
+  const toId = lane?.to_branch_id ?? lane?.destination_branch_id;
 
   const from =
     lane?.from_branch?.name ??
@@ -230,11 +242,7 @@ function getLaneFromBranchIds(lane, branchesById) {
  */
 
 function getCoordinateValue(value) {
-  if (
-    value === undefined ||
-    value === null ||
-    value === ""
-  ) {
+  if (value === undefined || value === null || value === "") {
     return null;
   }
 
@@ -279,22 +287,12 @@ function getNodeCoordinates(item) {
    *
    * coordinates = [longitude, latitude]
    */
-  if (
-    Array.isArray(item.coordinates) &&
-    item.coordinates.length >= 2
-  ) {
-    const longitude = getCoordinateValue(
-      item.coordinates[0]
-    );
+  if (Array.isArray(item.coordinates) && item.coordinates.length >= 2) {
+    const longitude = getCoordinateValue(item.coordinates[0]);
 
-    const latitude = getCoordinateValue(
-      item.coordinates[1]
-    );
+    const latitude = getCoordinateValue(item.coordinates[1]);
 
-    if (
-      latitude !== null &&
-      longitude !== null
-    ) {
+    if (latitude !== null && longitude !== null) {
       return {
         latitude,
         longitude,
@@ -341,10 +339,7 @@ function branchToMapNode(branch, fallbackName = null) {
 
   return {
     id: Number(branch.id),
-    name:
-      branch.name ||
-      fallbackName ||
-      `Branch ${branch.id}`,
+    name: branch.name || fallbackName || `Branch ${branch.id}`,
     code: branch.code || null,
     latitude: coordinates.latitude,
     longitude: coordinates.longitude,
@@ -364,10 +359,7 @@ function branchToMapNode(branch, fallbackName = null) {
  *
  * This is the important part for RouteMapS.
  */
-function buildRouteMapNodes({
-  selected,
-  branchesById,
-}) {
+function buildRouteMapNodes({ selected, branchesById }) {
   if (!selected) {
     return [];
   }
@@ -377,46 +369,29 @@ function buildRouteMapNodes({
    *
    * Backend already returned complete path.
    */
-  const backendPath = Array.isArray(selected.path)
-    ? selected.path
-    : [];
+  const backendPath = Array.isArray(selected.path) ? selected.path : [];
 
   const backendNodes = backendPath
     .map((item) => {
-      const branch =
-        item?.branch ||
-        item;
+      const branch = item?.branch || item;
 
       const coordinates =
-        getNodeCoordinates(item) ||
-        getNodeCoordinates(branch);
+        getNodeCoordinates(item) || getNodeCoordinates(branch);
 
       if (!coordinates) {
         return null;
       }
 
       return {
-        id:
-          Number(
-            item?.id ??
-              branch?.id
-          ) || undefined,
+        id: Number(item?.id ?? branch?.id) || undefined,
 
-        name:
-          item?.name ||
-          branch?.name ||
-          "Branch",
+        name: item?.name || branch?.name || "Branch",
 
-        code:
-          item?.code ||
-          branch?.code ||
-          null,
+        code: item?.code || branch?.code || null,
 
-        latitude:
-          coordinates.latitude,
+        latitude: coordinates.latitude,
 
-        longitude:
-          coordinates.longitude,
+        longitude: coordinates.longitude,
       };
     })
     .filter(Boolean);
@@ -434,35 +409,20 @@ function buildRouteMapNodes({
    *
    * Construct route path from IDs and branch data.
    */
-  const originId =
-    Number(selected.origin_branch_id);
+  const originId = Number(selected.origin_branch_id);
 
-  const destinationId =
-    Number(selected.destination_branch_id);
+  const destinationId = Number(selected.destination_branch_id);
 
-  const transitIds =
-    Array.isArray(selected.transit_branch_ids)
-      ? selected.transit_branch_ids.map(Number)
-      : [];
+  const transitIds = Array.isArray(selected.transit_branch_ids)
+    ? selected.transit_branch_ids.map(Number)
+    : [];
 
-  const ids = [
-    originId,
-    ...transitIds,
-    destinationId,
-  ].filter(
+  const ids = [originId, ...transitIds, destinationId].filter(
     (id, index, array) =>
-      Number.isFinite(id) &&
-      id > 0 &&
-      array.indexOf(id) === index
+      Number.isFinite(id) && id > 0 && array.indexOf(id) === index,
   );
 
-  return ids
-    .map((id) =>
-      branchToMapNode(
-        branchesById.get(id)
-      )
-    )
-    .filter(Boolean);
+  return ids.map((id) => branchToMapNode(branchesById.get(id))).filter(Boolean);
 }
 
 /**
@@ -483,19 +443,13 @@ export default function BranchTransferRoutesPage() {
   const [saving, setSaving] = useState(false);
   const [previewing, setPreviewing] = useState(false);
 
-  const [
-    routePricingLoading,
-    setRoutePricingLoading,
-  ] = useState(false);
+  const [routePricingLoading, setRoutePricingLoading] = useState(false);
 
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState(null);
   const [preview, setPreview] = useState(null);
 
-  const [
-    routePricingProfile,
-    setRoutePricingProfile,
-  ] = useState(null);
+  const [routePricingProfile, setRoutePricingProfile] = useState(null);
 
   const [filters, setFilters] = useState({
     search: "",
@@ -517,10 +471,7 @@ export default function BranchTransferRoutesPage() {
    * -------------------------------------------------------
    */
 
-  const branchesById = useMemo(
-    () => buildBranchMap(branches),
-    [branches]
-  );
+  const branchesById = useMemo(() => buildBranchMap(branches), [branches]);
 
   const branchOptions = useMemo(
     () =>
@@ -528,7 +479,7 @@ export default function BranchTransferRoutesPage() {
         value: Number(branch.id),
         label: branchLabel(branch),
       })),
-    [branches]
+    [branches],
   );
 
   /**
@@ -544,26 +495,15 @@ export default function BranchTransferRoutesPage() {
         per_page: 500,
       });
 
-      const collection =
-        extractCollection(payload);
+      const collection = extractCollection(payload);
 
-      const normalized =
-        collection.rows
-          .map(normalizeBranch)
-          .filter((branch) =>
-            Number.isFinite(
-              Number(branch?.id)
-            )
-          );
+      const normalized = collection.rows
+        .map(normalizeBranch)
+        .filter((branch) => Number.isFinite(Number(branch?.id)));
 
       setBranches(normalized);
     } catch (error) {
-      message.error(
-        apiErrorMessage(
-          error,
-          "Could not load branch options."
-        )
-      );
+      message.error(apiErrorMessage(error, "Could not load branch options."));
     }
   }, []);
 
@@ -574,49 +514,31 @@ export default function BranchTransferRoutesPage() {
    */
 
   const loadRows = useCallback(
-    async (
-      page = pagination.current,
-      pageSize = pagination.pageSize
-    ) => {
+    async (page = pagination.current, pageSize = pagination.pageSize) => {
       try {
         setLoading(true);
 
-        const payload =
-          await getBranchTransferRoutes({
-            page,
-            per_page: pageSize,
+        const payload = await getBranchTransferRoutes({
+          page,
+          per_page: pageSize,
 
-            search:
-              filters.search || undefined,
+          search: filters.search || undefined,
 
-            origin_branch_id:
-              filters.origin_branch_id ||
-              undefined,
+          origin_branch_id: filters.origin_branch_id || undefined,
 
-            destination_branch_id:
-              filters.destination_branch_id ||
-              undefined,
+          destination_branch_id: filters.destination_branch_id || undefined,
 
-            service_type:
-              filters.service_type ||
-              undefined,
+          service_type: filters.service_type || undefined,
 
-            is_active:
-              filters.is_active === undefined
-                ? undefined
-                : filters.is_active,
-          });
+          is_active:
+            filters.is_active === undefined ? undefined : filters.is_active,
+        });
 
-        const collection =
-          extractCollection(payload);
+        const collection = extractCollection(payload);
 
-        const normalized =
-          collection.rows.map((row) =>
-            normalizeTransferRoute(
-              row,
-              branchesById
-            )
-          );
+        const normalized = collection.rows.map((row) =>
+          normalizeTransferRoute(row, branchesById),
+        );
 
         setRows(normalized);
 
@@ -626,42 +548,27 @@ export default function BranchTransferRoutesPage() {
           }
 
           return (
-            normalized.find(
-              (row) =>
-                Number(row.id) ===
-                Number(current?.id)
-            ) ||
+            normalized.find((row) => Number(row.id) === Number(current?.id)) ||
             normalized[0]
           );
         });
 
         setPagination({
-          current:
-            collection.currentPage || page,
+          current: collection.currentPage || page,
 
-          pageSize:
-            collection.pageSize || pageSize,
+          pageSize: collection.pageSize || pageSize,
 
-          total:
-            collection.total || 0,
+          total: collection.total || 0,
         });
       } catch (error) {
         message.error(
-          apiErrorMessage(
-            error,
-            "Could not load transfer routes."
-          )
+          apiErrorMessage(error, "Could not load transfer routes."),
         );
       } finally {
         setLoading(false);
       }
     },
-    [
-      branchesById,
-      filters,
-      pagination.current,
-      pagination.pageSize,
-    ]
+    [branchesById, filters, pagination.current, pagination.pageSize],
   );
 
   /**
@@ -696,32 +603,19 @@ export default function BranchTransferRoutesPage() {
    */
 
   const stats = useMemo(() => {
-    const active = rows.filter(
-      (row) => row.is_active
-    ).length;
+    const active = rows.filter((row) => row.is_active).length;
 
     const averageBase = rows.length
       ? rows.reduce(
           (sum, row) =>
-            sum +
-            Number(
-              row.calculated_base_rate ??
-                row.base_rate ??
-                0
-            ),
-          0
+            sum + Number(row.calculated_base_rate ?? row.base_rate ?? 0),
+          0,
         ) / rows.length
       : 0;
 
     const averageTransfers = rows.length
-      ? rows.reduce(
-          (sum, row) =>
-            sum +
-            Number(
-              row.transfer_count || 0
-            ),
-          0
-        ) / rows.length
+      ? rows.reduce((sum, row) => sum + Number(row.transfer_count || 0), 0) /
+        rows.length
       : 0;
 
     return {
@@ -783,40 +677,29 @@ export default function BranchTransferRoutesPage() {
     setRoutePricingLoading(true);
 
     try {
-      const globalActive =
-        await getActiveGlobalPricingSettings();
+      const globalActive = await getActiveGlobalPricingSettings();
 
       setRoutePricingProfile({
         mode: "global",
 
-        global_active:
-          globalActive,
+        global_active: globalActive,
 
         custom_active: null,
 
-        effective:
-          globalActive,
+        effective: globalActive,
       });
 
       if (globalActive) {
         form.setFieldValue(
           "custom_pricing",
-          toRouteCustomPricingForm(
-            globalActive,
-            null
-          )
+          toRouteCustomPricingForm(globalActive, null),
         );
       } else {
-        message.warning(
-          "No active global pricing version was found."
-        );
+        message.warning("No active global pricing version was found.");
       }
     } catch (error) {
       message.error(
-        apiErrorMessage(
-          error,
-          "Could not load global pricing settings."
-        )
+        apiErrorMessage(error, "Could not load global pricing settings."),
       );
     } finally {
       setRoutePricingLoading(false);
@@ -827,50 +710,33 @@ export default function BranchTransferRoutesPage() {
     setEditing(row);
     setPreview({
       ...row,
-      calculated_base_rate:
-        row.calculated_base_rate ??
-        row.base_rate,
+      calculated_base_rate: row.calculated_base_rate ?? row.base_rate,
     });
 
     form.setFieldsValue({
-      route_code:
-        row.route_code || "",
+      route_code: row.route_code || "",
 
-      name:
-        row.name || "",
+      name: row.name || "",
 
-      origin_branch_id:
-        row.origin_branch_id,
+      origin_branch_id: row.origin_branch_id,
 
-      transit_branch_ids:
-        row.transit_branch_ids || [],
+      transit_branch_ids: row.transit_branch_ids || [],
 
-      destination_branch_id:
-        row.destination_branch_id,
+      destination_branch_id: row.destination_branch_id,
 
-      service_type:
-        row.service_type ||
-        "standard",
+      service_type: row.service_type || "standard",
 
-      priority:
-        Number(
-          row.priority || 100
-        ),
+      priority: Number(row.priority || 100),
 
-      is_default:
-        Boolean(row.is_default),
+      is_default: Boolean(row.is_default),
 
-      is_active:
-        Boolean(row.is_active),
+      is_active: Boolean(row.is_active),
 
-      notes:
-        row.notes || "",
+      notes: row.notes || "",
 
-      pricing_mode:
-        "global",
+      pricing_mode: "global",
 
-      custom_pricing:
-        undefined,
+      custom_pricing: undefined,
     });
 
     setRoutePricingProfile(null);
@@ -879,36 +745,21 @@ export default function BranchTransferRoutesPage() {
     setRoutePricingLoading(true);
 
     try {
-      const profile =
-        await getTransferRoutePricingProfile(
-          row.id
-        );
+      const profile = await getTransferRoutePricingProfile(row.id);
 
       setRoutePricingProfile(profile);
 
       const effective =
-        profile?.custom_active ||
-        profile?.global_active ||
-        profile?.effective;
+        profile?.custom_active || profile?.global_active || profile?.effective;
 
       form.setFieldsValue({
-        pricing_mode:
-          profile?.mode ||
-          profile?.pricing_mode ||
-          "global",
+        pricing_mode: profile?.mode || profile?.pricing_mode || "global",
 
-        custom_pricing:
-          toRouteCustomPricingForm(
-            effective,
-            row
-          ),
+        custom_pricing: toRouteCustomPricingForm(effective, row),
       });
     } catch (error) {
       message.error(
-        apiErrorMessage(
-          error,
-          "Could not load route pricing profile."
-        )
+        apiErrorMessage(error, "Could not load route pricing profile."),
       );
     } finally {
       setRoutePricingLoading(false);
@@ -921,81 +772,50 @@ export default function BranchTransferRoutesPage() {
    * -------------------------------------------------------
    */
 
-  const buildRouteDefinition =
-    async () => {
-      const values =
-        await form.validateFields([
-          "origin_branch_id",
-          "transit_branch_ids",
-          "destination_branch_id",
-          "service_type",
-        ]);
+  const buildRouteDefinition = async () => {
+    const values = await form.validateFields([
+      "origin_branch_id",
+      "transit_branch_ids",
+      "destination_branch_id",
+      "service_type",
+    ]);
 
-      const originId =
-        Number(
-          values.origin_branch_id
-        );
+    const originId = Number(values.origin_branch_id);
 
-      const destinationId =
-        Number(
-          values.destination_branch_id
-        );
+    const destinationId = Number(values.destination_branch_id);
 
-      const transitIds = (
-        values.transit_branch_ids || []
-      ).map(Number);
+    const transitIds = (values.transit_branch_ids || []).map(Number);
 
-      const isSelfTransfer =
-        originId === destinationId;
+    const isSelfTransfer = originId === destinationId;
 
-      if (
-        isSelfTransfer &&
-        transitIds.length > 0
-      ) {
+    if (isSelfTransfer && transitIds.length > 0) {
+      throw new Error("A self-transfer route cannot contain transit branches.");
+    }
+
+    if (!isSelfTransfer) {
+      const ids = [originId, ...transitIds, destinationId];
+
+      const uniqueIds = new Set(ids);
+
+      if (uniqueIds.size !== ids.length) {
         throw new Error(
-          "A self-transfer route cannot contain transit branches."
+          "Origin, transit, and destination branches must not repeat.",
         );
       }
+    }
 
-      if (!isSelfTransfer) {
-        const ids = [
-          originId,
-          ...transitIds,
-          destinationId,
-        ];
+    return {
+      origin_branch_id: originId,
 
-        const uniqueIds =
-          new Set(ids);
+      transit_branch_ids: transitIds,
 
-        if (
-          uniqueIds.size !==
-          ids.length
-        ) {
-          throw new Error(
-            "Origin, transit, and destination branches must not repeat."
-          );
-        }
-      }
+      destination_branch_id: destinationId,
 
-      return {
-        origin_branch_id:
-          originId,
+      service_type: values.service_type,
 
-        transit_branch_ids:
-          transitIds,
-
-        destination_branch_id:
-          destinationId,
-
-        service_type:
-          values.service_type,
-
-        route_type:
-          isSelfTransfer
-            ? "local"
-            : "transfer",
-      };
+      route_type: isSelfTransfer ? "local" : "transfer",
     };
+  };
 
   /**
    * -------------------------------------------------------
@@ -1007,29 +827,20 @@ export default function BranchTransferRoutesPage() {
     try {
       setPreviewing(true);
 
-      const definition =
-        await buildRouteDefinition();
+      const definition = await buildRouteDefinition();
 
-      const result =
-        await previewBranchTransferRoute(
-          definition
-        );
+      const result = await previewBranchTransferRoute(definition);
 
       setPreview(result);
 
-      message.success(
-        "Route validated successfully."
-      );
+      message.success("Route validated successfully.");
     } catch (error) {
       if (error?.errorFields) {
         return;
       }
 
       message.error(
-        apiErrorMessage(
-          error,
-          "Could not validate transfer route."
-        )
+        apiErrorMessage(error, "Could not validate transfer route."),
       );
     } finally {
       setPreviewing(false);
@@ -1044,87 +855,50 @@ export default function BranchTransferRoutesPage() {
 
   const saveRoute = async () => {
     try {
-      const values =
-        await form.validateFields();
+      const values = await form.validateFields();
 
-      const definition =
-        await buildRouteDefinition();
+      const definition = await buildRouteDefinition();
 
       /**
        * Always validate the route before saving.
        */
-      const routePreview =
-        await previewBranchTransferRoute(
-          definition
-        );
+      const routePreview = await previewBranchTransferRoute(definition);
 
       setPreview(routePreview);
 
-      const calculatedBaseRate =
-        getCalculatedBaseRate(
-          routePreview
-        );
+      const calculatedBaseRate = getCalculatedBaseRate(routePreview);
 
-      if (
-        !Number.isFinite(
-          calculatedBaseRate
-        )
-      ) {
+      if (!Number.isFinite(calculatedBaseRate)) {
         throw new Error(
-          "The backend did not return a valid calculated route base rate."
+          "The backend did not return a valid calculated route base rate.",
         );
       }
 
       const routePayload = {
-        route_code:
-          values.route_code.trim(),
+        route_code: values.route_code.trim(),
 
-        name:
-          values.name.trim(),
+        name: values.name.trim(),
 
         ...definition,
 
-        priority:
-          Number(
-            values.priority || 100
-          ),
+        priority: Number(values.priority || 100),
 
-        is_default:
-          Boolean(
-            values.is_default
-          ),
+        is_default: Boolean(values.is_default),
 
-        is_active:
-          Boolean(
-            values.is_active
-          ),
+        is_active: Boolean(values.is_active),
 
-        notes:
-          values.notes?.trim() ||
-          null,
+        notes: values.notes?.trim() || null,
       };
 
-      const pricingPayload =
-        buildRoutePricingProfilePayload(
-          values
-        );
+      const pricingPayload = buildRoutePricingProfilePayload(values);
 
       setSaving(true);
 
       const savedRoute = editing
-        ? await updateBranchTransferRoute(
-            editing.id,
-            routePayload
-          )
-        : await createBranchTransferRoute(
-            routePayload
-          );
+        ? await updateBranchTransferRoute(editing.id, routePayload)
+        : await createBranchTransferRoute(routePayload);
 
-      const savedRouteId =
-        extractSavedRouteId(
-          savedRoute,
-          editing?.id
-        );
+      const savedRouteId = extractSavedRouteId(savedRoute, editing?.id);
 
       /**
        * Pricing profile is route-specific.
@@ -1132,39 +906,34 @@ export default function BranchTransferRoutesPage() {
        * Branch Pricing is NOT required.
        */
       const mustSavePricingProfile =
-        Boolean(editing) ||
-        pricingPayload.mode ===
-          "custom";
+        Boolean(editing) || pricingPayload.mode === "custom";
 
-      if (
-        mustSavePricingProfile
-      ) {
+      if (mustSavePricingProfile) {
         if (!savedRouteId) {
           message.warning(
-            "The route was saved, but its pricing profile could not be updated because the response did not include the route ID."
+            "The route was saved, but its pricing profile could not be updated because the response did not include the route ID.",
           );
         } else {
           try {
             await updateTransferRoutePricingProfile(
               savedRouteId,
-              pricingPayload
+              pricingPayload,
             );
           } catch (pricingError) {
             message.warning(
               apiErrorMessage(
                 pricingError,
-                "The route was saved, but its pricing profile could not be updated."
-              )
+                "The route was saved, but its pricing profile could not be updated.",
+              ),
             );
           }
         }
       }
 
       message.success(
-        pricingPayload.mode ===
-          "custom"
+        pricingPayload.mode === "custom"
           ? "Transfer route and custom pricing saved."
-          : "Transfer route saved."
+          : "Transfer route saved.",
       );
 
       resetModalState();
@@ -1175,12 +944,7 @@ export default function BranchTransferRoutesPage() {
         return;
       }
 
-      message.error(
-        apiErrorMessage(
-          error,
-          "Could not save transfer route."
-        )
-      );
+      message.error(apiErrorMessage(error, "Could not save transfer route."));
     } finally {
       setSaving(false);
     }
@@ -1194,69 +958,44 @@ export default function BranchTransferRoutesPage() {
 
   const toggleStatus = async (row) => {
     try {
-      await updateBranchTransferRouteStatus(
-        row.id,
-        !row.is_active
-      );
+      await updateBranchTransferRouteStatus(row.id, !row.is_active);
 
       message.success(
-        `Transfer route ${
-          row.is_active
-            ? "disabled"
-            : "enabled"
-        }.`
+        `Transfer route ${row.is_active ? "disabled" : "enabled"}.`,
       );
 
       await loadRows();
     } catch (error) {
-      message.error(
-        apiErrorMessage(
-          error,
-          "Could not update route status."
-        )
-      );
+      message.error(apiErrorMessage(error, "Could not update route status."));
     }
   };
 
   const createReverse = async (row) => {
     try {
-      await createReverseBranchTransferRoute(
-        row
-      );
+      await createReverseBranchTransferRoute(row);
 
-      message.success(
-        "Reverse transfer route created."
-      );
+      message.success("Reverse transfer route created.");
 
       await loadRows();
     } catch (error) {
       message.error(
         apiErrorMessage(
           error,
-          "Could not create reverse route. Confirm that every reverse transfer lane exists."
-        )
+          "Could not create reverse route. Confirm that every reverse transfer lane exists.",
+        ),
       );
     }
   };
 
   const removeRoute = async (row) => {
     try {
-      await deleteBranchTransferRoute(
-        row.id
-      );
+      await deleteBranchTransferRoute(row.id);
 
-      message.success(
-        "Transfer route deleted."
-      );
+      message.success("Transfer route deleted.");
 
       await loadRows();
     } catch (error) {
-      message.error(
-        apiErrorMessage(
-          error,
-          "Could not delete transfer route."
-        )
-      );
+      message.error(apiErrorMessage(error, "Could not delete transfer route."));
     }
   };
 
@@ -1266,25 +1005,12 @@ export default function BranchTransferRoutesPage() {
    * -------------------------------------------------------
    */
 
-  const moveTransit = (
-    index,
-    direction
-  ) => {
-    const current =
-      form.getFieldValue(
-        "transit_branch_ids"
-      ) || [];
+  const moveTransit = (index, direction) => {
+    const current = form.getFieldValue("transit_branch_ids") || [];
 
-    const next = moveItem(
-      current,
-      index,
-      direction
-    );
+    const next = moveItem(current, index, direction);
 
-    form.setFieldValue(
-      "transit_branch_ids",
-      next
-    );
+    form.setFieldValue("transit_branch_ids", next);
   };
 
   /**
@@ -1300,13 +1026,8 @@ export default function BranchTransferRoutesPage() {
       width: 330,
 
       render: (_, row) => (
-        <Space
-          direction="vertical"
-          size={2}
-        >
-          <Text strong>
-            {row.name}
-          </Text>
+        <Space direction="vertical" size={2}>
+          <Text strong>{row.name}</Text>
 
           <Text
             type="secondary"
@@ -1322,8 +1043,7 @@ export default function BranchTransferRoutesPage() {
               fontSize: 12,
             }}
           >
-            {row.path_text ||
-              "No path"}
+            {row.path_text || "No path"}
           </Text>
         </Space>
       ),
@@ -1335,16 +1055,11 @@ export default function BranchTransferRoutesPage() {
       width: 120,
 
       render: (_, row) =>
-        row.origin_branch_id ===
-          row.destination_branch_id &&
+        row.origin_branch_id === row.destination_branch_id &&
         !row.transit_count ? (
-          <Tag color="orange">
-            Local
-          </Tag>
+          <Tag color="orange">Local</Tag>
         ) : (
-          <Tag color="blue">
-            Transfer
-          </Tag>
+          <Tag color="blue">Transfer</Tag>
         ),
     },
 
@@ -1353,11 +1068,7 @@ export default function BranchTransferRoutesPage() {
       dataIndex: "service_type",
       width: 110,
 
-      render: (value) => (
-        <Tag color="blue">
-          {value || "standard"}
-        </Tag>
-      ),
+      render: (value) => <Tag color="blue">{value || "standard"}</Tag>,
     },
 
     {
@@ -1368,10 +1079,8 @@ export default function BranchTransferRoutesPage() {
       render: (_, row) => (
         <Text strong>
           {formatMoney(
-            row.calculated_base_rate ??
-              row.base_rate ??
-              0,
-            row.currency || "NPR"
+            row.calculated_base_rate ?? row.base_rate ?? 0,
+            row.currency || "NPR",
           )}
         </Text>
       ),
@@ -1383,11 +1092,7 @@ export default function BranchTransferRoutesPage() {
       width: 90,
       align: "center",
 
-      render: (_, row) => (
-        <Tag color="purple">
-          {row.transfer_count ?? 0}
-        </Tag>
-      ),
+      render: (_, row) => <Tag color="purple">{row.transfer_count ?? 0}</Tag>,
     },
 
     {
@@ -1402,10 +1107,7 @@ export default function BranchTransferRoutesPage() {
       dataIndex: "total_distance_km",
       width: 110,
 
-      render: (value) =>
-        `${Number(
-          value || 0
-        ).toFixed(2)} km`,
+      render: (value) => `${Number(value || 0).toFixed(2)} km`,
     },
 
     {
@@ -1413,10 +1115,7 @@ export default function BranchTransferRoutesPage() {
       dataIndex: "total_estimated_hours",
       width: 90,
 
-      render: (value) =>
-        `${Number(
-          value || 0
-        )} hrs`,
+      render: (value) => `${Number(value || 0)} hrs`,
     },
 
     {
@@ -1424,14 +1123,7 @@ export default function BranchTransferRoutesPage() {
       dataIndex: "is_default",
       width: 90,
 
-      render: (value) =>
-        value ? (
-          <Tag color="gold">
-            Default
-          </Tag>
-        ) : (
-          "—"
-        ),
+      render: (value) => (value ? <Tag color="gold">Default</Tag> : "—"),
     },
 
     {
@@ -1482,9 +1174,7 @@ export default function BranchTransferRoutesPage() {
               toggleStatus(row);
             }}
           >
-            {row.is_active
-              ? "Disable"
-              : "Enable"}
+            {row.is_active ? "Disable" : "Enable"}
           </Button>
 
           <Popconfirm
@@ -1494,19 +1184,13 @@ export default function BranchTransferRoutesPage() {
             okButtonProps={{
               danger: true,
             }}
-            onConfirm={() =>
-              removeRoute(row)
-            }
+            onConfirm={() => removeRoute(row)}
           >
             <Button
               danger
               size="small"
-              icon={
-                <DeleteOutlined />
-              }
-              onClick={(event) =>
-                event.stopPropagation()
-              }
+              icon={<DeleteOutlined />}
+              onClick={(event) => event.stopPropagation()}
             />
           </Popconfirm>
         </Space>
@@ -1520,27 +1204,14 @@ export default function BranchTransferRoutesPage() {
    * -------------------------------------------------------
    */
 
-  const watchedTransits =
-    Form.useWatch(
-      "transit_branch_ids",
-      form
-    ) || [];
+  const watchedTransits = Form.useWatch("transit_branch_ids", form) || [];
 
-  const watchedOrigin =
-    Form.useWatch(
-      "origin_branch_id",
-      form
-    );
+  const watchedOrigin = Form.useWatch("origin_branch_id", form);
 
-  const watchedDestination =
-    Form.useWatch(
-      "destination_branch_id",
-      form
-    );
+  const watchedDestination = Form.useWatch("destination_branch_id", form);
 
   const isSelfTransfer =
-    Number(watchedOrigin) ===
-      Number(watchedDestination) &&
+    Number(watchedOrigin) === Number(watchedDestination) &&
     watchedOrigin &&
     watchedDestination;
 
@@ -1550,13 +1221,9 @@ export default function BranchTransferRoutesPage() {
    * -------------------------------------------------------
    */
 
-  const previewLanes =
-    getPreviewLanes(preview);
+  const previewLanes = getPreviewLanes(preview);
 
-  const calculatedBaseRate =
-    getCalculatedBaseRate(
-      preview
-    );
+  const calculatedBaseRate = getCalculatedBaseRate(preview);
 
   /**
    * -------------------------------------------------------
@@ -1571,7 +1238,7 @@ export default function BranchTransferRoutesPage() {
         selected,
         branchesById,
       }),
-    [selected, branchesById]
+    [selected, branchesById],
   );
 
   /**
@@ -1593,11 +1260,7 @@ export default function BranchTransferRoutesPage() {
       ================================================== */}
 
       <Card bordered={false}>
-        <Row
-          justify="space-between"
-          align="middle"
-          gutter={[16, 16]}
-        >
+        <Row justify="space-between" align="middle" gutter={[16, 16]}>
           <Col>
             <Title
               level={3}
@@ -1609,35 +1272,21 @@ export default function BranchTransferRoutesPage() {
             </Title>
 
             <Text type="secondary">
-              Build complete routes from
-              active transfer lanes.
-              Route base rates are
-              calculated from the
-              selected lanes.
+              Build complete routes from active transfer lanes. Route base rates
+              are calculated from the selected lanes.
             </Text>
           </Col>
 
           <Col>
             <Space>
-              <Button
-                icon={
-                  <ReloadOutlined />
-                }
-                onClick={() =>
-                  loadRows()
-                }
-              >
+              <Button icon={<ReloadOutlined />} onClick={() => loadRows()}>
                 Refresh
               </Button>
 
               <Button
                 type="primary"
-                icon={
-                  <PlusOutlined />
-                }
-                onClick={() =>
-                  openCreate()
-                }
+                icon={<PlusOutlined />}
+                onClick={() => openCreate()}
               >
                 Add Transfer Route
               </Button>
@@ -1653,19 +1302,13 @@ export default function BranchTransferRoutesPage() {
       <Row gutter={[16, 16]}>
         <Col xs={24} md={6}>
           <Card bordered={false}>
-            <Statistic
-              title="Loaded Routes"
-              value={rows.length}
-            />
+            <Statistic title="Loaded Routes" value={rows.length} />
           </Card>
         </Col>
 
         <Col xs={24} md={6}>
           <Card bordered={false}>
-            <Statistic
-              title="Active Routes"
-              value={stats.active}
-            />
+            <Statistic title="Active Routes" value={stats.active} />
           </Card>
         </Col>
 
@@ -1673,9 +1316,7 @@ export default function BranchTransferRoutesPage() {
           <Card bordered={false}>
             <Statistic
               title="Average Calculated Base"
-              value={
-                stats.averageBase
-              }
+              value={stats.averageBase}
               precision={2}
               prefix="NPR "
             />
@@ -1686,9 +1327,7 @@ export default function BranchTransferRoutesPage() {
           <Card bordered={false}>
             <Statistic
               title="Average Lanes"
-              value={
-                stats.averageTransfers
-              }
+              value={stats.averageTransfers}
               precision={1}
             />
           </Card>
@@ -1705,35 +1344,23 @@ export default function BranchTransferRoutesPage() {
             <Input.Search
               allowClear
               placeholder="Search route code, name or branch"
-              value={
-                filters.search
-              }
+              value={filters.search}
               onChange={(event) =>
-                setFilters(
-                  (current) => ({
-                    ...current,
-                    search:
-                      event.target
-                        .value,
-                  })
-                )
+                setFilters((current) => ({
+                  ...current,
+                  search: event.target.value,
+                }))
               }
               onSearch={(value) =>
-                setFilters(
-                  (current) => ({
-                    ...current,
-                    search: value,
-                  })
-                )
+                setFilters((current) => ({
+                  ...current,
+                  search: value,
+                }))
               }
             />
           </Col>
 
-          <Col
-            xs={24}
-            sm={12}
-            lg={4}
-          >
+          <Col xs={24} sm={12} lg={4}>
             <Select
               allowClear
               showSearch
@@ -1742,29 +1369,18 @@ export default function BranchTransferRoutesPage() {
               style={{
                 width: "100%",
               }}
-              options={
-                branchOptions
-              }
-              value={
-                filters.origin_branch_id
-              }
+              options={branchOptions}
+              value={filters.origin_branch_id}
               onChange={(value) =>
-                setFilters(
-                  (current) => ({
-                    ...current,
-                    origin_branch_id:
-                      value,
-                  })
-                )
+                setFilters((current) => ({
+                  ...current,
+                  origin_branch_id: value,
+                }))
               }
             />
           </Col>
 
-          <Col
-            xs={24}
-            sm={12}
-            lg={4}
-          >
+          <Col xs={24} sm={12} lg={4}>
             <Select
               allowClear
               showSearch
@@ -1773,75 +1389,48 @@ export default function BranchTransferRoutesPage() {
               style={{
                 width: "100%",
               }}
-              options={
-                branchOptions
-              }
-              value={
-                filters.destination_branch_id
-              }
+              options={branchOptions}
+              value={filters.destination_branch_id}
               onChange={(value) =>
-                setFilters(
-                  (current) => ({
-                    ...current,
-                    destination_branch_id:
-                      value,
-                  })
-                )
+                setFilters((current) => ({
+                  ...current,
+                  destination_branch_id: value,
+                }))
               }
             />
           </Col>
 
-          <Col
-            xs={24}
-            sm={12}
-            lg={4}
-          >
+          <Col xs={24} sm={12} lg={4}>
             <Select
               allowClear
               placeholder="Service"
               style={{
                 width: "100%",
               }}
-              options={
-                SERVICE_TYPES
-              }
-              value={
-                filters.service_type
-              }
+              options={SERVICE_TYPES}
+              value={filters.service_type}
               onChange={(value) =>
-                setFilters(
-                  (current) => ({
-                    ...current,
-                    service_type:
-                      value,
-                  })
-                )
+                setFilters((current) => ({
+                  ...current,
+                  service_type: value,
+                }))
               }
             />
           </Col>
 
-          <Col
-            xs={24}
-            sm={12}
-            lg={3}
-          >
+          <Col xs={24} sm={12} lg={3}>
             <Select
               allowClear
               placeholder="Status"
               style={{
                 width: "100%",
               }}
-              value={
-                filters.is_active
-              }
+              value={filters.is_active}
               onChange={(value) =>
-                setFilters(
-                  (current) => ({
-                    ...current,
-                    is_active:
-                      value,
-                  })
-                )
+                setFilters((current) => ({
+                  ...current,
+                  is_active: value,
+                }))
               }
               options={[
                 {
@@ -1856,17 +1445,8 @@ export default function BranchTransferRoutesPage() {
             />
           </Col>
 
-          <Col
-            xs={24}
-            lg={3}
-          >
-            <Button
-              block
-              type="primary"
-              onClick={() =>
-                loadRows(1)
-              }
-            >
+          <Col xs={24} lg={3}>
+            <Button block type="primary" onClick={() => loadRows(1)}>
               Apply
             </Button>
           </Col>
@@ -1889,39 +1469,25 @@ export default function BranchTransferRoutesPage() {
                 x: 1600,
               }}
               rowClassName={(row) =>
-                Number(row.id) ===
-                Number(
-                  selected?.id
-                )
+                Number(row.id) === Number(selected?.id)
                   ? "ant-table-row-selected"
                   : ""
               }
               onRow={(row) => ({
-                onClick: () =>
-                  setSelected(row),
+                onClick: () => setSelected(row),
 
                 style: {
-                  cursor:
-                    "pointer",
+                  cursor: "pointer",
                 },
               })}
               pagination={{
-                current:
-                  pagination.current,
-                pageSize:
-                  pagination.pageSize,
-                total:
-                  pagination.total,
-                showSizeChanger:
-                  true,
+                current: pagination.current,
+                pageSize: pagination.pageSize,
+                total: pagination.total,
+                showSizeChanger: true,
               }}
-              onChange={(
-                nextPagination
-              ) =>
-                loadRows(
-                  nextPagination.current,
-                  nextPagination.pageSize
-                )
+              onChange={(nextPagination) =>
+                loadRows(nextPagination.current, nextPagination.pageSize)
               }
             />
           </Card>
@@ -1932,22 +1498,15 @@ export default function BranchTransferRoutesPage() {
         ================================================== */}
 
         <Col xs={24} xl={8}>
-          <Card
-            bordered={false}
-            title="Selected Route"
-          >
+          <Card bordered={false} title="Selected Route">
             <RouteMapS
-              nodes={
-                selectedMapNodes
-              }
+              nodes={selectedMapNodes}
               height={340}
               selectedLabel="Complete transfer route"
             />
 
             {/* Coordinate diagnostic */}
-            {selected &&
-            selectedMapNodes.length <
-              2 ? (
+            {selected && selectedMapNodes.length < 2 ? (
               <Alert
                 type="warning"
                 showIcon
@@ -1958,13 +1517,8 @@ export default function BranchTransferRoutesPage() {
                 description={
                   <>
                     The route has{" "}
-                    <strong>
-                      {selected.path_text ||
-                        "branch data"}
-                    </strong>
-                    , but fewer than two
-                    branches contain valid
-                    latitude/longitude
+                    <strong>{selected.path_text || "branch data"}</strong>, but
+                    fewer than two branches contain valid latitude/longitude
                     coordinates.
                   </>
                 }
@@ -1979,8 +1533,7 @@ export default function BranchTransferRoutesPage() {
               }}
             >
               <Descriptions.Item label="Route">
-                {selected?.path_text ||
-                  "—"}
+                {selected?.path_text || "—"}
               </Descriptions.Item>
 
               <Descriptions.Item label="Map Points">
@@ -1990,82 +1543,55 @@ export default function BranchTransferRoutesPage() {
               <Descriptions.Item label="Calculated Base">
                 {selected
                   ? formatMoney(
-                      selected.calculated_base_rate ??
-                        selected.base_rate ??
-                        0,
-                      selected.currency ||
-                        "NPR"
+                      selected.calculated_base_rate ?? selected.base_rate ?? 0,
+                      selected.currency || "NPR",
                     )
                   : "—"}
               </Descriptions.Item>
 
               <Descriptions.Item label="Transfer Lanes">
-                {selected?.transfer_count ??
-                  "—"}
+                {selected?.transfer_count ?? "—"}
               </Descriptions.Item>
 
               <Descriptions.Item label="Transit Branches">
-                {selected?.transit_count ??
-                  "—"}
+                {selected?.transit_count ?? "—"}
               </Descriptions.Item>
 
               <Descriptions.Item label="Distance">
                 {selected
-                  ? `${Number(
-                      selected.total_distance_km ||
-                        0
-                    ).toFixed(
-                      2
-                    )} km`
+                  ? `${Number(selected.total_distance_km || 0).toFixed(2)} km`
                   : "—"}
               </Descriptions.Item>
 
               <Descriptions.Item label="ETA">
                 {selected
-                  ? `${Number(
-                      selected.total_estimated_hours ||
-                        0
-                    )} hrs`
+                  ? `${Number(selected.total_estimated_hours || 0)} hrs`
                   : "—"}
               </Descriptions.Item>
             </Descriptions>
 
             {/* Route sequence */}
-            {selectedMapNodes.length >
-            0 ? (
+            {selectedMapNodes.length > 0 ? (
               <>
                 <Divider />
 
-                <Text strong>
-                  Route Path
-                </Text>
+                <Text strong>Route Path</Text>
 
                 <List
                   size="small"
                   style={{
                     marginTop: 10,
                   }}
-                  dataSource={
-                    selectedMapNodes
-                  }
-                  renderItem={(
-                    node,
-                    index
-                  ) => (
+                  dataSource={selectedMapNodes}
+                  renderItem={(node, index) => (
                     <List.Item>
                       <Space>
-                        <Tag color="purple">
-                          {index + 1}
-                        </Tag>
+                        <Tag color="purple">{index + 1}</Tag>
 
-                        <Text>
-                          {node.name}
-                        </Text>
+                        <Text>{node.name}</Text>
 
                         {node.code ? (
-                          <Text type="secondary">
-                            {node.code}
-                          </Text>
+                          <Text type="secondary">{node.code}</Text>
                         ) : null}
                       </Space>
                     </List.Item>
@@ -2090,26 +1616,17 @@ export default function BranchTransferRoutesPage() {
         }
         width={1100}
         confirmLoading={saving}
-        okText={
-          editing
-            ? "Update Route"
-            : "Create Route"
-        }
+        okText={editing ? "Update Route" : "Create Route"}
         okButtonProps={{
-          disabled:
-            routePricingLoading,
+          disabled: routePricingLoading,
         }}
         onOk={saveRoute}
-        onCancel={
-          resetModalState
-        }
+        onCancel={resetModalState}
         destroyOnClose
         styles={{
           body: {
-            maxHeight:
-              "76vh",
-            overflowY:
-              "auto",
+            maxHeight: "76vh",
+            overflowY: "auto",
             paddingRight: 8,
           },
         }}
@@ -2118,9 +1635,7 @@ export default function BranchTransferRoutesPage() {
           type="info"
           showIcon
           message={
-            isSelfTransfer
-              ? "Local / Self Transfer"
-              : "Inter-Branch Transfer"
+            isSelfTransfer ? "Local / Self Transfer" : "Inter-Branch Transfer"
           }
           description={
             isSelfTransfer
@@ -2136,22 +1651,17 @@ export default function BranchTransferRoutesPage() {
           form={form}
           layout="vertical"
           initialValues={{
-            service_type:
-              "standard",
+            service_type: "standard",
 
-            transit_branch_ids:
-              [],
+            transit_branch_ids: [],
 
             priority: 100,
 
-            is_default:
-              true,
+            is_default: true,
 
-            is_active:
-              true,
+            is_active: true,
 
-            pricing_mode:
-              "global",
+            pricing_mode: "global",
           }}
         >
           {/* ----------------------------------------------
@@ -2165,19 +1675,15 @@ export default function BranchTransferRoutesPage() {
                 label="Route Code"
                 rules={[
                   {
-                    required:
-                      true,
-                    message:
-                      "Route code is required.",
+                    required: true,
+                    message: "Route code is required.",
                   },
                   {
                     max: 100,
                   },
                 ]}
               >
-                <Input
-                  placeholder="KTM-PKR-MUG-STANDARD"
-                />
+                <Input placeholder="KTM-PKR-MUG-STANDARD" />
               </Form.Item>
             </Col>
 
@@ -2187,19 +1693,15 @@ export default function BranchTransferRoutesPage() {
                 label="Route Name"
                 rules={[
                   {
-                    required:
-                      true,
-                    message:
-                      "Route name is required.",
+                    required: true,
+                    message: "Route name is required.",
                   },
                   {
                     max: 255,
                   },
                 ]}
               >
-                <Input
-                  placeholder="Kathmandu to Mustang via Pokhara"
-                />
+                <Input placeholder="Kathmandu to Mustang via Pokhara" />
               </Form.Item>
             </Col>
           </Row>
@@ -2215,19 +1717,15 @@ export default function BranchTransferRoutesPage() {
                 label="Origin Branch"
                 rules={[
                   {
-                    required:
-                      true,
-                    message:
-                      "Origin branch is required.",
+                    required: true,
+                    message: "Origin branch is required.",
                   },
                 ]}
               >
                 <Select
                   showSearch
                   optionFilterProp="label"
-                  options={
-                    branchOptions
-                  }
+                  options={branchOptions}
                   placeholder="Select origin"
                 />
               </Form.Item>
@@ -2239,19 +1737,15 @@ export default function BranchTransferRoutesPage() {
                 label="Destination Branch"
                 rules={[
                   {
-                    required:
-                      true,
-                    message:
-                      "Destination branch is required.",
+                    required: true,
+                    message: "Destination branch is required.",
                   },
                 ]}
               >
                 <Select
                   showSearch
                   optionFilterProp="label"
-                  options={
-                    branchOptions
-                  }
+                  options={branchOptions}
                   placeholder="Select destination"
                 />
               </Form.Item>
@@ -2283,20 +1777,13 @@ export default function BranchTransferRoutesPage() {
               mode="multiple"
               showSearch
               optionFilterProp="label"
-              options={
-                branchOptions
-              }
-              disabled={
-                Boolean(
-                  isSelfTransfer
-                )
-              }
+              options={branchOptions}
+              disabled={Boolean(isSelfTransfer)}
               placeholder="Example: Pokhara"
             />
           </Form.Item>
 
-          {watchedTransits.length >
-          0 ? (
+          {watchedTransits.length > 0 ? (
             <Card
               size="small"
               style={{
@@ -2306,19 +1793,9 @@ export default function BranchTransferRoutesPage() {
             >
               <List
                 size="small"
-                dataSource={
-                  watchedTransits
-                }
-                renderItem={(
-                  branchId,
-                  index
-                ) => {
-                  const branch =
-                    branchesById.get(
-                      Number(
-                        branchId
-                      )
-                    );
+                dataSource={watchedTransits}
+                renderItem={(branchId, index) => {
+                  const branch = branchesById.get(Number(branchId));
 
                   return (
                     <List.Item
@@ -2326,50 +1803,24 @@ export default function BranchTransferRoutesPage() {
                         <Button
                           key="up"
                           size="small"
-                          icon={
-                            <ArrowUpOutlined />
-                          }
-                          disabled={
-                            index ===
-                            0
-                          }
-                          onClick={() =>
-                            moveTransit(
-                              index,
-                              -1
-                            )
-                          }
+                          icon={<ArrowUpOutlined />}
+                          disabled={index === 0}
+                          onClick={() => moveTransit(index, -1)}
                         />,
 
                         <Button
                           key="down"
                           size="small"
-                          icon={
-                            <ArrowDownOutlined />
-                          }
-                          disabled={
-                            index ===
-                            watchedTransits.length -
-                              1
-                          }
-                          onClick={() =>
-                            moveTransit(
-                              index,
-                              1
-                            )
-                          }
+                          icon={<ArrowDownOutlined />}
+                          disabled={index === watchedTransits.length - 1}
+                          onClick={() => moveTransit(index, 1)}
                         />,
                       ]}
                     >
                       <Space>
-                        <Tag color="purple">
-                          {index + 1}
-                        </Tag>
+                        <Tag color="purple">{index + 1}</Tag>
 
-                        <Text>
-                          {branch?.name ||
-                            `Branch ${branchId}`}
-                        </Text>
+                        <Text>{branch?.name || `Branch ${branchId}`}</Text>
                       </Space>
                     </List.Item>
                   );
@@ -2389,16 +1840,11 @@ export default function BranchTransferRoutesPage() {
                 label="Service Type"
                 rules={[
                   {
-                    required:
-                      true,
+                    required: true,
                   },
                 ]}
               >
-                <Select
-                  options={
-                    SERVICE_TYPES
-                  }
-                />
+                <Select options={SERVICE_TYPES} />
               </Form.Item>
             </Col>
 
@@ -2408,10 +1854,7 @@ export default function BranchTransferRoutesPage() {
                   readOnly
                   value={
                     preview
-                      ? formatMoney(
-                          calculatedBaseRate,
-                          "NPR"
-                        )
+                      ? formatMoney(calculatedBaseRate, "NPR")
                       : "Validate route to calculate"
                   }
                 />
@@ -2424,16 +1867,14 @@ export default function BranchTransferRoutesPage() {
                 label="Priority"
                 rules={[
                   {
-                    required:
-                      true,
+                    required: true,
                   },
                 ]}
               >
                 <InputNumber
                   min={1}
                   style={{
-                    width:
-                      "100%",
+                    width: "100%",
                   }}
                 />
               </Form.Item>
@@ -2472,15 +1913,9 @@ export default function BranchTransferRoutesPage() {
                 }}
               >
                 <Button
-                  icon={
-                    <EyeOutlined />
-                  }
-                  loading={
-                    previewing
-                  }
-                  onClick={
-                    previewRoute
-                  }
+                  icon={<EyeOutlined />}
+                  loading={previewing}
+                  onClick={previewRoute}
                 >
                   Validate & Calculate Route
                 </Button>
@@ -2492,10 +1927,7 @@ export default function BranchTransferRoutesPage() {
               NOTES
           ---------------------------------------------- */}
 
-          <Form.Item
-            name="notes"
-            label="Notes"
-          >
+          <Form.Item name="notes" label="Notes">
             <TextArea
               rows={2}
               maxLength={1000}
@@ -2508,17 +1940,11 @@ export default function BranchTransferRoutesPage() {
               ROUTE PRICING
           ---------------------------------------------- */}
 
-          <Spin
-            spinning={
-              routePricingLoading
-            }
-          >
+          <Spin spinning={routePricingLoading}>
             <TransferRoutePricingSection
               form={form}
               route={editing}
-              globalPricing={
-                routePricingProfile?.global_active
-              }
+              globalPricing={routePricingProfile?.global_active}
             />
           </Spin>
         </Form>
@@ -2531,75 +1957,43 @@ export default function BranchTransferRoutesPage() {
           <>
             <Divider />
 
-            <Card
-              size="small"
-              title="Validated Route"
-            >
-              <Descriptions
-                column={2}
-                size="small"
-              >
-                <Descriptions.Item
-                  label="Path"
-                  span={2}
-                >
+            <Card size="small" title="Validated Route">
+              <Descriptions column={2} size="small">
+                <Descriptions.Item label="Path" span={2}>
                   {preview.path_text ||
                     preview.route_text ||
-                    preview.path
-                      ?.map(
-                        (branch) =>
-                          branch.name
-                      )
-                      .join(" → ") ||
+                    preview.path?.map((branch) => branch.name).join(" → ") ||
                     "—"}
                 </Descriptions.Item>
 
                 <Descriptions.Item label="Route Type">
                   {isSelfTransfer ? (
-                    <Tag color="orange">
-                      Local / Self Transfer
-                    </Tag>
+                    <Tag color="orange">Local / Self Transfer</Tag>
                   ) : (
-                    <Tag color="blue">
-                      Inter-Branch Transfer
-                    </Tag>
+                    <Tag color="blue">Inter-Branch Transfer</Tag>
                   )}
                 </Descriptions.Item>
 
                 <Descriptions.Item label="Calculated Base">
-                  <Text strong>
-                    {formatMoney(
-                      calculatedBaseRate,
-                      "NPR"
-                    )}
-                  </Text>
+                  <Text strong>{formatMoney(calculatedBaseRate, "NPR")}</Text>
                 </Descriptions.Item>
 
                 <Descriptions.Item label="Transfer Lanes">
-                  {preview.transfer_count ??
-                    preview.lane_count ??
-                    "—"}
+                  {preview.transfer_count ?? preview.lane_count ?? "—"}
                 </Descriptions.Item>
 
                 <Descriptions.Item label="Transit Branches">
-                  {preview.transit_count ??
-                    "—"}
+                  {preview.transit_count ?? "—"}
                 </Descriptions.Item>
 
                 <Descriptions.Item label="Distance">
-                  {preview.total_distance_km !==
-                  undefined
-                    ? `${Number(
-                        preview.total_distance_km
-                      ).toFixed(
-                        2
-                      )} km`
+                  {preview.total_distance_km !== undefined
+                    ? `${Number(preview.total_distance_km).toFixed(2)} km`
                     : "—"}
                 </Descriptions.Item>
 
                 <Descriptions.Item label="Estimated Hours">
-                  {preview.total_estimated_hours ??
-                    "—"}
+                  {preview.total_estimated_hours ?? "—"}
                 </Descriptions.Item>
               </Descriptions>
 
@@ -2607,14 +2001,11 @@ export default function BranchTransferRoutesPage() {
                   LANE BREAKDOWN
               -------------------------------------------- */}
 
-              {previewLanes.length >
-              0 ? (
+              {previewLanes.length > 0 ? (
                 <>
                   <Divider />
 
-                  <Text strong>
-                    Transfer Lane Breakdown
-                  </Text>
+                  <Text strong>Transfer Lane Breakdown</Text>
 
                   <List
                     style={{
@@ -2622,54 +2013,36 @@ export default function BranchTransferRoutesPage() {
                     }}
                     size="small"
                     bordered
-                    dataSource={
-                      previewLanes
-                    }
-                    renderItem={(
-                      lane,
-                      index
-                    ) => {
-                      const {
-                        from,
-                        to,
-                      } =
-                        getLaneFromBranchIds(
-                          lane,
-                          branchesById
-                        );
+                    dataSource={previewLanes}
+                    renderItem={(lane, index) => {
+                      const { from, to } = getLaneFromBranchIds(
+                        lane,
+                        branchesById,
+                      );
 
-                      const laneRate =
-                        Number(
-                          lane.base_rate ??
-                            lane.calculated_base_rate ??
-                            lane.rate ??
-                            0
-                        );
+                      const laneRate = Number(
+                        lane.base_rate ??
+                          lane.calculated_base_rate ??
+                          lane.rate ??
+                          0,
+                      );
 
                       return (
                         <List.Item>
                           <Row
                             style={{
-                              width:
-                                "100%",
+                              width: "100%",
                             }}
-                            gutter={
-                              16
-                            }
+                            gutter={16}
                             align="middle"
                           >
                             <Col flex="40px">
-                              <Tag color="purple">
-                                {index +
-                                  1}
-                              </Tag>
+                              <Tag color="purple">{index + 1}</Tag>
                             </Col>
 
                             <Col flex="auto">
                               <Text strong>
-                                {from}{" "}
-                                →{" "}
-                                {to}
+                                {from} → {to}
                               </Text>
 
                               <br />
@@ -2680,27 +2053,18 @@ export default function BranchTransferRoutesPage() {
                                   fontSize: 12,
                                 }}
                               >
-                                {lane.service_type ||
-                                  "standard"}
+                                {lane.service_type || "standard"}
 
-                                {lane.distance_km !==
-                                undefined
-                                  ? ` • ${Number(
-                                      lane.distance_km
-                                    ).toFixed(
-                                      2
+                                {lane.distance_km !== undefined
+                                  ? ` • ${Number(lane.distance_km).toFixed(
+                                      2,
                                     )} km`
                                   : ""}
                               </Text>
                             </Col>
 
                             <Col>
-                              <Text strong>
-                                {formatMoney(
-                                  laneRate,
-                                  "NPR"
-                                )}
-                              </Text>
+                              <Text strong>{formatMoney(laneRate, "NPR")}</Text>
                             </Col>
                           </Row>
                         </List.Item>
@@ -2712,9 +2076,7 @@ export default function BranchTransferRoutesPage() {
 
                   <Row justify="end">
                     <Space>
-                      <Text>
-                        Route Base:
-                      </Text>
+                      <Text>Route Base:</Text>
 
                       <Text
                         strong
@@ -2722,10 +2084,7 @@ export default function BranchTransferRoutesPage() {
                           fontSize: 18,
                         }}
                       >
-                        {formatMoney(
-                          calculatedBaseRate,
-                          "NPR"
-                        )}
+                        {formatMoney(calculatedBaseRate, "NPR")}
                       </Text>
                     </Space>
                   </Row>
@@ -2739,13 +2098,8 @@ export default function BranchTransferRoutesPage() {
                   marginBottom: 0,
                 }}
               >
-                The route base is
-                derived from the
-                active transfer lanes.
-                Global or custom
-                pricing rules are then
-                applied by the pricing
-                engine.
+                The route base is derived from the active transfer lanes. Global
+                or custom pricing rules are then applied by the pricing engine.
               </Paragraph>
             </Card>
           </>

@@ -1,11 +1,6 @@
 "use client";
-
-import {
-  useCallback,
-  useEffect,
-  useMemo,
-  useState,
-} from "react";
+import dynamic from "next/dynamic";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import {
   Button,
@@ -41,7 +36,7 @@ import {
   SwapOutlined,
 } from "@ant-design/icons";
 
-import RouteMapS from "@/components/rate-admin/RouteMapS";
+// import RouteMapS from "@/components/rate-admin/RouteMapS";
 
 import {
   createBranchRouteRate,
@@ -65,15 +60,28 @@ import {
 } from "@/lib/rate-management-page-utils";
 
 const { Title, Text } = Typography;
-
+const RouteMapS = dynamic(() => import("@/components/rate-admin/RouteMapS"), {
+  ssr: false,
+  loading: () => (
+    <div
+      style={{
+        height: 360,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        background: "#f5f7fa",
+        borderRadius: 8,
+        color: "#8c8c8c",
+      }}
+    >
+      Loading map...
+    </div>
+  ),
+});
 function StatusTag({ active }) {
   return (
     <Tag
-      icon={
-        active ? (
-          <CheckCircleOutlined />
-        ) : null
-      }
+      icon={active ? <CheckCircleOutlined /> : null}
       color={active ? "success" : "default"}
       style={{
         marginInlineEnd: 0,
@@ -94,12 +102,8 @@ function getBranchDisplay(branch, fallbackId) {
   }
 
   return {
-    name:
-      branch.name ||
-      `Branch #${fallbackId}`,
-    code:
-      branch.code ||
-      String(fallbackId),
+    name: branch.name || `Branch #${fallbackId}`,
+    code: branch.code || String(fallbackId),
   };
 }
 
@@ -113,41 +117,31 @@ export default function BranchPricingPage() {
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
 
-  const [modalOpen, setModalOpen] =
-    useState(false);
+  const [modalOpen, setModalOpen] = useState(false);
 
-  const [editing, setEditing] =
-    useState(null);
+  const [editing, setEditing] = useState(null);
 
-  const [filters, setFilters] =
-    useState({
-      search: "",
-      pickup_branch_id: undefined,
-      delivery_branch_id:
-        undefined,
-      is_active: undefined,
-    });
+  const [filters, setFilters] = useState({
+    search: "",
+    pickup_branch_id: undefined,
+    delivery_branch_id: undefined,
+    is_active: undefined,
+  });
 
-  const [appliedFilters, setAppliedFilters] =
-    useState({
-      search: "",
-      pickup_branch_id: undefined,
-      delivery_branch_id:
-        undefined,
-      is_active: undefined,
-    });
+  const [appliedFilters, setAppliedFilters] = useState({
+    search: "",
+    pickup_branch_id: undefined,
+    delivery_branch_id: undefined,
+    is_active: undefined,
+  });
 
-  const [pagination, setPagination] =
-    useState({
-      current: 1,
-      pageSize: 100,
-      total: 0,
-    });
+  const [pagination, setPagination] = useState({
+    current: 1,
+    pageSize: 100,
+    total: 0,
+  });
 
-  const branchesById = useMemo(
-    () => buildBranchMap(branches),
-    [branches],
-  );
+  const branchesById = useMemo(() => buildBranchMap(branches), [branches]);
 
   const branchOptions = useMemo(
     () =>
@@ -161,87 +155,54 @@ export default function BranchPricingPage() {
   /*
    * LOAD BRANCHES
    */
-  const loadBranches = useCallback(
-    async () => {
-      try {
-        const payload =
-          await getRateBranches({
-            status: "active",
-            per_page: 500,
-          });
+  const loadBranches = useCallback(async () => {
+    try {
+      const payload = await getRateBranches({
+        status: "active",
+        per_page: 500,
+      });
 
-        const collection =
-          extractCollection(payload);
+      const collection = extractCollection(payload);
 
-        const normalizedBranches =
-          collection.rows
-            .map(normalizeBranch)
-            .filter((branch) =>
-              Number.isFinite(
-                Number(branch?.id),
-              ),
-            );
+      const normalizedBranches = collection.rows
+        .map(normalizeBranch)
+        .filter((branch) => Number.isFinite(Number(branch?.id)));
 
-        setBranches(
-          normalizedBranches,
-        );
-      } catch (error) {
-        message.error(
-          apiErrorMessage(
-            error,
-            "Could not load branch options.",
-          ),
-        );
-      }
-    },
-    [],
-  );
+      setBranches(normalizedBranches);
+    } catch (error) {
+      message.error(apiErrorMessage(error, "Could not load branch options."));
+    }
+  }, []);
 
   /*
    * LOAD RATES
    */
   const loadRows = useCallback(
-    async (
-      page = pagination.current,
-      pageSize = pagination.pageSize,
-    ) => {
+    async (page = pagination.current, pageSize = pagination.pageSize) => {
       try {
         setLoading(true);
 
-        const payload =
-          await getBranchRouteRates({
-            page,
-            per_page: pageSize,
+        const payload = await getBranchRouteRates({
+          page,
+          per_page: pageSize,
 
-            search:
-              appliedFilters.search?.trim() ||
-              undefined,
+          search: appliedFilters.search?.trim() || undefined,
 
-            pickup_branch_id:
-              appliedFilters.pickup_branch_id ||
-              undefined,
+          pickup_branch_id: appliedFilters.pickup_branch_id || undefined,
 
-            delivery_branch_id:
-              appliedFilters.delivery_branch_id ||
-              undefined,
+          delivery_branch_id: appliedFilters.delivery_branch_id || undefined,
 
-            is_active:
-              appliedFilters.is_active ===
-              undefined
-                ? undefined
-                : appliedFilters.is_active,
-          });
+          is_active:
+            appliedFilters.is_active === undefined
+              ? undefined
+              : appliedFilters.is_active,
+        });
 
-        const collection =
-          extractCollection(payload);
+        const collection = extractCollection(payload);
 
-        const normalized =
-          collection.rows.map((row) =>
-            normalizeBranchRate(
-              row,
-              branchesById,
-            ),
-          );
+        const normalized = collection.rows.map((row) =>
+          normalizeBranchRate(row, branchesById),
+        );
 
         setRows(normalized);
 
@@ -251,43 +212,25 @@ export default function BranchPricingPage() {
           }
 
           return (
-            normalized.find(
-              (row) =>
-                Number(row.id) ===
-                Number(current?.id),
-            ) || normalized[0]
+            normalized.find((row) => Number(row.id) === Number(current?.id)) ||
+            normalized[0]
           );
         });
 
         setPagination({
-          current:
-            collection.currentPage || page,
+          current: collection.currentPage || page,
 
-          pageSize:
-            collection.pageSize ||
-            pageSize,
+          pageSize: collection.pageSize || pageSize,
 
-          total:
-            collection.total ??
-            normalized.length,
+          total: collection.total ?? normalized.length,
         });
       } catch (error) {
-        message.error(
-          apiErrorMessage(
-            error,
-            "Could not load branch pricing.",
-          ),
-        );
+        message.error(apiErrorMessage(error, "Could not load branch pricing."));
       } finally {
         setLoading(false);
       }
     },
-    [
-      appliedFilters,
-      branchesById,
-      pagination.current,
-      pagination.pageSize,
-    ],
+    [appliedFilters, branchesById, pagination.current, pagination.pageSize],
   );
 
   useEffect(() => {
@@ -304,32 +247,17 @@ export default function BranchPricingPage() {
    * STATISTICS
    */
   const stats = useMemo(() => {
-    const active = rows.filter(
-      (row) => row.is_active,
-    ).length;
+    const active = rows.filter((row) => row.is_active).length;
 
-    const inactive =
-      rows.length - active;
+    const inactive = rows.length - active;
 
     const average = rows.length
-      ? rows.reduce(
-          (sum, row) =>
-            sum +
-            Number(
-              row.base_rate || 0,
-            ),
-          0,
-        ) / rows.length
+      ? rows.reduce((sum, row) => sum + Number(row.base_rate || 0), 0) /
+        rows.length
       : 0;
 
-    const branchCount =
-      new Set(
-        rows.map((row) =>
-          Number(
-            row.pickup_branch_id,
-          ),
-        ),
-      ).size;
+    const branchCount = new Set(rows.map((row) => Number(row.pickup_branch_id)))
+      .size;
 
     return {
       active,
@@ -346,9 +274,7 @@ export default function BranchPricingPage() {
     const groups = new Map();
 
     rows.forEach((row) => {
-      const branchId = Number(
-        row.pickup_branch_id,
-      );
+      const branchId = Number(row.pickup_branch_id);
 
       if (!groups.has(branchId)) {
         groups.set(branchId, {
@@ -358,53 +284,33 @@ export default function BranchPricingPage() {
         });
       }
 
-      groups
-        .get(branchId)
-        .rows.push(row);
+      groups.get(branchId).rows.push(row);
     });
 
-    return Array.from(
-      groups.values(),
-    )
+    return Array.from(groups.values())
       .map((group) => {
-        const activeCount =
-          group.rows.filter(
-            (row) => row.is_active,
-          ).length;
+        const activeCount = group.rows.filter((row) => row.is_active).length;
 
         return {
           ...group,
           activeCount,
-          totalCount:
-            group.rows.length,
-          branchInfo:
-            getBranchDisplay(
-              group.branch,
-              group.branchId,
-            ),
+          totalCount: group.rows.length,
+          branchInfo: getBranchDisplay(group.branch, group.branchId),
         };
       })
-      .sort((a, b) =>
-        a.branchInfo.name.localeCompare(
-          b.branchInfo.name,
-        ),
-      );
+      .sort((a, b) => a.branchInfo.name.localeCompare(b.branchInfo.name));
   }, [rows]);
 
   /*
    * CREATE
    */
-  const openCreate = (
-    prefill = {},
-  ) => {
+  const openCreate = (prefill = {}) => {
     setEditing(null);
 
     form.setFieldsValue({
-      pickup_branch_id:
-        undefined,
+      pickup_branch_id: undefined,
 
-      delivery_branch_id:
-        undefined,
+      delivery_branch_id: undefined,
 
       base_rate: undefined,
 
@@ -423,22 +329,13 @@ export default function BranchPricingPage() {
     setEditing(row);
 
     form.setFieldsValue({
-      pickup_branch_id: Number(
-        row.pickup_branch_id,
-      ),
+      pickup_branch_id: Number(row.pickup_branch_id),
 
-      delivery_branch_id:
-        Number(
-          row.delivery_branch_id,
-        ),
+      delivery_branch_id: Number(row.delivery_branch_id),
 
-      base_rate: Number(
-        row.base_rate,
-      ),
+      base_rate: Number(row.base_rate),
 
-      is_active: Boolean(
-        row.is_active,
-      ),
+      is_active: Boolean(row.is_active),
     });
 
     setModalOpen(true);
@@ -455,46 +352,28 @@ export default function BranchPricingPage() {
    */
   const saveRate = async () => {
     try {
-      const values =
-        await form.validateFields();
+      const values = await form.validateFields();
 
       const payload = {
-        pickup_branch_id:
-          Number(
-            values.pickup_branch_id,
-          ),
+        pickup_branch_id: Number(values.pickup_branch_id),
 
-        delivery_branch_id:
-          Number(
-            values.delivery_branch_id,
-          ),
+        delivery_branch_id: Number(values.delivery_branch_id),
 
-        base_rate:
-          Number(values.base_rate),
+        base_rate: Number(values.base_rate),
 
-        is_active:
-          Boolean(values.is_active),
+        is_active: Boolean(values.is_active),
       };
 
       setSaving(true);
 
       if (editing) {
-        await updateBranchRouteRate(
-          editing.id,
-          payload,
-        );
+        await updateBranchRouteRate(editing.id, payload);
 
-        message.success(
-          "Branch rate updated.",
-        );
+        message.success("Branch rate updated.");
       } else {
-        await createBranchRouteRate(
-          payload,
-        );
+        await createBranchRouteRate(payload);
 
-        message.success(
-          "Branch rate created.",
-        );
+        message.success("Branch rate created.");
       }
 
       closeModal();
@@ -505,12 +384,7 @@ export default function BranchPricingPage() {
         return;
       }
 
-      message.error(
-        apiErrorMessage(
-          error,
-          "Could not save branch rate.",
-        ),
-      );
+      message.error(apiErrorMessage(error, "Could not save branch rate."));
     } finally {
       setSaving(false);
     }
@@ -521,59 +395,28 @@ export default function BranchPricingPage() {
    */
   const toggleStatus = async (row) => {
     try {
-      await updateBranchRouteRateStatus(
-        row.id,
-        !row.is_active,
-      );
+      await updateBranchRouteRateStatus(row.id, !row.is_active);
 
-      message.success(
-        `Branch rate ${
-          row.is_active
-            ? "disabled"
-            : "enabled"
-        }.`,
-      );
+      message.success(`Branch rate ${row.is_active ? "disabled" : "enabled"}.`);
 
-      await loadRows(
-        pagination.current,
-        pagination.pageSize,
-      );
+      await loadRows(pagination.current, pagination.pageSize);
     } catch (error) {
-      message.error(
-        apiErrorMessage(
-          error,
-          "Could not update rate status.",
-        ),
-      );
+      message.error(apiErrorMessage(error, "Could not update rate status."));
     }
   };
 
   /*
    * REVERSE
    */
-  const createReverse = async (
-    row,
-  ) => {
+  const createReverse = async (row) => {
     try {
-      await createReverseBranchRouteRate(
-        row,
-      );
+      await createReverseBranchRouteRate(row);
 
-      message.success(
-        "Reverse branch rate created.",
-      );
+      message.success("Reverse branch rate created.");
 
-      await loadRows(
-        pagination.current,
-        pagination.pageSize,
-      );
+      await loadRows(pagination.current, pagination.pageSize);
     } catch (error) {
-      message.error(
-        apiErrorMessage(
-          error,
-          "Could not create reverse rate.",
-        ),
-      );
+      message.error(apiErrorMessage(error, "Could not create reverse rate."));
     }
   };
 
@@ -582,25 +425,13 @@ export default function BranchPricingPage() {
    */
   const removeRate = async (row) => {
     try {
-      await deleteBranchRouteRate(
-        row.id,
-      );
+      await deleteBranchRouteRate(row.id);
 
-      message.success(
-        "Branch rate deleted.",
-      );
+      message.success("Branch rate deleted.");
 
-      await loadRows(
-        pagination.current,
-        pagination.pageSize,
-      );
+      await loadRows(pagination.current, pagination.pageSize);
     } catch (error) {
-      message.error(
-        apiErrorMessage(
-          error,
-          "Could not delete branch rate.",
-        ),
-      );
+      message.error(apiErrorMessage(error, "Could not delete branch rate."));
     }
   };
 
@@ -621,17 +452,13 @@ export default function BranchPricingPage() {
   const resetFilters = () => {
     const emptyFilters = {
       search: "",
-      pickup_branch_id:
-        undefined,
-      delivery_branch_id:
-        undefined,
+      pickup_branch_id: undefined,
+      delivery_branch_id: undefined,
       is_active: undefined,
     };
 
     setFilters(emptyFilters);
-    setAppliedFilters(
-      emptyFilters,
-    );
+    setAppliedFilters(emptyFilters);
 
     setPagination((current) => ({
       ...current,
@@ -643,71 +470,46 @@ export default function BranchPricingPage() {
    * RATE ROW
    */
   const RateRow = ({ row }) => {
-    const pickup =
-      getBranchDisplay(
-        row.pickup_branch,
-        row.pickup_branch_id,
-      );
+    const pickup = getBranchDisplay(row.pickup_branch, row.pickup_branch_id);
 
-    const delivery =
-      getBranchDisplay(
-        row.delivery_branch,
-        row.delivery_branch_id,
-      );
+    const delivery = getBranchDisplay(
+      row.delivery_branch,
+      row.delivery_branch_id,
+    );
 
-    const isSelected =
-      Number(selected?.id) ===
-      Number(row.id);
+    const isSelected = Number(selected?.id) === Number(row.id);
 
     const isSameBranch =
-      Number(
-        row.pickup_branch_id,
-      ) ===
-      Number(
-        row.delivery_branch_id,
-      );
+      Number(row.pickup_branch_id) === Number(row.delivery_branch_id);
 
     return (
       <div
-        onClick={() =>
-          setSelected(row)
-        }
+        onClick={() => setSelected(row)}
         style={{
           display: "grid",
-          gridTemplateColumns:
-            "minmax(250px, 1.7fr) 130px 120px 155px 175px",
+          gridTemplateColumns: "minmax(250px, 1.7fr) 130px 120px 155px 175px",
           gap: 18,
           alignItems: "center",
 
           minHeight: 78,
 
-          padding:
-            "12px 16px",
+          padding: "12px 16px",
 
           marginBottom: 8,
 
           borderRadius: 10,
 
-          background: isSelected
-            ? "#f0f7ff"
-            : "#ffffff",
+          background: isSelected ? "#f0f7ff" : "#ffffff",
 
-          border: isSelected
-            ? "1px solid #91caff"
-            : "1px solid #edf0f3",
+          border: isSelected ? "1px solid #91caff" : "1px solid #edf0f3",
 
-          borderLeft: isSelected
-            ? "3px solid #1677ff"
-            : "1px solid #edf0f3",
+          borderLeft: isSelected ? "3px solid #1677ff" : "1px solid #edf0f3",
 
           cursor: "pointer",
 
-          transition:
-            "all .18s ease",
+          transition: "all .18s ease",
 
-          boxShadow: isSelected
-            ? "0 2px 8px rgba(22,119,255,.08)"
-            : "none",
+          boxShadow: isSelected ? "0 2px 8px rgba(22,119,255,.08)" : "none",
         }}
       >
         {/* ROUTE */}
@@ -724,9 +526,7 @@ export default function BranchPricingPage() {
               flexWrap: "wrap",
             }}
           >
-            <Text strong>
-              {pickup.name}
-            </Text>
+            <Text strong>{pickup.name}</Text>
 
             <span
               style={{
@@ -738,9 +538,7 @@ export default function BranchPricingPage() {
               →
             </span>
 
-            <Text strong>
-              {delivery.name}
-            </Text>
+            <Text strong>{delivery.name}</Text>
 
             {isSameBranch && (
               <Tag
@@ -762,8 +560,7 @@ export default function BranchPricingPage() {
               fontSize: 11,
             }}
           >
-            {pickup.code} →{" "}
-            {delivery.code}
+            {pickup.code} → {delivery.code}
           </Text>
         </div>
 
@@ -784,9 +581,7 @@ export default function BranchPricingPage() {
               fontWeight: 600,
             }}
           >
-            {formatMoney(
-              row.base_rate,
-            )}
+            {formatMoney(row.base_rate)}
           </div>
         </div>
 
@@ -803,9 +598,7 @@ export default function BranchPricingPage() {
             Status
           </Text>
 
-          <StatusTag
-            active={row.is_active}
-          />
+          <StatusTag active={row.is_active} />
         </div>
 
         {/* UPDATED */}
@@ -825,28 +618,17 @@ export default function BranchPricingPage() {
               fontSize: 12,
             }}
           >
-            {formatDate(
-              row.updated_at,
-            )}
+            {formatDate(row.updated_at)}
           </Text>
         </div>
 
         {/* ACTIONS */}
-        <Space
-          size={4}
-          onClick={(event) =>
-            event.stopPropagation()
-          }
-        >
+        <Space size={4} onClick={(event) => event.stopPropagation()}>
           <Tooltip title="Edit">
             <Button
               size="small"
-              icon={
-                <EditOutlined />
-              }
-              onClick={() =>
-                openEdit(row)
-              }
+              icon={<EditOutlined />}
+              onClick={() => openEdit(row)}
             />
           </Tooltip>
 
@@ -859,27 +641,14 @@ export default function BranchPricingPage() {
           >
             <Button
               size="small"
-              disabled={
-                isSameBranch
-              }
-              icon={
-                <SwapOutlined />
-              }
-              onClick={() =>
-                createReverse(row)
-              }
+              disabled={isSameBranch}
+              icon={<SwapOutlined />}
+              onClick={() => createReverse(row)}
             />
           </Tooltip>
 
-          <Button
-            size="small"
-            onClick={() =>
-              toggleStatus(row)
-            }
-          >
-            {row.is_active
-              ? "Disable"
-              : "Enable"}
+          <Button size="small" onClick={() => toggleStatus(row)}>
+            {row.is_active ? "Disable" : "Enable"}
           </Button>
 
           <Popconfirm
@@ -890,17 +659,9 @@ export default function BranchPricingPage() {
             okButtonProps={{
               danger: true,
             }}
-            onConfirm={() =>
-              removeRate(row)
-            }
+            onConfirm={() => removeRate(row)}
           >
-            <Button
-              danger
-              size="small"
-              icon={
-                <DeleteOutlined />
-              }
-            />
+            <Button danger size="small" icon={<DeleteOutlined />} />
           </Popconfirm>
         </Space>
       </div>
@@ -908,27 +669,16 @@ export default function BranchPricingPage() {
   };
 
   const selectedNodes = selected
-    ? [
-        selected.pickup_branch,
-        selected.delivery_branch,
-      ].filter(Boolean)
+    ? [selected.pickup_branch, selected.delivery_branch].filter(Boolean)
     : [];
 
-  const selectedPickup =
-    selected
-      ? getBranchDisplay(
-          selected.pickup_branch,
-          selected.pickup_branch_id,
-        )
-      : null;
+  const selectedPickup = selected
+    ? getBranchDisplay(selected.pickup_branch, selected.pickup_branch_id)
+    : null;
 
-  const selectedDelivery =
-    selected
-      ? getBranchDisplay(
-          selected.delivery_branch,
-          selected.delivery_branch_id,
-        )
-      : null;
+  const selectedDelivery = selected
+    ? getBranchDisplay(selected.delivery_branch, selected.delivery_branch_id)
+    : null;
 
   return (
     <div
@@ -952,16 +702,9 @@ export default function BranchPricingPage() {
           },
         }}
       >
-        <Row
-          justify="space-between"
-          align="middle"
-          gutter={[16, 16]}
-        >
+        <Row justify="space-between" align="middle" gutter={[16, 16]}>
           <Col>
-            <Space
-              direction="vertical"
-              size={3}
-            >
+            <Space direction="vertical" size={3}>
               <Space>
                 <EnvironmentOutlined
                   style={{
@@ -979,15 +722,12 @@ export default function BranchPricingPage() {
                   Branch Pricing
                 </Title>
 
-                <Tag color="blue">
-                  Route Management
-                </Tag>
+                <Tag color="blue">Route Management</Tag>
               </Space>
 
               <Text type="secondary">
-                Manage branch-to-branch
-                delivery rates and view
-                the actual road route.
+                Manage branch-to-branch delivery rates and view the actual road
+                route.
               </Text>
             </Space>
           </Col>
@@ -995,15 +735,10 @@ export default function BranchPricingPage() {
           <Col>
             <Space>
               <Button
-                icon={
-                  <ReloadOutlined />
-                }
+                icon={<ReloadOutlined />}
                 loading={loading}
                 onClick={() =>
-                  loadRows(
-                    pagination.current,
-                    pagination.pageSize,
-                  )
+                  loadRows(pagination.current, pagination.pageSize)
                 }
               >
                 Refresh
@@ -1011,12 +746,8 @@ export default function BranchPricingPage() {
 
               <Button
                 type="primary"
-                icon={
-                  <PlusOutlined />
-                }
-                onClick={() =>
-                  openCreate()
-                }
+                icon={<PlusOutlined />}
+                onClick={() => openCreate()}
               >
                 Add Branch Rate
               </Button>
@@ -1032,11 +763,7 @@ export default function BranchPricingPage() {
           marginBottom: 16,
         }}
       >
-        <Col
-          xs={24}
-          sm={12}
-          lg={6}
-        >
+        <Col xs={24} sm={12} lg={6}>
           <Card
             bordered={false}
             style={{
@@ -1045,22 +772,13 @@ export default function BranchPricingPage() {
           >
             <Statistic
               title="Total Routes"
-              value={
-                pagination.total ||
-                rows.length
-              }
-              prefix={
-                <EnvironmentOutlined />
-              }
+              value={pagination.total || rows.length}
+              prefix={<EnvironmentOutlined />}
             />
           </Card>
         </Col>
 
-        <Col
-          xs={24}
-          sm={12}
-          lg={6}
-        >
+        <Col xs={24} sm={12} lg={6}>
           <Card
             bordered={false}
             style={{
@@ -1070,9 +788,7 @@ export default function BranchPricingPage() {
             <Statistic
               title="Active Routes"
               value={stats.active}
-              suffix={`/ ${
-                rows.length
-              }`}
+              suffix={`/ ${rows.length}`}
               valueStyle={{
                 color: "#52c41a",
               }}
@@ -1080,31 +796,18 @@ export default function BranchPricingPage() {
           </Card>
         </Col>
 
-        <Col
-          xs={24}
-          sm={12}
-          lg={6}
-        >
+        <Col xs={24} sm={12} lg={6}>
           <Card
             bordered={false}
             style={{
               borderRadius: 10,
             }}
           >
-            <Statistic
-              title="Branches"
-              value={
-                stats.branchCount
-              }
-            />
+            <Statistic title="Branches" value={stats.branchCount} />
           </Card>
         </Col>
 
-        <Col
-          xs={24}
-          sm={12}
-          lg={6}
-        >
+        <Col xs={24} sm={12} lg={6}>
           <Card
             bordered={false}
             style={{
@@ -1139,9 +842,7 @@ export default function BranchPricingPage() {
           <Space>
             <FilterOutlined />
 
-            <Text strong>
-              Route Filters
-            </Text>
+            <Text strong>Route Filters</Text>
 
             <Text
               type="secondary"
@@ -1149,43 +850,27 @@ export default function BranchPricingPage() {
                 fontSize: 12,
               }}
             >
-              Filter routes before
-              reviewing them.
+              Filter routes before reviewing them.
             </Text>
           </Space>
 
           <Row gutter={[10, 10]}>
-            <Col
-              xs={24}
-              lg={7}
-            >
+            <Col xs={24} lg={7}>
               <Input
                 allowClear
-                value={
-                  filters.search
-                }
+                value={filters.search}
                 placeholder="Search branch or route..."
                 onChange={(event) =>
-                  setFilters(
-                    (current) => ({
-                      ...current,
-                      search:
-                        event.target
-                          .value,
-                    }),
-                  )
+                  setFilters((current) => ({
+                    ...current,
+                    search: event.target.value,
+                  }))
                 }
-                onPressEnter={
-                  applyFilters
-                }
+                onPressEnter={applyFilters}
               />
             </Col>
 
-            <Col
-              xs={24}
-              sm={12}
-              lg={5}
-            >
+            <Col xs={24} sm={12} lg={5}>
               <Select
                 allowClear
                 showSearch
@@ -1194,29 +879,18 @@ export default function BranchPricingPage() {
                   width: "100%",
                 }}
                 placeholder="Pickup branch"
-                options={
-                  branchOptions
-                }
-                value={
-                  filters.pickup_branch_id
-                }
+                options={branchOptions}
+                value={filters.pickup_branch_id}
                 onChange={(value) =>
-                  setFilters(
-                    (current) => ({
-                      ...current,
-                      pickup_branch_id:
-                        value,
-                    }),
-                  )
+                  setFilters((current) => ({
+                    ...current,
+                    pickup_branch_id: value,
+                  }))
                 }
               />
             </Col>
 
-            <Col
-              xs={24}
-              sm={12}
-              lg={5}
-            >
+            <Col xs={24} sm={12} lg={5}>
               <Select
                 allowClear
                 showSearch
@@ -1225,46 +899,30 @@ export default function BranchPricingPage() {
                   width: "100%",
                 }}
                 placeholder="Destination"
-                options={
-                  branchOptions
-                }
-                value={
-                  filters.delivery_branch_id
-                }
+                options={branchOptions}
+                value={filters.delivery_branch_id}
                 onChange={(value) =>
-                  setFilters(
-                    (current) => ({
-                      ...current,
-                      delivery_branch_id:
-                        value,
-                    }),
-                  )
+                  setFilters((current) => ({
+                    ...current,
+                    delivery_branch_id: value,
+                  }))
                 }
               />
             </Col>
 
-            <Col
-              xs={24}
-              sm={12}
-              lg={3}
-            >
+            <Col xs={24} sm={12} lg={3}>
               <Select
                 allowClear
                 style={{
                   width: "100%",
                 }}
                 placeholder="Status"
-                value={
-                  filters.is_active
-                }
+                value={filters.is_active}
                 onChange={(value) =>
-                  setFilters(
-                    (current) => ({
-                      ...current,
-                      is_active:
-                        value,
-                    }),
-                  )
+                  setFilters((current) => ({
+                    ...current,
+                    is_active: value,
+                  }))
                 }
                 options={[
                   {
@@ -1279,11 +937,7 @@ export default function BranchPricingPage() {
               />
             </Col>
 
-            <Col
-              xs={24}
-              sm={12}
-              lg={4}
-            >
+            <Col xs={24} sm={12} lg={4}>
               <Space
                 style={{
                   width: "100%",
@@ -1291,23 +945,13 @@ export default function BranchPricingPage() {
               >
                 <Button
                   type="primary"
-                  icon={
-                    <FilterOutlined />
-                  }
-                  onClick={
-                    applyFilters
-                  }
+                  icon={<FilterOutlined />}
+                  onClick={applyFilters}
                 >
                   Apply
                 </Button>
 
-                <Button
-                  onClick={
-                    resetFilters
-                  }
-                >
-                  Reset
-                </Button>
+                <Button onClick={resetFilters}>Reset</Button>
               </Space>
             </Col>
           </Row>
@@ -1315,15 +959,9 @@ export default function BranchPricingPage() {
       </Card>
 
       {/* MAIN WORKSPACE */}
-      <Row
-        gutter={[16, 16]}
-        align="top"
-      >
+      <Row gutter={[16, 16]} align="top">
         {/* LEFT */}
-        <Col
-          xs={24}
-          xl={17}
-        >
+        <Col xs={24} xl={17}>
           <Card
             bordered={false}
             style={{
@@ -1339,16 +977,9 @@ export default function BranchPricingPage() {
               <Space>
                 <EnvironmentOutlined />
 
-                <Text strong>
-                  Branch Rates
-                </Text>
+                <Text strong>Branch Rates</Text>
 
-                <Tag color="blue">
-                  {
-                    groupedRows.length
-                  }{" "}
-                  branches
-                </Tag>
+                <Tag color="blue">{groupedRows.length} branches</Tag>
               </Space>
             }
             extra={
@@ -1358,8 +989,7 @@ export default function BranchPricingPage() {
                   fontSize: 12,
                 }}
               >
-                Click a route to
-                view it on map
+                Click a route to view it on map
               </Text>
             }
           >
@@ -1370,8 +1000,7 @@ export default function BranchPricingPage() {
                   textAlign: "center",
                 }}
               >
-                Loading branch
-                rates...
+                Loading branch rates...
               </div>
             ) : !groupedRows.length ? (
               <div
@@ -1382,12 +1011,8 @@ export default function BranchPricingPage() {
                 <Empty description="No branch rates found">
                   <Button
                     type="primary"
-                    icon={
-                      <PlusOutlined />
-                    }
-                    onClick={() =>
-                      openCreate()
-                    }
+                    icon={<PlusOutlined />}
+                    onClick={() => openCreate()}
                   >
                     Create First Rate
                   </Button>
@@ -1397,185 +1022,106 @@ export default function BranchPricingPage() {
               <Collapse
                 bordered={false}
                 expandIconPosition="start"
-                defaultActiveKey={[
-                  String(
-                    groupedRows[0]
-                      ?.branchId,
+                defaultActiveKey={[String(groupedRows[0]?.branchId)]}
+                items={groupedRows.map((group) => ({
+                  key: String(group.branchId),
+
+                  label: (
+                    <div
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 8,
+                        flexWrap: "wrap",
+                      }}
+                    >
+                      <Text strong>{group.branchInfo.name}</Text>
+
+                      <Tag color="blue">{group.branchInfo.code}</Tag>
+
+                      <Tag>
+                        {group.totalCount}{" "}
+                        {group.totalCount === 1 ? "rate" : "rates"}
+                      </Tag>
+
+                      <Tag color="success">{group.activeCount} active</Tag>
+                    </div>
                   ),
-                ]}
-                items={groupedRows.map(
-                  (group) => ({
-                    key: String(
-                      group.branchId,
-                    ),
 
-                    label: (
-                      <div
+                  children: (
+                    <div
+                      style={{
+                        padding: "4px 12px 12px",
+                      }}
+                    >
+                      <Text
+                        type="secondary"
                         style={{
-                          display: "flex",
-                          alignItems:
-                            "center",
-                          gap: 8,
-                          flexWrap:
-                            "wrap",
+                          display: "block",
+                          margin: "0 0 12px 4px",
+                          fontSize: 12,
                         }}
                       >
-                        <Text strong>
-                          {
-                            group
-                              .branchInfo
-                              .name
-                          }
-                        </Text>
+                        Delivery rates originating from{" "}
+                        <Text strong>{group.branchInfo.name}</Text>
+                      </Text>
 
-                        <Tag color="blue">
-                          {
-                            group
-                              .branchInfo
-                              .code
-                          }
-                        </Tag>
-
-                        <Tag>
-                          {
-                            group
-                              .totalCount
-                          }{" "}
-                          {group.totalCount ===
-                          1
-                            ? "rate"
-                            : "rates"}
-                        </Tag>
-
-                        <Tag color="success">
-                          {
-                            group
-                              .activeCount
-                          }{" "}
-                          active
-                        </Tag>
-                      </div>
-                    ),
-
-                    children: (
-                      <div
-                        style={{
-                          padding:
-                            "4px 12px 12px",
-                        }}
-                      >
-                        <Text
-                          type="secondary"
-                          style={{
-                            display:
-                              "block",
-                            margin:
-                              "0 0 12px 4px",
-                            fontSize: 12,
-                          }}
-                        >
-                          Delivery rates
-                          originating
-                          from{" "}
-                          <Text strong>
-                            {
-                              group
-                                .branchInfo
-                                .name
-                            }
-                          </Text>
-                        </Text>
-
-                        {group.rows.map(
-                          (row) => (
-                            <RateRow
-                              key={
-                                row.id
-                              }
-                              row={
-                                row
-                              }
-                            />
-                          ),
-                        )}
-                      </div>
-                    ),
-                  }),
-                )}
+                      {group.rows.map((row) => (
+                        <RateRow key={row.id} row={row} />
+                      ))}
+                    </div>
+                  ),
+                }))}
               />
             )}
 
-            {!loading &&
-              rows.length > 0 && (
-                <div
+            {!loading && rows.length > 0 && (
+              <div
+                style={{
+                  padding: "12px 18px",
+                  borderTop: "1px solid #f0f0f0",
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                }}
+              >
+                <Text
+                  type="secondary"
                   style={{
-                    padding:
-                      "12px 18px",
-                    borderTop:
-                      "1px solid #f0f0f0",
-                    display: "flex",
-                    justifyContent:
-                      "space-between",
-                    alignItems:
-                      "center",
+                    fontSize: 12,
                   }}
                 >
-                  <Text
-                    type="secondary"
-                    style={{
-                      fontSize: 12,
-                    }}
+                  Showing {rows.length} loaded routes
+                </Text>
+
+                <Space>
+                  <Button
+                    size="small"
+                    disabled={pagination.current <= 1}
+                    onClick={() =>
+                      loadRows(pagination.current - 1, pagination.pageSize)
+                    }
                   >
-                    Showing{" "}
-                    {rows.length}{" "}
-                    loaded routes
-                  </Text>
+                    Previous
+                  </Button>
 
-                  <Space>
-                    <Button
-                      size="small"
-                      disabled={
-                        pagination.current <=
-                        1
-                      }
-                      onClick={() =>
-                        loadRows(
-                          pagination.current -
-                            1,
-                          pagination.pageSize,
-                        )
-                      }
-                    >
-                      Previous
-                    </Button>
+                  <Tag>Page {pagination.current}</Tag>
 
-                    <Tag>
-                      Page{" "}
-                      {
-                        pagination.current
-                      }
-                    </Tag>
-
-                    <Button
-                      size="small"
-                      disabled={
-                        pagination.current *
-                          pagination.pageSize >=
-                        pagination.total
-                      }
-                      onClick={() =>
-                        loadRows(
-                          pagination.current +
-                            1,
-                          pagination.pageSize,
-                        )
-                      }
-                    >
-                      Next
-                    </Button>
-                  </Space>
-                </div>
-              )}
+                  <Button
+                    size="small"
+                    disabled={
+                      pagination.current * pagination.pageSize >=
+                      pagination.total
+                    }
+                    onClick={() =>
+                      loadRows(pagination.current + 1, pagination.pageSize)
+                    }
+                  >
+                    Next
+                  </Button>
+                </Space>
+              </div>
+            )}
           </Card>
         </Col>
 
@@ -1613,9 +1159,7 @@ export default function BranchPricingPage() {
                     }}
                   />
 
-                  <Text strong>
-                    Selected Route
-                  </Text>
+                  <Text strong>Selected Route</Text>
                 </Space>
               }
             >
@@ -1624,22 +1168,17 @@ export default function BranchPricingPage() {
                   {/* ROUTE HEADER */}
                   <div
                     style={{
-                      padding:
-                        "14px 16px",
-                      background:
-                        "#f7fbff",
-                      borderBottom:
-                        "1px solid #e6f4ff",
+                      padding: "14px 16px",
+                      background: "#f7fbff",
+                      borderBottom: "1px solid #e6f4ff",
                     }}
                   >
                     <Text
                       type="secondary"
                       style={{
                         fontSize: 10,
-                        textTransform:
-                          "uppercase",
-                        letterSpacing:
-                          ".08em",
+                        textTransform: "uppercase",
+                        letterSpacing: ".08em",
                       }}
                     >
                       Delivery Route
@@ -1647,70 +1186,41 @@ export default function BranchPricingPage() {
 
                     <div
                       style={{
-                        display:
-                          "flex",
-                        alignItems:
-                          "center",
+                        display: "flex",
+                        alignItems: "center",
                         gap: 8,
-                        flexWrap:
-                          "wrap",
+                        flexWrap: "wrap",
                         marginTop: 6,
                       }}
                     >
-                      <Text strong>
-                        {
-                          selectedPickup
-                            ?.name
-                        }
-                      </Text>
+                      <Text strong>{selectedPickup?.name}</Text>
 
                       <span
                         style={{
-                          color:
-                            "#1677ff",
+                          color: "#1677ff",
                           fontSize: 18,
                         }}
                       >
                         →
                       </span>
 
-                      <Text strong>
-                        {
-                          selectedDelivery
-                            ?.name
-                        }
-                      </Text>
+                      <Text strong>{selectedDelivery?.name}</Text>
 
-                      {Number(
-                        selected.pickup_branch_id,
-                      ) ===
-                        Number(
-                          selected.delivery_branch_id,
-                        ) && (
-                        <Tag color="blue">
-                          Local
-                        </Tag>
+                      {Number(selected.pickup_branch_id) ===
+                        Number(selected.delivery_branch_id) && (
+                        <Tag color="blue">Local</Tag>
                       )}
                     </div>
 
                     <Text
                       type="secondary"
                       style={{
-                        display:
-                          "block",
+                        display: "block",
                         marginTop: 4,
                         fontSize: 11,
                       }}
                     >
-                      {
-                        selectedPickup
-                          ?.code
-                      }{" "}
-                      →{" "}
-                      {
-                        selectedDelivery
-                          ?.code
-                      }
+                      {selectedPickup?.code} → {selectedDelivery?.code}
                     </Text>
                   </div>
 
@@ -1721,9 +1231,7 @@ export default function BranchPricingPage() {
                     }}
                   >
                     <RouteMapS
-                      nodes={
-                        selectedNodes
-                      }
+                      nodes={selectedNodes}
                       height={360}
                       selectedLabel="Actual road route"
                     />
@@ -1732,21 +1240,15 @@ export default function BranchPricingPage() {
                   {/* RATE SUMMARY */}
                   <div
                     style={{
-                      padding:
-                        "0 12px 12px",
+                      padding: "0 12px 12px",
                     }}
                   >
-                    <Row
-                      gutter={8}
-                    >
-                      <Col
-                        span={12}
-                      >
+                    <Row gutter={8}>
+                      <Col span={12}>
                         <div
                           style={{
                             padding: 12,
-                            border:
-                              "1px solid #f0f0f0",
+                            border: "1px solid #f0f0f0",
                             borderRadius: 8,
                           }}
                         >
@@ -1754,8 +1256,7 @@ export default function BranchPricingPage() {
                             type="secondary"
                             style={{
                               fontSize: 10,
-                              textTransform:
-                                "uppercase",
+                              textTransform: "uppercase",
                             }}
                           >
                             Base Rate
@@ -1768,21 +1269,16 @@ export default function BranchPricingPage() {
                               fontWeight: 700,
                             }}
                           >
-                            {formatMoney(
-                              selected.base_rate,
-                            )}
+                            {formatMoney(selected.base_rate)}
                           </div>
                         </div>
                       </Col>
 
-                      <Col
-                        span={12}
-                      >
+                      <Col span={12}>
                         <div
                           style={{
                             padding: 12,
-                            border:
-                              "1px solid #f0f0f0",
+                            border: "1px solid #f0f0f0",
                             borderRadius: 8,
                           }}
                         >
@@ -1790,8 +1286,7 @@ export default function BranchPricingPage() {
                             type="secondary"
                             style={{
                               fontSize: 10,
-                              textTransform:
-                                "uppercase",
+                              textTransform: "uppercase",
                             }}
                           >
                             Status
@@ -1802,11 +1297,7 @@ export default function BranchPricingPage() {
                               marginTop: 7,
                             }}
                           >
-                            <StatusTag
-                              active={
-                                selected.is_active
-                              }
-                            />
+                            <StatusTag active={selected.is_active} />
                           </div>
                         </div>
                       </Col>
@@ -1820,78 +1311,46 @@ export default function BranchPricingPage() {
                       }}
                     >
                       <Descriptions.Item label="Pickup">
-                        {
-                          selectedPickup?.name
-                        }
+                        {selectedPickup?.name}
                       </Descriptions.Item>
 
                       <Descriptions.Item label="Destination">
-                        {
-                          selectedDelivery?.name
-                        }
+                        {selectedDelivery?.name}
                       </Descriptions.Item>
 
                       <Descriptions.Item label="Last Updated">
-                        {formatDate(
-                          selected.updated_at,
-                        )}
+                        {formatDate(selected.updated_at)}
                       </Descriptions.Item>
                     </Descriptions>
 
                     <Space
                       style={{
-                        width:
-                          "100%",
+                        width: "100%",
                         marginTop: 8,
                       }}
                     >
                       <Button
                         block
-                        icon={
-                          <EditOutlined />
-                        }
-                        onClick={() =>
-                          openEdit(
-                            selected,
-                          )
-                        }
+                        icon={<EditOutlined />}
+                        onClick={() => openEdit(selected)}
                       >
                         Edit
                       </Button>
 
                       <Button
                         block
-                        icon={
-                          <SwapOutlined />
-                        }
+                        icon={<SwapOutlined />}
                         disabled={
-                          Number(
-                            selected.pickup_branch_id,
-                          ) ===
-                          Number(
-                            selected.delivery_branch_id,
-                          )
+                          Number(selected.pickup_branch_id) ===
+                          Number(selected.delivery_branch_id)
                         }
-                        onClick={() =>
-                          createReverse(
-                            selected,
-                          )
-                        }
+                        onClick={() => createReverse(selected)}
                       >
                         Reverse
                       </Button>
 
-                      <Button
-                        block
-                        onClick={() =>
-                          toggleStatus(
-                            selected,
-                          )
-                        }
-                      >
-                        {selected.is_active
-                          ? "Disable"
-                          : "Enable"}
+                      <Button block onClick={() => toggleStatus(selected)}>
+                        {selected.is_active ? "Disable" : "Enable"}
                       </Button>
                     </Space>
                   </div>
@@ -1902,9 +1361,7 @@ export default function BranchPricingPage() {
                     padding: 60,
                   }}
                 >
-                  <Empty
-                    description="Select a route to view its map"
-                  />
+                  <Empty description="Select a route to view its map" />
                 </div>
               )}
             </Card>
@@ -1915,18 +1372,10 @@ export default function BranchPricingPage() {
       {/* CREATE / EDIT */}
       <Modal
         open={modalOpen}
-        title={
-          editing
-            ? "Edit Branch Rate"
-            : "Create Branch Rate"
-        }
+        title={editing ? "Edit Branch Rate" : "Create Branch Rate"}
         width={680}
         confirmLoading={saving}
-        okText={
-          editing
-            ? "Update Rate"
-            : "Create Rate"
-        }
+        okText={editing ? "Update Rate" : "Create Rate"}
         onOk={saveRate}
         onCancel={closeModal}
         destroyOnClose
@@ -1946,17 +1395,14 @@ export default function BranchPricingPage() {
                 rules={[
                   {
                     required: true,
-                    message:
-                      "Please select pickup branch.",
+                    message: "Please select pickup branch.",
                   },
                 ]}
               >
                 <Select
                   showSearch
                   optionFilterProp="label"
-                  options={
-                    branchOptions
-                  }
+                  options={branchOptions}
                   placeholder="Select main branch"
                 />
               </Form.Item>
@@ -1969,17 +1415,14 @@ export default function BranchPricingPage() {
                 rules={[
                   {
                     required: true,
-                    message:
-                      "Please select delivery branch.",
+                    message: "Please select delivery branch.",
                   },
                 ]}
               >
                 <Select
                   showSearch
                   optionFilterProp="label"
-                  options={
-                    branchOptions
-                  }
+                  options={branchOptions}
                   placeholder="Select destination branch"
                 />
               </Form.Item>
@@ -1992,14 +1435,12 @@ export default function BranchPricingPage() {
             rules={[
               {
                 required: true,
-                message:
-                  "Please enter base rate.",
+                message: "Please enter base rate.",
               },
               {
                 type: "number",
                 min: 0,
-                message:
-                  "Base rate must be zero or greater.",
+                message: "Base rate must be zero or greater.",
               },
             ]}
           >
@@ -2031,12 +1472,8 @@ export default function BranchPricingPage() {
               color: "#595959",
             }}
           >
-            Same-branch pricing is
-            supported. For example,
-            Kathmandu Main Branch →
-            Kathmandu Main Branch can
-            have its own local delivery
-            rate.
+            Same-branch pricing is supported. For example, Kathmandu Main Branch
+            → Kathmandu Main Branch can have its own local delivery rate.
           </div>
         </Form>
       </Modal>
