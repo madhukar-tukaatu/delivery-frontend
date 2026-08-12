@@ -1,7 +1,88 @@
 "use client";
 
 import { useEffect } from "react";
-import { Form, InputNumber, Modal, Select, Switch } from "antd";
+import { Form, InputNumber, Modal, Select, Switch, Typography } from "antd";
+
+const { Text } = Typography;
+
+function fmt(value) {
+  return `NPR ${Number(value || 0).toLocaleString("en-NP", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })}`;
+}
+
+function EffectiveRates({ baseRate, pricingSettings, isSameBranch }) {
+  if (!baseRate || baseRate <= 0 || !pricingSettings) return null;
+
+  const expressMultiplier = isSameBranch
+    ? Number(pricingSettings.local_express_multiplier ?? 1.2)
+    : Number(pricingSettings.transfer_express_multiplier ?? 1.3);
+
+  const sameDayMultiplier = isSameBranch
+    ? Number(pricingSettings.local_same_day_multiplier ?? 1.5)
+    : Number(pricingSettings.transfer_same_day_multiplier ?? 2);
+
+  const rates = [
+    { label: "Standard", value: baseRate, color: "#1677ff", multiplier: null },
+    {
+      label: "Express",
+      value: baseRate * expressMultiplier,
+      color: "#fa8c16",
+      multiplier: expressMultiplier,
+      enabled: pricingSettings.express_enabled !== false,
+    },
+    {
+      label: "Same Day",
+      value: baseRate * sameDayMultiplier,
+      color: "#eb2f96",
+      multiplier: sameDayMultiplier,
+      enabled: pricingSettings.same_day_enabled !== false,
+    },
+  ];
+
+  return (
+    <div
+      style={{
+        marginTop: -8,
+        marginBottom: 16,
+        padding: "10px 12px",
+        background: "#f8fafc",
+        border: "1px solid #e2e8f0",
+        borderRadius: 8,
+      }}
+    >
+      <Text type="secondary" style={{ fontSize: 11, display: "block", marginBottom: 8 }}>
+        Effective rates from this base rate (from active Pricing Settings)
+      </Text>
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+        {rates.map(({ label, value, color, multiplier, enabled }) => (
+          <div
+            key={label}
+            style={{
+              flex: 1,
+              minWidth: 110,
+              padding: "8px 10px",
+              background: "#fff",
+              border: `1px solid ${color}22`,
+              borderRadius: 7,
+              opacity: enabled === false ? 0.45 : 1,
+            }}
+          >
+            <Text style={{ fontSize: 10, color, fontWeight: 700, display: "block" }}>
+              {label}
+              {multiplier ? ` ×${multiplier}` : ""}
+              {enabled === false ? " (off)" : ""}
+            </Text>
+            <Text strong style={{ fontSize: 13, color }}>
+              {fmt(value)}
+            </Text>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 export default function BranchRouteRateModal({
   open,
@@ -9,6 +90,7 @@ export default function BranchRouteRateModal({
   branches,
   saving,
   defaults,
+  pricingSettings,
   onCancel,
   onSubmit,
 }) {
@@ -16,12 +98,12 @@ export default function BranchRouteRateModal({
   const editing = Boolean(record?.id);
   const pickupId = Form.useWatch("pickup_branch_id", form);
   const deliveryId = Form.useWatch("delivery_branch_id", form);
+  const baseRate = Form.useWatch("base_rate", form);
   const createReverse = Form.useWatch("create_reverse_route", form);
   const sameBranch = pickupId && deliveryId && Number(pickupId) === Number(deliveryId);
 
   useEffect(() => {
     if (!open) return;
-
     if (record) {
       form.setFieldsValue({
         pickup_branch_id: Number(record.pickup_branch_id),
@@ -44,9 +126,7 @@ export default function BranchRouteRateModal({
   }, [defaults, form, open, record]);
 
   useEffect(() => {
-    if (sameBranch) {
-      form.setFieldsValue({ create_reverse_route: false });
-    }
+    if (sameBranch) form.setFieldsValue({ create_reverse_route: false });
   }, [form, sameBranch]);
 
   const branchOptions = branches.map((branch) => ({
@@ -82,12 +162,18 @@ export default function BranchRouteRateModal({
         </Form.Item>
 
         <Form.Item
-          label="Base rate"
+          label="Standard base rate (used directly for Standard, multiplied for Express and Same Day)"
           name="base_rate"
           rules={[{ required: true, message: "Base rate is required." }]}
         >
           <InputNumber min={0} step={1} addonBefore="NPR" style={{ width: "100%" }} />
         </Form.Item>
+
+        <EffectiveRates
+          baseRate={baseRate}
+          pricingSettings={pricingSettings}
+          isSameBranch={sameBranch}
+        />
 
         <Form.Item label="Active" name="is_active" valuePropName="checked">
           <Switch checkedChildren="Active" unCheckedChildren="Inactive" />
@@ -99,7 +185,11 @@ export default function BranchRouteRateModal({
               label="Create reverse route"
               name="create_reverse_route"
               valuePropName="checked"
-              extra={sameBranch ? "A same-branch rate does not need a reverse route." : "Create the delivery-to-pickup rate at the same time."}
+              extra={
+                sameBranch
+                  ? "A same-branch rate does not need a reverse route."
+                  : "Create the delivery-to-pickup rate at the same time."
+              }
             >
               <Switch disabled={sameBranch} />
             </Form.Item>

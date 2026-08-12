@@ -15,6 +15,8 @@ export const DEFAULT_PRICING_VALUES = {
   transfer_extra_weight_rate: 30,
   extra_distance_rate: 6,
   fragile_multiplier: 1.05,
+  local_express_multiplier: 1.2,
+  transfer_express_multiplier: 1.3,
   local_same_day_multiplier: 1.5,
   transfer_same_day_multiplier: 2,
   same_day_cutoff_time: dayjs("12:00", "HH:mm"),
@@ -25,6 +27,7 @@ export const DEFAULT_PRICING_VALUES = {
   distance_rounding: "none",
   money_rounding: "round",
   fragile_enabled: true,
+  express_enabled: true,
   same_day_enabled: true,
   pickup_charge_enabled: true,
   vat_enabled: true,
@@ -84,6 +87,12 @@ export function toPricingFormValues(record) {
     fragile_multiplier: Number(
       record.fragile_multiplier ?? 1.05,
     ),
+    local_express_multiplier: Number(
+      record.local_express_multiplier ?? 1.2,
+    ),
+    transfer_express_multiplier: Number(
+      record.transfer_express_multiplier ?? 1.3,
+    ),
     local_same_day_multiplier: Number(
       record.local_same_day_multiplier ??
         record.same_day_same_branch_multiplier ??
@@ -111,6 +120,9 @@ export function toPricingFormValues(record) {
     vat_percentage: Number(record.vat_percentage ?? 13),
     fragile_enabled: toBoolean(
       record.fragile_enabled ?? true,
+    ),
+    express_enabled: toBoolean(
+      record.express_enabled ?? true,
     ),
     same_day_enabled: toBoolean(
       record.same_day_enabled ?? true,
@@ -142,6 +154,12 @@ export function buildPricingPayload(
     fragile_multiplier: Number(
       values.fragile_multiplier,
     ),
+    local_express_multiplier: Number(
+      values.local_express_multiplier,
+    ),
+    transfer_express_multiplier: Number(
+      values.transfer_express_multiplier,
+    ),
     local_same_day_multiplier: Number(
       values.local_same_day_multiplier,
     ),
@@ -164,6 +182,7 @@ export function buildPricingPayload(
       values.distance_rounding || "none",
     money_rounding: values.money_rounding || "round",
     fragile_enabled: Boolean(values.fragile_enabled),
+    express_enabled: Boolean(values.express_enabled),
     same_day_enabled: Boolean(values.same_day_enabled),
     pickup_charge_enabled: Boolean(
       values.pickup_charge_enabled,

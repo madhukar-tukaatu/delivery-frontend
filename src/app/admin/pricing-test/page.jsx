@@ -47,7 +47,7 @@ import {
 
 import "./pricing-simulator.css";
 
-import api from "@/lib/api";
+import adminPricingSimulatorService from "@/services/adminPricingSimulatorService";
 
 /* ==========================================================================
    LEAFLET
@@ -60,6 +60,7 @@ const PricingMap = dynamic(
     loading: () => (
       <div className="map-loading">
         <LoadingOutlined />
+
         <span>
           Loading map...
         </span>
@@ -138,9 +139,7 @@ function numberValue(
   const number =
     Number(value);
 
-  return Number.isFinite(
-    number,
-  )
+  return Number.isFinite(number)
     ? number
     : fallback;
 }
@@ -152,9 +151,7 @@ function positiveNumber(
   const number =
     Number(value);
 
-  if (
-    !Number.isFinite(number)
-  ) {
+  if (!Number.isFinite(number)) {
     return minimum;
   }
 
@@ -171,9 +168,7 @@ function integerValue(
   const number =
     Number(value);
 
-  if (
-    !Number.isFinite(number)
-  ) {
+  if (!Number.isFinite(number)) {
     return minimum;
   }
 
@@ -190,9 +185,7 @@ function roundNumber(
   const number =
     Number(value);
 
-  if (
-    !Number.isFinite(number)
-  ) {
+  if (!Number.isFinite(number)) {
     return 0;
   }
 
@@ -537,28 +530,6 @@ function buildStorePayload(
 }
 
 /* ==========================================================================
-   API
-   ========================================================================== */
-
-const pricingSimulatorApi = {
-  async calculate(
-    payload,
-  ) {
-    const response =
-      await api.post(
-        "/admin/pricing-simulator",
-        payload,
-      );
-
-    return (
-      response?.data?.data ??
-      response?.data ??
-      null
-    );
-  },
-};
-
-/* ==========================================================================
    LOCATION PICKER
    ========================================================================== */
 
@@ -846,6 +817,7 @@ function LocationCard({
         <span className="map-button-icon">
           ⌖
         </span>
+
         Map
       </Button>
     </div>
@@ -2194,8 +2166,20 @@ export default function PricingTestPage() {
           payload,
         );
 
+        /**
+         * IMPORTANT:
+         *
+         * The page does not communicate
+         * with Axios/api directly anymore.
+         *
+         * Everything goes through:
+         *
+         * adminPricingSimulatorService
+         *        ↓
+         *      lib/api
+         */
         const response =
-          await pricingSimulatorApi.calculate(
+          await adminPricingSimulatorService.calculate(
             payload,
           );
 
@@ -2346,9 +2330,9 @@ export default function PricingTestPage() {
                 locations, delivery
                 and package details.
                 The pricing engine
-                resolves the complete
-                route and final
-                charge.
+                resolves the configured
+                transfer route and
+                final charge.
               </Text>
             </div>
           </div>
@@ -2422,7 +2406,8 @@ export default function PricingTestPage() {
 
                     <Text type="secondary">
                       Pickup stores →
-                      engine transfers →
+                      configured
+                      transfer lanes →
                       delivery
                     </Text>
                   </div>
@@ -2777,7 +2762,7 @@ export default function PricingTestPage() {
                   <CalculatorOutlined />
                 }
                 message="Automatic pricing"
-                description="Weight, dimensions, route, transfers, service charges, pickup charges, fragile charges and VAT are calculated by the pricing engine."
+                description="Pricing uses the configured branch pricing and global pricing settings. The shipment route is resolved from the configured branch transfer routes."
               />
             </Card>
           </div>
@@ -2797,6 +2782,7 @@ export default function PricingTestPage() {
 
                     <Text type="secondary">
                       Pickup →
+                      configured
                       transfers →
                       delivery
                     </Text>

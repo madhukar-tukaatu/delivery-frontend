@@ -9,16 +9,12 @@ import {
   Collapse,
   Descriptions,
   Empty,
-  Form,
   Input,
-  InputNumber,
-  Modal,
   Popconfirm,
   Row,
   Select,
   Space,
   Statistic,
-  Switch,
   Tag,
   Tooltip,
   Typography,
@@ -48,9 +44,11 @@ import {
   updateBranchRouteRateStatus,
 } from "@/services/adminRateManagementService";
 
+import { getPricingSettings } from "@/services/adminPricingConfigurationService";
+import BranchRouteRateModal from "./components/BranchRouteRateModal";
+
 import {
   apiErrorMessage,
-  branchLabel,
   buildBranchMap,
   extractCollection,
   formatDate,
@@ -108,11 +106,10 @@ function getBranchDisplay(branch, fallbackId) {
 }
 
 export default function BranchPricingPage() {
-  const [form] = Form.useForm();
-
   const [branches, setBranches] = useState([]);
   const [rows, setRows] = useState([]);
   const [selected, setSelected] = useState(null);
+  const [activePricingSettings, setActivePricingSettings] = useState(null);
 
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -120,6 +117,7 @@ export default function BranchPricingPage() {
   const [modalOpen, setModalOpen] = useState(false);
 
   const [editing, setEditing] = useState(null);
+  const [modalDefaults, setModalDefaults] = useState(null);
 
   const [filters, setFilters] = useState({
     search: "",
@@ -147,7 +145,7 @@ export default function BranchPricingPage() {
     () =>
       branches.map((branch) => ({
         value: Number(branch.id),
-        label: branchLabel(branch),
+        label: `${branch.name} (${branch.code})`,
       })),
     [branches],
   );
@@ -235,6 +233,9 @@ export default function BranchPricingPage() {
 
   useEffect(() => {
     loadBranches();
+    getPricingSettings()
+      .then((result) => setActivePricingSettings(result?.active ?? null))
+      .catch(() => {});
   }, [loadBranches]);
 
   useEffect(() => {
@@ -306,19 +307,7 @@ export default function BranchPricingPage() {
    */
   const openCreate = (prefill = {}) => {
     setEditing(null);
-
-    form.setFieldsValue({
-      pickup_branch_id: undefined,
-
-      delivery_branch_id: undefined,
-
-      base_rate: undefined,
-
-      is_active: true,
-
-      ...prefill,
-    });
-
+    setModalDefaults(prefill);
     setModalOpen(true);
   };
 
@@ -327,63 +316,51 @@ export default function BranchPricingPage() {
    */
   const openEdit = (row) => {
     setEditing(row);
-
-    form.setFieldsValue({
-      pickup_branch_id: Number(row.pickup_branch_id),
-
-      delivery_branch_id: Number(row.delivery_branch_id),
-
-      base_rate: Number(row.base_rate),
-
-      is_active: Boolean(row.is_active),
-    });
-
+    setModalDefaults(null);
     setModalOpen(true);
   };
 
   const closeModal = () => {
     setModalOpen(false);
     setEditing(null);
-    form.resetFields();
+    setModalDefaults(null);
   };
 
   /*
    * SAVE
    */
-  const saveRate = async () => {
+  const saveRate = async (values) => {
+    const payload = {
+      pickup_branch_id: Number(values.pickup_branch_id),
+      delivery_branch_id: Number(values.delivery_branch_id),
+      base_rate: Number(values.base_rate),
+      is_active: Boolean(values.is_active),
+    };
+
     try {
-      const values = await form.validateFields();
-
-      const payload = {
-        pickup_branch_id: Number(values.pickup_branch_id),
-
-        delivery_branch_id: Number(values.delivery_branch_id),
-
-        base_rate: Number(values.base_rate),
-
-        is_active: Boolean(values.is_active),
-      };
-
       setSaving(true);
 
       if (editing) {
         await updateBranchRouteRate(editing.id, payload);
-
         message.success("Branch rate updated.");
       } else {
         await createBranchRouteRate(payload);
+
+        if (values.create_reverse_route && values.reverse_base_rate != null) {
+          await createBranchRouteRate({
+            pickup_branch_id: payload.delivery_branch_id,
+            delivery_branch_id: payload.pickup_branch_id,
+            base_rate: Number(values.reverse_base_rate),
+            is_active: payload.is_active,
+          });
+        }
 
         message.success("Branch rate created.");
       }
 
       closeModal();
-
       await loadRows();
     } catch (error) {
-      if (error?.errorFields) {
-        return;
-      }
-
       message.error(apiErrorMessage(error, "Could not save branch rate."));
     } finally {
       setSaving(false);
@@ -471,180 +448,94 @@ export default function BranchPricingPage() {
    */
   const RateRow = ({ row }) => {
     const pickup = getBranchDisplay(row.pickup_branch, row.pickup_branch_id);
-
-    const delivery = getBranchDisplay(
-      row.delivery_branch,
-      row.delivery_branch_id,
-    );
-
+    const delivery = getBranchDisplay(row.delivery_branch, row.delivery_branch_id);
     const isSelected = Number(selected?.id) === Number(row.id);
+    const isSameBranch = Number(row.pickup_branch_id) === Number(row.delivery_branch_id);
+    const ps = activePricingSettings;
+    const base = Number(row.base_rate || 0);
 
-    const isSameBranch =
-      Number(row.pickup_branch_id) === Number(row.delivery_branch_id);
+    const expressRate = ps
+      ? base * Number(isSameBranch ? (ps.local_express_multiplier ?? 1.2) : (ps.transfer_express_multiplier ?? 1.3))
+      : null;
+    const sameDayRate = ps
+      ? base * Number(isSameBranch ? (ps.local_same_day_multiplier ?? 1.5) : (ps.transfer_same_day_multiplier ?? 2))
+      : null;
 
     return (
       <div
         onClick={() => setSelected(row)}
         style={{
           display: "grid",
-          gridTemplateColumns: "minmax(250px, 1.7fr) 130px 120px 155px 175px",
-          gap: 18,
+          gridTemplateColumns: "minmax(220px, 1.6fr) 1fr 1fr 1fr 110px 155px 175px",
+          gap: 14,
           alignItems: "center",
-
           minHeight: 78,
-
           padding: "12px 16px",
-
           marginBottom: 8,
-
           borderRadius: 10,
-
           background: isSelected ? "#f0f7ff" : "#ffffff",
-
           border: isSelected ? "1px solid #91caff" : "1px solid #edf0f3",
-
           borderLeft: isSelected ? "3px solid #1677ff" : "1px solid #edf0f3",
-
           cursor: "pointer",
-
           transition: "all .18s ease",
-
           boxShadow: isSelected ? "0 2px 8px rgba(22,119,255,.08)" : "none",
         }}
       >
         {/* ROUTE */}
-        <div
-          style={{
-            minWidth: 0,
-          }}
-        >
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 8,
-              flexWrap: "wrap",
-            }}
-          >
+        <div style={{ minWidth: 0 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
             <Text strong>{pickup.name}</Text>
-
-            <span
-              style={{
-                color: "#1677ff",
-                fontSize: 18,
-                lineHeight: 1,
-              }}
-            >
-              →
-            </span>
-
+            <span style={{ color: "#1677ff", fontSize: 18, lineHeight: 1 }}>→</span>
             <Text strong>{delivery.name}</Text>
-
-            {isSameBranch && (
-              <Tag
-                color="blue"
-                style={{
-                  margin: 0,
-                }}
-              >
-                Local
-              </Tag>
-            )}
+            {isSameBranch && <Tag color="blue" style={{ margin: 0 }}>Local</Tag>}
           </div>
-
-          <Text
-            type="secondary"
-            style={{
-              display: "block",
-              marginTop: 5,
-              fontSize: 11,
-            }}
-          >
+          <Text type="secondary" style={{ display: "block", marginTop: 5, fontSize: 11 }}>
             {pickup.code} → {delivery.code}
           </Text>
         </div>
 
-        {/* RATE */}
+        {/* STANDARD */}
         <div>
-          <Text
-            type="secondary"
-            style={{
-              fontSize: 11,
-            }}
-          >
-            Base Rate
-          </Text>
+          <Text type="secondary" style={{ fontSize: 11 }}>Standard</Text>
+          <div style={{ marginTop: 2, fontWeight: 600 }}>{formatMoney(base)}</div>
+        </div>
 
-          <div
-            style={{
-              marginTop: 2,
-              fontWeight: 600,
-            }}
-          >
-            {formatMoney(row.base_rate)}
+        {/* EXPRESS */}
+        <div>
+          <Text type="secondary" style={{ fontSize: 11 }}>Express</Text>
+          <div style={{ marginTop: 2, fontWeight: 600, color: ps?.express_enabled === false ? "#bfbfbf" : "#fa8c16" }}>
+            {expressRate != null ? formatMoney(expressRate) : "—"}
+          </div>
+        </div>
+
+        {/* SAME DAY */}
+        <div>
+          <Text type="secondary" style={{ fontSize: 11 }}>Same Day</Text>
+          <div style={{ marginTop: 2, fontWeight: 600, color: ps?.same_day_enabled === false ? "#bfbfbf" : "#eb2f96" }}>
+            {sameDayRate != null ? formatMoney(sameDayRate) : "—"}
           </div>
         </div>
 
         {/* STATUS */}
         <div>
-          <Text
-            type="secondary"
-            style={{
-              display: "block",
-              fontSize: 11,
-              marginBottom: 4,
-            }}
-          >
-            Status
-          </Text>
-
+          <Text type="secondary" style={{ display: "block", fontSize: 11, marginBottom: 4 }}>Status</Text>
           <StatusTag active={row.is_active} />
         </div>
 
         {/* UPDATED */}
         <div>
-          <Text
-            type="secondary"
-            style={{
-              display: "block",
-              fontSize: 11,
-            }}
-          >
-            Updated
-          </Text>
-
-          <Text
-            style={{
-              fontSize: 12,
-            }}
-          >
-            {formatDate(row.updated_at)}
-          </Text>
+          <Text type="secondary" style={{ display: "block", fontSize: 11 }}>Updated</Text>
+          <Text style={{ fontSize: 12 }}>{formatDate(row.updated_at)}</Text>
         </div>
 
         {/* ACTIONS */}
         <Space size={4} onClick={(event) => event.stopPropagation()}>
           <Tooltip title="Edit">
-            <Button
-              size="small"
-              icon={<EditOutlined />}
-              onClick={() => openEdit(row)}
-            />
+            <Button size="small" icon={<EditOutlined />} onClick={() => openEdit(row)} />
           </Tooltip>
 
-          <Tooltip
-            title={
-              isSameBranch
-                ? "Same branch does not need a reverse route"
-                : "Create reverse rate"
-            }
-          >
-            <Button
-              size="small"
-              disabled={isSameBranch}
-              icon={<SwapOutlined />}
-              onClick={() => createReverse(row)}
-            />
+          <Tooltip title={isSameBranch ? "Same branch does not need a reverse route" : "Create reverse rate"}>
+            <Button size="small" disabled={isSameBranch} icon={<SwapOutlined />} onClick={() => createReverse(row)} />
           </Tooltip>
 
           <Button size="small" onClick={() => toggleStatus(row)}>
@@ -656,9 +547,7 @@ export default function BranchPricingPage() {
             description="This action cannot be undone."
             okText="Delete"
             cancelText="Cancel"
-            okButtonProps={{
-              danger: true,
-            }}
+            okButtonProps={{ danger: true }}
             onConfirm={() => removeRate(row)}
           >
             <Button danger size="small" icon={<DeleteOutlined />} />
@@ -1351,114 +1240,16 @@ export default function BranchPricingPage() {
         </Col>
       </Row>
 
-      {/* CREATE / EDIT */}
-      <Modal
+      <BranchRouteRateModal
         open={modalOpen}
-        title={editing ? "Edit Branch Rate" : "Create Branch Rate"}
-        width={680}
-        confirmLoading={saving}
-        okText={editing ? "Update Rate" : "Create Rate"}
-        onOk={saveRate}
+        record={editing}
+        branches={branches}
+        saving={saving}
+        defaults={modalDefaults}
+        pricingSettings={activePricingSettings}
         onCancel={closeModal}
-        destroyOnClose
-      >
-        <Form
-          form={form}
-          layout="vertical"
-          initialValues={{
-            is_active: true,
-          }}
-        >
-          <Row gutter={16}>
-            <Col span={12}>
-              <Form.Item
-                name="pickup_branch_id"
-                label="Pickup / Main Branch"
-                rules={[
-                  {
-                    required: true,
-                    message: "Please select pickup branch.",
-                  },
-                ]}
-              >
-                <Select
-                  showSearch
-                  optionFilterProp="label"
-                  options={branchOptions}
-                  placeholder="Select main branch"
-                />
-              </Form.Item>
-            </Col>
-
-            <Col span={12}>
-              <Form.Item
-                name="delivery_branch_id"
-                label="Delivery / Destination Branch"
-                rules={[
-                  {
-                    required: true,
-                    message: "Please select delivery branch.",
-                  },
-                ]}
-              >
-                <Select
-                  showSearch
-                  optionFilterProp="label"
-                  options={branchOptions}
-                  placeholder="Select destination branch"
-                />
-              </Form.Item>
-            </Col>
-          </Row>
-
-          <Form.Item
-            name="base_rate"
-            label="Base Rate"
-            rules={[
-              {
-                required: true,
-                message: "Please enter base rate.",
-              },
-              {
-                type: "number",
-                min: 0,
-                message: "Base rate must be zero or greater.",
-              },
-            ]}
-          >
-            <InputNumber
-              min={0}
-              precision={2}
-              addonBefore="NPR"
-              style={{
-                width: "100%",
-              }}
-              placeholder="Enter base delivery rate"
-            />
-          </Form.Item>
-
-          <Form.Item
-            name="is_active"
-            label="Active for Pricing"
-            valuePropName="checked"
-          >
-            <Switch />
-          </Form.Item>
-
-          <div
-            style={{
-              padding: 12,
-              background: "#f5f7fa",
-              borderRadius: 8,
-              fontSize: 12,
-              color: "#595959",
-            }}
-          >
-            Same-branch pricing is supported. For example, Kathmandu Main Branch
-            → Kathmandu Main Branch can have its own local delivery rate.
-          </div>
-        </Form>
-      </Modal>
+        onSubmit={saveRate}
+      />
     </div>
   );
 }
