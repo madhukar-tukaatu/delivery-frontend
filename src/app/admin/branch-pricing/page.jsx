@@ -704,32 +704,14 @@ export default function BranchPricingPage() {
       >
         <Row justify="space-between" align="middle" gutter={[16, 16]}>
           <Col>
-            <Space direction="vertical" size={3}>
-              <Space>
-                <EnvironmentOutlined
-                  style={{
-                    color: "#1677ff",
-                    fontSize: 20,
-                  }}
-                />
-
-                <Title
-                  level={3}
-                  style={{
-                    margin: 0,
-                  }}
-                >
-                  Branch Pricing
-                </Title>
-
-                <Tag color="blue">Route Management</Tag>
-              </Space>
-
-              <Text type="secondary">
-                Manage branch-to-branch delivery rates and view the actual road
-                route.
-              </Text>
-            </Space>
+            <Title level={3} style={{ margin: 0 }}>
+              Branch Pricing
+            </Title>
+            <Text type="secondary">
+              Set the base rate for each branch-to-branch route. These base
+              rates are used by the pricing engine together with global Pricing
+              Settings to calculate the final delivery charge.
+            </Text>
           </Col>
 
           <Col>
