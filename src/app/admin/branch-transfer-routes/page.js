@@ -37,7 +37,9 @@ import {
   SwapOutlined,
 } from "@ant-design/icons";
 
-import RouteMap from "@/components/rate-admin/RouteMap";
+// import RouteMap from "@/components/rate-admin/RouteMap";
+
+// import TransferRoutePricingSection from "@/components/rate-admin/TransferRoutePricingSection";
 
 import {
   createBranchTransferRoute,
@@ -684,7 +686,7 @@ export default function BranchTransferRoutesPage() {
 
         <Col xs={24} xl={8}>
           <Card bordered={false} title="Selected Route Map">
-            <RouteMap
+            <RouteMapS
               nodes={selectedNodes}
               height={390}
               selectedLabel="Complete transfer route"

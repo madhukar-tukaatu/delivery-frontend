@@ -1,443 +1,3070 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
+
+import dynamic from "next/dynamic";
+
 import {
   Alert,
+  Badge,
   Button,
   Card,
   Col,
-  Collapse,
-  Descriptions,
   Divider,
-  Form,
   Input,
   InputNumber,
+  Modal,
   Row,
   Select,
   Space,
-  Statistic,
-  Table,
   Tag,
   Typography,
   message,
 } from "antd";
+
 import {
   CalculatorOutlined,
+  CheckCircleOutlined,
   DeleteOutlined,
+  EnvironmentOutlined,
+  GlobalOutlined,
+  InboxOutlined,
+  LoadingOutlined,
+  MapOutlined,
   PlusOutlined,
   ReloadOutlined,
+  ShopOutlined,
+  SwapOutlined,
+  TruckOutlined,
+  UnorderedListOutlined,
 } from "@ant-design/icons";
-import {
-  pricingSimulatorApi,
-  serviceTypesApi,
-} from "@/lib/admin-pricing-api";
-import { money } from "@/lib/pricing-formatters";
 
-const { Title, Text } = Typography;
+import "./pricing-simulator.css";
 
-const DEFAULT_VALUES = {
-  store_id: 2,
-  pickup_address: "Jadibuti Store, Kathmandu",
-  pickup_latitude: 27.674969,
-  pickup_longitude: 85.3518605,
-  delivery_address: "Jagati, Bhaktapur",
-  delivery_latitude: 27.6648125,
-  delivery_longitude: 85.4364414,
-  payment_type: "prepaid",
-  pod_amount: 0,
-  service_type: "standard",
-  products: [
-    {
-      product_id: "P-001",
-      name: "Test Product",
-      quantity: 1,
-      unit_weight: 1,
-      unit_price: 1000,
-      parcel_type: "non_fragile",
-    },
-  ],
+import api from "@/lib/api";
+
+/* ==========================================================================
+   LEAFLET
+   ========================================================================== */
+
+const PricingMap = dynamic(
+  () => import("./pricing-map"),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="map-loading">
+        <LoadingOutlined />
+        <span>
+          Loading map...
+        </span>
+      </div>
+    ),
+  },
+);
+
+/* ==========================================================================
+   TYPES / CONSTANTS
+   ========================================================================== */
+
+const {
+  Title,
+  Text,
+} = Typography;
+
+const MIN_WEIGHT_KG = 0.001;
+
+const SERVICE_OPTIONS = [
+  {
+    value: "standard",
+    label: "Standard",
+  },
+  {
+    value: "express",
+    label: "Express",
+  },
+  {
+    value: "same_day",
+    label: "Same Day",
+  },
+];
+
+const PAYMENT_OPTIONS = [
+  {
+    value: "prepaid",
+    label: "Prepaid",
+  },
+  {
+    value: "cod",
+    label: "Cash on Delivery",
+  },
+];
+
+const PARCEL_TYPES = [
+  {
+    value: "non_fragile",
+    label: "Non-Fragile",
+  },
+  {
+    value: "fragile",
+    label: "Fragile",
+  },
+];
+
+const DEFAULT_PACKAGE = {
+  name: "Package 1",
+  quantity: 1,
+  actual_weight_kg: 1,
+  length_cm: 10,
+  width_cm: 10,
+  height_cm: 20,
+  parcel_type: "non_fragile",
+  unit_price: 0,
 };
 
-function cleanPayload(values) {
-  const products = (values.products || []).map((product) => {
-    const cleaned = { ...product };
-    ["product_id", "length_cm", "width_cm", "height_cm"].forEach((key) => {
-      if (cleaned[key] === "" || cleaned[key] === undefined || cleaned[key] === null) {
-        delete cleaned[key];
-      }
-    });
-    return cleaned;
-  });
+/* ==========================================================================
+   HELPERS
+   ========================================================================== */
+
+function numberValue(
+  value,
+  fallback = 0,
+) {
+  const number =
+    Number(value);
+
+  return Number.isFinite(
+    number,
+  )
+    ? number
+    : fallback;
+}
+
+function positiveNumber(
+  value,
+  minimum = MIN_WEIGHT_KG,
+) {
+  const number =
+    Number(value);
+
+  if (
+    !Number.isFinite(number)
+  ) {
+    return minimum;
+  }
+
+  return Math.max(
+    minimum,
+    number,
+  );
+}
+
+function integerValue(
+  value,
+  minimum = 1,
+) {
+  const number =
+    Number(value);
+
+  if (
+    !Number.isFinite(number)
+  ) {
+    return minimum;
+  }
+
+  return Math.max(
+    minimum,
+    Math.floor(number),
+  );
+}
+
+function roundNumber(
+  value,
+  decimals = 3,
+) {
+  const number =
+    Number(value);
+
+  if (
+    !Number.isFinite(number)
+  ) {
+    return 0;
+  }
+
+  const factor =
+    10 ** decimals;
+
+  return (
+    Math.round(
+      number * factor,
+    ) / factor
+  );
+}
+
+function money(value) {
+  const number =
+    numberValue(value);
+
+  return `NPR ${number.toLocaleString(
+    "en-NP",
+    {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    },
+  )}`;
+}
+
+function kg(value) {
+  return `${numberValue(
+    value,
+  ).toFixed(3)} kg`;
+}
+
+function km(value) {
+  return `${numberValue(
+    value,
+  ).toFixed(2)} km`;
+}
+
+function safeArray(value) {
+  return Array.isArray(value)
+    ? value
+    : [];
+}
+
+function validCoordinate(
+  latitude,
+  longitude,
+) {
+  const lat =
+    Number(latitude);
+
+  const lng =
+    Number(longitude);
+
+  return (
+    Number.isFinite(lat) &&
+    Number.isFinite(lng) &&
+    lat >= -90 &&
+    lat <= 90 &&
+    lng >= -180 &&
+    lng <= 180
+  );
+}
+
+/* ==========================================================================
+   PACKAGE
+   ========================================================================== */
+
+function normalizePackage(
+  packageItem = {},
+  index = 0,
+) {
+  const quantity =
+    integerValue(
+      packageItem.quantity,
+      1,
+    );
+
+  const actualWeight =
+    positiveNumber(
+      packageItem.actual_weight_kg,
+      MIN_WEIGHT_KG,
+    );
 
   return {
-    ...values,
-    store_id: values.store_id || undefined,
-    pod_amount: values.payment_type === "pod" ? Number(values.pod_amount || 0) : 0,
-    products,
+    id:
+      packageItem.id ??
+      `package-${index + 1}`,
+
+    name:
+      String(
+        packageItem.name ||
+          `Package ${index + 1}`,
+      ).trim() ||
+      `Package ${index + 1}`,
+
+    quantity,
+
+    actual_weight_kg:
+      roundNumber(
+        actualWeight,
+        3,
+      ),
+
+    length_cm: Math.max(
+      0,
+      numberValue(
+        packageItem.length_cm,
+        0,
+      ),
+    ),
+
+    width_cm: Math.max(
+      0,
+      numberValue(
+        packageItem.width_cm,
+        0,
+      ),
+    ),
+
+    height_cm: Math.max(
+      0,
+      numberValue(
+        packageItem.height_cm,
+        0,
+      ),
+    ),
+
+    parcel_type:
+      packageItem.parcel_type ||
+      "non_fragile",
+
+    unit_price: Math.max(
+      0,
+      numberValue(
+        packageItem.unit_price,
+        0,
+      ),
+    ),
   };
 }
 
-export default function PricingSimulatorPage() {
-  const [messageApi, contextHolder] = message.useMessage();
-  const [form] = Form.useForm();
-  const paymentType = Form.useWatch("payment_type", form);
-  const [serviceTypes, setServiceTypes] = useState([]);
-  const [result, setResult] = useState(null);
-  const [loading, setLoading] = useState(false);
+function getTotalWeight(
+  packages,
+) {
+  return roundNumber(
+    safeArray(packages).reduce(
+      (total, item) => {
+        const pkg =
+          normalizePackage(item);
+
+        return (
+          total +
+          pkg.actual_weight_kg *
+            pkg.quantity
+        );
+      },
+      0,
+    ),
+    3,
+  );
+}
+
+function getTotalPackages(
+  packages,
+) {
+  return safeArray(
+    packages,
+  ).reduce(
+    (total, item) =>
+      total +
+      integerValue(
+        item.quantity,
+        1,
+      ),
+    0,
+  );
+}
+
+function getTotalValue(
+  packages,
+) {
+  return safeArray(
+    packages,
+  ).reduce(
+    (total, item) => {
+      const pkg =
+        normalizePackage(item);
+
+      return (
+        total +
+        pkg.unit_price *
+          pkg.quantity
+      );
+    },
+    0,
+  );
+}
+
+/* ==========================================================================
+   STORE
+   ========================================================================== */
+
+function createStore(
+  index = 1,
+) {
+  return {
+    id: `store-${Date.now()}-${index}`,
+
+    external_store_id:
+      `STORE-${String(
+        index,
+      ).padStart(2, "0")}`,
+
+    pickup_address: "",
+
+    pickup_latitude: null,
+
+    pickup_longitude: null,
+
+    packages: [
+      {
+        ...DEFAULT_PACKAGE,
+        name: "Package 1",
+      },
+    ],
+  };
+}
+
+/* ==========================================================================
+   PAYLOAD
+   ========================================================================== */
+
+function buildPackets(
+  packages,
+) {
+  return safeArray(
+    packages,
+  ).map(
+    (
+      packageItem,
+      index,
+    ) => {
+      const pkg =
+        normalizePackage(
+          packageItem,
+          index,
+        );
+
+      return {
+        id: index + 1,
+
+        name: pkg.name,
+
+        quantity:
+          pkg.quantity,
+
+        actual_weight_kg:
+          pkg.actual_weight_kg,
+
+        weight_kg:
+          pkg.actual_weight_kg,
+
+        length_cm:
+          pkg.length_cm,
+
+        width_cm:
+          pkg.width_cm,
+
+        height_cm:
+          pkg.height_cm,
+
+        parcel_type:
+          pkg.parcel_type,
+
+        unit_price:
+          pkg.unit_price,
+      };
+    },
+  );
+}
+
+function buildStorePayload(
+  stores,
+) {
+  return safeArray(
+    stores,
+  ).map((store) => ({
+    external_store_id:
+      store.external_store_id,
+
+    pickup_address:
+      store.pickup_address ||
+      "",
+
+    pickup_latitude:
+      numberValue(
+        store.pickup_latitude,
+        0,
+      ),
+
+    pickup_longitude:
+      numberValue(
+        store.pickup_longitude,
+        0,
+      ),
+
+    products: safeArray(
+      store.packages,
+    ).map(
+      (
+        packageItem,
+        index,
+      ) => {
+        const pkg =
+          normalizePackage(
+            packageItem,
+            index,
+          );
+
+        return {
+          product_id:
+            `${store.external_store_id}-${index + 1}`,
+
+          name: pkg.name,
+
+          quantity:
+            pkg.quantity,
+
+          unit_weight:
+            pkg.actual_weight_kg,
+
+          unit_price:
+            pkg.unit_price,
+
+          parcel_type:
+            pkg.parcel_type,
+        };
+      },
+    ),
+  }));
+}
+
+/* ==========================================================================
+   API
+   ========================================================================== */
+
+const pricingSimulatorApi = {
+  async calculate(
+    payload,
+  ) {
+    const response =
+      await api.post(
+        "/admin/pricing-simulator",
+        payload,
+      );
+
+    return (
+      response?.data?.data ??
+      response?.data ??
+      null
+    );
+  },
+};
+
+/* ==========================================================================
+   LOCATION PICKER
+   ========================================================================== */
+
+function LocationPickerModal({
+  open,
+  title,
+  mode,
+  initialLocation,
+  onCancel,
+  onSelect,
+}) {
+  const [
+    location,
+    setLocation,
+  ] = useState(
+    initialLocation || null,
+  );
 
   useEffect(() => {
-    async function loadServices() {
-      try {
-        const response = await serviceTypesApi.list({ per_page: 100, is_active: true });
-        setServiceTypes(response.data?.data || []);
-      } catch (error) {
-        messageApi.error(error.message);
+    if (open) {
+      setLocation(
+        initialLocation || null,
+      );
+    }
+  }, [
+    open,
+    initialLocation,
+  ]);
+
+  const selectedPoint =
+    location &&
+    validCoordinate(
+      location.latitude,
+      location.longitude,
+    )
+      ? [
+          Number(
+            location.latitude,
+          ),
+          Number(
+            location.longitude,
+          ),
+        ]
+      : null;
+
+  const handleSelect =
+    useCallback(
+      (point) => {
+        setLocation(point);
+      },
+      [],
+    );
+
+  const handleConfirm =
+    useCallback(() => {
+      if (!selectedPoint) {
+        return;
       }
-    }
 
-    loadServices();
-  }, [messageApi]);
+      onSelect({
+        latitude:
+          selectedPoint[0],
 
-  async function calculate(values) {
-    setLoading(true);
-    try {
-      const response = await pricingSimulatorApi.calculate(cleanPayload(values));
-      setResult(response.data || null);
-      messageApi.success(response.message || "Pricing simulation completed.");
-    } catch (error) {
-      messageApi.error(error.message);
-    } finally {
-      setLoading(false);
-    }
-  }
+        longitude:
+          selectedPoint[1],
 
-  const packetColumns = [
-    { title: "Packet", dataIndex: "packet_reference", fixed: "left", width: 120 },
-    { title: "Product", dataIndex: "name", width: 180 },
-    {
-      title: "Type",
-      dataIndex: "parcel_type",
-      width: 120,
-      render: (value) => <Tag color={value === "fragile" ? "volcano" : "blue"}>{value}</Tag>,
-    },
-    { title: "Actual KG", dataIndex: "actual_weight_kg", width: 110 },
-    {
-      title: "Volumetric KG",
-      dataIndex: "volumetric_weight_kg",
-      width: 130,
-      render: (value) => value ?? "—",
-    },
-    { title: "Chargeable KG", dataIndex: "chargeable_weight_kg", width: 130 },
-    { title: "Weight Source", dataIndex: "weight_source", width: 140 },
-    { title: "Base Share", dataIndex: "allocated_base_rate", width: 120, render: (value) => money(value) },
-    { title: "Weight Share", dataIndex: "allocated_weight_charge", width: 120, render: (value) => money(value) },
-    { title: "Fragile Charge", width: 130, render: (_, row) => money(row.fragile?.total) },
-    { title: "Packet Subtotal", dataIndex: "packet_subtotal", width: 140, render: (value) => <Text strong>{money(value)}</Text> },
-  ];
-
-  const breakdown = result?.breakdown || {};
+        address:
+          location?.address ||
+          `${selectedPoint[0].toFixed(
+            6,
+          )}, ${selectedPoint[1].toFixed(
+            6,
+          )}`,
+      });
+    }, [
+      selectedPoint,
+      location,
+      onSelect,
+    ]);
 
   return (
-    <div style={{ padding: 24 }}>
-      {contextHolder}
-      <Row justify="space-between" align="middle" gutter={[16, 16]} style={{ marginBottom: 20 }}>
-        <Col>
-          <Title level={2} style={{ margin: 0 }}>Price Simulator</Title>
-          <Text type="secondary">Run the real pricing engine without storing a quote.</Text>
-        </Col>
-        <Col>
+    <Modal
+      open={open}
+      onCancel={onCancel}
+      destroyOnClose
+      centered
+      width={900}
+      title={title}
+      footer={
+        <Space>
           <Button
-            icon={<ReloadOutlined />}
-            onClick={() => {
-              form.resetFields();
-              setResult(null);
-            }}
+            onClick={onCancel}
           >
-            Reset
+            Cancel
           </Button>
+
+          <Button
+            type="primary"
+            disabled={!selectedPoint}
+            onClick={
+              handleConfirm
+            }
+          >
+            Use This Location
+          </Button>
+        </Space>
+      }
+    >
+      <div className="picker-layout">
+        <div className="picker-map">
+          <PricingMap
+            mode={mode}
+            selectedLocation={
+              location
+            }
+            onSelect={
+              handleSelect
+            }
+            height={480}
+            className="picker-leaflet-map"
+          />
+
+          <div className="picker-help">
+            <span>
+              Click anywhere on
+              the map to select
+              the exact location.
+            </span>
+          </div>
+        </div>
+
+        <div className="picker-info">
+          <div className="picker-info-icon">
+            <EnvironmentOutlined />
+          </div>
+
+          <Title level={5}>
+            {mode === "delivery"
+              ? "Delivery location"
+              : "Pickup location"}
+          </Title>
+
+          <Text type="secondary">
+            Select the exact point
+            from the map. These
+            coordinates are sent
+            to the pricing engine.
+          </Text>
+
+          <Divider />
+
+          <div className="coordinate-box">
+            <Text type="secondary">
+              Latitude
+            </Text>
+
+            <Text strong>
+              {selectedPoint
+                ? selectedPoint[0].toFixed(
+                    6,
+                  )
+                : "—"}
+            </Text>
+          </div>
+
+          <div className="coordinate-box">
+            <Text type="secondary">
+              Longitude
+            </Text>
+
+            <Text strong>
+              {selectedPoint
+                ? selectedPoint[1].toFixed(
+                    6,
+                  )
+                : "—"}
+            </Text>
+          </div>
+
+          <div className="coordinate-note">
+            <span>
+              Coordinates are sent
+              directly to the pricing
+              simulator.
+            </span>
+          </div>
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
+/* ==========================================================================
+   LOCATION CARD
+   ========================================================================== */
+
+function LocationCard({
+  type,
+  location,
+  onMap,
+  onAddressChange,
+}) {
+  const isPickup =
+    type === "pickup";
+
+  const hasLocation =
+    validCoordinate(
+      location?.latitude,
+      location?.longitude,
+    );
+
+  return (
+    <div
+      className={`location-card ${
+        isPickup
+          ? "location-pickup"
+          : "location-delivery"
+      }`}
+    >
+      <div className="location-icon">
+        <span className="location-icon-symbol">
+          {isPickup ? "P" : "D"}
+        </span>
+      </div>
+
+      <div className="location-content">
+        <div className="location-heading">
+          <Text strong>
+            {isPickup
+              ? "Pickup"
+              : "Delivery"}
+          </Text>
+
+          {hasLocation && (
+            <Tag
+              color={
+                isPickup
+                  ? "green"
+                  : "blue"
+              }
+            >
+              Selected
+            </Tag>
+          )}
+        </div>
+
+        <Input
+          size="small"
+          value={
+            location?.address ||
+            ""
+          }
+          onChange={(event) =>
+            onAddressChange(
+              event.target.value,
+            )
+          }
+          placeholder={
+            isPickup
+              ? "Pickup address"
+              : "Delivery address"
+          }
+        />
+
+        {hasLocation && (
+          <Text
+            type="secondary"
+            className="coordinate-text"
+          >
+            {Number(
+              location.latitude,
+            ).toFixed(6)}
+            {", "}
+            {Number(
+              location.longitude,
+            ).toFixed(6)}
+          </Text>
+        )}
+      </div>
+
+      <Button
+        size="small"
+        onClick={onMap}
+      >
+        <span className="map-button-icon">
+          ⌖
+        </span>
+        Map
+      </Button>
+    </div>
+  );
+}
+
+/* ==========================================================================
+   PACKAGE CARD
+   ========================================================================== */
+
+function PackageCard({
+  packageItem,
+  index,
+  onChange,
+  onRemove,
+  canRemove,
+}) {
+  const update =
+    useCallback(
+      (key, value) => {
+        onChange({
+          ...packageItem,
+          [key]: value,
+        });
+      },
+      [
+        onChange,
+        packageItem,
+      ],
+    );
+
+  return (
+    <div className="package-card">
+      <div className="package-card-header">
+        <Space size={8}>
+          <span className="package-number">
+            {index + 1}
+          </span>
+
+          <Text strong>
+            {packageItem.name ||
+              `Package ${
+                index + 1
+              }`}
+          </Text>
+        </Space>
+
+        {canRemove && (
+          <Button
+            type="text"
+            danger
+            size="small"
+            icon={
+              <DeleteOutlined />
+            }
+            onClick={onRemove}
+          />
+        )}
+      </div>
+
+      <Row gutter={[8, 8]}>
+        <Col span={24}>
+          <label className="field-label">
+            Package name
+          </label>
+
+          <Input
+            size="small"
+            value={
+              packageItem.name
+            }
+            onChange={(event) =>
+              update(
+                "name",
+                event.target.value,
+              )
+            }
+            placeholder="Package name"
+          />
+        </Col>
+
+        <Col span={12}>
+          <label className="field-label">
+            Weight
+          </label>
+
+          <InputNumber
+            size="small"
+            min={MIN_WEIGHT_KG}
+            step={0.1}
+            precision={3}
+            value={
+              packageItem.actual_weight_kg
+            }
+            addonAfter="kg"
+            className="full-width"
+            onChange={(value) =>
+              update(
+                "actual_weight_kg",
+                value === null
+                  ? MIN_WEIGHT_KG
+                  : positiveNumber(
+                      value,
+                      MIN_WEIGHT_KG,
+                    ),
+              )
+            }
+          />
+        </Col>
+
+        <Col span={12}>
+          <label className="field-label">
+            Quantity
+          </label>
+
+          <InputNumber
+            size="small"
+            min={1}
+            precision={0}
+            value={
+              packageItem.quantity
+            }
+            className="full-width"
+            onChange={(value) =>
+              update(
+                "quantity",
+                integerValue(
+                  value,
+                  1,
+                ),
+              )
+            }
+          />
+        </Col>
+
+        <Col span={8}>
+          <label className="field-label">
+            Length
+          </label>
+
+          <InputNumber
+            size="small"
+            min={0}
+            precision={2}
+            value={
+              packageItem.length_cm
+            }
+            addonAfter="cm"
+            className="full-width"
+            onChange={(value) =>
+              update(
+                "length_cm",
+                numberValue(
+                  value,
+                  0,
+                ),
+              )
+            }
+          />
+        </Col>
+
+        <Col span={8}>
+          <label className="field-label">
+            Width
+          </label>
+
+          <InputNumber
+            size="small"
+            min={0}
+            precision={2}
+            value={
+              packageItem.width_cm
+            }
+            addonAfter="cm"
+            className="full-width"
+            onChange={(value) =>
+              update(
+                "width_cm",
+                numberValue(
+                  value,
+                  0,
+                ),
+              )
+            }
+          />
+        </Col>
+
+        <Col span={8}>
+          <label className="field-label">
+            Height
+          </label>
+
+          <InputNumber
+            size="small"
+            min={0}
+            precision={2}
+            value={
+              packageItem.height_cm
+            }
+            addonAfter="cm"
+            className="full-width"
+            onChange={(value) =>
+              update(
+                "height_cm",
+                numberValue(
+                  value,
+                  0,
+                ),
+              )
+            }
+          />
+        </Col>
+
+        <Col span={12}>
+          <label className="field-label">
+            Parcel
+          </label>
+
+          <Select
+            size="small"
+            value={
+              packageItem.parcel_type
+            }
+            options={
+              PARCEL_TYPES
+            }
+            className="full-width"
+            onChange={(value) =>
+              update(
+                "parcel_type",
+                value,
+              )
+            }
+          />
+        </Col>
+
+        <Col span={12}>
+          <label className="field-label">
+            Unit price
+          </label>
+
+          <InputNumber
+            size="small"
+            min={0}
+            precision={2}
+            value={
+              packageItem.unit_price
+            }
+            addonBefore="NPR"
+            className="full-width"
+            onChange={(value) =>
+              update(
+                "unit_price",
+                numberValue(
+                  value,
+                  0,
+                ),
+              )
+            }
+          />
+        </Col>
+      </Row>
+    </div>
+  );
+}
+
+/* ==========================================================================
+   ROUTE TIMELINE
+   ========================================================================== */
+
+function RouteTimeline({
+  result,
+  stores,
+  delivery,
+}) {
+  const transfers =
+    safeArray(
+      result?.transfer_lanes ||
+        result?.transferLanes ||
+        result?.route
+          ?.transfer_lanes ||
+        result?.transfers ||
+        result?.route
+          ?.transfers,
+    );
+
+  return (
+    <div className="route-timeline">
+      {stores.map(
+        (store, index) => (
+          <React.Fragment
+            key={store.id}
+          >
+            <div className="timeline-item">
+              <div className="timeline-marker pickup">
+                {index + 1}
+              </div>
+
+              <div className="timeline-content">
+                <div className="timeline-title">
+                  Pickup
+                </div>
+
+                <Text strong>
+                  {
+                    store.external_store_id
+                  }
+                </Text>
+
+                <Text type="secondary">
+                  {
+                    store.pickup_address ||
+                    "Pickup location"
+                  }
+                </Text>
+              </div>
+            </div>
+
+            <div className="timeline-line" />
+          </React.Fragment>
+        ),
+      )}
+
+      {transfers.map(
+        (
+          transfer,
+          index,
+        ) => {
+          const name =
+            transfer?.name ||
+            transfer?.branch_name ||
+            transfer?.branch
+              ?.name ||
+            transfer?.code ||
+            `Transfer ${
+              index + 1
+            }`;
+
+          return (
+            <React.Fragment
+              key={`transfer-${index}`}
+            >
+              <div className="timeline-item">
+                <div className="timeline-marker transfer">
+                  {index + 1}
+                </div>
+
+                <div className="timeline-content">
+                  <div className="timeline-title">
+                    Transfer
+                  </div>
+
+                  <Text strong>
+                    {name}
+                  </Text>
+                </div>
+              </div>
+
+              <div className="timeline-line" />
+            </React.Fragment>
+          );
+        },
+      )}
+
+      <div className="timeline-item">
+        <div className="timeline-marker delivery">
+          ✓
+        </div>
+
+        <div className="timeline-content">
+          <div className="timeline-title">
+            Delivery
+          </div>
+
+          <Text strong>
+            {delivery?.address ||
+              "Delivery location"}
+          </Text>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ==========================================================================
+   CHARGE ROW
+   ========================================================================== */
+
+function ChargeRow({
+  label,
+  value,
+}) {
+  const amount =
+    numberValue(value);
+
+  return (
+    <div
+      className={
+        amount === 0
+          ? "charge-row charge-zero"
+          : "charge-row"
+      }
+    >
+      <Text>
+        {label}
+      </Text>
+
+      <Text strong>
+        {money(amount)}
+      </Text>
+    </div>
+  );
+}
+
+/* ==========================================================================
+   PRICING RESULT
+   ========================================================================== */
+
+function PricingResult({
+  result,
+  stores,
+}) {
+  if (!result) {
+    return (
+      <div className="result-empty">
+        <CalculatorOutlined />
+
+        <Text strong>
+          Pricing result
+        </Text>
+
+        <Text type="secondary">
+          Select locations and
+          package details, then
+          calculate.
+        </Text>
+      </div>
+    );
+  }
+
+  const weightSummary =
+    result?.weight_summary ||
+    {};
+
+  const breakdown =
+    result?.breakdown ||
+    result?.price_breakdown ||
+    {};
+
+  const finalPrice =
+    numberValue(
+      result?.final_price ??
+        result?.grand_total ??
+        result?.total ??
+        breakdown?.total,
+    );
+
+  const allPackages =
+    stores.flatMap(
+      (store) =>
+        store.packages,
+    );
+
+  const totalWeight =
+    getTotalWeight(
+      allPackages,
+    );
+
+  return (
+    <div className="result-container">
+      <div className="result-price-panel">
+        <div>
+          <Text type="secondary">
+            FINAL DELIVERY PRICE
+          </Text>
+
+          <div className="result-price">
+            {money(finalPrice)}
+          </div>
+        </div>
+
+        <Tag color="green">
+          <CheckCircleOutlined />
+          Calculated
+        </Tag>
+      </div>
+
+      <Row
+        gutter={[8, 8]}
+        className="summary-strip"
+      >
+        <Col span={8}>
+          <div className="summary-box">
+            <span>
+              Weight
+            </span>
+
+            <strong>
+              {kg(totalWeight)}
+            </strong>
+          </div>
+        </Col>
+
+        <Col span={8}>
+          <div className="summary-box">
+            <span>
+              Packages
+            </span>
+
+            <strong>
+              {getTotalPackages(
+                allPackages,
+              )}
+            </strong>
+          </div>
+        </Col>
+
+        <Col span={8}>
+          <div className="summary-box summary-highlight">
+            <span>
+              Chargeable
+            </span>
+
+            <strong>
+              {kg(
+                weightSummary.total_chargeable_weight_kg ??
+                  totalWeight,
+              )}
+            </strong>
+          </div>
         </Col>
       </Row>
 
-      <Form form={form} layout="vertical" initialValues={DEFAULT_VALUES} onFinish={calculate}>
-        <Row gutter={[20, 20]}>
-          <Col xs={24} xl={14}>
-            <Card title="Shipment and Address Details">
-              <Row gutter={16}>
-                <Col xs={24} md={8}>
-                  <Form.Item label="Store ID" name="store_id">
-                    <InputNumber min={1} style={{ width: "100%" }} />
-                  </Form.Item>
-                </Col>
-                <Col xs={24} md={8}>
-                  <Form.Item label="Service Type" name="service_type" rules={[{ required: true }]}>
-                    <Select
-                      options={(serviceTypes.length ? serviceTypes : [
-                        { code: "standard", name: "Standard" },
-                        { code: "express", name: "Express" },
-                        { code: "same_day", name: "Same Day" },
-                      ]).map((item) => ({ value: item.code, label: item.name }))}
-                    />
-                  </Form.Item>
-                </Col>
-                <Col xs={24} md={8}>
-                  <Form.Item label="Payment Type" name="payment_type" rules={[{ required: true }]}>
-                    <Select options={[
-                      { value: "prepaid", label: "Prepaid" },
-                      { value: "pod", label: "POD" },
-                    ]} />
-                  </Form.Item>
-                </Col>
-                {paymentType === "pod" && (
-                  <Col xs={24} md={8}>
-                    <Form.Item label="POD Amount" name="pod_amount" rules={[{ required: true }]}>
-                      <InputNumber min={0} addonBefore="NPR" style={{ width: "100%" }} />
-                    </Form.Item>
-                  </Col>
-                )}
-              </Row>
+      <Divider />
 
-              <Divider orientation="left">Pickup</Divider>
-              <Row gutter={16}>
-                <Col xs={24}>
-                  <Form.Item label="Pickup Address" name="pickup_address" rules={[{ required: true }]}>
-                    <Input />
-                  </Form.Item>
-                </Col>
-                <Col xs={24} md={12}>
-                  <Form.Item label="Pickup Latitude" name="pickup_latitude" rules={[{ required: true }]}>
-                    <InputNumber step={0.000001} style={{ width: "100%" }} />
-                  </Form.Item>
-                </Col>
-                <Col xs={24} md={12}>
-                  <Form.Item label="Pickup Longitude" name="pickup_longitude" rules={[{ required: true }]}>
-                    <InputNumber step={0.000001} style={{ width: "100%" }} />
-                  </Form.Item>
-                </Col>
-              </Row>
+      <div className="charge-breakdown">
+        <div className="result-section-heading">
+          <CalculatorOutlined />
 
-              <Divider orientation="left">Delivery</Divider>
-              <Row gutter={16}>
-                <Col xs={24}>
-                  <Form.Item label="Delivery Address" name="delivery_address" rules={[{ required: true }]}>
-                    <Input />
-                  </Form.Item>
-                </Col>
-                <Col xs={24} md={12}>
-                  <Form.Item label="Delivery Latitude" name="delivery_latitude" rules={[{ required: true }]}>
-                    <InputNumber step={0.000001} style={{ width: "100%" }} />
-                  </Form.Item>
-                </Col>
-                <Col xs={24} md={12}>
-                  <Form.Item label="Delivery Longitude" name="delivery_longitude" rules={[{ required: true }]}>
-                    <InputNumber step={0.000001} style={{ width: "100%" }} />
-                  </Form.Item>
-                </Col>
-              </Row>
-            </Card>
+          <Text strong>
+            Charge Breakdown
+          </Text>
+        </div>
 
-            <Card title="Products" style={{ marginTop: 20 }}>
-              <Alert
-                type="info"
-                showIcon
-                message="Each product quantity becomes separate physical packets."
-                description="Dimensions are optional. When all three are supplied, volumetric weight is compared with actual weight."
-                style={{ marginBottom: 16 }}
+        <ChargeRow
+          label="Route Base Rate"
+          value={
+            breakdown
+              ?.route_base_rate
+              ?.total ??
+            breakdown?.base
+          }
+        />
+
+        <ChargeRow
+          label="Additional Weight"
+          value={
+            breakdown
+              ?.additional_weight
+              ?.total ??
+            breakdown?.extra_weight
+          }
+        />
+
+        <ChargeRow
+          label="Fragile Surcharge"
+          value={
+            breakdown?.fragile
+              ?.total ??
+            breakdown?.fragile_charge
+          }
+        />
+
+        <ChargeRow
+          label="Extra Distance"
+          value={
+            breakdown
+              ?.extra_delivery_distance
+              ?.total ??
+            breakdown?.extra_distance
+          }
+        />
+
+        <ChargeRow
+          label="Service Charge"
+          value={
+            breakdown?.service
+              ?.total ??
+            breakdown?.service_charge
+          }
+        />
+
+        <ChargeRow
+          label="Pickup Charge"
+          value={
+            breakdown?.pickup
+              ?.total ??
+            breakdown?.pickup_charge
+          }
+        />
+
+        <ChargeRow
+          label="VAT"
+          value={
+            breakdown?.vat
+              ?.total ??
+            breakdown?.vat_amount
+          }
+        />
+
+        <div className="charge-total">
+          <Text strong>
+            Total
+          </Text>
+
+          <Text strong>
+            {money(finalPrice)}
+          </Text>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ==========================================================================
+   MAIN PAGE
+   ========================================================================== */
+
+export default function PricingTestPage() {
+  const [
+    messageApi,
+    contextHolder,
+  ] = message.useMessage();
+
+  const [
+    stores,
+    setStores,
+  ] = useState(() => [
+    createStore(1),
+  ]);
+
+  const [
+    delivery,
+    setDelivery,
+  ] = useState({
+    address: "",
+    latitude: null,
+    longitude: null,
+  });
+
+  const [
+    serviceType,
+    setServiceType,
+  ] = useState(
+    "standard",
+  );
+
+  const [
+    paymentType,
+    setPaymentType,
+  ] = useState(
+    "prepaid",
+  );
+
+  const [
+    result,
+    setResult,
+  ] = useState(null);
+
+  const [
+    calculating,
+    setCalculating,
+  ] = useState(false);
+
+  const [
+    activeTab,
+    setActiveTab,
+  ] = useState("route");
+
+  const [
+    picker,
+    setPicker,
+  ] = useState({
+    open: false,
+    mode: null,
+    storeIndex: null,
+    initialLocation:
+      null,
+  });
+
+  const [
+    errorDetails,
+    setErrorDetails,
+  ] = useState(null);
+
+  const [
+    autoCalculate,
+    setAutoCalculate,
+  ] = useState(false);
+
+  const debounceRef =
+    useRef(null);
+
+  /* ------------------------------------------------------------------------
+     PACKAGES
+     ------------------------------------------------------------------------ */
+
+  const allPackages =
+    useMemo(
+      () =>
+        stores.flatMap(
+          (store) =>
+            store.packages,
+        ),
+      [stores],
+    );
+
+  const totalWeight =
+    useMemo(
+      () =>
+        getTotalWeight(
+          allPackages,
+        ),
+      [allPackages],
+    );
+
+  const totalPackages =
+    useMemo(
+      () =>
+        getTotalPackages(
+          allPackages,
+        ),
+      [allPackages],
+    );
+
+  const totalValue =
+    useMemo(
+      () =>
+        getTotalValue(
+          allPackages,
+        ),
+      [allPackages],
+    );
+
+  /* ------------------------------------------------------------------------
+     MAP POINTS
+     ------------------------------------------------------------------------ */
+
+  const mapPoints =
+    useMemo(() => {
+      const points = [];
+
+      stores.forEach(
+        (store) => {
+          if (
+            validCoordinate(
+              store.pickup_latitude,
+              store.pickup_longitude,
+            )
+          ) {
+            points.push([
+              Number(
+                store.pickup_latitude,
+              ),
+              Number(
+                store.pickup_longitude,
+              ),
+            ]);
+          }
+        },
+      );
+
+      if (
+        validCoordinate(
+          delivery.latitude,
+          delivery.longitude,
+        )
+      ) {
+        points.push([
+          Number(
+            delivery.latitude,
+          ),
+          Number(
+            delivery.longitude,
+          ),
+        ]);
+      }
+
+      return points;
+    }, [
+      stores,
+      delivery,
+    ]);
+
+  /* ------------------------------------------------------------------------
+     STORE ACTIONS
+     ------------------------------------------------------------------------ */
+
+  const updateStore =
+    useCallback(
+      (
+        storeIndex,
+        updates,
+      ) => {
+        setStores(
+          (current) =>
+            current.map(
+              (
+                store,
+                index,
+              ) =>
+                index ===
+                storeIndex
+                  ? {
+                      ...store,
+                      ...updates,
+                    }
+                  : store,
+            ),
+        );
+
+        setResult(null);
+      },
+      [],
+    );
+
+  const addStore =
+    useCallback(() => {
+      setStores(
+        (current) => [
+          ...current,
+          createStore(
+            current.length + 1,
+          ),
+        ],
+      );
+
+      setResult(null);
+    }, []);
+
+  const removeStore =
+    useCallback(
+      (storeIndex) => {
+        setStores(
+          (current) =>
+            current.filter(
+              (_, index) =>
+                index !==
+                storeIndex,
+            ),
+        );
+
+        setResult(null);
+      },
+      [],
+    );
+
+  /* ------------------------------------------------------------------------
+     PACKAGE ACTIONS
+     ------------------------------------------------------------------------ */
+
+  const updatePackage =
+    useCallback(
+      (
+        storeIndex,
+        packageIndex,
+        packageItem,
+      ) => {
+        setStores(
+          (current) =>
+            current.map(
+              (
+                store,
+                index,
+              ) => {
+                if (
+                  index !==
+                  storeIndex
+                ) {
+                  return store;
+                }
+
+                return {
+                  ...store,
+
+                  packages:
+                    store.packages.map(
+                      (
+                        item,
+                        itemIndex,
+                      ) =>
+                        itemIndex ===
+                        packageIndex
+                          ? packageItem
+                          : item,
+                    ),
+                };
+              },
+            ),
+        );
+
+        setResult(null);
+      },
+      [],
+    );
+
+  const addPackage =
+    useCallback(
+      (storeIndex) => {
+        setStores(
+          (current) =>
+            current.map(
+              (
+                store,
+                index,
+              ) => {
+                if (
+                  index !==
+                  storeIndex
+                ) {
+                  return store;
+                }
+
+                const nextIndex =
+                  store
+                    .packages
+                    .length + 1;
+
+                return {
+                  ...store,
+
+                  packages: [
+                    ...store.packages,
+
+                    {
+                      ...DEFAULT_PACKAGE,
+                      name: `Package ${nextIndex}`,
+                    },
+                  ],
+                };
+              },
+            ),
+        );
+
+        setResult(null);
+      },
+      [],
+    );
+
+  const removePackage =
+    useCallback(
+      (
+        storeIndex,
+        packageIndex,
+      ) => {
+        setStores(
+          (current) =>
+            current.map(
+              (
+                store,
+                index,
+              ) => {
+                if (
+                  index !==
+                  storeIndex
+                ) {
+                  return store;
+                }
+
+                if (
+                  store.packages
+                    .length <= 1
+                ) {
+                  return store;
+                }
+
+                return {
+                  ...store,
+
+                  packages:
+                    store.packages.filter(
+                      (
+                        _,
+                        itemIndex,
+                      ) =>
+                        itemIndex !==
+                        packageIndex,
+                    ),
+                };
+              },
+            ),
+        );
+
+        setResult(null);
+      },
+      [],
+    );
+
+  /* ------------------------------------------------------------------------
+     LOCATION PICKER
+     ------------------------------------------------------------------------ */
+
+  const openDeliveryPicker =
+    useCallback(() => {
+      setPicker({
+        open: true,
+        mode: "delivery",
+        storeIndex: null,
+        initialLocation:
+          delivery,
+      });
+    }, [delivery]);
+
+  const openPickupPicker =
+    useCallback(
+      (storeIndex) => {
+        const store =
+          stores[
+            storeIndex
+          ];
+
+        setPicker({
+          open: true,
+          mode: "pickup",
+          storeIndex,
+          initialLocation: {
+            address:
+              store?.pickup_address ||
+              "",
+
+            latitude:
+              store?.pickup_latitude,
+
+            longitude:
+              store?.pickup_longitude,
+          },
+        });
+      },
+      [stores],
+    );
+
+  const closePicker =
+    useCallback(() => {
+      setPicker(
+        (current) => ({
+          ...current,
+          open: false,
+        }),
+      );
+    }, []);
+
+  const handleLocationSelect =
+    useCallback(
+      (location) => {
+        if (
+          picker.mode ===
+          "delivery"
+        ) {
+          setDelivery(
+            (current) => ({
+              ...current,
+
+              latitude:
+                location.latitude,
+
+              longitude:
+                location.longitude,
+
+              address:
+                current.address ||
+                location.address ||
+                "",
+            }),
+          );
+
+          setResult(null);
+        }
+
+        if (
+          picker.mode ===
+            "pickup" &&
+          picker.storeIndex !==
+            null
+        ) {
+          updateStore(
+            picker.storeIndex,
+            {
+              pickup_latitude:
+                location.latitude,
+
+              pickup_longitude:
+                location.longitude,
+
+              pickup_address:
+                stores[
+                  picker.storeIndex
+                ]
+                  ?.pickup_address ||
+                location.address ||
+                "",
+            },
+          );
+        }
+
+        closePicker();
+      },
+      [
+        picker,
+        stores,
+        updateStore,
+        closePicker,
+      ],
+    );
+
+  /* ------------------------------------------------------------------------
+     PAYLOAD
+     ------------------------------------------------------------------------ */
+
+  const buildPayload =
+    useCallback(() => {
+      const packets =
+        buildPackets(
+          allPackages,
+        );
+
+      const parcelWeight =
+        roundNumber(
+          packets.reduce(
+            (
+              total,
+              packet,
+            ) =>
+              total +
+              packet.actual_weight_kg *
+                packet.quantity,
+            0,
+          ),
+          3,
+        );
+
+      const firstStore =
+        stores[0];
+
+      const safeParcelWeight =
+        Math.max(
+          MIN_WEIGHT_KG,
+          parcelWeight,
+        );
+
+      return {
+        external_checkout_id:
+          `SIM-${Date.now()}`,
+
+        pickup_address:
+          firstStore?.pickup_address ||
+          "",
+
+        pickup_latitude:
+          numberValue(
+            firstStore?.pickup_latitude,
+            0,
+          ),
+
+        pickup_longitude:
+          numberValue(
+            firstStore?.pickup_longitude,
+            0,
+          ),
+
+        delivery_address:
+          delivery.address || "",
+
+        delivery_latitude:
+          numberValue(
+            delivery.latitude,
+            0,
+          ),
+
+        delivery_longitude:
+          numberValue(
+            delivery.longitude,
+            0,
+          ),
+
+        service_type:
+          serviceType,
+
+        payment_type:
+          paymentType,
+
+        parcel_weight:
+          safeParcelWeight,
+
+        total_parcel_weight:
+          safeParcelWeight,
+
+        total_packages:
+          getTotalPackages(
+            allPackages,
+          ),
+
+        total_parcel_value:
+          getTotalValue(
+            allPackages,
+          ),
+
+        packets,
+
+        stores:
+          buildStorePayload(
+            stores,
+          ),
+      };
+    }, [
+      allPackages,
+      stores,
+      delivery,
+      serviceType,
+      paymentType,
+    ]);
+
+  /* ------------------------------------------------------------------------
+     VALIDATION
+     ------------------------------------------------------------------------ */
+
+  const validateBeforeCalculate =
+    useCallback(() => {
+      if (!stores.length) {
+        messageApi.error(
+          "Add at least one pickup store.",
+        );
+
+        return false;
+      }
+
+      if (
+        !validCoordinate(
+          delivery.latitude,
+          delivery.longitude,
+        )
+      ) {
+        messageApi.error(
+          "Select the delivery location from the map.",
+        );
+
+        return false;
+      }
+
+      for (
+        let storeIndex = 0;
+        storeIndex <
+        stores.length;
+        storeIndex++
+      ) {
+        const store =
+          stores[
+            storeIndex
+          ];
+
+        if (
+          !validCoordinate(
+            store.pickup_latitude,
+            store.pickup_longitude,
+          )
+        ) {
+          messageApi.error(
+            `Select the pickup location for store ${
+              storeIndex + 1
+            }.`,
+          );
+
+          return false;
+        }
+
+        if (
+          !store.packages.length
+        ) {
+          messageApi.error(
+            `Add at least one package to store ${
+              storeIndex + 1
+            }.`,
+          );
+
+          return false;
+        }
+
+        for (
+          let packageIndex = 0;
+          packageIndex <
+          store.packages.length;
+          packageIndex++
+        ) {
+          const pkg =
+            normalizePackage(
+              store.packages[
+                packageIndex
+              ],
+              packageIndex,
+            );
+
+          if (
+            pkg.actual_weight_kg <
+            MIN_WEIGHT_KG
+          ) {
+            messageApi.error(
+              `Package ${
+                packageIndex + 1
+              } in store ${
+                storeIndex + 1
+              } must weigh at least ${MIN_WEIGHT_KG} kg.`,
+            );
+
+            return false;
+          }
+        }
+      }
+
+      return true;
+    }, [
+      stores,
+      delivery,
+      messageApi,
+    ]);
+
+  /* ------------------------------------------------------------------------
+     CALCULATE
+     ------------------------------------------------------------------------ */
+
+  const calculate =
+    useCallback(async () => {
+      if (
+        !validateBeforeCalculate()
+      ) {
+        return;
+      }
+
+      const payload =
+        buildPayload();
+
+      setCalculating(true);
+      setErrorDetails(null);
+
+      try {
+        console.log(
+          "PRICING SIMULATOR PAYLOAD",
+          payload,
+        );
+
+        const response =
+          await pricingSimulatorApi.calculate(
+            payload,
+          );
+
+        setResult(response);
+
+        setActiveTab("result");
+
+        messageApi.success(
+          "Pricing calculated successfully.",
+        );
+      } catch (error) {
+        console.error(
+          "PRICING SIMULATOR ERROR",
+          error,
+        );
+
+        const response =
+          error?.response?.data;
+
+        const errors =
+          response?.errors || {};
+
+        const firstError =
+          Object.values(
+            errors,
+          )
+            .flat()
+            .find(Boolean);
+
+        setResult(null);
+
+        setErrorDetails({
+          message:
+            response?.message ||
+            firstError ||
+            error?.message ||
+            "Pricing calculation failed.",
+
+          errors,
+
+          payload,
+        });
+
+        messageApi.error(
+          response?.message ||
+            firstError ||
+            "Pricing calculation failed.",
+        );
+      } finally {
+        setCalculating(false);
+      }
+    }, [
+      validateBeforeCalculate,
+      buildPayload,
+      messageApi,
+    ]);
+
+  /* ------------------------------------------------------------------------
+     AUTO CALCULATE
+     ------------------------------------------------------------------------ */
+
+  useEffect(() => {
+    if (!autoCalculate) {
+      return undefined;
+    }
+
+    clearTimeout(
+      debounceRef.current,
+    );
+
+    debounceRef.current =
+      setTimeout(() => {
+        calculate();
+      }, 800);
+
+    return () => {
+      clearTimeout(
+        debounceRef.current,
+      );
+    };
+  }, [
+    autoCalculate,
+    stores,
+    delivery,
+    serviceType,
+    paymentType,
+    calculate,
+  ]);
+
+  /* ------------------------------------------------------------------------
+     RESET
+     ------------------------------------------------------------------------ */
+
+  const reset =
+    useCallback(() => {
+      clearTimeout(
+        debounceRef.current,
+      );
+
+      setStores([
+        createStore(1),
+      ]);
+
+      setDelivery({
+        address: "",
+        latitude: null,
+        longitude: null,
+      });
+
+      setServiceType(
+        "standard",
+      );
+
+      setPaymentType(
+        "prepaid",
+      );
+
+      setResult(null);
+      setErrorDetails(null);
+      setActiveTab("route");
+    }, []);
+
+  /* ------------------------------------------------------------------------
+     RENDER
+     ------------------------------------------------------------------------ */
+
+  return (
+    <>
+      {contextHolder}
+
+      <div className="pricing-page">
+        <Card
+          bordered={false}
+          className="simulator-header"
+        >
+          <div className="header-left">
+            <div className="header-icon">
+              <CalculatorOutlined />
+            </div>
+
+            <div>
+              <Title level={3}>
+                Pricing Simulator
+              </Title>
+
+              <Text type="secondary">
+                Select pickup
+                locations, delivery
+                and package details.
+                The pricing engine
+                resolves the complete
+                route and final
+                charge.
+              </Text>
+            </div>
+          </div>
+
+          <Space>
+            <label className="auto-calculate">
+              <input
+                type="checkbox"
+                checked={
+                  autoCalculate
+                }
+                onChange={(
+                  event,
+                ) =>
+                  setAutoCalculate(
+                    event.target
+                      .checked,
+                  )
+                }
               />
 
-              <Form.List name="products">
-                {(fields, { add, remove }) => (
-                  <Space direction="vertical" size="middle" style={{ width: "100%" }}>
-                    {fields.map(({ key, name, ...restField }, index) => (
-                      <Card
-                        key={key}
-                        size="small"
-                        title={`Product ${index + 1}`}
-                        extra={
-                          fields.length > 1 ? (
-                            <Button danger type="text" icon={<DeleteOutlined />} onClick={() => remove(name)} />
-                          ) : null
-                        }
-                      >
-                        <Row gutter={12}>
-                          <Col xs={24} md={8}>
-                            <Form.Item {...restField} label="Product ID" name={[name, "product_id"]}>
-                              <Input />
-                            </Form.Item>
-                          </Col>
-                          <Col xs={24} md={16}>
-                            <Form.Item {...restField} label="Name" name={[name, "name"]} rules={[{ required: true }]}>
-                              <Input />
-                            </Form.Item>
-                          </Col>
-                          <Col xs={24} sm={12} md={6}>
-                            <Form.Item {...restField} label="Quantity" name={[name, "quantity"]} rules={[{ required: true }]}>
-                              <InputNumber min={1} step={1} style={{ width: "100%" }} />
-                            </Form.Item>
-                          </Col>
-                          <Col xs={24} sm={12} md={6}>
-                            <Form.Item {...restField} label="Unit Weight" name={[name, "unit_weight"]} rules={[{ required: true }]}>
-                              <InputNumber min={0.001} step={0.1} addonAfter="KG" style={{ width: "100%" }} />
-                            </Form.Item>
-                          </Col>
-                          <Col xs={24} sm={12} md={6}>
-                            <Form.Item {...restField} label="Unit Price" name={[name, "unit_price"]} rules={[{ required: true }]}>
-                              <InputNumber min={0} addonBefore="NPR" style={{ width: "100%" }} />
-                            </Form.Item>
-                          </Col>
-                          <Col xs={24} sm={12} md={6}>
-                            <Form.Item {...restField} label="Parcel Type" name={[name, "parcel_type"]} rules={[{ required: true }]}>
-                              <Select options={[
-                                { value: "non_fragile", label: "Non-Fragile" },
-                                { value: "fragile", label: "Fragile" },
-                              ]} />
-                            </Form.Item>
-                          </Col>
-                          <Col xs={24} sm={8}>
-                            <Form.Item {...restField} label="Length" name={[name, "length_cm"]}>
-                              <InputNumber min={0.001} addonAfter="CM" style={{ width: "100%" }} />
-                            </Form.Item>
-                          </Col>
-                          <Col xs={24} sm={8}>
-                            <Form.Item {...restField} label="Width" name={[name, "width_cm"]}>
-                              <InputNumber min={0.001} addonAfter="CM" style={{ width: "100%" }} />
-                            </Form.Item>
-                          </Col>
-                          <Col xs={24} sm={8}>
-                            <Form.Item {...restField} label="Height" name={[name, "height_cm"]}>
-                              <InputNumber min={0.001} addonAfter="CM" style={{ width: "100%" }} />
-                            </Form.Item>
-                          </Col>
-                        </Row>
-                      </Card>
-                    ))}
+              <span>
+                Auto
+              </span>
+            </label>
 
-                    <Button
-                      type="dashed"
-                      block
-                      icon={<PlusOutlined />}
-                      onClick={() => add({
-                        product_id: "",
-                        name: "",
-                        quantity: 1,
-                        unit_weight: 1,
-                        unit_price: 0,
-                        parcel_type: "non_fragile",
-                      })}
-                    >
-                      Add Product
-                    </Button>
-                  </Space>
-                )}
-              </Form.List>
+            <Button
+              icon={
+                <ReloadOutlined />
+              }
+              onClick={reset}
+              disabled={
+                calculating
+              }
+            >
+              Reset
+            </Button>
 
-              <Button
-                type="primary"
-                size="large"
-                htmlType="submit"
-                icon={<CalculatorOutlined />}
-                loading={loading}
-                block
-                style={{ marginTop: 20 }}
-              >
-                Calculate Delivery Price
-              </Button>
-            </Card>
-          </Col>
-
-          <Col xs={24} xl={10}>
-            <Card title="Calculation Result">
-              {!result ? (
-                <Alert type="info" showIcon message="Submit the form to calculate a price." />
-              ) : (
-                <Space direction="vertical" size="large" style={{ width: "100%" }}>
-                  <Row gutter={12}>
-                    <Col span={12}>
-                      <Statistic title="Final Delivery Charge" value={result.final_price || 0} precision={2} prefix="NPR" />
-                    </Col>
-                    <Col span={12}>
-                      <Statistic title="Packets" value={result.packet_count || 0} />
-                    </Col>
-                  </Row>
-
-                  <Descriptions
-                    bordered
-                    size="small"
-                    column={1}
-                    items={[
-                      { key: "pickup", label: "Pickup Branch", children: result.pickup_branch?.name || "—" },
-                      { key: "delivery", label: "Delivery Branch", children: result.delivery_branch?.name || "—" },
-                      { key: "same", label: "Route Type", children: result.route?.same_branch ? "Same Branch" : "Other Branch" },
-                      { key: "base", label: "Route Base Rate", children: money(result.route?.base_rate) },
-                      { key: "service", label: "Service", children: result.service_type?.name || result.service_type?.code },
-                      { key: "hours", label: "Estimated Hours", children: result.estimated_hours },
-                    ]}
-                  />
-
-                  <Card size="small" title="Weight Summary">
-                    <Descriptions
-                      size="small"
-                      column={1}
-                      items={[
-                        { key: "actual", label: "Actual", children: `${result.weight_summary?.total_actual_weight_kg || 0} KG` },
-                        { key: "vol", label: "Volumetric", children: `${result.weight_summary?.total_volumetric_weight_kg || 0} KG` },
-                        { key: "chargeable", label: "Chargeable", children: `${result.weight_summary?.total_chargeable_weight_kg || 0} KG` },
-                        { key: "included", label: "Included", children: `${result.weight_summary?.included_weight_kg || 0} KG` },
-                        { key: "excess", label: "Excess", children: `${result.weight_summary?.excess_weight_kg || 0} KG` },
-                        { key: "charge", label: "Weight Charge", children: money(result.weight_summary?.total_weight_charge) },
-                      ]}
-                    />
-                  </Card>
-
-                  <Card size="small" title="Charge Breakdown">
-                    <Descriptions
-                      size="small"
-                      column={1}
-                      items={[
-                        { key: "route", label: "Route Base", children: money(breakdown.route_base_rate?.total) },
-                        { key: "weight", label: "Additional Weight", children: money(breakdown.additional_weight?.total) },
-                        { key: "fragile", label: "Fragile", children: money(breakdown.fragile?.total) },
-                        { key: "distance", label: "Extra Distance", children: money(breakdown.extra_delivery_distance?.total) },
-                        { key: "sdd", label: "Same Day", children: money(breakdown.same_day?.total) },
-                        { key: "minimum", label: "Low Packet Charge", children: money(breakdown.minimum_packet_charge?.total) },
-                        { key: "final", label: "Final", children: <Text strong>{money(result.final_price)}</Text> },
-                      ]}
-                    />
-                  </Card>
-                </Space>
-              )}
-            </Card>
-          </Col>
-        </Row>
-      </Form>
-
-      {result && (
-        <Card title="Packet Breakdown" style={{ marginTop: 20 }}>
-          <Table
-            rowKey="packet_reference"
-            columns={packetColumns}
-            dataSource={result.packets || []}
-            pagination={false}
-            scroll={{ x: 1500 }}
-          />
+            <Button
+              type="primary"
+              icon={
+                calculating ? (
+                  <LoadingOutlined />
+                ) : (
+                  <CalculatorOutlined />
+                )
+              }
+              loading={calculating}
+              onClick={
+                calculate
+              }
+            >
+              Calculate
+            </Button>
+          </Space>
         </Card>
-      )}
 
-      {result && (
-        <Collapse
-          style={{ marginTop: 20 }}
-          items={[
-            {
-              key: "json",
-              label: "Raw Pricing Engine Response",
-              children: (
-                <pre style={{ maxHeight: 600, overflow: "auto", background: "#111827", color: "#e5e7eb", padding: 16, borderRadius: 8 }}>
-                  {JSON.stringify(result, null, 2)}
-                </pre>
-              ),
-            },
-          ]}
+        <div className="simulator-grid">
+          <div className="left-panel">
+            <Card
+              bordered={false}
+              className="section-card"
+              title={
+                <div className="section-title">
+                  <EnvironmentOutlined />
+
+                  <div>
+                    <Text strong>
+                      Shipment Route
+                    </Text>
+
+                    <Text type="secondary">
+                      Pickup stores →
+                      engine transfers →
+                      delivery
+                    </Text>
+                  </div>
+                </div>
+              }
+              extra={
+                <Tag color="blue">
+                  {stores.length}{" "}
+                  pickup
+                  {stores.length !==
+                  1
+                    ? "s"
+                    : ""}
+                </Tag>
+              }
+            >
+              <div className="route-instruction">
+                Click{" "}
+                <strong>
+                  Map
+                </strong>{" "}
+                to select exact
+                coordinates.
+              </div>
+
+              <LocationCard
+                type="delivery"
+                location={
+                  delivery
+                }
+                onMap={
+                  openDeliveryPicker
+                }
+                onAddressChange={(
+                  address,
+                ) =>
+                  setDelivery(
+                    (current) => ({
+                      ...current,
+                      address,
+                    }),
+                  )
+                }
+              />
+
+              <div className="route-divider">
+                <SwapOutlined />
+              </div>
+
+              <div className="store-header">
+                <div>
+                  <ShopOutlined />
+
+                  <Text strong>
+                    Pickup Stores
+                  </Text>
+
+                  <Text type="secondary">
+                    {stores.length}{" "}
+                    location
+                    {stores.length !==
+                    1
+                      ? "s"
+                      : ""}
+                  </Text>
+                </div>
+
+                <Button
+                  type="link"
+                  size="small"
+                  icon={
+                    <PlusOutlined />
+                  }
+                  onClick={
+                    addStore
+                  }
+                >
+                  Add store
+                </Button>
+              </div>
+
+              <div className="stores-list">
+                {stores.map(
+                  (
+                    store,
+                    storeIndex,
+                  ) => (
+                    <div
+                      className="store-card"
+                      key={store.id}
+                    >
+                      <div className="store-card-header">
+                        <Space>
+                          <span className="store-number">
+                            {storeIndex +
+                              1}
+                          </span>
+
+                          <Input
+                            size="small"
+                            value={
+                              store.external_store_id
+                            }
+                            onChange={(
+                              event,
+                            ) =>
+                              updateStore(
+                                storeIndex,
+                                {
+                                  external_store_id:
+                                    event
+                                      .target
+                                      .value,
+                                },
+                              )
+                            }
+                            placeholder="Store ID"
+                            className="store-id-input"
+                          />
+                        </Space>
+
+                        {stores.length >
+                          1 && (
+                          <Button
+                            type="text"
+                            danger
+                            size="small"
+                            icon={
+                              <DeleteOutlined />
+                            }
+                            onClick={() =>
+                              removeStore(
+                                storeIndex,
+                              )
+                            }
+                          />
+                        )}
+                      </div>
+
+                      <LocationCard
+                        type="pickup"
+                        location={{
+                          address:
+                            store.pickup_address,
+                          latitude:
+                            store.pickup_latitude,
+                          longitude:
+                            store.pickup_longitude,
+                        }}
+                        onMap={() =>
+                          openPickupPicker(
+                            storeIndex,
+                          )
+                        }
+                        onAddressChange={(
+                          address,
+                        ) =>
+                          updateStore(
+                            storeIndex,
+                            {
+                              pickup_address:
+                                address,
+                            },
+                          )
+                        }
+                      />
+
+                      <div className="package-section">
+                        <div className="package-section-header">
+                          <div>
+                            <InboxOutlined />
+
+                            <Text strong>
+                              Packages
+                            </Text>
+
+                            <Badge
+                              count={
+                                store
+                                  .packages
+                                  .length
+                              }
+                              size="small"
+                            />
+                          </div>
+
+                          <Button
+                            type="link"
+                            size="small"
+                            icon={
+                              <PlusOutlined />
+                            }
+                            onClick={() =>
+                              addPackage(
+                                storeIndex,
+                              )
+                            }
+                          >
+                            Add
+                          </Button>
+                        </div>
+
+                        <div className="packages-list">
+                          {store.packages.map(
+                            (
+                              packageItem,
+                              packageIndex,
+                            ) => (
+                              <PackageCard
+                                key={`${store.id}-${packageIndex}`}
+                                packageItem={
+                                  packageItem
+                                }
+                                index={
+                                  packageIndex
+                                }
+                                canRemove={
+                                  store
+                                    .packages
+                                    .length >
+                                  1
+                                }
+                                onRemove={() =>
+                                  removePackage(
+                                    storeIndex,
+                                    packageIndex,
+                                  )
+                                }
+                                onChange={(
+                                  nextPackage,
+                                ) =>
+                                  updatePackage(
+                                    storeIndex,
+                                    packageIndex,
+                                    nextPackage,
+                                  )
+                                }
+                              />
+                            ),
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ),
+                )}
+              </div>
+            </Card>
+
+            <Card
+              bordered={false}
+              className="section-card"
+              title={
+                <div className="section-title">
+                  <TruckOutlined />
+
+                  <div>
+                    <Text strong>
+                      Shipment
+                    </Text>
+
+                    <Text type="secondary">
+                      Values used by the
+                      pricing engine.
+                    </Text>
+                  </div>
+                </div>
+              }
+            >
+              <Row gutter={10}>
+                <Col span={12}>
+                  <label className="field-label">
+                    Service
+                  </label>
+
+                  <Select
+                    size="small"
+                    value={
+                      serviceType
+                    }
+                    onChange={
+                      setServiceType
+                    }
+                    options={
+                      SERVICE_OPTIONS
+                    }
+                    className="full-width"
+                  />
+                </Col>
+
+                <Col span={12}>
+                  <label className="field-label">
+                    Payment
+                  </label>
+
+                  <Select
+                    size="small"
+                    value={
+                      paymentType
+                    }
+                    onChange={
+                      setPaymentType
+                    }
+                    options={
+                      PAYMENT_OPTIONS
+                    }
+                    className="full-width"
+                  />
+                </Col>
+              </Row>
+
+              <div className="summary-strip shipment-summary">
+                <div>
+                  <span>
+                    Weight
+                  </span>
+
+                  <strong>
+                    {kg(
+                      totalWeight,
+                    )}
+                  </strong>
+                </div>
+
+                <div>
+                  <span>
+                    Packages
+                  </span>
+
+                  <strong>
+                    {totalPackages}
+                  </strong>
+                </div>
+
+                <div>
+                  <span>
+                    Value
+                  </span>
+
+                  <strong>
+                    {money(
+                      totalValue,
+                    )}
+                  </strong>
+                </div>
+              </div>
+
+              <Alert
+                className="automatic-pricing-alert"
+                type="info"
+                showIcon
+                icon={
+                  <CalculatorOutlined />
+                }
+                message="Automatic pricing"
+                description="Weight, dimensions, route, transfers, service charges, pickup charges, fragile charges and VAT are calculated by the pricing engine."
+              />
+            </Card>
+          </div>
+
+          <div className="right-panel">
+            <Card
+              bordered={false}
+              className="map-card"
+              title={
+                <div className="section-title">
+                  <GlobalOutlined />
+
+                  <div>
+                    <Text strong>
+                      Shipment Map
+                    </Text>
+
+                    <Text type="secondary">
+                      Pickup →
+                      transfers →
+                      delivery
+                    </Text>
+                  </div>
+                </div>
+              }
+            >
+              <div className="map-wrapper">
+                <PricingMap
+                  points={mapPoints}
+                  stores={stores}
+                  delivery={
+                    delivery
+                  }
+                  result={result}
+                  height={480}
+                />
+
+                {!mapPoints.length && (
+                  <div className="map-overlay-empty">
+                    <MapOutlined />
+
+                    <Text strong>
+                      Select locations
+                    </Text>
+
+                    <Text type="secondary">
+                      Use the Map buttons
+                      on the left to
+                      place pickup and
+                      delivery pins.
+                    </Text>
+                  </div>
+                )}
+
+                {mapPoints.length >
+                  0 && (
+                  <div className="map-coordinates-panel">
+                    {stores.map(
+                      (
+                        store,
+                        index,
+                      ) =>
+                        validCoordinate(
+                          store.pickup_latitude,
+                          store.pickup_longitude,
+                        ) && (
+                          <div
+                            key={
+                              store.id
+                            }
+                          >
+                            <i className="legend-dot pickup" />
+
+                            <span>
+                              Pickup{" "}
+                              {index +
+                                1}
+                            </span>
+
+                            <strong>
+                              {Number(
+                                store.pickup_latitude,
+                              ).toFixed(
+                                4,
+                              )}
+                              ,{" "}
+                              {Number(
+                                store.pickup_longitude,
+                              ).toFixed(
+                                4,
+                              )}
+                            </strong>
+                          </div>
+                        ),
+                    )}
+
+                    {validCoordinate(
+                      delivery.latitude,
+                      delivery.longitude,
+                    ) && (
+                      <div>
+                        <i className="legend-dot delivery" />
+
+                        <span>
+                          Delivery
+                        </span>
+
+                        <strong>
+                          {Number(
+                            delivery.latitude,
+                          ).toFixed(
+                            4,
+                          )}
+                          ,{" "}
+                          {Number(
+                            delivery.longitude,
+                          ).toFixed(
+                            4,
+                          )}
+                        </strong>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            </Card>
+
+            <Card
+              bordered={false}
+              className="result-card"
+            >
+              <div className="result-tabs">
+                <button
+                  className={
+                    activeTab ===
+                    "route"
+                      ? "active"
+                      : ""
+                  }
+                  onClick={() =>
+                    setActiveTab(
+                      "route",
+                    )
+                  }
+                >
+                  <TruckOutlined />
+                  Route
+                </button>
+
+                <button
+                  className={
+                    activeTab ===
+                    "result"
+                      ? "active"
+                      : ""
+                  }
+                  onClick={() =>
+                    setActiveTab(
+                      "result",
+                    )
+                  }
+                >
+                  <CalculatorOutlined />
+                  Pricing
+
+                  {result && (
+                    <Badge
+                      count="✓"
+                      color="green"
+                    />
+                  )}
+                </button>
+
+                <button
+                  className={
+                    activeTab ===
+                    "payload"
+                      ? "active"
+                      : ""
+                  }
+                  onClick={() =>
+                    setActiveTab(
+                      "payload",
+                    )
+                  }
+                >
+                  <UnorderedListOutlined />
+                  Request
+                </button>
+              </div>
+
+              <div className="result-body">
+                {activeTab ===
+                  "route" && (
+                  <>
+                    {result ? (
+                      <RouteTimeline
+                        result={
+                          result
+                        }
+                        stores={
+                          stores
+                        }
+                        delivery={
+                          delivery
+                        }
+                      />
+                    ) : (
+                      <div className="result-empty">
+                        <TruckOutlined />
+
+                        <Text strong>
+                          Route result
+                        </Text>
+
+                        <Text type="secondary">
+                          Calculate pricing
+                          to see the
+                          resolved transfer
+                          route.
+                        </Text>
+                      </div>
+                    )}
+                  </>
+                )}
+
+                {activeTab ===
+                  "result" && (
+                  <PricingResult
+                    result={
+                      result
+                    }
+                    stores={
+                      stores
+                    }
+                  />
+                )}
+
+                {activeTab ===
+                  "payload" && (
+                  <div className="payload-view">
+                    <pre>
+                      {JSON.stringify(
+                        buildPayload(),
+                        null,
+                        2,
+                      )}
+                    </pre>
+
+                    {errorDetails && (
+                      <Alert
+                        type="error"
+                        showIcon
+                        message={
+                          errorDetails.message
+                        }
+                      />
+                    )}
+                  </div>
+                )}
+              </div>
+            </Card>
+          </div>
+        </div>
+
+        <LocationPickerModal
+          open={picker.open}
+          title={
+            picker.mode ===
+            "delivery"
+              ? "Select Delivery Location"
+              : "Select Pickup Location"
+          }
+          mode={
+            picker.mode
+          }
+          initialLocation={
+            picker.initialLocation
+          }
+          onCancel={
+            closePicker
+          }
+          onSelect={
+            handleLocationSelect
+          }
         />
-      )}
-    </div>
+      </div>
+    </>
   );
 }
