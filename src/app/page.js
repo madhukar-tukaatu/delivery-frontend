@@ -1,4 +1,8 @@
-import SiteClient from "./site/SiteClient";
+
+// import SiteClient from "./site/SiteClient";
+import SiteHomePage from "./(site)/page";
+import "./site.css";
+
 
 export const metadata = {
   title: "Tukaatu Express | Fast Courier Delivery Across Nepal",
@@ -7,5 +11,5 @@ export const metadata = {
 };
 
 export default function SitePage() {
-  return <SiteClient />;
+  return <SiteHomePage/>;
 }

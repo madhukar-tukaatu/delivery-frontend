@@ -1,0 +1,1176 @@
+.experience {
+  position: relative;
+  width: 100%;
+  height: 100vh;
+  min-height: 720px;
+  overflow: hidden;
+  background: #06101d;
+  color: #ffffff;
+}
+
+.stage {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  perspective: 1600px;
+  isolation: isolate;
+}
+
+.backgroundLayer {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  z-index: 0;
+}
+
+.background {
+  position: absolute;
+  inset: -6%;
+  background-position: center;
+  background-size: cover;
+  background-repeat: no-repeat;
+  transform-origin: center center;
+  will-change: transform, opacity;
+}
+
+.pickupBackground {
+  background-image:
+    linear-gradient(
+      90deg,
+      rgba(4, 10, 18, 0.82) 0%,
+      rgba(4, 10, 18, 0.46) 48%,
+      rgba(4, 10, 18, 0.28) 100%
+    ),
+    url("https://images.unsplash.com/photo-1556742049-0cfed4f6a45d?auto=format&fit=crop&w=2200&q=90");
+}
+
+.originBackground {
+  background-image:
+    linear-gradient(
+      90deg,
+      rgba(3, 12, 22, 0.86) 0%,
+      rgba(3, 12, 22, 0.5) 50%,
+      rgba(3, 12, 22, 0.35) 100%
+    ),
+    url("https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d?auto=format&fit=crop&w=2200&q=90");
+}
+
+.roadBackground {
+  background-image:
+    linear-gradient(
+      90deg,
+      rgba(2, 12, 22, 0.82) 0%,
+      rgba(2, 12, 22, 0.3) 50%,
+      rgba(2, 12, 22, 0.45) 100%
+    ),
+    url("https://images.unsplash.com/photo-1533130061792-64b345e4a833?auto=format&fit=crop&w=2400&q=90");
+}
+
+.destinationBackground {
+  background-image:
+    linear-gradient(
+      90deg,
+      rgba(4, 12, 22, 0.82) 0%,
+      rgba(4, 12, 22, 0.46) 50%,
+      rgba(4, 12, 22, 0.32) 100%
+    ),
+    url("https://images.unsplash.com/photo-1565610222536-ef125c59da2e?auto=format&fit=crop&w=2200&q=90");
+}
+
+.deliveryBackground {
+  background-image:
+    linear-gradient(
+      90deg,
+      rgba(4, 11, 20, 0.78) 0%,
+      rgba(4, 11, 20, 0.38) 50%,
+      rgba(4, 11, 20, 0.2) 100%
+    ),
+    url("https://images.unsplash.com/photo-1605146769289-440113cc3d00?auto=format&fit=crop&w=2200&q=90");
+}
+
+.backgroundOverlay {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  background:
+    radial-gradient(
+      circle at 70% 50%,
+      rgba(37, 99, 235, 0.13),
+      transparent 42%
+    ),
+    linear-gradient(
+      180deg,
+      rgba(3, 9, 18, 0.32),
+      rgba(3, 9, 18, 0.06) 48%,
+      rgba(3, 9, 18, 0.58)
+    );
+  pointer-events: none;
+}
+
+.topBar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 28px 5vw;
+  pointer-events: none;
+}
+
+.brandMark {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.brandDot {
+  width: 9px;
+  height: 9px;
+  border-radius: 999px;
+  background: #06b6d4;
+  box-shadow:
+    0 0 0 5px rgba(6, 182, 212, 0.12),
+    0 0 24px rgba(6, 182, 212, 0.7);
+}
+
+.scrollIndicator {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.scrollArrow {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: 999px;
+  font-size: 15px;
+}
+
+.camera {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  transform-style: preserve-3d;
+  will-change: transform;
+}
+
+.sceneContent {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  transform-style: preserve-3d;
+}
+
+.infoCard {
+  position: absolute;
+  z-index: 20;
+  width: min(430px, 40vw);
+  padding: 30px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 24px;
+  background: rgba(5, 13, 25, 0.68);
+  box-shadow:
+    0 25px 80px rgba(0, 0, 0, 0.3),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(22px);
+  -webkit-backdrop-filter: blur(22px);
+  transform-style: preserve-3d;
+  will-change: transform, opacity;
+}
+
+.pickupCard,
+.originCard,
+.roadCard,
+.destinationCard,
+.deliveryCard {
+  left: 7vw;
+}
+
+.pickupCard,
+.originCard,
+.roadCard,
+.destinationCard,
+.deliveryCard {
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+.cardEyebrow {
+  margin-bottom: 14px;
+  color: #22d3ee;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.18em;
+}
+
+.infoCard h2 {
+  margin: 0;
+  max-width: 390px;
+  font-size: clamp(34px, 4vw, 60px);
+  line-height: 0.98;
+  letter-spacing: -0.055em;
+}
+
+.infoCard p {
+  max-width: 390px;
+  margin: 20px 0 0;
+  color: rgba(255, 255, 255, 0.68);
+  font-size: 15px;
+  line-height: 1.7;
+}
+
+.miniSteps {
+  display: flex;
+  gap: 7px;
+  margin-top: 25px;
+}
+
+.miniSteps span {
+  padding: 8px 11px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(255, 255, 255, 0.45);
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+}
+
+.miniSteps .activeStep {
+  background: rgba(6, 182, 212, 0.15);
+  color: #67e8f9;
+}
+
+.processingList {
+  display: grid;
+  gap: 9px;
+  margin-top: 24px;
+}
+
+.processingList div {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  color: rgba(255, 255, 255, 0.72);
+  font-size: 12px;
+}
+
+.check,
+.successIcon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  flex: 0 0 auto;
+  border-radius: 999px;
+  background: rgba(22, 163, 74, 0.16);
+  color: #4ade80;
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.routeMeta {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-top: 28px;
+  color: #ffffff;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+}
+
+.routeDots {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.routeDots i {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: #22d3ee;
+  box-shadow: 0 0 10px rgba(34, 211, 238, 0.8);
+}
+
+.destinationProgress {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-top: 25px;
+}
+
+.progressTrack {
+  width: 180px;
+  height: 6px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.progressTrack span {
+  display: block;
+  width: 92%;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #2563eb, #22d3ee);
+}
+
+.destinationProgress strong {
+  font-size: 12px;
+}
+
+.deliveryComplete {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-top: 26px;
+}
+
+.largeCheck {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 45px;
+  height: 45px;
+  border-radius: 50%;
+  background: rgba(22, 163, 74, 0.16);
+  color: #4ade80;
+  font-size: 22px;
+  box-shadow: 0 0 35px rgba(22, 163, 74, 0.16);
+}
+
+.deliveryComplete div {
+  display: grid;
+  gap: 4px;
+}
+
+.deliveryComplete strong {
+  font-size: 12px;
+  letter-spacing: 0.12em;
+}
+
+.deliveryComplete span {
+  color: rgba(255, 255, 255, 0.48);
+  font-size: 11px;
+}
+
+.statusChip {
+  position: absolute;
+  z-index: 25;
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  padding: 10px 14px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 999px;
+  background: rgba(3, 11, 20, 0.7);
+  box-shadow: 0 15px 40px rgba(0, 0, 0, 0.25);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  color: rgba(255, 255, 255, 0.85);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  will-change: transform, opacity;
+}
+
+.pickupStatus {
+  top: 26%;
+  right: 15%;
+}
+
+.scanStatus {
+  top: 25%;
+  right: 16%;
+}
+
+.transitStatus {
+  top: 27%;
+  right: 14%;
+}
+
+.destinationStatus {
+  top: 26%;
+  right: 14%;
+}
+
+.deliveredStatus {
+  top: 25%;
+  right: 14%;
+}
+
+.statusPulse {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #22d3ee;
+  box-shadow:
+    0 0 0 4px rgba(34, 211, 238, 0.12),
+    0 0 18px rgba(34, 211, 238, 0.8);
+}
+
+.routeScene {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  pointer-events: none;
+}
+
+.routeSvg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+.routeLine,
+.routeGlow {
+  fill: none;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.routeLine {
+  stroke: rgba(103, 232, 249, 0.9);
+  stroke-width: 4;
+  filter: drop-shadow(0 0 8px rgba(34, 211, 238, 0.55));
+}
+
+.routeGlow {
+  stroke: rgba(34, 211, 238, 0.24);
+  stroke-width: 24;
+  filter: blur(8px);
+}
+
+.routeNode {
+  fill: #22d3ee;
+  stroke: rgba(255, 255, 255, 0.8);
+  stroke-width: 2;
+  filter: drop-shadow(0 0 12px rgba(34, 211, 238, 0.9));
+}
+
+.locationKathmandu,
+.locationPokhara {
+  position: absolute;
+  z-index: 10;
+  display: grid;
+  gap: 3px;
+  font-size: 14px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+.locationKathmandu span,
+.locationPokhara span {
+  color: rgba(255, 255, 255, 0.48);
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.locationKathmandu {
+  left: 6.5%;
+  bottom: 21%;
+}
+
+.locationPokhara {
+  right: 7%;
+  top: 17%;
+  text-align: right;
+}
+
+.branchVisual {
+  position: absolute;
+  z-index: 8;
+  width: 330px;
+  height: 260px;
+  transform-style: preserve-3d;
+  filter: drop-shadow(0 30px 55px rgba(0, 0, 0, 0.42));
+  will-change: transform, opacity;
+}
+
+.originBranch {
+  right: 10%;
+  top: 31%;
+}
+
+.destinationBranch {
+  right: 10%;
+  top: 31%;
+}
+
+.branchRoof {
+  position: absolute;
+  top: 15px;
+  left: 10px;
+  width: 310px;
+  height: 65px;
+  border-radius: 20px 20px 7px 7px;
+  background: linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.92),
+    rgba(220, 230, 242, 0.8)
+  );
+  transform: perspective(500px) rotateX(55deg);
+  transform-origin: bottom center;
+}
+
+.branchBody {
+  position: absolute;
+  left: 30px;
+  bottom: 15px;
+  width: 270px;
+  height: 190px;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: 10px 10px 18px 18px;
+  background: linear-gradient(
+    145deg,
+    rgba(27, 51, 78, 0.94),
+    rgba(8, 22, 39, 0.96)
+  );
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.12),
+    0 25px 50px rgba(0, 0, 0, 0.3);
+}
+
+.branchLogo {
+  position: absolute;
+  top: 20px;
+  left: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 35px;
+  height: 35px;
+  border-radius: 10px;
+  background: #2563eb;
+  box-shadow: 0 8px 25px rgba(37, 99, 235, 0.45);
+  font-size: 18px;
+  font-weight: 900;
+}
+
+.branchDoor {
+  position: absolute;
+  bottom: 0;
+  left: 108px;
+  width: 70px;
+  height: 115px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 9px 9px 0 0;
+  background: linear-gradient(
+    90deg,
+    rgba(2, 8, 15, 0.9),
+    rgba(23, 49, 72, 0.9)
+  );
+}
+
+.branchWindow {
+  position: absolute;
+  top: 32px;
+  right: 20px;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 5px;
+  width: 90px;
+  height: 55px;
+}
+
+.branchWindow span {
+  border: 1px solid rgba(103, 232, 249, 0.18);
+  border-radius: 4px;
+  background: linear-gradient(
+    135deg,
+    rgba(103, 232, 249, 0.25),
+    rgba(37, 99, 235, 0.1)
+  );
+}
+
+.branchGlow {
+  position: absolute;
+  left: 65px;
+  bottom: 5px;
+  width: 200px;
+  height: 45px;
+  border-radius: 50%;
+  background: rgba(37, 99, 235, 0.3);
+  filter: blur(35px);
+}
+
+.vehicle {
+  position: absolute;
+  z-index: 18;
+  left: 48%;
+  top: 52%;
+  width: 230px;
+  height: 125px;
+  transform-style: preserve-3d;
+  will-change: transform, opacity;
+}
+
+.vehicleShadow {
+  position: absolute;
+  left: 15px;
+  right: 5px;
+  bottom: 2px;
+  height: 25px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.55);
+  filter: blur(10px);
+  transform: translateZ(-5px);
+}
+
+.vehicleBody {
+  position: absolute;
+  left: 10px;
+  top: 15px;
+  width: 210px;
+  height: 75px;
+  border-radius: 18px 26px 11px 11px;
+  background: linear-gradient(
+    150deg,
+    #f5f9ff 0%,
+    #dbe8f5 48%,
+    #a7bdd2 100%
+  );
+  box-shadow:
+    inset 0 2px 0 rgba(255, 255, 255, 0.85),
+    0 18px 35px rgba(0, 0, 0, 0.35);
+}
+
+.vehicleCab {
+  position: absolute;
+  right: 0;
+  top: 0;
+  width: 78px;
+  height: 55px;
+  border-radius: 0 23px 5px 0;
+  background: linear-gradient(150deg, #dbeafe, #94aeca);
+}
+
+.vehicleWindow {
+  position: absolute;
+  top: 9px;
+  right: 10px;
+  width: 52px;
+  height: 28px;
+  border: 2px solid rgba(6, 19, 33, 0.35);
+  border-radius: 7px 13px 4px 4px;
+  background: linear-gradient(
+    135deg,
+    rgba(103, 232, 249, 0.6),
+    rgba(37, 99, 235, 0.32)
+  );
+}
+
+.vehicleCargo {
+  position: absolute;
+  left: 14px;
+  top: 12px;
+  width: 105px;
+  height: 52px;
+  border-radius: 8px;
+  background: linear-gradient(145deg, #ffffff, #d7e4ef);
+  box-shadow: inset 0 -8px 20px rgba(37, 99, 235, 0.06);
+}
+
+.vehicleLogo {
+  position: absolute;
+  left: 14px;
+  top: 11px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 31px;
+  height: 31px;
+  border-radius: 8px;
+  background: #2563eb;
+  color: #ffffff;
+  font-size: 15px;
+  font-weight: 900;
+}
+
+.vehicleLight {
+  position: absolute;
+  right: -3px;
+  top: 42px;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: #fef08a;
+  box-shadow: 0 0 15px rgba(254, 240, 138, 0.8);
+}
+
+.vehicleWheel {
+  position: absolute;
+  left: 35px;
+  bottom: 5px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 39px;
+  height: 39px;
+  border-radius: 50%;
+  background: #101923;
+  border: 5px solid #263646;
+  box-shadow: inset 0 0 0 4px #0b1118;
+}
+
+.vehicleWheel span {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #7c8fa3;
+}
+
+.vehicleWheelFront {
+  left: auto;
+  right: 32px;
+}
+
+.vehicleParcel {
+  position: absolute;
+  left: 78px;
+  top: -4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 42px;
+  height: 35px;
+  border-radius: 5px;
+  background: #c99052;
+  color: #513319;
+  box-shadow: 0 8px 14px rgba(0, 0, 0, 0.25);
+  transform: rotate(-5deg);
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.parcel {
+  position: absolute;
+  z-index: 22;
+  left: 48%;
+  top: 50%;
+  width: 54px;
+  height: 54px;
+  transform-style: preserve-3d;
+  filter: drop-shadow(0 15px 20px rgba(0, 0, 0, 0.4));
+  will-change: transform, opacity;
+}
+
+.parcelTop {
+  position: absolute;
+  top: 0;
+  left: 9px;
+  width: 42px;
+  height: 14px;
+  background: #e0a566;
+  transform: skewX(-35deg);
+  transform-origin: left bottom;
+}
+
+.parcelFront {
+  position: absolute;
+  left: 0;
+  top: 10px;
+  width: 43px;
+  height: 43px;
+  border-radius: 5px;
+  background: linear-gradient(145deg, #c98d50, #9d6233);
+  box-shadow: inset 8px 0 14px rgba(255, 255, 255, 0.06);
+}
+
+.parcelFront span {
+  position: absolute;
+  left: 13px;
+  top: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 5px;
+  background: #2563eb;
+  color: #ffffff;
+  font-size: 9px;
+  font-weight: 900;
+}
+
+.parcelTape {
+  position: absolute;
+  left: 18px;
+  top: 10px;
+  width: 7px;
+  height: 43px;
+  background: rgba(245, 211, 163, 0.62);
+  transform: skewY(0deg);
+}
+
+.house {
+  position: absolute;
+  z-index: 10;
+  right: 9%;
+  bottom: 14%;
+  width: 340px;
+  height: 300px;
+  transform-style: preserve-3d;
+  will-change: transform, opacity;
+}
+
+.houseRoof {
+  position: absolute;
+  left: 0;
+  top: 10px;
+  width: 330px;
+  height: 120px;
+  clip-path: polygon(50% 0, 100% 65%, 92% 72%, 50% 17%, 8% 72%, 0 65%);
+  background: linear-gradient(
+    135deg,
+    #334155,
+    #172033
+  );
+  filter: drop-shadow(0 20px 25px rgba(0, 0, 0, 0.3));
+}
+
+.houseBody {
+  position: absolute;
+  left: 35px;
+  bottom: 0;
+  width: 260px;
+  height: 210px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 8px 8px 15px 15px;
+  background: linear-gradient(
+    145deg,
+    rgba(240, 246, 252, 0.95),
+    rgba(191, 209, 224, 0.92)
+  );
+  box-shadow: 0 30px 50px rgba(0, 0, 0, 0.3);
+}
+
+.houseWindow {
+  position: absolute;
+  top: 35px;
+  left: 30px;
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  width: 70px;
+  height: 65px;
+  border: 4px solid #334155;
+  background: #67e8f9;
+}
+
+.houseWindow span {
+  border: 1px solid rgba(51, 65, 85, 0.65);
+  background: linear-gradient(
+    135deg,
+    rgba(103, 232, 249, 0.85),
+    rgba(37, 99, 235, 0.5)
+  );
+}
+
+.houseDoor {
+  position: absolute;
+  right: 40px;
+  bottom: 0;
+  width: 65px;
+  height: 125px;
+  border-radius: 9px 9px 0 0;
+  background: linear-gradient(145deg, #26394d, #101b27);
+  box-shadow: inset 10px 0 20px rgba(255, 255, 255, 0.03);
+}
+
+.houseDoor i {
+  position: absolute;
+  top: 65px;
+  right: 10px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #facc15;
+  box-shadow: 0 0 10px rgba(250, 204, 21, 0.8);
+}
+
+.housePlant {
+  position: absolute;
+  right: 8px;
+  bottom: 3px;
+  width: 35px;
+  height: 55px;
+}
+
+.housePlant span {
+  position: absolute;
+  bottom: 0;
+  width: 14px;
+  height: 32px;
+  border-radius: 100% 0 100% 0;
+  background: #22c55e;
+  transform-origin: bottom;
+}
+
+.housePlant span:nth-child(1) {
+  left: 0;
+  transform: rotate(-28deg);
+}
+
+.housePlant span:nth-child(2) {
+  left: 10px;
+  height: 42px;
+  transform: rotate(5deg);
+}
+
+.housePlant span:nth-child(3) {
+  right: 0;
+  transform: rotate(32deg);
+}
+
+.houseLight {
+  position: absolute;
+  right: 72px;
+  top: 16px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #fef08a;
+  box-shadow: 0 0 35px rgba(254, 240, 138, 0.9);
+}
+
+.particle {
+  position: absolute;
+  z-index: 2;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: #67e8f9;
+  box-shadow: 0 0 15px rgba(103, 232, 249, 0.9);
+  opacity: 0.5;
+}
+
+.particleOne {
+  top: 24%;
+  left: 55%;
+}
+
+.particleTwo {
+  top: 72%;
+  left: 67%;
+  width: 3px;
+  height: 3px;
+}
+
+.particleThree {
+  top: 35%;
+  right: 8%;
+  width: 5px;
+  height: 5px;
+}
+
+.particleFour {
+  bottom: 17%;
+  left: 38%;
+  width: 3px;
+  height: 3px;
+}
+
+.bottomGradient {
+  position: absolute;
+  z-index: 28;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 22%;
+  pointer-events: none;
+  background: linear-gradient(
+    180deg,
+    transparent,
+    rgba(2, 7, 14, 0.72)
+  );
+}
+
+@media (max-width: 1100px) {
+  .infoCard {
+    width: min(390px, 43vw);
+    padding: 25px;
+  }
+
+  .branchVisual {
+    right: 5%;
+    transform: scale(0.9);
+  }
+
+  .house {
+    right: 4%;
+    transform: scale(0.9);
+  }
+
+  .pickupStatus,
+  .scanStatus,
+  .transitStatus,
+  .destinationStatus,
+  .deliveredStatus {
+    right: 8%;
+  }
+}
+
+@media (max-width: 800px) {
+  .experience {
+    min-height: 650px;
+  }
+
+  .topBar {
+    padding: 20px;
+  }
+
+  .scrollIndicator span:first-child {
+    display: none;
+  }
+
+  .infoCard {
+    left: 20px !important;
+    right: 20px;
+    top: auto !important;
+    bottom: 8%;
+    width: auto;
+    padding: 22px;
+    transform: none;
+  }
+
+  .infoCard h2 {
+    font-size: 34px;
+  }
+
+  .infoCard p {
+    margin-top: 13px;
+    font-size: 13px;
+    line-height: 1.55;
+  }
+
+  .branchVisual {
+    right: 50%;
+    top: 25%;
+    transform: translateX(50%) scale(0.65);
+  }
+
+  .house {
+    right: 50%;
+    bottom: 35%;
+    transform: translateX(50%) scale(0.62);
+  }
+
+  .vehicle {
+    left: 50%;
+    top: 45%;
+    transform-origin: center;
+  }
+
+  .parcel {
+    left: 50%;
+    top: 45%;
+  }
+
+  .statusChip {
+    top: 12%;
+    right: 20px;
+    font-size: 9px;
+  }
+
+  .locationKathmandu {
+    left: 5%;
+    bottom: 35%;
+    font-size: 11px;
+  }
+
+  .locationPokhara {
+    right: 5%;
+    top: 23%;
+    font-size: 11px;
+  }
+
+  .routeMeta {
+    margin-top: 18px;
+  }
+
+  .processingList {
+    margin-top: 16px;
+  }
+}
+
+@media (max-width: 520px) {
+  .experience {
+    min-height: 600px;
+  }
+
+  .brandMark {
+    font-size: 13px;
+  }
+
+  .infoCard {
+    bottom: 5%;
+    padding: 18px;
+    border-radius: 18px;
+  }
+
+  .infoCard h2 {
+    font-size: 28px;
+  }
+
+  .infoCard p {
+    font-size: 12px;
+  }
+
+  .miniSteps span {
+    padding: 6px 8px;
+    font-size: 8px;
+  }
+
+  .branchVisual {
+    transform: translateX(50%) scale(0.5);
+  }
+
+  .house {
+    transform: translateX(50%) scale(0.5);
+  }
+
+  .vehicle {
+    transform: scale(0.72);
+  }
+
+  .parcel {
+    transform: scale(0.82);
+  }
+
+  .pickupStatus,
+  .scanStatus,
+  .transitStatus,
+  .destinationStatus,
+  .deliveredStatus {
+    right: 15px;
+    top: 12%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .experience *,
+  .experience {
+    scroll-behavior: auto;
+  }
+}

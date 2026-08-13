@@ -1,0 +1,167 @@
+.header {
+  position: absolute;
+  z-index: 100;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 82px;
+  padding: 0 5vw;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: linear-gradient(
+    to bottom,
+    rgba(3, 8, 13, 0.8),
+    transparent
+  );
+}
+
+.logo {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  color: white;
+  text-decoration: none;
+}
+
+.logoMark {
+  width: 35px;
+  height: 35px;
+  position: relative;
+  overflow: hidden;
+  border-radius: 9px;
+  background: #087fa9;
+}
+
+.logoYellow {
+  position: absolute;
+  width: 20px;
+  height: 20px;
+  left: -2px;
+  top: 8px;
+  background: #ffd21a;
+  clip-path: polygon(0 0, 100% 50%, 0 100%);
+}
+
+.logoBlue {
+  position: absolute;
+  width: 24px;
+  height: 35px;
+  right: -2px;
+  top: 0;
+  background: #0b6f91;
+  clip-path: polygon(0 0, 100% 28%, 100% 100%, 0 68%);
+}
+
+.logo strong {
+  display: block;
+  font-size: 14px;
+  letter-spacing: 0.14em;
+}
+
+.logo small {
+  display: block;
+  margin-top: 2px;
+  color: #ffd21a;
+  font-size: 8px;
+  font-weight: 900;
+  letter-spacing: 0.18em;
+}
+
+.nav {
+  display: flex;
+  align-items: center;
+  gap: 28px;
+}
+
+.nav a,
+.login {
+  color: #8d9aa6;
+  text-decoration: none;
+  font-size: 12px;
+  font-weight: 600;
+  transition: color 0.25s ease;
+}
+
+.nav a:hover,
+.login:hover {
+  color: white;
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+}
+
+.track {
+  display: flex;
+  align-items: center;
+  min-height: 40px;
+  padding: 0 17px;
+  border-radius: 999px;
+  background: #087fa9;
+  color: white;
+  text-decoration: none;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.menu {
+  display: none;
+  border: 0;
+  background: transparent;
+  padding: 8px;
+}
+
+.menu span {
+  width: 23px;
+  height: 2px;
+  display: block;
+  margin: 5px;
+  background: white;
+}
+
+@media (max-width: 950px) {
+  .nav {
+    display: none;
+  }
+
+  .nav.open {
+    position: absolute;
+    top: 75px;
+    left: 15px;
+    right: 15px;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0;
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 18px;
+    background: rgba(5, 10, 16, 0.96);
+    backdrop-filter: blur(20px);
+  }
+
+  .nav.open a {
+    padding: 15px;
+  }
+
+  .actions .login {
+    display: none;
+  }
+
+  .menu {
+    display: block;
+  }
+}
+
+@media (max-width: 550px) {
+  .header {
+    padding: 0 18px;
+  }
+
+  .track {
+    display: none;
+  }
+}
