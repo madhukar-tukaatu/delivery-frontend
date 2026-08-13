@@ -112,14 +112,8 @@ function normalizeBoolean(value) {
 
 export async function getRateBranches(params = {}) {
   const response = await api.get(
-    ENDPOINTS.branches,
-    {
-      params: {
-        status: "active",
-        per_page: 500,
-        ...params,
-      },
-    }
+    `${ENDPOINTS.branchRouteRates}/branches`,
+    { params }
   );
 
   return response.data;

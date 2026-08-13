@@ -5,15 +5,8 @@ import { Form, InputNumber, Modal, Select, Switch, Typography } from "antd";
 
 const { Text } = Typography;
 
-function fmt(value) {
-  return `NPR ${Number(value || 0).toLocaleString("en-NP", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  })}`;
-}
-
-function EffectiveRates({ baseRate, pricingSettings, isSameBranch }) {
-  if (!baseRate || baseRate <= 0 || !pricingSettings) return null;
+function EffectiveRates({ pricingSettings, isSameBranch, expressEnabled, sameDayEnabled }) {
+  if (!pricingSettings) return null;
 
   const expressMultiplier = isSameBranch
     ? Number(pricingSettings.local_express_multiplier ?? 1.2)
@@ -23,22 +16,9 @@ function EffectiveRates({ baseRate, pricingSettings, isSameBranch }) {
     ? Number(pricingSettings.local_same_day_multiplier ?? 1.5)
     : Number(pricingSettings.transfer_same_day_multiplier ?? 2);
 
-  const rates = [
-    { label: "Standard", value: baseRate, color: "#1677ff", multiplier: null },
-    {
-      label: "Express",
-      value: baseRate * expressMultiplier,
-      color: "#fa8c16",
-      multiplier: expressMultiplier,
-      enabled: pricingSettings.express_enabled !== false,
-    },
-    {
-      label: "Same Day",
-      value: baseRate * sameDayMultiplier,
-      color: "#eb2f96",
-      multiplier: sameDayMultiplier,
-      enabled: pricingSettings.same_day_enabled !== false,
-    },
+  const services = [
+    { label: "Express", multiplier: expressMultiplier, enabled: expressEnabled !== false, color: "#fa8c16" },
+    { label: "Same Day", multiplier: sameDayMultiplier, enabled: sameDayEnabled !== false, color: "#eb2f96" },
   ];
 
   return (
@@ -53,29 +33,23 @@ function EffectiveRates({ baseRate, pricingSettings, isSameBranch }) {
       }}
     >
       <Text type="secondary" style={{ fontSize: 11, display: "block", marginBottom: 8 }}>
-        Effective rates from this base rate (from active Pricing Settings)
+        Multipliers applied to the full calculated subtotal (base + weight + distance + fragile)
       </Text>
-      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-        {rates.map(({ label, value, color, multiplier, enabled }) => (
+      <div style={{ display: "flex", gap: 8 }}>
+        {services.map(({ label, multiplier, enabled, color }) => (
           <div
             key={label}
             style={{
               flex: 1,
-              minWidth: 110,
               padding: "8px 10px",
               background: "#fff",
-              border: `1px solid ${color}22`,
+              border: `1px solid ${enabled ? color + "33" : "#e2e8f0"}`,
               borderRadius: 7,
-              opacity: enabled === false ? 0.45 : 1,
+              opacity: enabled ? 1 : 0.45,
             }}
           >
-            <Text style={{ fontSize: 10, color, fontWeight: 700, display: "block" }}>
-              {label}
-              {multiplier ? ` ×${multiplier}` : ""}
-              {enabled === false ? " (off)" : ""}
-            </Text>
-            <Text strong style={{ fontSize: 13, color }}>
-              {fmt(value)}
+            <Text style={{ fontSize: 10, color: enabled ? color : "#8c8c8c", fontWeight: 700, display: "block" }}>
+              {label} {enabled ? `×${multiplier}` : "(disabled for this route)"}
             </Text>
           </div>
         ))}
@@ -100,6 +74,8 @@ export default function BranchRouteRateModal({
   const deliveryId = Form.useWatch("delivery_branch_id", form);
   const baseRate = Form.useWatch("base_rate", form);
   const createReverse = Form.useWatch("create_reverse_route", form);
+  const expressEnabled = Form.useWatch("express_enabled", form);
+  const sameDayEnabled = Form.useWatch("same_day_enabled", form);
   const sameBranch = pickupId && deliveryId && Number(pickupId) === Number(deliveryId);
 
   useEffect(() => {
@@ -110,6 +86,8 @@ export default function BranchRouteRateModal({
         delivery_branch_id: Number(record.delivery_branch_id),
         base_rate: Number(record.base_rate),
         is_active: Boolean(record.is_active),
+        express_enabled: record.express_enabled !== false,
+        same_day_enabled: record.same_day_enabled !== false,
         create_reverse_route: false,
         reverse_base_rate: Number(record.base_rate),
       });
@@ -119,6 +97,8 @@ export default function BranchRouteRateModal({
         delivery_branch_id: defaults?.delivery_branch_id,
         base_rate: defaults?.base_rate ?? 0,
         is_active: true,
+        express_enabled: true,
+        same_day_enabled: true,
         create_reverse_route: false,
         reverse_base_rate: defaults?.base_rate ?? 0,
       });
@@ -170,14 +150,24 @@ export default function BranchRouteRateModal({
         </Form.Item>
 
         <EffectiveRates
-          baseRate={baseRate}
           pricingSettings={pricingSettings}
           isSameBranch={sameBranch}
+          expressEnabled={expressEnabled}
+          sameDayEnabled={sameDayEnabled}
         />
 
         <Form.Item label="Active" name="is_active" valuePropName="checked">
           <Switch checkedChildren="Active" unCheckedChildren="Inactive" />
         </Form.Item>
+
+        <div style={{ display: "flex", gap: 16, marginBottom: 24 }}>
+          <Form.Item label="Express delivery" name="express_enabled" valuePropName="checked" style={{ margin: 0, flex: 1 }}>
+            <Switch checkedChildren="Enabled" unCheckedChildren="Disabled" />
+          </Form.Item>
+          <Form.Item label="Same-day delivery" name="same_day_enabled" valuePropName="checked" style={{ margin: 0, flex: 1 }}>
+            <Switch checkedChildren="Enabled" unCheckedChildren="Disabled" />
+          </Form.Item>
+        </div>
 
         {!editing && (
           <>
