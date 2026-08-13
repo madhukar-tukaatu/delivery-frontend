@@ -155,17 +155,11 @@ export default function BranchPricingPage() {
    */
   const loadBranches = useCallback(async () => {
     try {
-      const payload = await getRateBranches({
-        status: "active",
-        per_page: 500,
-      });
-
+      const payload = await getRateBranches();
       const collection = extractCollection(payload);
-
       const normalizedBranches = collection.rows
         .map(normalizeBranch)
         .filter((branch) => Number.isFinite(Number(branch?.id)));
-
       setBranches(normalizedBranches);
     } catch (error) {
       message.error(apiErrorMessage(error, "Could not load branch options."));
@@ -335,6 +329,8 @@ export default function BranchPricingPage() {
       delivery_branch_id: Number(values.delivery_branch_id),
       base_rate: Number(values.base_rate),
       is_active: Boolean(values.is_active),
+      express_enabled: values.express_enabled !== false,
+      same_day_enabled: values.same_day_enabled !== false,
     };
 
     try {
@@ -352,6 +348,8 @@ export default function BranchPricingPage() {
             delivery_branch_id: payload.pickup_branch_id,
             base_rate: Number(values.reverse_base_rate),
             is_active: payload.is_active,
+            express_enabled: payload.express_enabled,
+            same_day_enabled: payload.same_day_enabled,
           });
         }
 
@@ -451,15 +449,7 @@ export default function BranchPricingPage() {
     const delivery = getBranchDisplay(row.delivery_branch, row.delivery_branch_id);
     const isSelected = Number(selected?.id) === Number(row.id);
     const isSameBranch = Number(row.pickup_branch_id) === Number(row.delivery_branch_id);
-    const ps = activePricingSettings;
     const base = Number(row.base_rate || 0);
-
-    const expressRate = ps
-      ? base * Number(isSameBranch ? (ps.local_express_multiplier ?? 1.2) : (ps.transfer_express_multiplier ?? 1.3))
-      : null;
-    const sameDayRate = ps
-      ? base * Number(isSameBranch ? (ps.local_same_day_multiplier ?? 1.5) : (ps.transfer_same_day_multiplier ?? 2))
-      : null;
 
     return (
       <div
@@ -503,16 +493,20 @@ export default function BranchPricingPage() {
         {/* EXPRESS */}
         <div>
           <Text type="secondary" style={{ fontSize: 11 }}>Express</Text>
-          <div style={{ marginTop: 2, fontWeight: 600, color: ps?.express_enabled === false ? "#bfbfbf" : "#fa8c16" }}>
-            {expressRate != null ? formatMoney(expressRate) : "—"}
+          <div style={{ marginTop: 4 }}>
+            <Tag color={row.express_enabled === false ? "default" : "orange"} style={{ margin: 0 }}>
+              {row.express_enabled === false ? "Disabled" : "Enabled"}
+            </Tag>
           </div>
         </div>
 
         {/* SAME DAY */}
         <div>
           <Text type="secondary" style={{ fontSize: 11 }}>Same Day</Text>
-          <div style={{ marginTop: 2, fontWeight: 600, color: ps?.same_day_enabled === false ? "#bfbfbf" : "#eb2f96" }}>
-            {sameDayRate != null ? formatMoney(sameDayRate) : "—"}
+          <div style={{ marginTop: 4 }}>
+            <Tag color={row.same_day_enabled === false ? "default" : "magenta"} style={{ margin: 0 }}>
+              {row.same_day_enabled === false ? "Disabled" : "Enabled"}
+            </Tag>
           </div>
         </div>
 
