@@ -1,5 +1,3 @@
-import Header from "../components/header";
-import Footer from "../components/footer";
 import TrackingClient from "./tracking-client";
 
 export const metadata = {
@@ -11,9 +9,7 @@ export default function TrackPage({ searchParams }) {
   const tracking = searchParams?.tracking || "";
 
   return (
-    <div className="site-shell">
-      <Header />
-      <main>
+    <main>
         <section className="site-grid bg-slate-50 px-6 py-20 lg:px-8 lg:py-28">
           <div className="mx-auto max-w-4xl text-center">
             <p className="text-xs font-extrabold uppercase tracking-[0.22em] text-blue-600">
@@ -29,8 +25,6 @@ export default function TrackPage({ searchParams }) {
           </div>
         </section>
         <TrackingClient initialTracking={tracking} />
-      </main>
-      <Footer />
-    </div>
+    </main>
   );
 }

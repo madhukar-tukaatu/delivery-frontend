@@ -9,7 +9,6 @@ export const metadata = {
 export default function FranchiseApplyPage() {
   return (
     <div className="site-shell">
-      <Header />
       <main className="site-grid bg-slate-50 px-6 py-16 lg:px-8 lg:py-24">
         <div className="mx-auto max-w-5xl">
           <div className="max-w-2xl">
@@ -20,7 +19,6 @@ export default function FranchiseApplyPage() {
           <FranchiseForm />
         </div>
       </main>
-      <Footer />
     </div>
   );
 }

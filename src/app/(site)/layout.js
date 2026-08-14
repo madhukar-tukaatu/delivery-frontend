@@ -1,4 +1,5 @@
 import "./site.css";
+import SiteShell from "./SiteShell";
 
 export const metadata = {
   title: {
@@ -24,5 +25,9 @@ export const metadata = {
 };
 
 export default function SiteLayout({ children }) {
-  return <div className="min-h-screen bg-white text-slate-950">{children}</div>;
+  return (
+    <div className="min-h-screen bg-white text-slate-950">
+      <SiteShell>{children}</SiteShell>
+    </div>
+  );
 }
