@@ -554,8 +554,7 @@
 .map-search-spinner {
   position: absolute;
   right: 2rem;
-  top: 50%;
-  transform: translateY(-50%);
+  top: 1.35rem;
   color: #94a3b8;
 }
 
@@ -593,6 +592,13 @@
 .map-container {
   height: 360px;
   width: 100%;
+}
+
+.map-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #f8fafc;
 }
 
 @media (max-width: 600px) {

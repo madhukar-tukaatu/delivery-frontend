@@ -299,6 +299,23 @@ export default function BusinessPage() {
           <h2 className="site-display mt-5 text-4xl font-extrabold">
             Ready to grow your business?
           </h2>
+          <p className="mx-auto mt-4 max-w-xl text-slate-400">
+            Join hundreds of merchants already delivering across Nepal with Tukaatu Express.
+          </p>
+          <div className="mt-8 flex flex-wrap justify-center gap-3">
+            <Link
+              href="/public/merchant-register"
+              className="inline-flex items-center gap-2 rounded-xl bg-[#f5c518] px-7 py-3.5 text-sm font-bold text-[#0a0a0a] hover:bg-[#ffd740] transition-colors"
+            >
+              Register as merchant <ArrowRight className="h-4 w-4" />
+            </Link>
+            <Link
+              href="/contact"
+              className="inline-flex items-center gap-2 rounded-xl border border-white/15 px-7 py-3.5 text-sm font-bold text-white hover:bg-white/5 transition-colors"
+            >
+              Talk to our team
+            </Link>
+          </div>
         </div>
       </section>
     </main>
