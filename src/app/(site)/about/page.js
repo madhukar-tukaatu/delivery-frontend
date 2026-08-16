@@ -1,5 +1,5 @@
-import Header from "../components/header";
-import Footer from "../components/footer";
+import Header from "../components/Header";
+import Footer from "../components/Footer";
 import SectionHeading from "../components/section-heading";
 import { CheckCircle2, Eye, HeartHandshake, Target, Users } from "lucide-react";
 

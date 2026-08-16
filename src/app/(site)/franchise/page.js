@@ -1,5 +1,5 @@
-import Header from "../components/header";
-import Footer from "../components/footer";
+import Header from "../components/Header";
+import Footer from "../components/Footer";
 import Link from "next/link";
 import SectionHeading from "../components/section-heading";
 import { ArrowRight, Building2, CheckCircle2, MapPinned, TrendingUp, Users } from "lucide-react";
