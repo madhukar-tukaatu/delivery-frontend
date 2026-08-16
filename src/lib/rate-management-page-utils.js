@@ -175,13 +175,22 @@ export function buildBranchMap(branches) {
   );
 }
 
-export function normalizeBranchRate(row, branchesById) {
+export function normalizeBranchRate(row) {
   const pickupId = nullableNumber(
-    row.pickup_branch_id ?? row.pickupBranch?.id ?? row.pickup_branch?.id,
+    row.pickup_coverage_location_id ?? row.pickup_branch_id ?? row.pickup_branch?.id,
   );
 
   const deliveryId = nullableNumber(
-    row.delivery_branch_id ?? row.deliveryBranch?.id ?? row.delivery_branch?.id,
+    row.delivery_coverage_location_id ?? row.delivery_branch_id ?? row.delivery_branch?.id,
+  );
+
+  // Coverage locations are the pricing entities — build display objects from the name/code columns
+  const pickupBranch = row.pickup_branch ?? (
+    pickupId ? { id: pickupId, name: row.pickup_branch_name ?? `Zone ${pickupId}`, code: row.pickup_branch_code ?? String(pickupId) } : null
+  );
+
+  const deliveryBranch = row.delivery_branch ?? (
+    deliveryId ? { id: deliveryId, name: row.delivery_branch_name ?? `Zone ${deliveryId}`, code: row.delivery_branch_code ?? String(deliveryId) } : null
   );
 
   return {
@@ -190,25 +199,15 @@ export function normalizeBranchRate(row, branchesById) {
     id: nullableNumber(row.id),
 
     pickup_branch_id: pickupId,
-
     delivery_branch_id: deliveryId,
 
-    pickup_branch: enrichBranch(
-      row.pickup_branch ??
-        row.pickupBranch ??
-        branchesById.get(Number(pickupId)),
-      branchesById,
-    ),
+    pickup_coverage_location_id: pickupId,
+    delivery_coverage_location_id: deliveryId,
 
-    delivery_branch: enrichBranch(
-      row.delivery_branch ??
-        row.deliveryBranch ??
-        branchesById.get(Number(deliveryId)),
-      branchesById,
-    ),
+    pickup_branch: pickupBranch ? normalizeBranch(pickupBranch) : null,
+    delivery_branch: deliveryBranch ? normalizeBranch(deliveryBranch) : null,
 
     base_rate: toNumber(row.base_rate),
-
     is_active: toBoolean(row.is_active),
   };
 }

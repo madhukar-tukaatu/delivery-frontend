@@ -36,7 +36,6 @@ import {
 
 import {
   createBranchRouteRate,
-  createReverseBranchRouteRate,
   deleteBranchRouteRate,
   getBranchRouteRates,
   getRateBranches,
@@ -49,7 +48,6 @@ import BranchRouteRateModal from "./components/BranchRouteRateModal";
 
 import {
   apiErrorMessage,
-  buildBranchMap,
   extractCollection,
   formatDate,
   formatMoney,
@@ -121,15 +119,15 @@ export default function BranchPricingPage() {
 
   const [filters, setFilters] = useState({
     search: "",
-    pickup_branch_id: undefined,
-    delivery_branch_id: undefined,
+    pickup_coverage_location_id: undefined,
+    delivery_coverage_location_id: undefined,
     is_active: undefined,
   });
 
   const [appliedFilters, setAppliedFilters] = useState({
     search: "",
-    pickup_branch_id: undefined,
-    delivery_branch_id: undefined,
+    pickup_coverage_location_id: undefined,
+    delivery_coverage_location_id: undefined,
     is_active: undefined,
   });
 
@@ -138,8 +136,6 @@ export default function BranchPricingPage() {
     pageSize: 100,
     total: 0,
   });
-
-  const branchesById = useMemo(() => buildBranchMap(branches), [branches]);
 
   const branchOptions = useMemo(
     () =>
@@ -180,9 +176,9 @@ export default function BranchPricingPage() {
 
           search: appliedFilters.search?.trim() || undefined,
 
-          pickup_branch_id: appliedFilters.pickup_branch_id || undefined,
+          pickup_coverage_location_id: appliedFilters.pickup_coverage_location_id || undefined,
 
-          delivery_branch_id: appliedFilters.delivery_branch_id || undefined,
+          delivery_coverage_location_id: appliedFilters.delivery_coverage_location_id || undefined,
 
           is_active:
             appliedFilters.is_active === undefined
@@ -193,7 +189,7 @@ export default function BranchPricingPage() {
         const collection = extractCollection(payload);
 
         const normalized = collection.rows.map((row) =>
-          normalizeBranchRate(row, branchesById),
+          normalizeBranchRate(row),
         );
 
         setRows(normalized);
@@ -222,7 +218,7 @@ export default function BranchPricingPage() {
         setLoading(false);
       }
     },
-    [appliedFilters, branchesById, pagination.current, pagination.pageSize],
+    [appliedFilters, pagination.current, pagination.pageSize],
   );
 
   useEffect(() => {
@@ -243,23 +239,12 @@ export default function BranchPricingPage() {
    */
   const stats = useMemo(() => {
     const active = rows.filter((row) => row.is_active).length;
-
     const inactive = rows.length - active;
-
     const average = rows.length
-      ? rows.reduce((sum, row) => sum + Number(row.base_rate || 0), 0) /
-        rows.length
+      ? rows.reduce((sum, row) => sum + Number(row.base_rate || 0), 0) / rows.length
       : 0;
-
-    const branchCount = new Set(rows.map((row) => Number(row.pickup_branch_id)))
-      .size;
-
-    return {
-      active,
-      inactive,
-      average,
-      branchCount,
-    };
+    const branchCount = new Set(rows.map((row) => Number(row.pickup_coverage_location_id))).size;
+    return { active, inactive, average, branchCount };
   }, [rows]);
 
   /*
@@ -269,17 +254,17 @@ export default function BranchPricingPage() {
     const groups = new Map();
 
     rows.forEach((row) => {
-      const branchId = Number(row.pickup_branch_id);
+      const locationId = Number(row.pickup_coverage_location_id);
 
-      if (!groups.has(branchId)) {
-        groups.set(branchId, {
-          branchId,
+      if (!groups.has(locationId)) {
+        groups.set(locationId, {
+          branchId: locationId,
           branch: row.pickup_branch,
           rows: [],
         });
       }
 
-      groups.get(branchId).rows.push(row);
+      groups.get(locationId).rows.push(row);
     });
 
     return Array.from(groups.values())
@@ -325,8 +310,8 @@ export default function BranchPricingPage() {
    */
   const saveRate = async (values) => {
     const payload = {
-      pickup_branch_id: Number(values.pickup_branch_id),
-      delivery_branch_id: Number(values.delivery_branch_id),
+      pickup_coverage_location_id: Number(values.pickup_coverage_location_id),
+      delivery_coverage_location_id: Number(values.delivery_coverage_location_id),
       base_rate: Number(values.base_rate),
       is_active: Boolean(values.is_active),
       express_enabled: values.express_enabled !== false,
@@ -344,8 +329,8 @@ export default function BranchPricingPage() {
 
         if (values.create_reverse_route && values.reverse_base_rate != null) {
           await createBranchRouteRate({
-            pickup_branch_id: payload.delivery_branch_id,
-            delivery_branch_id: payload.pickup_branch_id,
+            pickup_coverage_location_id: payload.delivery_coverage_location_id,
+            delivery_coverage_location_id: payload.pickup_coverage_location_id,
             base_rate: Number(values.reverse_base_rate),
             is_active: payload.is_active,
             express_enabled: payload.express_enabled,
@@ -385,7 +370,15 @@ export default function BranchPricingPage() {
    */
   const createReverse = async (row) => {
     try {
-      await createReverseBranchRouteRate(row);
+      await createBranchRouteRate({
+        pickup_coverage_location_id: Number(row.delivery_coverage_location_id),
+        delivery_coverage_location_id: Number(row.pickup_coverage_location_id),
+        base_rate: Number(row.base_rate),
+        is_active: row.is_active,
+        express_enabled: row.express_enabled !== false,
+        same_day_enabled: row.same_day_enabled !== false,
+        create_reverse_route: false,
+      });
 
       message.success("Reverse branch rate created.");
 
@@ -427,8 +420,8 @@ export default function BranchPricingPage() {
   const resetFilters = () => {
     const emptyFilters = {
       search: "",
-      pickup_branch_id: undefined,
-      delivery_branch_id: undefined,
+      pickup_coverage_location_id: undefined,
+      delivery_coverage_location_id: undefined,
       is_active: undefined,
     };
 
@@ -445,10 +438,10 @@ export default function BranchPricingPage() {
    * RATE ROW
    */
   const RateRow = ({ row }) => {
-    const pickup = getBranchDisplay(row.pickup_branch, row.pickup_branch_id);
-    const delivery = getBranchDisplay(row.delivery_branch, row.delivery_branch_id);
+    const pickup = getBranchDisplay(row.pickup_branch, row.pickup_coverage_location_id);
+    const delivery = getBranchDisplay(row.delivery_branch, row.delivery_coverage_location_id);
     const isSelected = Number(selected?.id) === Number(row.id);
-    const isSameBranch = Number(row.pickup_branch_id) === Number(row.delivery_branch_id);
+    const isSameBranch = Number(row.pickup_coverage_location_id) === Number(row.delivery_coverage_location_id);
     const base = Number(row.base_rate || 0);
 
     return (
@@ -556,11 +549,11 @@ export default function BranchPricingPage() {
     : [];
 
   const selectedPickup = selected
-    ? getBranchDisplay(selected.pickup_branch, selected.pickup_branch_id)
+    ? getBranchDisplay(selected.pickup_branch, selected.pickup_coverage_location_id)
     : null;
 
   const selectedDelivery = selected
-    ? getBranchDisplay(selected.delivery_branch, selected.delivery_branch_id)
+    ? getBranchDisplay(selected.delivery_branch, selected.delivery_coverage_location_id)
     : null;
 
   return (
@@ -745,11 +738,11 @@ export default function BranchPricingPage() {
                 }}
                 placeholder="Pickup branch"
                 options={branchOptions}
-                value={filters.pickup_branch_id}
+                value={filters.pickup_coverage_location_id}
                 onChange={(value) =>
                   setFilters((current) => ({
                     ...current,
-                    pickup_branch_id: value,
+                    pickup_coverage_location_id: value,
                   }))
                 }
               />
@@ -765,11 +758,11 @@ export default function BranchPricingPage() {
                 }}
                 placeholder="Destination"
                 options={branchOptions}
-                value={filters.delivery_branch_id}
+                value={filters.delivery_coverage_location_id}
                 onChange={(value) =>
                   setFilters((current) => ({
                     ...current,
-                    delivery_branch_id: value,
+                    delivery_coverage_location_id: value,
                   }))
                 }
               />
@@ -1071,8 +1064,8 @@ export default function BranchPricingPage() {
 
                       <Text strong>{selectedDelivery?.name}</Text>
 
-                      {Number(selected.pickup_branch_id) ===
-                        Number(selected.delivery_branch_id) && (
+                      {Number(selected.pickup_coverage_location_id) ===
+                        Number(selected.delivery_coverage_location_id) && (
                         <Tag color="blue">Local</Tag>
                       )}
                     </div>
@@ -1206,8 +1199,8 @@ export default function BranchPricingPage() {
                         block
                         icon={<SwapOutlined />}
                         disabled={
-                          Number(selected.pickup_branch_id) ===
-                          Number(selected.delivery_branch_id)
+                          Number(selected.pickup_coverage_location_id) ===
+                          Number(selected.delivery_coverage_location_id)
                         }
                         onClick={() => createReverse(selected)}
                       >

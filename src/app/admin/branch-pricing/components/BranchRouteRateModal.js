@@ -70,8 +70,8 @@ export default function BranchRouteRateModal({
 }) {
   const [form] = Form.useForm();
   const editing = Boolean(record?.id);
-  const pickupId = Form.useWatch("pickup_branch_id", form);
-  const deliveryId = Form.useWatch("delivery_branch_id", form);
+  const pickupId = Form.useWatch("pickup_coverage_location_id", form);
+  const deliveryId = Form.useWatch("delivery_coverage_location_id", form);
   const baseRate = Form.useWatch("base_rate", form);
   const createReverse = Form.useWatch("create_reverse_route", form);
   const expressEnabled = Form.useWatch("express_enabled", form);
@@ -82,8 +82,8 @@ export default function BranchRouteRateModal({
     if (!open) return;
     if (record) {
       form.setFieldsValue({
-        pickup_branch_id: Number(record.pickup_branch_id),
-        delivery_branch_id: Number(record.delivery_branch_id),
+        pickup_coverage_location_id: Number(record.pickup_coverage_location_id ?? record.pickup_branch_id),
+        delivery_coverage_location_id: Number(record.delivery_coverage_location_id ?? record.delivery_branch_id),
         base_rate: Number(record.base_rate),
         is_active: Boolean(record.is_active),
         express_enabled: record.express_enabled !== false,
@@ -93,8 +93,8 @@ export default function BranchRouteRateModal({
       });
     } else {
       form.setFieldsValue({
-        pickup_branch_id: defaults?.pickup_branch_id,
-        delivery_branch_id: defaults?.delivery_branch_id,
+        pickup_coverage_location_id: defaults?.pickup_coverage_location_id,
+        delivery_coverage_location_id: defaults?.delivery_coverage_location_id,
         base_rate: defaults?.base_rate ?? 0,
         is_active: true,
         express_enabled: true,
@@ -126,17 +126,17 @@ export default function BranchRouteRateModal({
     >
       <Form form={form} layout="vertical" onFinish={onSubmit}>
         <Form.Item
-          label="Pickup branch"
-          name="pickup_branch_id"
-          rules={[{ required: true, message: "Pickup branch is required." }]}
+          label="Pickup zone"
+          name="pickup_coverage_location_id"
+          rules={[{ required: true, message: "Pickup zone is required." }]}
         >
           <Select showSearch optionFilterProp="label" options={branchOptions} disabled={editing} />
         </Form.Item>
 
         <Form.Item
-          label="Delivery branch"
-          name="delivery_branch_id"
-          rules={[{ required: true, message: "Delivery branch is required." }]}
+          label="Delivery zone"
+          name="delivery_coverage_location_id"
+          rules={[{ required: true, message: "Delivery zone is required." }]}
         >
           <Select showSearch optionFilterProp="label" options={branchOptions} disabled={editing} />
         </Form.Item>
