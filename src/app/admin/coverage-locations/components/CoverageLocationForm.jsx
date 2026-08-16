@@ -15,6 +15,7 @@ import {
   Space,
 } from "antd";
 import { EnvironmentOutlined, SaveOutlined } from "@ant-design/icons";
+import { makeCoverageCode } from "@/lib/nepalDistrictAbbr";
 
 const CoverageRadiusMap = dynamic(
   () => import("@/components/maps/CoverageRadiusMap"),
@@ -38,19 +39,6 @@ const CoverageRadiusMap = dynamic(
   },
 );
 
-function makeCode(name, type) {
-  const prefix = type === "main_branch_zone" ? "MAIN" : "SUB";
-
-  return (
-    prefix +
-    "-" +
-    String(name || "")
-      .toUpperCase()
-      .replace(/[^A-Z0-9]+/g, "-")
-      .replace(/^-|-$/g, "")
-  );
-}
-
 export default function CoverageLocationForm({
   mode = "create",
   initialValues,
@@ -63,11 +51,13 @@ export default function CoverageLocationForm({
   const [form] = Form.useForm();
 
   const type = Form.useWatch("type", form);
+  const name = Form.useWatch("name", form);
   const radius = Form.useWatch("coverage_radius_km", form);
   const latitude = Form.useWatch("latitude", form);
   const longitude = Form.useWatch("longitude", form);
 
   const isSub = type === "sub_branch_zone";
+  const codePreview = mode === "create" ? makeCoverageCode(name, type) : null;
 
   const selectedMapValue = useMemo(
     () => ({
@@ -114,7 +104,7 @@ export default function CoverageLocationForm({
 
     const payload = {
       ...values,
-      code: values.code || makeCode(values.name, values.type),
+      code: values.code || makeCoverageCode(values.name, values.type),
     };
 
     if (payload.type === "main_branch_zone") {
@@ -195,8 +185,18 @@ export default function CoverageLocationForm({
               </Col>
 
               <Col xs={24} md={12}>
-                <Form.Item label="Code" name="code">
-                  <Input placeholder="Auto or custom code" />
+                <Form.Item
+                  label="Code"
+                  name="code"
+                  extra={
+                    mode === "create"
+                      ? codePreview
+                        ? `Will be saved as: ${codePreview}`
+                        : "Auto-generated from name."
+                      : "Code cannot be changed after creation."
+                  }
+                >
+                  <Input disabled placeholder={mode === "create" ? "Type name to preview" : ""} />
                 </Form.Item>
               </Col>
             </Row>

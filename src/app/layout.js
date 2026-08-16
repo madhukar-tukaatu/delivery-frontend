@@ -3,8 +3,8 @@ import 'leaflet/dist/leaflet.css';
 import './globals.css';
 
 export const metadata = {
-  title: 'Courier Delivery Gateway',
-  description: 'Courier delivery gateway and operations system',
+  title: 'Tukaatu Express',
+  description: 'Tukaatu Express and operations system',
   icons: {
     icon: [
       { url: '/images/favicon.png?v=2', type: 'image/png' },

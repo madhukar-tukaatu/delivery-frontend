@@ -61,6 +61,26 @@ function isHeadType(type) {
   return type === "head_branch" || type === "main_branch";
 }
 
+function previewBranchCode(name, type) {
+  const prefixMap = {
+    head_branch: "BR",
+    main_branch: "BR",
+    branch: "BR",
+    franchise_branch: "BR",
+    sub_branch: "SB",
+    pickup_point: "PP",
+    delivery_hub: "DH",
+  };
+
+  const prefix = prefixMap[type] || "BR";
+  const firstWord = (name || "").trim().split(/\s+/)[0].replace(/[^a-zA-Z]/g, "");
+  const short = firstWord.slice(0, 5).toUpperCase();
+
+  if (!short) return "";
+
+  return `NP-${prefix}-${short}`;
+}
+
 function normalizeInitialValues(values = {}) {
   return {
     ...values,
@@ -79,6 +99,8 @@ function normalizeInitialValues(values = {}) {
 
 function normalizePayload(values) {
   const payload = { ...values };
+
+  delete payload.code;
 
   if (isHeadType(payload.type)) {
     payload.parent_id = null;
@@ -118,8 +140,11 @@ export default function BranchForm({
   const [parentLoading, setParentLoading] = useState(false);
 
   const selectedType = Form.useWatch("type", form);
+  const branchName = Form.useWatch("name", form);
   const latitude = Form.useWatch("latitude", form);
   const longitude = Form.useWatch("longitude", form);
+
+  const codePreview = mode === "create" ? previewBranchCode(branchName, selectedType) : null;
 
   const isHeadBranch = isHeadType(selectedType);
 
@@ -355,8 +380,22 @@ export default function BranchForm({
             </Col>
 
             <Col xs={24} md={8}>
-              <Form.Item name="code" label="Branch Code">
-                <Input placeholder="e.g. KTM-MAIN" />
+              <Form.Item
+                name="code"
+                label="Branch Code"
+                extra={
+                  mode === "create"
+                    ? codePreview
+                      ? `Will be saved as: ${codePreview}`
+                      : "Auto-generated from branch name."
+                    : "Branch code cannot be changed after creation."
+                }
+              >
+                <Input
+                  disabled
+                  value={mode === "create" ? codePreview : undefined}
+                  placeholder={mode === "create" ? "Type branch name to preview" : ""}
+                />
               </Form.Item>
             </Col>
 

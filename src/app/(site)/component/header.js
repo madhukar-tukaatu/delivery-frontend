@@ -8,7 +8,7 @@ export default function Header() {
         <div className={styles.logo}>T</div>
         <div>
           <strong>Tukaatu Express</strong>
-          <span>Courier Delivery Gateway</span>
+          <span>Tukaatu Express</span>
         </div>
       </Link>
 
