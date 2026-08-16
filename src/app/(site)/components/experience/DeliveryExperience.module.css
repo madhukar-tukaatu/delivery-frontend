@@ -42,7 +42,7 @@
       rgba(4, 10, 18, 0.46) 48%,
       rgba(4, 10, 18, 0.28) 100%
     ),
-    url("https://images.unsplash.com/photo-1556742049-0cfed4f6a45d?auto=format&fit=crop&w=2200&q=90");
+    url("/images/experience/delivery-background.jpg");
 }
 
 .originBackground {
@@ -53,7 +53,7 @@
       rgba(3, 12, 22, 0.5) 50%,
       rgba(3, 12, 22, 0.35) 100%
     ),
-    url("https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d?auto=format&fit=crop&w=2200&q=90");
+    url("/images/experience/warehouse.jpg");
 }
 
 .roadBackground {
@@ -183,7 +183,7 @@
   padding: 30px;
   border: 1px solid rgba(255, 255, 255, 0.15);
   border-radius: 24px;
-  background: rgba(5, 13, 25, 0.68);
+  background: rgba(5, 13, 25, 0);
   box-shadow:
     0 25px 80px rgba(0, 0, 0, 0.3),
     inset 0 1px 0 rgba(255, 255, 255, 0.08);

@@ -12,8 +12,8 @@
   align-items: center;
   overflow: hidden;
   background:
-    radial-gradient(circle at 75% 35%, rgba(0, 157, 203, 0.18), transparent 30%),
-    radial-gradient(circle at 20% 80%, rgba(37, 99, 235, 0.12), transparent 30%),
+    radial-gradient(circle at 75% 35%, rgba(245, 197, 24, 0.12), transparent 30%),
+    radial-gradient(circle at 20% 80%, rgba(37, 99, 235, 0.08), transparent 30%),
     #050a10;
 }
 
@@ -36,7 +36,7 @@
   right: -200px;
   top: 5%;
   border-radius: 50%;
-  background: rgba(0, 170, 220, 0.12);
+  background: rgba(245, 197, 24, 0.08);
   filter: blur(100px);
 }
 
@@ -45,7 +45,7 @@
   z-index: 3;
   width: min(1200px, calc(100% - 48px));
   margin: 0 auto;
-  padding-top: 90px;
+  padding-top: 40px;
 }
 
 .eyebrow {
@@ -55,15 +55,15 @@
   font-size: 11px;
   font-weight: 800;
   letter-spacing: 0.24em;
-  color: #22d3ee;
+  color: #f5c518;
 }
 
 .eyebrow span {
   width: 7px;
   height: 7px;
   border-radius: 50%;
-  background: #22d3ee;
-  box-shadow: 0 0 18px #22d3ee;
+  background: #f5c518;
+  box-shadow: 0 0 18px #f5c518;
 }
 
 .intro h1 {
@@ -76,7 +76,7 @@
 }
 
 .intro h1 strong {
-  color: #18a9d5;
+  color: #f5c518;
 }
 
 .introContent > p {
@@ -111,14 +111,14 @@
 }
 
 .primaryButton {
-  color: white;
-  background: #087ea9;
-  box-shadow: 0 12px 40px rgba(0, 126, 169, 0.25);
+  color: #0a0a0a;
+  background: #f5c518;
+  box-shadow: 0 12px 40px rgba(245, 197, 24, 0.25);
 }
 
 .primaryButton:hover {
   transform: translateY(-3px);
-  background: #0998c9;
+  background: #ffd740;
 }
 
 .secondaryButton {
@@ -171,7 +171,7 @@
 }
 
 .scrollHint b {
-  color: #22d3ee;
+  color: #f5c518;
   font-size: 17px;
 }
 
@@ -190,7 +190,7 @@
   width: 3px;
   height: 6px;
   border-radius: 5px;
-  background: #22d3ee;
+  background: #f5c518;
   transform: translateX(-50%);
   animation: mouseScroll 1.5s infinite;
 }
@@ -213,9 +213,9 @@
 
 .afterExperience {
   position: relative;
-  min-height: 900px;
+  min-height: 700px;
   overflow: hidden;
-  background: #050a10;
+  background: #024f61;
   border-top: 1px solid rgba(255,255,255,0.06);
 }
 
@@ -245,7 +245,7 @@
 }
 
 .afterContent h2 strong {
-  color: #12a7d2;
+  color: #f5c518;
 }
 
 .afterContent > p {
@@ -264,8 +264,8 @@
 
 .serviceCard {
   position: relative;
-  min-height: 240px;
-  padding: 28px;
+  min-height: 160px;
+  padding: 20px;
   border: 1px solid rgba(255,255,255,0.08);
   border-radius: 22px;
   background: rgba(255,255,255,0.025);
@@ -281,13 +281,13 @@
 
 .serviceCard:hover {
   transform: translateY(-8px);
-  border-color: rgba(22, 169, 215, 0.5);
-  background: rgba(15, 167, 210, 0.05);
+  border-color: rgba(245, 197, 24, 0.45);
+  background: rgba(245, 197, 24, 0.04);
 }
 
 .serviceIcon {
   font-size: 11px;
-  color: #19acd8;
+  color: #f5c518;
   letter-spacing: 0.15em;
 }
 
@@ -298,7 +298,7 @@
 
 .serviceCard small {
   margin-top: 9px;
-  color: #73818e;
+  color: #fbfbfb;
   line-height: 1.6;
 }
 
@@ -306,7 +306,7 @@
   position: absolute;
   top: 25px;
   right: 25px;
-  color: #18a9d5;
+  color: #f5c518;
   font-size: 20px;
 }
 

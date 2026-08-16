@@ -1,6 +1,6 @@
-import Header from "./components/Header";
-import Footer from "./components/Footer";
 import DeliveryExperience from "./components/experience/DeliveryExperience";
+import Footer from "./components/Footer";
+import Header from "./components/Header";
 import styles from "./page.module.css";
 
 export const metadata = {
@@ -11,9 +11,9 @@ export const metadata = {
 
 export default function SiteHome() {
   return (
+    
     <main className={styles.page}>
-      <Header />
-
+      <Header transparent />
       <DeliveryExperience />
 
       <section className={styles.afterExperience}>
@@ -47,8 +47,8 @@ export default function SiteHome() {
 
             <a href="/business" className={styles.serviceCard}>
               <span className={styles.serviceIcon}>02</span>
-              <strong>Business Logistics</strong>
-              <small>Reliable delivery infrastructure for businesses</small>
+              <strong>Merchant Platform</strong>
+              <small>Ship, track and settle — all in one place</small>
               <span className={styles.arrow}>→</span>
             </a>
 
@@ -61,8 +61,7 @@ export default function SiteHome() {
           </div>
         </div>
       </section>
-
-      <Footer />
+    <Footer/>
     </main>
   );
 }

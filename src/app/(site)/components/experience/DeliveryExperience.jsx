@@ -740,7 +740,7 @@ export default function DeliveryExperience() {
           <div className={styles.backgroundOverlay} />
         </div>
 
-        <div className={styles.topBar}>
+        {/* <div className={styles.topBar}>
           <div className={styles.brandMark}>
             <span className={styles.brandDot} />
             <span>Tukaatu Express</span>
@@ -750,7 +750,7 @@ export default function DeliveryExperience() {
             <span>SCROLL TO EXPERIENCE</span>
             <span className={styles.scrollArrow}>↓</span>
           </div>
-        </div>
+        </div> */}
 
         <div ref={cameraRef} className={styles.camera}>
           <div className={styles.sceneContent}>
