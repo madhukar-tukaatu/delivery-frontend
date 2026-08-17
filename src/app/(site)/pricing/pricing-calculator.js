@@ -4,9 +4,9 @@ import "./pricing-calculator.css";
 import { useCallback, useEffect, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import { AlertCircle, ChevronDown, Loader2, MapPin, Navigation, X } from "lucide-react";
+import { getDeliveryEstimate } from "@/services/pricingEstimateService";
 
-/* ── API helpers ─────────────────────────────────────────────────────── */
-const API_URL = (process.env.NEXT_PUBLIC_API_URL || "").replace(/\/$/, "");
+/* ── Nominatim helpers ───────────────────────────────────────────────── */
 const NOMINATIM = "https://nominatim.openstreetmap.org";
 
 async function reverseGeocode(lat, lng) {
@@ -27,26 +27,6 @@ async function searchPlaces(query) {
     { headers: { "Accept-Language": "en" } }
   );
   return res.json();
-}
-
-async function getEstimate(payload) {
-  const res = await fetch(`${API_URL}/public/pricing/estimate`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", Accept: "application/json" },
-    cache: "no-store",
-    body: JSON.stringify(payload),
-  });
-  const body = await res.json();
-  if (!res.ok) {
-    const msg =
-      body?.errors?.pricing?.[0] ||
-      body?.errors?.actual_weight_kg?.[0] ||
-      body?.errors?.parcel_dimensions?.[0] ||
-      body?.message ||
-      "Unable to calculate delivery price.";
-    throw new Error(msg);
-  }
-  return body.data;
 }
 
 /* ── Leaflet map (SSR-safe via dynamic import) ───────────────────────── */
@@ -231,7 +211,7 @@ export default function PricingCalculator() {
           height_cm: Number(dims.height),
         };
       }
-      setResult(await getEstimate(payload));
+      setResult(await getDeliveryEstimate(payload));
     } catch (err) {
       setError(err.message || "Unable to calculate delivery price.");
     } finally {
