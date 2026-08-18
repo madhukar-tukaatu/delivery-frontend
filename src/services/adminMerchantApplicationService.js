@@ -45,6 +45,21 @@ export async function requestMerchantMoreInfo(id, message) {
   return response.data?.data || response.data;
 }
 
+export async function retryMerchantCallback(id) {
+  const response = await api.post(`/admin/merchant-applications/${id}/retry-callback`);
+  return response.data?.data || response.data;
+}
+
+export async function updateMerchantApplication(id, payload) {
+  const response = await api.patch(`/admin/merchant-applications/${id}`, payload);
+  return response.data?.data || response.data;
+}
+
+export async function requestMerchantDocuments(id, payload) {
+  const response = await api.post(`/admin/merchant-applications/${id}/request-documents`, payload);
+  return response.data?.data || response.data;
+}
+
 // export async function downloadMerchantDocument(documentId) {
 //   const response = await api.get(`/merchant/documents/${documentId}/download`, {
 //     responseType: "blob",

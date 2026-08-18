@@ -106,38 +106,36 @@ function getPrimaryRole(user) {
 function getRoleRedirect(user) {
   const role = getPrimaryRole(user);
 
-  const merchantRoles = [
-    "merchant",
-    "merchant_owner",
-    "merchant_admin",
-    "merchant_staff",
-  ];
-
-  const staffRoles = [
-    "booking_staff",
+  // Roles that use the STAFF portal (/staff/*)
+  // booking_staff uses the ADMIN portal (they book shipments via admin UI)
+  const staffPortalRoles = new Set([
     "pickup_staff",
     "dispatch_staff",
     "delivery_staff",
     "warehouse_staff",
     "branch_staff",
-  ];
+    "support_staff",
+    "accounts_staff",
+    "rider",
+  ]);
 
-  if (merchantRoles.includes(role)) {
+  const merchantRoles = new Set([
+    "merchant",
+    "merchant_owner",
+    "merchant_admin",
+    "merchant_staff",
+  ]);
+
+  // Admin portal roles (super_admin, branch_manager, sub_branch_manager,
+  // main_admin, pricing_manager, booking_staff)
+  if (merchantRoles.has(role)) {
     return "/merchant/dashboard";
   }
 
-  if (staffRoles.includes(role)) {
+  if (staffPortalRoles.has(role)) {
     return "/staff/dashboard";
   }
 
-  if (role === "rider") {
-    return "/rider/dashboard";
-  }
-
-  /*
-   * Super admins, admins, branch managers,
-   * franchise managers and other internal users.
-   */
   return "/admin/dashboard";
 }
 

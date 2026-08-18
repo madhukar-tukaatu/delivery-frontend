@@ -1,10 +1,3 @@
-// export const usePermissions = () => {
-//   const { user } = useAuth(); // your auth context
-
-//   const can = (permission) => user?.permissions?.includes(permission) || false;
-//   return { can };
-// };
-
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -14,12 +7,10 @@ let pendingRequest = null;
 
 function normalizeNames(values) {
   if (!Array.isArray(values)) return [];
-
   return values
-    .map((value) => {
-      if (typeof value === "string") return value;
-      if (value && typeof value === "object")
-        return value.name ?? value.code ?? null;
+    .map((v) => {
+      if (typeof v === "string") return v;
+      if (v && typeof v === "object") return v.name ?? v.code ?? null;
       return null;
     })
     .filter(Boolean);
@@ -48,21 +39,41 @@ async function fetchCurrentUser() {
       },
     },
   )
-    .then(async (response) => {
-      if (!response.ok) return null;
-      const payload = await response.json();
-      const user =
-        payload?.data?.user ?? payload?.user ?? payload?.data ?? null;
+    .then(async (res) => {
+      if (!res.ok) return null;
+      const payload = await res.json();
+      const user = payload?.data?.user ?? payload?.user ?? payload?.data ?? null;
       cachedUser = user;
       return user;
     })
     .catch(() => null)
-    .finally(() => {
-      pendingRequest = null;
-    });
+    .finally(() => { pendingRequest = null; });
 
   return pendingRequest;
 }
+
+/** Invalidate the in-memory cache (call after login/logout). */
+export function invalidateUserCache() {
+  cachedUser = null;
+  pendingRequest = null;
+}
+
+const STAFF_PORTAL_ROLES = new Set([
+  "pickup_staff",
+  "dispatch_staff",
+  "delivery_staff",
+  "warehouse_staff",
+  "branch_staff",
+  "support_staff",
+  "accounts_staff",
+  "rider",
+]);
+
+const ADMIN_ROLES = new Set([
+  "super_admin", "super-admin", "superadmin", "admin", "web",
+  "main_admin", "branch_manager", "sub_branch_manager",
+  "franchise_manager", "pricing_manager", "booking_staff",
+]);
 
 export function usePermissions() {
   const [user, setUser] = useState(cachedUser);
@@ -70,40 +81,88 @@ export function usePermissions() {
 
   useEffect(() => {
     let active = true;
-
-    if (cachedUser) {
-      setLoading(false);
-      return undefined;
-    }
-
-    fetchCurrentUser().then((nextUser) => {
+    if (cachedUser) { setLoading(false); return undefined; }
+    fetchCurrentUser().then((u) => {
       if (!active) return;
-      setUser(nextUser);
+      setUser(u);
       setLoading(false);
     });
-
-    return () => {
-      active = false;
-    };
+    return () => { active = false; };
   }, []);
 
   const roles = useMemo(() => normalizeNames(user?.roles), [user]);
+
   const permissions = useMemo(
     () => new Set(normalizeNames(user?.permissions)),
     [user],
   );
-  const superAdmin = roles.some((role) =>
-    ["super_admin", "super-admin", "superadmin","web","admin"].includes(role),
+
+  const primaryRole = useMemo(() => {
+    if (user?.role) return String(user.role).toLowerCase().trim();
+    return roles[0] ?? "";
+  }, [user, roles]);
+
+  const isSuperAdmin = roles.some((r) =>
+    ["super_admin", "super-admin", "superadmin", "web", "admin"].includes(r),
   );
+
+  const isBranchManager = !isSuperAdmin && roles.some((r) =>
+    ["branch_manager", "sub_branch_manager", "franchise_manager"].includes(r),
+  );
+
+  const isStaff = !isSuperAdmin && !isBranchManager && roles.some((r) =>
+    STAFF_PORTAL_ROLES.has(r),
+  );
+
+  /** The branch this user is scoped to (null for super_admin). */
+  const branchId = useMemo(() => {
+    if (isSuperAdmin) return null;
+    return user?.branch_id ?? user?.default_branch_id ?? null;
+  }, [user, isSuperAdmin]);
+
+  const branchName = useMemo(() => {
+    if (isSuperAdmin) return null;
+    return user?.branch?.name ?? user?.default_branch?.name ?? null;
+  }, [user, isSuperAdmin]);
 
   const can = useCallback(
     (permission) => {
       if (!permission) return true;
-      if (superAdmin) return true;
-      return permissions.has(permission);
+      if (isSuperAdmin) return true;
+      if (permissions.has(permission)) return true;
+      // wildcard: branches.manage covers branches.view, branches.create, etc.
+      const [resource] = permission.split(".");
+      if (permissions.has(`${resource}.manage`)) return true;
+      return false;
     },
-    [permissions, superAdmin],
+    [permissions, isSuperAdmin],
   );
 
-  return { user, roles, loading, can, isSuperAdmin: superAdmin };
+  /**
+   * For branch-scoped checks: returns true only if the user has the permission
+   * AND (is super_admin OR the resource belongs to their branch).
+   */
+  const canForBranch = useCallback(
+    (permission, resourceBranchId = null) => {
+      if (!can(permission)) return false;
+      if (isSuperAdmin) return true;
+      if (resourceBranchId == null) return true;
+      return Number(branchId) === Number(resourceBranchId);
+    },
+    [can, isSuperAdmin, branchId],
+  );
+
+  return {
+    user,
+    roles,
+    primaryRole,
+    loading,
+    can,
+    canForBranch,
+    isSuperAdmin,
+    isBranchManager,
+    isStaff,
+    branchId,
+    branchName,
+  };
 }

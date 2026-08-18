@@ -12,34 +12,16 @@ import { StatusTag } from "@/components/PageTools";
 
 const { Text } = Typography;
 
-const ALL_ROLES = [
-  "super_admin", "main_admin", "pricing_manager", "branch_manager",
-  "sub_branch_manager", "booking_staff", "pickup_staff", "dispatch_staff",
-  "support_staff", "accounts_staff", "delivery_staff", "warehouse_staff",
-  "rider", "branch_staff", "merchant",
-];
-
-// Branch managers can only assign these roles
-const BRANCH_MANAGER_ROLES = [
+const STAFF_ROLES = [
   "booking_staff", "pickup_staff", "dispatch_staff", "support_staff",
   "accounts_staff", "delivery_staff", "warehouse_staff", "rider",
 ];
 
 const ROLE_COLORS = {
-  super_admin: "red", main_admin: "magenta", pricing_manager: "volcano",
-  branch_manager: "purple", sub_branch_manager: "purple",
   booking_staff: "blue", pickup_staff: "cyan", dispatch_staff: "orange",
   support_staff: "geekblue", accounts_staff: "gold",
   delivery_staff: "green", warehouse_staff: "lime", rider: "green",
-  merchant: "teal",
 };
-
-// Roles that require a branch assignment
-const BRANCH_REQUIRED_ROLES = new Set([
-  "branch_manager", "sub_branch_manager", "booking_staff", "pickup_staff",
-  "dispatch_staff", "support_staff", "accounts_staff", "delivery_staff",
-  "warehouse_staff", "branch_staff", "rider",
-]);
 
 function UserAvatar({ name }) {
   const initials = String(name || "?").split(" ").map(w => w[0]).join("").toUpperCase().slice(0, 2);
@@ -52,49 +34,44 @@ function UserAvatar({ name }) {
   );
 }
 
-export default function UsersPage() {
-  const { can, isSuperAdmin, isBranchManager, branchId, branchName } = usePermissions();
+export default function BranchStaffPage() {
+  const { can, branchId, branchName, isSuperAdmin } = usePermissions();
 
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(false);
   const [pagination, setPagination] = useState({ current: 1, pageSize: 15, total: 0 });
   const [search, setSearch] = useState("");
   const [roleFilter, setRoleFilter] = useState("");
-  const [branches, setBranches] = useState([]);
   const [subBranches, setSubBranches] = useState([]);
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState(null);
   const [form] = Form.useForm();
   const [submitting, setSubmitting] = useState(false);
-  const selectedRole = Form.useWatch("role", form);
 
-  // Load branches (super admin) or sub-branches (branch manager)
+  // Load sub-branches for this branch (branch manager can assign staff to sub-branches)
   useEffect(() => {
-    if (isBranchManager && branchId) {
-      // Load sub-branches of this branch for assignment
-      api.get(`/admin/branches?parent_id=${branchId}&per_page=100`)
-        .then(res => {
-          const data = res.data?.data;
-          setSubBranches(Array.isArray(data) ? data : data?.data || []);
-        })
-        .catch(() => {});
-    } else if (!isBranchManager) {
-      api.get("/admin/branches?per_page=200")
-        .then(res => {
-          const data = res.data?.data;
-          setBranches(Array.isArray(data) ? data : data?.data || []);
-        })
-        .catch(() => {});
-    }
-  }, [isBranchManager, branchId]);
+    if (!branchId) return;
+    api.get(`/admin/branches?parent_id=${branchId}&per_page=100`)
+      .then(res => {
+        const data = res.data?.data;
+        const list = Array.isArray(data) ? data : data?.data || [];
+        setSubBranches(list);
+      })
+      .catch(() => {});
+  }, [branchId]);
 
   const load = useCallback(async (page = 1, pageSize = 15) => {
     setLoading(true);
     try {
-      const params = { page, per_page: pageSize, ...(search && { search }), ...(roleFilter && { role: roleFilter }) };
+      const params = {
+        page, per_page: pageSize,
+        roles: STAFF_ROLES.join(","),
+        ...(search && { search }),
+        ...(roleFilter && { role: roleFilter }),
+      };
+      // Always scope to branch — branch managers see their branch only
+      // Super admin with no branchId still scopes to staff roles only
       if (branchId) params.branch_id = branchId;
-      // Branch managers only see staff roles, not admins
-      if (isBranchManager) params.roles = BRANCH_MANAGER_ROLES.join(",");
 
       const res = await api.get("/admin/users", { params });
       const payload = res.data?.data || res.data;
@@ -102,27 +79,21 @@ export default function UsersPage() {
       setRows(Array.isArray(list) ? list : []);
       setPagination({ current: payload?.current_page || page, pageSize: payload?.per_page || pageSize, total: payload?.total || list.length });
     } catch {
-      message.error("Could not load users.");
+      message.error("Could not load staff.");
     } finally {
       setLoading(false);
     }
-  }, [branchId, isBranchManager, search, roleFilter]);
+  }, [branchId, search, roleFilter]);
 
   useEffect(() => { load(); }, [load]);
 
-  const openCreate = () => {
-    setEditing(null);
-    form.resetFields();
-    form.setFieldsValue({ is_active: true, ...(branchId ? { branch_id: branchId } : {}) });
-    setModalOpen(true);
-  };
-
+  const openCreate = () => { setEditing(null); form.resetFields(); form.setFieldsValue({ is_active: true, branch_id: branchId }); setModalOpen(true); };
   const openEdit = (r) => {
     setEditing(r);
     form.setFieldsValue({
       name: r.name, email: r.email, phone: r.phone,
       role: r.role?.name || r.role,
-      branch_id: r.branch_id || r.branch?.id || r.default_branch_id,
+      branch_id: r.branch_id || r.branch?.id || r.default_branch_id || branchId,
       is_active: r.is_active,
     });
     setModalOpen(true);
@@ -133,16 +104,15 @@ export default function UsersPage() {
     try {
       const payload = { ...values };
       if (!payload.password?.trim()) delete payload.password;
-      // Branch managers always assign to their own branch (or sub-branch)
-      if (isBranchManager && !payload.branch_id) payload.branch_id = branchId;
-      if (!payload.branch_id) delete payload.branch_id;
+      // Always lock branch to the manager's branch
+      payload.branch_id = values.branch_id || branchId;
 
       if (editing) {
         await api.put(`/admin/users/${editing.id}`, payload);
-        message.success("User updated.");
+        message.success("Staff updated.");
       } else {
         await api.post("/admin/users", payload);
-        message.success("User created.");
+        message.success("Staff created. Login credentials sent to their email.");
       }
       setModalOpen(false);
       form.resetFields();
@@ -169,28 +139,15 @@ export default function UsersPage() {
     } catch { message.error("Failed."); }
   };
 
-  // Roles available in the form
-  const assignableRoles = isBranchManager
-    ? BRANCH_MANAGER_ROLES
-    : ALL_ROLES.filter(r => r !== "merchant");
-
-  // Branch options for form
-  const branchOptions = isBranchManager
-    ? [
-        ...(branchId && branchName ? [{ value: branchId, label: `${branchName} (Main)` }] : []),
-        ...subBranches.map(b => ({ value: b.id, label: b.name })),
-      ]
-    : branches.map(b => ({ value: b.id, label: b.name }));
-
-  const needsBranch = !isBranchManager && BRANCH_REQUIRED_ROLES.has(selectedRole);
-
-  // Role filter options — branch managers only see staff roles
-  const roleFilterOptions = (isBranchManager ? BRANCH_MANAGER_ROLES : ALL_ROLES)
-    .map(r => ({ value: r, label: r.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase()) }));
+  // Branch options: own branch + sub-branches
+  const branchOptions = [
+    ...(branchId && branchName ? [{ value: branchId, label: `${branchName} (Main)` }] : []),
+    ...subBranches.map(b => ({ value: b.id, label: b.name })),
+  ];
 
   const columns = [
     {
-      title: "User", key: "user", width: 220,
+      title: "Staff Member", key: "user", width: 220,
       render: (_, r) => (
         <Space size={8}>
           <UserAvatar name={r.name} />
@@ -203,7 +160,7 @@ export default function UsersPage() {
     },
     { title: "Phone", dataIndex: "phone", width: 130, render: v => <Text style={{ fontSize: 12 }}>{v || "—"}</Text> },
     {
-      title: "Role", key: "role", width: 160,
+      title: "Role", key: "role", width: 150,
       render: (_, r) => {
         const name = r.role?.name || r.role || "";
         const label = name.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase());
@@ -211,7 +168,7 @@ export default function UsersPage() {
       },
     },
     {
-      title: "Branch", key: "branch", width: 180,
+      title: "Branch", key: "branch", width: 160,
       render: (_, r) => {
         const name = r.branch?.name || r.default_branch?.name;
         if (!name) return <Text type="secondary" style={{ fontSize: 11 }}>—</Text>;
@@ -223,7 +180,7 @@ export default function UsersPage() {
       title: "Actions", key: "actions", width: 130,
       render: (_, r) => (
         <Space size={4}>
-          {can("users.manage") && (
+          {can("branches.team.manage") && (
             <Button size="small" onClick={() => openEdit(r)}>Edit</Button>
           )}
           <Tooltip title={r.is_active ? "Deactivate" : "Activate"}>
@@ -243,29 +200,27 @@ export default function UsersPage() {
         <Space style={{ justifyContent: "space-between", width: "100%" }} wrap>
           <div>
             <Text style={{ fontSize: 18, fontWeight: 700 }}>
-              {branchName ? `Users — ${branchName}` : "Users & Access"}
+              {branchName ? `Branch Staff — ${branchName}` : "Branch Staff"}
             </Text>
             <br />
-            <Text type="secondary" style={{ fontSize: 12 }}>
-              {isBranchManager ? "Manage staff users for your branch." : "Manage all system users and their roles."}
-            </Text>
+            <Text type="secondary" style={{ fontSize: 12 }}>Manage staff members for your branch.</Text>
           </div>
           <Space>
-            {can("users.create") && (
-              <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>Create User</Button>
+            {can("branches.team.manage") && (
+              <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>Add Staff</Button>
             )}
             <Button icon={<ReloadOutlined />} onClick={() => load(1, pagination.pageSize)}>Refresh</Button>
           </Space>
         </Space>
         <Space wrap style={{ marginTop: 12 }}>
-          <Input allowClear style={{ width: 240 }} placeholder="Search name / email"
+          <Input allowClear style={{ width: 220 }} placeholder="Search name / email"
             prefix={<SearchOutlined />} value={search}
             onChange={e => setSearch(e.target.value)}
             onPressEnter={() => load(1, pagination.pageSize)}
           />
-          <Select allowClear style={{ width: 200 }} placeholder="Filter by role"
+          <Select allowClear style={{ width: 180 }} placeholder="Filter by role"
             value={roleFilter || undefined} onChange={v => setRoleFilter(v || "")}
-            options={roleFilterOptions}
+            options={STAFF_ROLES.map(r => ({ value: r, label: r.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase()) }))}
           />
           <Button type="primary" onClick={() => load(1, pagination.pageSize)}>Search</Button>
           <Button onClick={() => { setSearch(""); setRoleFilter(""); setTimeout(() => load(1, pagination.pageSize), 0); }}>Reset</Button>
@@ -274,17 +229,17 @@ export default function UsersPage() {
 
       <Card>
         <Table rowKey="id" loading={loading} columns={columns} dataSource={rows} scroll={{ x: 900 }}
-          pagination={{ ...pagination, showSizeChanger: true, showTotal: t => `${t} users`, onChange: (p, ps) => load(p, ps) }}
+          pagination={{ ...pagination, showSizeChanger: true, showTotal: t => `${t} staff`, onChange: (p, ps) => load(p, ps) }}
         />
       </Card>
 
       <Modal
         open={modalOpen}
-        title={editing ? "Edit User" : "Create User"}
+        title={editing ? "Edit Staff Member" : "Add Staff Member"}
         onCancel={() => { setModalOpen(false); form.resetFields(); }}
         onOk={() => form.submit()}
         confirmLoading={submitting}
-        width={580}
+        width={560}
         destroyOnClose
       >
         <Form form={form} layout="vertical" onFinish={handleSubmit} initialValues={{ is_active: true }}>
@@ -296,8 +251,8 @@ export default function UsersPage() {
             </Col>
             <Col xs={24} md={12}>
               <Form.Item name="email" label="Email" rules={[{ required: true }, { type: "email" }]}
-                extra={!editing ? "User will receive login credentials at this email." : undefined}>
-                <Input placeholder="user@example.com" />
+                extra={!editing ? "Staff will receive login credentials at this email." : undefined}>
+                <Input placeholder="staff@example.com" />
               </Form.Item>
             </Col>
             <Col xs={24} md={12}>
@@ -308,42 +263,27 @@ export default function UsersPage() {
             <Col xs={24} md={12}>
               <Form.Item name="role" label="Role" rules={[{ required: true }]}>
                 <Select placeholder="Select role"
-                  options={assignableRoles.map(r => ({ value: r, label: r.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase()) }))}
+                  options={STAFF_ROLES.map(r => ({ value: r, label: r.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase()) }))}
                 />
               </Form.Item>
             </Col>
-
-            {/* Branch field */}
-            {isBranchManager ? (
-              // Branch manager: can assign to own branch or sub-branches
+            {/* Branch assignment: own branch or any sub-branch */}
+            <Col xs={24} md={12}>
+              <Form.Item name="branch_id" label="Assign to Branch" rules={[{ required: true }]}>
+                {branchOptions.length > 1 ? (
+                  <Select placeholder="Select branch" options={branchOptions} />
+                ) : (
+                  <Input disabled value={branchName || branchId} />
+                )}
+              </Form.Item>
+            </Col>
+            {!editing && (
               <Col xs={24} md={12}>
-                <Form.Item name="branch_id" label="Assign to Branch" rules={[{ required: true }]}>
-                  {branchOptions.length > 1 ? (
-                    <Select placeholder="Select branch" options={branchOptions} />
-                  ) : (
-                    <Input disabled value={branchName || String(branchId)} />
-                  )}
-                </Form.Item>
-              </Col>
-            ) : (
-              // Super admin / main admin: full branch selector
-              <Col xs={24} md={12}>
-                <Form.Item name="branch_id" label="Branch"
-                  rules={needsBranch ? [{ required: true, message: "Branch is required for this role." }] : []}>
-                  <Select placeholder="Select branch" allowClear showSearch optionFilterProp="label"
-                    options={branchOptions}
-                  />
+                <Form.Item name="password" label="Temporary Password" rules={[{ required: true }]}>
+                  <Input.Password placeholder="Set a temporary password" autoComplete="new-password" />
                 </Form.Item>
               </Col>
             )}
-
-            <Col xs={24} md={12}>
-              <Form.Item name="password"
-                label={editing ? "New Password (leave blank to keep)" : "Password"}
-                rules={editing ? [] : [{ required: true }]}>
-                <Input.Password placeholder={editing ? "Leave blank to keep current" : "Enter password"} autoComplete="new-password" />
-              </Form.Item>
-            </Col>
           </Row>
           <Form.Item name="is_active" label="Active" valuePropName="checked">
             <Switch checkedChildren="Active" unCheckedChildren="Inactive" />

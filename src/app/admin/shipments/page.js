@@ -1,294 +1,146 @@
-'use client';
+"use client";
 
-import { useEffect, useState } from 'react';
-import {
-  Button,
-  Card,
-  Input,
-  Select,
-  Space,
-  Table,
-  Tag,
-  Typography,
-  message,
-} from 'antd';
-import { EyeOutlined, ReloadOutlined, SearchOutlined } from '@ant-design/icons';
-import { useRouter } from 'next/navigation';
-import WorkflowStatusTag from '@/features/workflow/components/WorkflowStatusTag';
-import { getAdminShipments } from '@/services/workflowService';
-import { formatDateTime, formatMoney } from '@/config/workflowStatus';
+import { useEffect, useState } from "react";
+import { Button, Card, Input, Select, Space, Table, Tag, Typography, message } from "antd";
+import { EyeOutlined, PlusOutlined, ReloadOutlined, SearchOutlined } from "@ant-design/icons";
+import { useRouter } from "next/navigation";
+import api from "@/lib/api";
+import { usePermissions } from "@/hooks/usePermission";
+import WorkflowStatusTag from "@/features/workflow/components/WorkflowStatusTag";
+import { formatDateTime, formatMoney } from "@/config/workflowStatus";
 
-const { Title, Text } = Typography;
+const { Text } = Typography;
 
-export default function AdminShipmentsPage() {
+const STATUS_OPTIONS = [
+  { label: "Booked", value: "booked" },
+  { label: "Pickup Assigned", value: "pickup_assigned" },
+  { label: "Picked Up", value: "picked_up" },
+  { label: "In Transit", value: "in_transit" },
+  { label: "Out For Delivery", value: "out_for_delivery" },
+  { label: "Delivered", value: "delivered" },
+  { label: "Delivery Failed", value: "delivery_failed" },
+  { label: "Returned", value: "returned" },
+];
+
+export default function ShipmentsPage() {
   const router = useRouter();
+  const { can, branchId } = usePermissions();
 
-  const [shipments, setShipments] = useState([]);
-  const [pagination, setPagination] = useState({
-    current: 1,
-    pageSize: 20,
-    total: 0,
-  });
+  const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(false);
-
-  const [filters, setFilters] = useState({
-    search: '',
-    status: '',
-    service_type: '',
-    payment_type: '',
-  });
+  const [pagination, setPagination] = useState({ current: 1, pageSize: 20, total: 0 });
+  const [filters, setFilters] = useState({ search: "", status: "", service_type: "", payment_type: "" });
 
   const load = async (page = 1, pageSize = 20) => {
+    setLoading(true);
     try {
-      setLoading(true);
+      const params = { page, per_page: pageSize, ...filters };
+      // Branch-scoped users only see their branch shipments
+      if (branchId) params.branch_id = branchId;
 
-      const response = await getAdminShipments({
-        page,
-        per_page: pageSize,
-        ...filters,
-      });
+      const res = await api.get("/admin/shipments", { params });
+      const payload = res.data?.data || res.data;
+      const list = payload?.data || payload?.shipments?.data || payload?.shipments || [];
+      const meta = payload?.data || payload?.shipments || {};
 
-      const payload = response?.data || response;
-
-      const rows =
-        payload?.data?.data ||
-        payload?.data ||
-        payload?.shipments?.data ||
-        payload?.shipments ||
-        [];
-
-      const meta =
-        payload?.data ||
-        payload?.shipments ||
-        {};
-
-      setShipments(Array.isArray(rows) ? rows : []);
-
-      setPagination({
-        current: meta.current_page || page,
-        pageSize: meta.per_page || pageSize,
-        total: meta.total || rows.length || 0,
-      });
-    } catch (error) {
-      message.error(error?.response?.data?.message || 'Could not load shipments.');
+      setRows(Array.isArray(list) ? list : []);
+      setPagination({ current: meta.current_page || page, pageSize: meta.per_page || pageSize, total: meta.total || list.length });
+    } catch {
+      message.error("Could not load shipments.");
     } finally {
       setLoading(false);
     }
   };
 
-  useEffect(() => {
-    load(1, pagination.pageSize);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  const handleSearch = () => {
-    load(1, pagination.pageSize);
-  };
-
-  const handleReset = () => {
-    setFilters({
-      search: '',
-      status: '',
-      service_type: '',
-      payment_type: '',
-    });
-
-    setTimeout(() => load(1, pagination.pageSize), 0);
-  };
+  useEffect(() => { load(); }, []);
 
   const columns = [
     {
-      title: 'Tracking',
-      dataIndex: 'tracking_number',
-      key: 'tracking_number',
-      fixed: 'left',
-      render: (value, record) => (
+      title: "Tracking",
+      dataIndex: "tracking_number",
+      fixed: "left",
+      render: (v, r) => (
         <Space direction="vertical" size={0}>
-          <Button
-            type="link"
-            style={{ padding: 0, fontWeight: 700 }}
-            onClick={() => router.push(`/admin/shipments/${record.id}`)}
-          >
-            {value || '-'}
+          <Button type="link" style={{ padding: 0, fontWeight: 700 }} onClick={() => router.push(`/admin/shipments/${r.id}`)}>
+            {v || "—"}
           </Button>
-          <Text type="secondary" style={{ fontSize: 12 }}>
-            Order: {record.merchant_order_id || '-'}
-          </Text>
+          <Text type="secondary" style={{ fontSize: 11 }}>Order: {r.merchant_order_id || "—"}</Text>
         </Space>
       ),
     },
     {
-      title: 'Customer',
-      key: 'customer',
-      render: (_, record) => (
+      title: "Customer",
+      render: (_, r) => (
         <Space direction="vertical" size={0}>
-          <Text strong>{record.receiver_name || record.customer_name || '-'}</Text>
-          <Text type="secondary">{record.receiver_phone || record.customer_phone || '-'}</Text>
+          <Text strong style={{ fontSize: 13 }}>{r.receiver_name || r.customer_name || "—"}</Text>
+          <Text type="secondary" style={{ fontSize: 11 }}>{r.receiver_phone || r.customer_phone || "—"}</Text>
         </Space>
       ),
     },
     {
-      title: 'Route',
-      key: 'route',
-      render: (_, record) => (
+      title: "Route",
+      render: (_, r) => (
         <Space direction="vertical" size={0}>
-          <Text>
-            {record.origin_branch?.name ||
-              record.origin_branch_name ||
-              record.pickup_branch_name ||
-              record.sender_city ||
-              '-'}
-          </Text>
-          <Text type="secondary">
-            →{' '}
-            {record.destination_branch?.name ||
-              record.destination_branch_name ||
-              record.delivery_branch_name ||
-              record.receiver_city ||
-              '-'}
-          </Text>
+          <Text style={{ fontSize: 12 }}>{r.origin_branch?.name || r.sender_city || "—"}</Text>
+          <Text type="secondary" style={{ fontSize: 11 }}>→ {r.destination_branch?.name || r.receiver_city || "—"}</Text>
         </Space>
       ),
     },
+    { title: "Service", dataIndex: "service_type", render: v => v ? <Tag color="blue">{v}</Tag> : "—" },
+    { title: "Payment", dataIndex: "payment_type", render: v => <Tag color={v === "pod" ? "orange" : "green"}>{v || "—"}</Tag> },
+    { title: "Fee", align: "right", render: (_, r) => formatMoney(Number(r.delivery_charge || r.delivery_fee || 0)) },
+    { title: "POD", align: "right", render: (_, r) => formatMoney(Number(r.pod_amount || 0)) },
+    { title: "Status", dataIndex: "status", render: v => <WorkflowStatusTag status={v} /> },
+    { title: "Created", dataIndex: "created_at", render: v => formatDateTime(v) },
     {
-      title: 'Service',
-      dataIndex: 'service_type',
-      key: 'service_type',
-      render: (value) => value ? <Tag color="blue">{value}</Tag> : '-',
-    },
-    {
-      title: 'Payment',
-      dataIndex: 'payment_type',
-      key: 'payment_type',
-      render: (value) => (
-        <Tag color={value === 'pod' ? 'orange' : 'green'}>
-          {value || '-'}
-        </Tag>
-      ),
-    },
-    {
-      title: 'Delivery Fee',
-      key: 'delivery_fee',
-      align: 'right',
-      render: (_, record) =>
-        formatMoney(
-          Number(record.delivery_charge || record.delivery_fee || 0)
-        ),
-    },
-    {
-      title: 'POD',
-      key: 'pod_amount',
-      align: 'right',
-      render: (_, record) => formatMoney(Number(record.pod_amount || 0)),
-    },
-    {
-      title: 'Status',
-      dataIndex: 'status',
-      key: 'status',
-      render: (value) => <WorkflowStatusTag status={value} />,
-    },
-    {
-      title: 'Created',
-      dataIndex: 'created_at',
-      key: 'created_at',
-      render: (value) => formatDateTime(value),
-    },
-    {
-      title: 'Action',
-      key: 'action',
-      fixed: 'right',
-      render: (_, record) => (
-        <Button
-          icon={<EyeOutlined />}
-          onClick={() => router.push(`/admin/shipments/${record.id}`)}
-        >
-          View
-        </Button>
+      title: "Action",
+      fixed: "right",
+      render: (_, r) => (
+        <Space size={4}>
+          <Button size="small" icon={<EyeOutlined />} onClick={() => router.push(`/admin/shipments/${r.id}`)}>View</Button>
+        </Space>
       ),
     },
   ];
 
   return (
-    <Space direction="vertical" size={16} style={{ width: '100%' }}>
+    <Space direction="vertical" size={12} style={{ width: "100%" }}>
       <Card>
-        <Space direction="vertical" size={12} style={{ width: '100%' }}>
-          <Space align="center" style={{ justifyContent: 'space-between', width: '100%' }} wrap>
+        <Space direction="vertical" size={12} style={{ width: "100%" }}>
+          <Space style={{ justifyContent: "space-between", width: "100%" }} wrap>
             <div>
-              <Title level={3} style={{ margin: 0 }}>
-                Shipments
-              </Title>
-              <Text type="secondary">
-                View, track and manage all courier shipments.
-              </Text>
+              <Text style={{ fontSize: 18, fontWeight: 700 }}>Shipments</Text>
+              <br />
+              <Text type="secondary" style={{ fontSize: 12 }}>Track and manage all courier shipments.</Text>
             </div>
-
-            <Button icon={<ReloadOutlined />} onClick={() => load(pagination.current, pagination.pageSize)}>
-              Refresh
-            </Button>
+            <Space>
+              {can("shipments.create") && (
+                <Button type="primary" icon={<PlusOutlined />} onClick={() => router.push("/admin/shipments/create")}>
+                  New Shipment
+                </Button>
+              )}
+              <Button icon={<ReloadOutlined />} onClick={() => load(pagination.current, pagination.pageSize)}>Refresh</Button>
+            </Space>
           </Space>
 
           <Space wrap>
-            <Input
-              allowClear
-              style={{ width: 260 }}
-              placeholder="Search tracking/order/customer"
-              value={filters.search}
-              prefix={<SearchOutlined />}
-              onChange={(e) => setFilters({ ...filters, search: e.target.value })}
-              onPressEnter={handleSearch}
+            <Input allowClear style={{ width: 240 }} placeholder="Search tracking / customer"
+              prefix={<SearchOutlined />} value={filters.search}
+              onChange={e => setFilters(f => ({ ...f, search: e.target.value }))}
+              onPressEnter={() => load(1, pagination.pageSize)}
             />
-
-            <Select
-              allowClear
-              style={{ width: 190 }}
-              placeholder="Status"
+            <Select allowClear style={{ width: 180 }} placeholder="Status"
               value={filters.status || undefined}
-              onChange={(value) => setFilters({ ...filters, status: value || '' })}
-              options={[
-                { label: 'Booked', value: 'booked' },
-                { label: 'Pickup Assigned', value: 'pickup_assigned' },
-                { label: 'Picked Up', value: 'picked_up' },
-                { label: 'In Transit', value: 'in_transit' },
-                { label: 'Out For Delivery', value: 'out_for_delivery' },
-                { label: 'Delivered', value: 'delivered' },
-                { label: 'Delivery Failed', value: 'delivery_failed' },
-                { label: 'Returned', value: 'returned' },
-                { label: 'Pickup Pending', value: 'pickup_pending' },
-              ]}
+              onChange={v => setFilters(f => ({ ...f, status: v || "" }))}
+              options={STATUS_OPTIONS}
             />
-
-            <Select
-              allowClear
-              style={{ width: 160 }}
-              placeholder="Service"
-              value={filters.service_type || undefined}
-              onChange={(value) => setFilters({ ...filters, service_type: value || '' })}
-              options={[
-                { label: 'Standard', value: 'standard' },
-                { label: 'Express', value: 'express' },
-                { label: 'Same Day', value: 'same_day' },
-              ]}
-            />
-
-            <Select
-              allowClear
-              style={{ width: 150 }}
-              placeholder="Payment"
+            <Select allowClear style={{ width: 150 }} placeholder="Payment"
               value={filters.payment_type || undefined}
-              onChange={(value) => setFilters({ ...filters, payment_type: value || '' })}
-              options={[
-                { label: 'POD', value: 'pod' },
-                { label: 'Prepaid', value: 'prepaid' },
-              ]}
+              onChange={v => setFilters(f => ({ ...f, payment_type: v || "" }))}
+              options={[{ label: "POD", value: "pod" }, { label: "Prepaid", value: "prepaid" }]}
             />
-
-            <Button type="primary" onClick={handleSearch}>
-              Search
-            </Button>
-
-            <Button onClick={handleReset}>
-              Reset
-            </Button>
+            <Button type="primary" onClick={() => load(1, pagination.pageSize)}>Search</Button>
+            <Button onClick={() => { setFilters({ search: "", status: "", service_type: "", payment_type: "" }); setTimeout(() => load(1, pagination.pageSize), 0); }}>Reset</Button>
           </Space>
         </Space>
       </Card>
@@ -298,15 +150,13 @@ export default function AdminShipmentsPage() {
           rowKey="id"
           loading={loading}
           columns={columns}
-          dataSource={shipments}
-          scroll={{ x: 1300 }}
+          dataSource={rows}
+          scroll={{ x: 1200 }}
           pagination={{
-            current: pagination.current,
-            pageSize: pagination.pageSize,
-            total: pagination.total,
+            ...pagination,
             showSizeChanger: true,
-            showTotal: (total) => `${total} shipments`,
-            onChange: (page, pageSize) => load(page, pageSize),
+            showTotal: t => `${t} shipments`,
+            onChange: (p, ps) => load(p, ps),
           }}
         />
       </Card>

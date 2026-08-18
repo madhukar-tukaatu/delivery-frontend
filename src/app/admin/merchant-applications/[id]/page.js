@@ -11,6 +11,7 @@ import {
   Alert,
   Button,
   Card,
+  Checkbox,
   Col,
   Form,
   Image,
@@ -32,12 +33,14 @@ import {
   CheckCircleOutlined,
   CopyOutlined,
   DownloadOutlined,
+  EditOutlined,
   EnvironmentOutlined,
   EyeOutlined,
   FileDoneOutlined,
   GlobalOutlined,
   InfoCircleOutlined,
   ReloadOutlined,
+  RetweetOutlined,
   ShopOutlined,
   StopOutlined,
 } from "@ant-design/icons";
@@ -53,6 +56,9 @@ import {
   getMerchantApplication,
   rejectMerchantApplication,
   requestMerchantMoreInfo,
+  retryMerchantCallback,
+  updateMerchantApplication,
+  requestMerchantDocuments,
 } from "@/services/adminMerchantApplicationService";
 import { getEcho } from "@/lib/echo";
 
@@ -587,12 +593,26 @@ export default function AdminMerchantApplicationDetailPage() {
     setMoreInfoOpen,
   ] = useState(false);
 
-  const [form] = Form.useForm();
-  const [rejectForm] =
-    Form.useForm();
+  const [
+    editOpen,
+    setEditOpen,
+  ] = useState(false);
 
-  const [moreInfoForm] =
-    Form.useForm();
+  const [
+    requestDocsOpen,
+    setRequestDocsOpen,
+  ] = useState(false);
+
+  const [
+    retryingCallback,
+    setRetryingCallback,
+  ] = useState(false);
+
+  const [form] = Form.useForm();
+  const [rejectForm] = Form.useForm();
+  const [moreInfoForm] = Form.useForm();
+  const [editForm] = Form.useForm();
+  const [requestDocsForm] = Form.useForm();
 
   const isStoreManager =
     merchant?.application_source ===
@@ -935,6 +955,10 @@ export default function AdminMerchantApplicationDetailPage() {
       );
     }, [merchant]);
 
+  const isCallbackFailed =
+    isStoreManager &&
+    String(merchant?.integration_callback_status || "").toLowerCase() === "failed";
+
   const canApprove =
     missingDocs.length === 0 &&
     !isApproved;
@@ -1183,6 +1207,70 @@ export default function AdminMerchantApplicationDetailPage() {
       }
     };
 
+  const handleRetryCallback = async () => {
+    try {
+      setRetryingCallback(true);
+      await retryMerchantCallback(params.id);
+      message.success("Callback retry triggered.");
+      await load({ silent: true });
+    } catch (error) {
+      message.error(
+        error?.response?.data?.message || "Could not retry callback.",
+      );
+    } finally {
+      setRetryingCallback(false);
+    }
+  };
+
+  const openEditModal = () => {
+    editForm.setFieldsValue({
+      name: merchant.name,
+      email: merchant.email,
+      phone: merchant.phone,
+      contact_person: merchant.contact_person,
+      address: merchant.address,
+      owner_name: merchant.owner_name,
+    });
+    setEditOpen(true);
+  };
+
+  const submitEdit = async () => {
+    try {
+      const values = await editForm.validateFields();
+      setLoading(true);
+      await updateMerchantApplication(params.id, values);
+      message.success("Details updated.");
+      setEditOpen(false);
+      await load({ silent: true });
+    } catch (error) {
+      if (error?.errorFields) return;
+      message.error(
+        error?.response?.data?.message || "Could not update details.",
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const submitRequestDocs = async () => {
+    try {
+      const values = await requestDocsForm.validateFields();
+      setLoading(true);
+      await requestMerchantDocuments(params.id, values);
+      message.success("Document request sent.");
+      setRequestDocsOpen(false);
+      requestDocsForm.resetFields();
+      await load({ silent: true });
+    } catch (error) {
+      if (error?.errorFields) return;
+      message.error(
+        error?.response?.data?.message || "Could not send document request.",
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
+
   if (pageLoading) {
     return (
       <Card
@@ -1302,32 +1390,19 @@ export default function AdminMerchantApplicationDetailPage() {
 
     {
       key: "actions",
-      width: 85,
+      width: 115,
       align: "center",
 
-      render: (
-        _,
-        doc,
-      ) => (
+      render: (_, doc) => (
         <Space size={4}>
           <Tooltip title="Preview">
             <Button
               type="text"
               size="small"
-              icon={
-                <EyeOutlined />
-              }
-              loading={
-                previewLoading &&
-                previewDoc?.id ===
-                  doc.id
-              }
-              onClick={() =>
-                openDoc(doc)
-              }
-              style={{
-                color: "#6366f1",
-              }}
+              icon={<EyeOutlined />}
+              loading={previewLoading && previewDoc?.id === doc.id}
+              onClick={() => openDoc(doc)}
+              style={{ color: "#6366f1" }}
             />
           </Tooltip>
 
@@ -1335,15 +1410,25 @@ export default function AdminMerchantApplicationDetailPage() {
             <Button
               type="text"
               size="small"
-              icon={
-                <DownloadOutlined />
-              }
-              onClick={() =>
-                downloadDoc(doc)
-              }
-              style={{
-                color: "#64748b",
+              icon={<DownloadOutlined />}
+              onClick={() => downloadDoc(doc)}
+              style={{ color: "#64748b" }}
+            />
+          </Tooltip>
+
+          <Tooltip title="Re-request this document">
+            <Button
+              type="text"
+              size="small"
+              icon={<RetweetOutlined />}
+              onClick={() => {
+                requestDocsForm.setFieldsValue({
+                  document_types: [doc.document_type],
+                  message: "",
+                });
+                setRequestDocsOpen(true);
               }}
+              style={{ color: "#f59e0b" }}
             />
           </Tooltip>
         </Space>
@@ -1496,31 +1581,47 @@ export default function AdminMerchantApplicationDetailPage() {
             >
               <Button
                 size="small"
-                icon={
-                  <ReloadOutlined />
-                }
-                onClick={() =>
-                  load({
-                    silent: true,
-                  })
-                }
+                icon={<ReloadOutlined />}
+                onClick={() => load({ silent: true })}
               >
                 Refresh
               </Button>
 
+              {isStoreManager && (
+                <Tooltip title={isCallbackFailed ? "Retry the failed callback" : "Callback has not failed"}>
+                  <Button
+                    size="small"
+                    icon={<RetweetOutlined />}
+                    loading={retryingCallback}
+                    disabled={!isCallbackFailed}
+                    onClick={handleRetryCallback}
+                  >
+                    Retry Callback
+                  </Button>
+                </Tooltip>
+              )}
+
               <Button
                 size="small"
-                icon={
-                  <InfoCircleOutlined />
-                }
-                disabled={
-                  isApproved
-                }
-                onClick={() =>
-                  setMoreInfoOpen(
-                    true,
-                  )
-                }
+                icon={<EditOutlined />}
+                onClick={openEditModal}
+              >
+                Edit Details
+              </Button>
+
+              <Button
+                size="small"
+                icon={<FileDoneOutlined />}
+                onClick={() => setRequestDocsOpen(true)}
+              >
+                Request Docs
+              </Button>
+
+              <Button
+                size="small"
+                icon={<InfoCircleOutlined />}
+                disabled={isApproved}
+                onClick={() => setMoreInfoOpen(true)}
               >
                 Request Info
               </Button>
@@ -2515,38 +2616,95 @@ export default function AdminMerchantApplicationDetailPage() {
       <Modal
         title="Request More Information"
         open={moreInfoOpen}
-        onCancel={() => {
-          setMoreInfoOpen(
-            false,
-          );
-
-          moreInfoForm
-            .resetFields();
-        }}
+        onCancel={() => { setMoreInfoOpen(false); moreInfoForm.resetFields(); }}
         onOk={submitMoreInfo}
         confirmLoading={loading}
         okText="Send Request"
       >
-        <Form
-          form={moreInfoForm}
-          layout="vertical"
-          size="small"
-        >
+        <Form form={moreInfoForm} layout="vertical" size="small">
           <Form.Item
             name="message"
             label="Message to Merchant"
-            rules={[
-              {
-                required: true,
-                message:
-                  "Please enter your message.",
-              },
-            ]}
+            rules={[{ required: true, message: "Please enter your message." }]}
           >
-            <Input.TextArea
-              rows={4}
-              placeholder="Specify what needs correction or clarification…"
+            <Input.TextArea rows={4} placeholder="Specify what needs correction or clarification…" />
+          </Form.Item>
+        </Form>
+      </Modal>
+
+      <Modal
+        title="Edit Merchant Details"
+        open={editOpen}
+        onCancel={() => { setEditOpen(false); editForm.resetFields(); }}
+        onOk={submitEdit}
+        confirmLoading={loading}
+        okText="Save Changes"
+        width={600}
+      >
+        <Form form={editForm} layout="vertical" size="small">
+          <Row gutter={12}>
+            <Col xs={24} md={12}>
+              <Form.Item name="name" label="Legal Name" rules={[{ required: true, message: "Required." }]}>
+                <Input />
+              </Form.Item>
+            </Col>
+            <Col xs={24} md={12}>
+              <Form.Item name="owner_name" label="Owner">
+                <Input />
+              </Form.Item>
+            </Col>
+            <Col xs={24} md={12}>
+              <Form.Item name="contact_person" label="Contact Person">
+                <Input />
+              </Form.Item>
+            </Col>
+            <Col xs={24} md={12}>
+              <Form.Item name="phone" label="Phone">
+                <Input />
+              </Form.Item>
+            </Col>
+            <Col xs={24} md={12}>
+              <Form.Item name="email" label="Email" rules={[{ type: "email", message: "Invalid email." }]}>
+                <Input />
+              </Form.Item>
+            </Col>
+            <Col xs={24} md={12}>
+              <Form.Item name="address" label="Address">
+                <Input />
+              </Form.Item>
+            </Col>
+          </Row>
+        </Form>
+      </Modal>
+
+      <Modal
+        title="Request Document Update"
+        open={requestDocsOpen}
+        onCancel={() => { setRequestDocsOpen(false); requestDocsForm.resetFields(); }}
+        onOk={submitRequestDocs}
+        confirmLoading={loading}
+        okText="Send Request"
+      >
+        <Form form={requestDocsForm} layout="vertical" size="small">
+          <Form.Item
+            name="document_types"
+            label="Documents to Re-request"
+            rules={[{ required: true, type: "array", min: 1, message: "Select at least one document." }]}
+          >
+            <Checkbox.Group
+              style={{ display: "flex", flexDirection: "column", gap: 6 }}
+              options={REQUIRED_DOCS.map((d) => ({
+                value: d,
+                label: d.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()),
+              }))}
             />
+          </Form.Item>
+          <Form.Item
+            name="message"
+            label="Message to Merchant"
+            rules={[{ required: true, message: "Please enter a message." }]}
+          >
+            <Input.TextArea rows={3} placeholder="Explain what needs to be resubmitted…" />
           </Form.Item>
         </Form>
       </Modal>

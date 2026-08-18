@@ -17,6 +17,7 @@ import {
 } from "antd";
 import React, { useEffect, useState } from "react";
 import api from "@/lib/api";
+import { usePermissions } from "@/hooks/usePermission";
 import {
   DeleteOutlined,
   EditOutlined,
@@ -394,36 +395,18 @@ export function SimpleTablePageWithCRUD({
   extra,
   reloadKey,
   resource = "",
+  createLabel,
+  createIcon,
+  searchPlaceholder,
+  pageSizeOptions,
 }) {
-  const getUserPermissions = () => {
-    try {
-      if (typeof window !== "undefined") {
-        const stored = localStorage.getItem("user");
-        if (stored) return JSON.parse(stored);
-      }
-    } catch (e) {}
-    return null;
-  };
-
-  const user = getUserPermissions();
-
-  const hasPermission = (action) => {
-    if (!resource) return true;
-    const permissionKey = `${resource}.${action}`;
-    const manageKey = `${resource}.manage`;
-    if (!user) return false;
-    if (user.is_super_admin || user.role === "super_admin") return true;
-    return (
-      user.permissions?.includes(permissionKey) ||
-      user.permissions?.includes(manageKey)
-    );
-  };
+  const { can: canPerm } = usePermissions();
 
   const can = {
-    create: hasPermission("create"),
-    edit: hasPermission("edit"),
-    delete: hasPermission("delete"),
-    view: hasPermission("view"),
+    create: resource ? canPerm(`${resource}.create`) || canPerm(`${resource}.manage`) : true,
+    edit:   resource ? canPerm(`${resource}.edit`)   || canPerm(`${resource}.manage`) : true,
+    delete: resource ? canPerm(`${resource}.delete`) || canPerm(`${resource}.manage`) : true,
+    view:   resource ? canPerm(`${resource}.view`)   || canPerm(`${resource}.manage`) : true,
   };
 
   const actualEndpoint = endpoint + (reloadKey ? `?rk=${reloadKey}` : "");
@@ -532,9 +515,8 @@ export function SimpleTablePageWithCRUD({
         </Typography.Title>
 
         <Space>
-          {/* ✅ Integrated Filter Search Bar */}
           <Input
-            placeholder="Search matching items..."
+            placeholder={searchPlaceholder || "Search..."}
             allowClear
             value={searchQuery}
             onChange={(e) => handleSearch(e.target.value)}
@@ -545,8 +527,8 @@ export function SimpleTablePageWithCRUD({
           {extra}
 
           {can.create && (
-            <Button type="primary" onClick={handleCreate}>
-              Create New
+            <Button type="primary" icon={createIcon} onClick={handleCreate}>
+              {createLabel || "Create New"}
             </Button>
           )}
 

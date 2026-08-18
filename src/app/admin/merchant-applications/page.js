@@ -754,6 +754,23 @@ export default function MerchantApplicationsPage() {
     },
 
     {
+      title: "Callback",
+      key: "callback_status",
+      width: 100,
+
+      render: (_, row) => {
+        if (row.application_source !== "store_manager") return null;
+        const s = String(row.integration_callback_status || "pending").toLowerCase();
+        const color = s === "delivered" ? "#15803d" : s === "failed" ? "#b91c1c" : "#94a3b8";
+        return (
+          <span style={{ fontSize: 11, fontWeight: 600, color }}>
+            {s.charAt(0).toUpperCase() + s.slice(1)}
+          </span>
+        );
+      },
+    },
+
+    {
       title: "Date",
       dataIndex: "created_at",
       key: "created_at",
@@ -1127,7 +1144,7 @@ export default function MerchantApplicationsPage() {
           dataSource={data}
           columns={columns}
           scroll={{
-            x: 1100,
+            x: 1200,
           }}
           onRow={(row) => ({
             style: {

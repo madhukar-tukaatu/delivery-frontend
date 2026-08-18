@@ -1,384 +1,298 @@
 "use client";
 
-import { Card, Tabs, Typography, Row, Col, Statistic, Table, Spin, Space, Alert } from "antd";
 import { useEffect, useState } from "react";
-import api from "@/lib/api";
-import { 
-  CarOutlined, 
-  DollarOutlined, 
-  ShopOutlined, 
-  BranchesOutlined, 
-  UserOutlined,
-  CheckCircleOutlined,
-  CloseCircleOutlined,
-  RollbackOutlined,
-  WalletOutlined,
-  TeamOutlined,
-  EnvironmentOutlined
+import { Badge, Button, Card, Col, Row, Space, Spin, Statistic, Table, Tag, Tabs, Typography } from "antd";
+import {
+  BankOutlined, BranchesOutlined, CarOutlined, DollarOutlined,
+  ReloadOutlined, ShopOutlined, TeamOutlined, WalletOutlined,
 } from "@ant-design/icons";
+import api from "@/lib/api";
+import { usePermissions } from "@/hooks/usePermission";
 import { StatusTag } from "@/components/PageTools";
 
-const reportTypes = [
-  { key: "shipments", label: "Shipments", icon: <CarOutlined /> },
-  { key: "revenue", label: "Revenue", icon: <DollarOutlined /> },
-  { key: "pod", label: "POD Settlements", icon: <WalletOutlined /> },
-  { key: "merchants", label: "Merchants", icon: <ShopOutlined /> },
-  { key: "branches", label: "Branches", icon: <BranchesOutlined /> },
-  { key: "staff", label: "Staff Performance", icon: <UserOutlined /> },
-];
+const { Text } = Typography;
+
+function fmt(v) {
+  return `Rs. ${Number(v || 0).toLocaleString("en-NP", { minimumFractionDigits: 2 })}`;
+}
 
 export default function ReportsPage() {
-  const [activeTab, setActiveTab] = useState("shipments");
-  const [reportsData, setReportsData] = useState({});
+  const { can, branchId, branchName, isSuperAdmin } = usePermissions();
+  const [activeTab, setActiveTab] = useState(null);
+  const [cache, setCache] = useState({});
   const [loading, setLoading] = useState(false);
-  const [userScope, setUserScope] = useState({ name: "Loading authority scope...", isAdmin: true });
 
-  // Load active tab parameters
-  const loadTabReport = async (tabKey) => {
-    if (reportsData[tabKey]) return;
+  // Build tabs based on permissions
+  const allTabs = [
+    { key: "shipments", label: "Shipments", icon: <CarOutlined />, permission: "reports.view" },
+    { key: "revenue", label: "Revenue", icon: <DollarOutlined />, permission: "reports.revenue" },
+    { key: "pod", label: "POD", icon: <WalletOutlined />, permission: "reports.pod" },
+    { key: "merchants", label: "Merchants", icon: <ShopOutlined />, permission: "reports.merchants" },
+    { key: "branches", label: "Branches", icon: <BranchesOutlined />, permission: "reports.branches" },
+    { key: "staff", label: "Staff", icon: <TeamOutlined />, permission: "reports.staff" },
+  ];
 
+  const tabs = allTabs.filter(t => can(t.permission));
+
+  useEffect(() => {
+    if (tabs.length && !activeTab) setActiveTab(tabs[0].key);
+  }, [tabs.length]);
+
+  const loadTab = async (key) => {
+    if (cache[key]) return;
     setLoading(true);
     try {
-      const res = await api.get(`/admin/reports/${tabKey}`);
-      setReportsData((prev) => ({ ...prev, [tabKey]: res.data.data }));
-      
-      // Contextually infer scope identity from payload structural footprints
-      if (res.data.data?.by_branch && userScope.name === "Loading authority scope...") {
-        const structuralData = res.data.data.by_branch;
-        if (structuralData.length === 1) {
-          setUserScope({ 
-            name: structuralData[0]?.origin_branch?.name || "Local Branch Scope", 
-            isAdmin: false 
-          });
-        } else {
-          setUserScope({ name: "All Global Branches (Main/Super Admin System Mode)", isAdmin: true });
-        }
-      }
-    } catch (err) {
-      console.error(`Failed to load ${tabKey} hierarchical data:`, err);
+      const params = branchId ? { branch_id: branchId } : {};
+      const res = await api.get(`/admin/reports/${key}`, { params });
+      setCache(prev => ({ ...prev, [key]: res.data?.data }));
+    } catch {
+      setCache(prev => ({ ...prev, [key]: null }));
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    loadTabReport(activeTab);
+    if (activeTab) loadTab(activeTab);
   }, [activeTab]);
 
-  // ================= 1. SHIPMENTS TAB RENDER =================
-  const renderShipmentsReport = (data) => {
-    if (!data) return null;
-    return (
-      <Space direction="vertical" size="large" style={{ width: "100%" }}>
-        <Row gutter={[16, 16]}>
-          <Col xs={24} sm={12} lg={8}>
-            <Card bordered={false} style={{ background: "#f0f5ff" }}>
-              <Statistic title="Total Scoped Volume" value={data.total || 0} prefix={<CarOutlined />} />
-            </Card>
-          </Col>
-          <Col xs={24} sm={12} lg={4}>
-            <Card bordered={false} style={{ background: "#f6ffed" }}>
-              <Statistic title="Delivered" value={data.delivered || 0} valueStyle={{ color: '#3f8600' }} prefix={<CheckCircleOutlined />} />
-            </Card>
-          </Col>
-          <Col xs={24} sm={12} lg={4}>
-            <Card bordered={false} style={{ background: "#fff1f0" }}>
-              <Statistic title="Failed" value={data.failed || 0} valueStyle={{ color: '#cf1322' }} prefix={<CloseCircleOutlined />} />
-            </Card>
-          </Col>
-          <Col xs={24} sm={12} lg={4}>
-            <Card bordered={false} style={{ background: "#fff7e6" }}>
-              <Statistic title="Returned" value={data.returned || 0} valueStyle={{ color: '#d46b08' }} prefix={<RollbackOutlined />} />
-            </Card>
-          </Col>
-          <Col xs={24} sm={12} lg={4}>
-            <Card bordered={false} style={{ background: "#fafafa" }}>
-              <Statistic title="Cancelled" value={data.cancelled || 0} valueStyle={{ color: '#8c8c8c' }} />
-            </Card>
-          </Col>
-        </Row>
-
-        <Row gutter={[16, 16]}>
-          <Col xs={24} md={8}>
-            <Card title="Status Aggregates" size="small">
-              <Table dataSource={data.by_status || []} rowKey="status" pagination={false} size="small"
-                columns={[
-                  { title: "Status", dataIndex: "status", render: (v) => <StatusTag value={v} /> },
-                  { title: "Total", dataIndex: "total", align: "right" }
-                ]}
-              />
-            </Card>
-          </Col>
-          <Col xs={24} md={8}>
-            <Card title="Merchant Volume Distribution" size="small">
-              <Table dataSource={data.by_merchant || []} rowKey="merchant_id" pagination={{ pageSize: 5 }} size="small"
-                columns={[
-                  { title: "Merchant", dataIndex: ["merchant", "name"], render: (v, r) => v || `ID: ${r.merchant_id}` },
-                  { title: "Total", dataIndex: "total", align: "right" }
-                ]}
-              />
-            </Card>
-          </Col>
-          <Col xs={24} md={8}>
-            <Card title="Branch Nodes Present" size="small">
-              <Table dataSource={data.by_branch || []} rowKey="origin_branch_id" pagination={{ pageSize: 5 }} size="small"
-                columns={[
-                  { title: "Origin Branch", dataIndex: ["origin_branch", "name"], render: (v, r) => v || `ID: ${r.origin_branch_id}` },
-                  { title: "Total Packets", dataIndex: "total", align: "right" }
-                ]}
-              />
-            </Card>
-          </Col>
-        </Row>
-      </Space>
-    );
+  const reload = () => {
+    setCache(prev => { const n = { ...prev }; delete n[activeTab]; return n; });
+    setTimeout(() => loadTab(activeTab), 0);
   };
 
-  // ================= 2. REVENUE TAB RENDER =================
-  const renderRevenueReport = (data) => {
-    if (!data) return null;
-    return (
-      <Space direction="vertical" size="large" style={{ width: "100%" }}>
-        <Row gutter={[16, 16]}>
-          <Col xs={24} sm={12} lg={6}>
-            <Card bordered={false} style={{ background: "#f6ffed" }}>
-              <Statistic title="Delivery Yield" value={data.delivery_charges || 0} precision={2} prefix="Rs. " />
-            </Card>
-          </Col>
-          <Col xs={24} sm={12} lg={6}>
-            <Card bordered={false} style={{ background: "#e6f7ff" }}>
-              <Statistic title="POD Share Earnings" value={data.pod_charges || 0} precision={2} prefix="Rs. " />
-            </Card>
-          </Col>
-          <Col xs={24} sm={12} lg={6}>
-            <Card bordered={false} style={{ background: "#fff7e6" }}>
-              <Statistic title="Return Fee Totals" value={data.return_charges || 0} precision={2} prefix="Rs. " />
-            </Card>
-          </Col>
-          <Col xs={24} sm={12} lg={6}>
-            <Card bordered={false} style={{ background: "#f9f0ff" }}>
-              <Statistic title="Total Collective Revenue" value={data.total_charges || 0} precision={2} valueStyle={{ color: '#722ed1' }} prefix="Rs. " />
-            </Card>
-          </Col>
-        </Row>
+  // ── Tab renderers ──────────────────────────────────────────────────────────
 
-        <Card title="Historical Stream Trends" size="small">
-          <Table dataSource={data.monthly || []} rowKey="month" pagination={{ pageSize: 5 }}
-            columns={[
-              { title: "Month Grouping", dataIndex: "month" },
-              { title: "Earned Yield", dataIndex: "total", align: "right", render: (v) => `Rs. ${Number(v).toFixed(2)}` }
-            ]}
-          />
-        </Card>
-      </Space>
-    );
-  };
-
-  // ================= 3. POD SETTLEMENTS TAB RENDER =================
-  const renderCodReport = (data) => {
-    if (!data) return null;
-    return (
-      <Space direction="vertical" size="large" style={{ width: "100%" }}>
-        <Row gutter={[16, 16]}>
-          <Col xs={24} sm={12} lg={6}>
-            <Card bordered={false} style={{ background: "#f5f5f5" }}>
-              <Statistic title="Total POD Scope" value={data.total_cod || 0} precision={2} prefix="Rs. " />
-            </Card>
+  const renderShipments = (d) => !d ? null : (
+    <Space direction="vertical" size={16} style={{ width: "100%" }}>
+      <Row gutter={[12, 12]}>
+        {[
+          { label: "Total", value: d.total, color: "#6366f1" },
+          { label: "Delivered", value: d.delivered, color: "#22c55e" },
+          { label: "Failed", value: d.failed, color: "#ef4444" },
+          { label: "Returned", value: d.returned, color: "#f59e0b" },
+          { label: "Cancelled", value: d.cancelled, color: "#6b7280" },
+        ].map(s => (
+          <Col xs={12} sm={8} md={4} key={s.label}>
+            <Card size="small"><Statistic title={s.label} value={s.value ?? 0} valueStyle={{ color: s.color, fontWeight: 700 }} /></Card>
           </Col>
-          <Col xs={24} sm={12} lg={6}>
-            <Card bordered={false} style={{ background: "#e6f7ff" }}>
-              <Statistic title="Collected Vaulted" value={data.collected || 0} precision={2} prefix="Rs. " />
-            </Card>
-          </Col>
-          <Col xs={24} sm={12} lg={6}>
-            <Card bordered={false} style={{ background: "#fff1f0" }}>
-              <Statistic title="Pending Pipeline" value={data.pending || 0} precision={2} valueStyle={{ color: '#cf1322' }} prefix="Rs. " />
-            </Card>
-          </Col>
-          <Col xs={24} sm={12} lg={6}>
-            <Card bordered={false} style={{ background: "#f6ffed" }}>
-              <Statistic title="Settled to Shops" value={data.settled || 0} precision={2} valueStyle={{ color: '#3f8600' }} prefix="Rs. " />
-            </Card>
-          </Col>
-        </Row>
-
-        <Card title="POD Flow Status Breakdown" size="small">
-          <Table dataSource={data.by_status || []} rowKey="status" pagination={false}
-            columns={[
-              { title: "Status Layer", dataIndex: "status", render: (v) => <StatusTag value={v} /> },
-              { title: "Records", dataIndex: "total" },
-              { title: "Total Value Amount", dataIndex: "amount", align: "right", render: (v) => `Rs. ${Number(v || 0).toFixed(2)}` }
-            ]}
-          />
-        </Card>
-      </Space>
-    );
-  };
-
-  // ================= 4. MERCHANTS TAB RENDER =================
-  const renderMerchantsReport = (data) => {
-    if (!data) return null;
-    return (
-      <Space direction="vertical" size="large" style={{ width: "100%" }}>
-        <Row gutter={[16, 16]}>
-          <Col xs={24} sm={6}>
-            <Card bordered={false} style={{ background: "#f0f5ff" }}><Statistic title="Total Shops Registered" value={data.total || 0} /></Card>
-          </Col>
-          <Col xs={24} sm={6}>
-            <Card bordered={false} style={{ background: "#f6ffed" }}><Statistic title="Active" value={data.active || 0} valueStyle={{ color: '#3f8600' }} /></Card>
-          </Col>
-        </Row>
-
-        <Row gutter={[16, 16]}>
-          <Col xs={24} lg={14}>
-            <Card title="Merchant Scoped Actions" size="small">
-              <Table dataSource={data.shipment_counts || []} rowKey="merchant_id" pagination={{ pageSize: 5 }} size="small"
-                columns={[
-                  { title: "Merchant Profile", dataIndex: ["merchant", "name"], render: (v, r) => v || `ID: ${r.merchant_id}` },
-                  { title: "Scoped Shipments", dataIndex: "total" },
-                  { title: "Accumulated POD", dataIndex: "pod_total", align: "right", render: (v) => `Rs. ${Number(v || 0).toFixed(2)}` }
-                ]}
-              />
-            </Card>
-          </Col>
-          <Col xs={24} lg={10}>
-            <Card title="Payout Settled Logs" size="small">
-              <Table dataSource={data.settlements || []} rowKey="status" pagination={false} size="small"
-                columns={[
-                  { title: "Status", dataIndex: "status", render: (v) => <StatusTag value={v} /> },
-                  { title: "Count", dataIndex: "total" },
-                  { title: "Final Payable", dataIndex: "amount", align: "right", render: (v) => `Rs. ${Number(v || 0).toFixed(2)}` }
-                ]}
-              />
-            </Card>
-          </Col>
-        </Row>
-      </Space>
-    );
-  };
-
-  // ================= 5. BRANCHES TAB RENDER =================
-  const renderBranchesReport = (data) => {
-    if (!data) return null;
-    return (
-      <Space direction="vertical" size="large" style={{ width: "100%" }}>
-        <Card title="Active Scoped Hub Networks" size="small">
-          <Row gutter={[16, 16]}>
-            <Col xs={24} md={8}>
-              <Table dataSource={data.by_type || []} rowKey="type" pagination={false} size="small"
-                columns={[
-                  { title: "Hub Type Node", dataIndex: "type", render: (v) => String(v).toUpperCase() },
-                  { title: "Total Present", dataIndex: "total", align: "right" }
-                ]}
-              />
-            </Col>
-            <Col xs={24} md={8}>
-              <Table dataSource={data.shipments_by_origin || []} rowKey="origin_branch_id" pagination={{ pageSize: 5 }} size="small"
-                columns={[
-                  { title: "Outbound Branch Node", dataIndex: ["origin_branch", "name"], render: (v, r) => v || `ID: ${r.origin_branch_id}` },
-                  { title: "Total Handled", dataIndex: "total", align: "right" }
-                ]}
-              />
-            </Col>
-            <Col xs={24} md={8}>
-              <Table dataSource={data.shipments_by_destination || []} rowKey="destination_branch_id" pagination={{ pageSize: 5 }} size="small"
-                columns={[
-                  { title: "Inbound Branch Node", dataIndex: ["destination_branch", "name"], render: (v, r) => v || `ID: ${r.destination_branch_id}` },
-                  { title: "Total Delivered", dataIndex: "total", align: "right" }
-                ]}
-              />
-            </Col>
-          </Row>
-        </Card>
-      </Space>
-    );
-  };
-
-  // ================= 6. STAFF TAB RENDER =================
-  const renderStaffReport = (data) => {
-    if (!data) return null;
-    return (
-      <Row gutter={[16, 16]}>
-        <Col xs={24} md={10} >
-          <Card title="User Permissions Breakdown" size="small">
-            <Table dataSource={data.users_by_role || []} rowKey="role" pagination={false} size="small"
+        ))}
+      </Row>
+      <Row gutter={[12, 12]}>
+        <Col xs={24} md={8}>
+          <Card size="small" title="By Status">
+            <Table rowKey="status" size="small" dataSource={d.by_status || []} pagination={false}
               columns={[
-                { title: "Role", dataIndex: "role", render: (v) => String(v).toUpperCase() },
-                { title: "Count", dataIndex: "total", align: "right" }
+                { title: "Status", dataIndex: "status", render: v => <StatusTag value={v} /> },
+                { title: "Count", dataIndex: "total", align: "right", render: v => <Text strong>{v}</Text> },
               ]}
             />
           </Card>
         </Col>
-        <Col xs={24} md={14}>
-          <Card title="Scoped Delivery Performance Assignment Volume" size="small">
-            <Table dataSource={data.delivery_assignments || []} rowKey="delivery_staff_id" pagination={{ pageSize: 5 }} size="small"
+        <Col xs={24} md={16}>
+          <Card size="small" title="By Merchant">
+            <Table rowKey="merchant_id" size="small" dataSource={d.by_merchant || []}
+              pagination={{ pageSize: 5, showSizeChanger: false }}
               columns={[
-                { title: "Staff Rider Name", dataIndex: ["staff", "name"], render: (v, r) => v || `Staff Node Ref ID: ${r.delivery_staff_id}` },
-                { title: "Assigned Delivery Volume Tasks", dataIndex: "total", align: "right", render: (v) => <b>{v} Runs</b> }
+                { title: "Merchant", render: (_, r) => r.merchant?.name || `#${r.merchant_id}` },
+                { title: "Shipments", dataIndex: "total", align: "right" },
+                { title: "POD", dataIndex: "pod_total", align: "right", render: v => fmt(v) },
               ]}
             />
           </Card>
         </Col>
       </Row>
-    );
-  };
+    </Space>
+  );
 
-  const getTabContent = (key) => {
-    if (loading && activeTab === key && !reportsData[key]) {
-      return (
-        <div style={{ textAlign: "center", padding: "60px 0" }}>
-          <Spin size="large" tip="Recalculating authority scope metrics..." />
-        </div>
-      );
-    }
+  const renderRevenue = (d) => !d ? null : (
+    <Space direction="vertical" size={16} style={{ width: "100%" }}>
+      <Row gutter={[12, 12]}>
+        {[
+          { label: "Delivery Charges", value: d.delivery_charges },
+          { label: "POD Charges", value: d.pod_charges },
+          { label: "Return Charges", value: d.return_charges },
+          { label: "Total Revenue", value: d.total_charges },
+        ].map(s => (
+          <Col xs={12} sm={6} key={s.label}>
+            <Card size="small"><Statistic title={s.label} formatter={() => fmt(s.value)} /></Card>
+          </Col>
+        ))}
+      </Row>
+      <Card size="small" title="Monthly Revenue">
+        <Table rowKey="month" size="small" dataSource={[...(d.monthly || [])].reverse()}
+          pagination={{ pageSize: 6, showSizeChanger: false }}
+          columns={[
+            { title: "Month", dataIndex: "month" },
+            { title: "Revenue", dataIndex: "total", align: "right", render: v => <Text strong>{fmt(v)}</Text> },
+          ]}
+        />
+      </Card>
+    </Space>
+  );
 
-    const currentTabDataset = reportsData[key];
+  const renderPod = (d) => !d ? null : (
+    <Space direction="vertical" size={16} style={{ width: "100%" }}>
+      <Row gutter={[12, 12]}>
+        {[
+          { label: "Total POD", value: d.total_cod },
+          { label: "Collected", value: d.collected },
+          { label: "Pending", value: d.pending },
+          { label: "Settled", value: d.settled },
+        ].map(s => (
+          <Col xs={12} sm={6} key={s.label}>
+            <Card size="small"><Statistic title={s.label} formatter={() => fmt(s.value)} /></Card>
+          </Col>
+        ))}
+      </Row>
+      <Card size="small" title="POD by Status">
+        <Table rowKey="status" size="small" dataSource={d.by_status || []} pagination={false}
+          columns={[
+            { title: "Status", dataIndex: "status", render: v => <Tag color={v === "settled" ? "green" : v === "pending" ? "orange" : "blue"}>{v}</Tag> },
+            { title: "Count", dataIndex: "total", align: "right" },
+            { title: "Amount", dataIndex: "amount", align: "right", render: v => fmt(v) },
+          ]}
+        />
+      </Card>
+    </Space>
+  );
+
+  const renderMerchants = (d) => !d ? null : (
+    <Space direction="vertical" size={16} style={{ width: "100%" }}>
+      <Row gutter={[12, 12]}>
+        <Col xs={12} sm={6}><Card size="small"><Statistic title="Total Merchants" value={d.total ?? 0} /></Card></Col>
+        <Col xs={12} sm={6}><Card size="small"><Statistic title="Active" value={d.active ?? 0} valueStyle={{ color: "#22c55e" }} /></Card></Col>
+      </Row>
+      <Row gutter={[12, 12]}>
+        <Col xs={24} md={14}>
+          <Card size="small" title="Shipments by Merchant">
+            <Table rowKey="merchant_id" size="small" dataSource={d.shipment_counts || []}
+              pagination={{ pageSize: 5, showSizeChanger: false }}
+              columns={[
+                { title: "Merchant", render: (_, r) => r.merchant?.name || `#${r.merchant_id}` },
+                { title: "Shipments", dataIndex: "total", align: "right" },
+                { title: "POD", dataIndex: "pod_total", align: "right", render: v => fmt(v) },
+              ]}
+            />
+          </Card>
+        </Col>
+        <Col xs={24} md={10}>
+          <Card size="small" title="Settlements">
+            <Table rowKey="status" size="small" dataSource={d.settlements || []} pagination={false}
+              columns={[
+                { title: "Status", dataIndex: "status", render: v => <StatusTag value={v} /> },
+                { title: "Count", dataIndex: "total", align: "right" },
+                { title: "Amount", dataIndex: "amount", align: "right", render: v => fmt(v) },
+              ]}
+            />
+          </Card>
+        </Col>
+      </Row>
+    </Space>
+  );
+
+  const renderBranches = (d) => !d ? null : (
+    <Row gutter={[12, 12]}>
+      <Col xs={24} md={8}>
+        <Card size="small" title="By Type">
+          <Table rowKey="type" size="small" dataSource={d.by_type || []} pagination={false}
+            columns={[
+              { title: "Type", dataIndex: "type", render: v => <Tag>{v}</Tag> },
+              { title: "Count", dataIndex: "total", align: "right" },
+            ]}
+          />
+        </Card>
+      </Col>
+      <Col xs={24} md={8}>
+        <Card size="small" title="Shipments by Origin">
+          <Table rowKey="origin_branch_id" size="small" dataSource={d.shipments_by_origin || []}
+            pagination={{ pageSize: 5, showSizeChanger: false }}
+            columns={[
+              { title: "Branch", render: (_, r) => r.origin_branch?.name || `#${r.origin_branch_id}` },
+              { title: "Shipments", dataIndex: "total", align: "right" },
+            ]}
+          />
+        </Card>
+      </Col>
+      <Col xs={24} md={8}>
+        <Card size="small" title="Shipments by Destination">
+          <Table rowKey="destination_branch_id" size="small" dataSource={d.shipments_by_destination || []}
+            pagination={{ pageSize: 5, showSizeChanger: false }}
+            columns={[
+              { title: "Branch", render: (_, r) => r.destination_branch?.name || `#${r.destination_branch_id}` },
+              { title: "Shipments", dataIndex: "total", align: "right" },
+            ]}
+          />
+        </Card>
+      </Col>
+    </Row>
+  );
+
+  const renderStaff = (d) => !d ? null : (
+    <Row gutter={[12, 12]}>
+      <Col xs={24} md={10}>
+        <Card size="small" title="Users by Role">
+          <Table rowKey="role" size="small" dataSource={d.users_by_role || []} pagination={false}
+            columns={[
+              { title: "Role", dataIndex: "role", render: v => <Tag>{v}</Tag> },
+              { title: "Count", dataIndex: "total", align: "right" },
+            ]}
+          />
+        </Card>
+      </Col>
+      <Col xs={24} md={14}>
+        <Card size="small" title="Delivery Performance">
+          <Table rowKey="delivery_staff_id" size="small" dataSource={d.delivery_assignments || []}
+            pagination={{ pageSize: 5, showSizeChanger: false }}
+            columns={[
+              { title: "Staff", render: (_, r) => r.staff?.name || `#${r.delivery_staff_id}` },
+              { title: "Deliveries", dataIndex: "total", align: "right", render: v => <Text strong>{v}</Text> },
+            ]}
+          />
+        </Card>
+      </Col>
+    </Row>
+  );
+
+  const renderContent = (key) => {
+    const d = cache[key];
+    if (loading && !d) return <div style={{ textAlign: "center", padding: 60 }}><Spin size="large" /></div>;
+    if (!d) return <div style={{ textAlign: "center", padding: 40 }}><Text type="secondary">No data available.</Text></div>;
     switch (key) {
-      case "shipments": return renderShipmentsReport(currentTabDataset);
-      case "revenue": return renderRevenueReport(currentTabDataset);
-      case "pod": return renderCodReport(currentTabDataset);
-      case "merchants": return renderMerchantsReport(currentTabDataset);
-      case "branches": return renderBranchesReport(currentTabDataset);
-      case "staff": return renderStaffReport(currentTabDataset);
+      case "shipments": return renderShipments(d);
+      case "revenue": return renderRevenue(d);
+      case "pod": return renderPod(d);
+      case "merchants": return renderMerchants(d);
+      case "branches": return renderBranches(d);
+      case "staff": return renderStaff(d);
       default: return null;
     }
   };
 
+  if (!tabs.length) {
+    return <Card><Text type="secondary">You do not have permission to view reports.</Text></Card>;
+  }
+
   return (
     <Card>
-      <div style={{ marginBottom: 20 }}>
-        <Typography.Title level={3} style={{ margin: 0 }}>
-          Hierarchical System Reports
-        </Typography.Title>
-        <Typography.Text type="secondary">
-          Data streams are restricted securely relative to structural authorization contexts.
-        </Typography.Text>
-      </div>
-
-      <Alert
-        message={`Data Context Scope: ${userScope.name}`}
-        description={userScope.isAdmin 
-          ? "You possess global administrative authority views over all operational hubs." 
-          : "Your account credentials limit analytics reporting data context cleanly down to your regional district node only."
-        }
-        type={userScope.isAdmin ? "info" : "success"}
-        showIcon
-        icon={<EnvironmentOutlined />}
-        style={{ marginBottom: 20 }}
-      />
+      <Space style={{ justifyContent: "space-between", width: "100%", marginBottom: 16 }} wrap>
+        <div>
+          <Text style={{ fontSize: 18, fontWeight: 700 }}>Reports</Text>
+          <br />
+          <Text type="secondary" style={{ fontSize: 12 }}>
+            {branchName ? `Scoped to: ${branchName}` : "Global — all branches"}
+          </Text>
+        </div>
+        <Button icon={<ReloadOutlined />} onClick={reload}>Refresh</Button>
+      </Space>
 
       <Tabs
         activeKey={activeTab}
-        onChange={(key) => setActiveTab(key)}
-        items={reportTypes.map((t) => ({
+        onChange={key => { setActiveTab(key); }}
+        items={tabs.map(t => ({
           key: t.key,
-          label: (
-            <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
-              {t.icon}
-              {t.label.toUpperCase()}
-            </span>
-          ),
-          children: <div style={{ paddingTop: 12 }}>{getTabContent(t.key)}</div>,
+          label: <Space size={4}>{t.icon}{t.label}</Space>,
+          children: <div style={{ paddingTop: 12 }}>{activeTab === t.key && renderContent(t.key)}</div>,
         }))}
       />
     </Card>

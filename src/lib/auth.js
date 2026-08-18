@@ -79,17 +79,23 @@ export function routeForRole(role, user = null) {
   const u = user || getUser();
   const roles = u?.roles || [role];
 
+  const staffPortalRoles = [
+    "pickup_staff", "dispatch_staff", "delivery_staff",
+    "warehouse_staff", "branch_staff", "support_staff",
+    "accounts_staff", "rider",
+  ];
+
   if (roles.includes("merchant") || role === "merchant")
     return "/merchant/dashboard";
 
   if (
-    roles.includes("rider") ||
-    roles.includes("pickup_staff") ||
-    role === "rider" ||
-    role === "pickup_staff"
+    staffPortalRoles.some((r) => roles.includes(r)) ||
+    staffPortalRoles.includes(role)
   )
     return "/staff/dashboard";
 
+  // super_admin, main_admin, branch_manager, sub_branch_manager,
+  // pricing_manager, booking_staff → admin portal
   return "/admin/dashboard";
 }
 
