@@ -169,6 +169,11 @@ export async function getBranchRouteRates(
   return response.data;
 }
 
+export async function getBranchRouteRateMatrix() {
+  const response = await api.get(`${ENDPOINTS.branchRouteRates}/matrix`);
+  return response.data;
+}
+
 export async function getBranchRouteRate(id) {
   const response = await api.get(
     `${ENDPOINTS.branchRouteRates}/${id}`

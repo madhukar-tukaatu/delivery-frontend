@@ -3,16 +3,15 @@ import dynamic from "next/dynamic";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import {
+  Badge,
   Button,
   Card,
   Col,
-  Collapse,
   Descriptions,
   Empty,
   Input,
   Popconfirm,
   Row,
-  Select,
   Space,
   Statistic,
   Tag,
@@ -26,19 +25,16 @@ import {
   DeleteOutlined,
   EditOutlined,
   EnvironmentOutlined,
-  FilterOutlined,
   PlusOutlined,
   ReloadOutlined,
   SwapOutlined,
+  WarningOutlined,
 } from "@ant-design/icons";
-
-// import RouteMapS from "@/components/rate-admin/RouteMapS";
 
 import {
   createBranchRouteRate,
   deleteBranchRouteRate,
-  getBranchRouteRates,
-  getRateBranches,
+  getBranchRouteRateMatrix,
   updateBranchRouteRate,
   updateBranchRouteRateStatus,
 } from "@/services/adminRateManagementService";
@@ -48,7 +44,6 @@ import BranchRouteRateModal from "./components/BranchRouteRateModal";
 
 import {
   apiErrorMessage,
-  extractCollection,
   formatDate,
   formatMoney,
   normalizeBranch,
@@ -56,12 +51,13 @@ import {
 } from "@/lib/rate-management-page-utils";
 
 const { Title, Text } = Typography;
+
 const RouteMapS = dynamic(() => import("@/components/rate-admin/RouteMapS"), {
   ssr: false,
   loading: () => (
     <div
       style={{
-        height: 360,
+        height: 300,
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
@@ -74,215 +70,120 @@ const RouteMapS = dynamic(() => import("@/components/rate-admin/RouteMapS"), {
     </div>
   ),
 });
+
 function StatusTag({ active }) {
   return (
     <Tag
       icon={active ? <CheckCircleOutlined /> : null}
       color={active ? "success" : "default"}
-      style={{
-        marginInlineEnd: 0,
-        borderRadius: 6,
-      }}
+      style={{ marginInlineEnd: 0, borderRadius: 6 }}
     >
       {active ? "Active" : "Inactive"}
     </Tag>
   );
 }
 
-function getBranchDisplay(branch, fallbackId) {
-  if (!branch) {
-    return {
-      name: `Branch #${fallbackId}`,
-      code: String(fallbackId),
-    };
-  }
-
-  return {
-    name: branch.name || `Branch #${fallbackId}`,
-    code: branch.code || String(fallbackId),
-  };
-}
-
 export default function BranchPricingPage() {
-  const [branches, setBranches] = useState([]);
-  const [rows, setRows] = useState([]);
-  const [selected, setSelected] = useState(null);
+  // All coverage locations (branches)
+  const [locations, setLocations] = useState([]);
+  // Map of "pickupId:deliveryId" -> rate object
+  const [rateMap, setRateMap] = useState({});
+
+  const [selectedPickupId, setSelectedPickupId] = useState(null);
+  const [selectedRoute, setSelectedRoute] = useState(null);
   const [activePricingSettings, setActivePricingSettings] = useState(null);
 
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
-
   const [modalOpen, setModalOpen] = useState(false);
-
   const [editing, setEditing] = useState(null);
   const [modalDefaults, setModalDefaults] = useState(null);
-
-  const [filters, setFilters] = useState({
-    search: "",
-    pickup_coverage_location_id: undefined,
-    delivery_coverage_location_id: undefined,
-    is_active: undefined,
-  });
-
-  const [appliedFilters, setAppliedFilters] = useState({
-    search: "",
-    pickup_coverage_location_id: undefined,
-    delivery_coverage_location_id: undefined,
-    is_active: undefined,
-  });
-
-  const [pagination, setPagination] = useState({
-    current: 1,
-    pageSize: 100,
-    total: 0,
-  });
-
-  const branchOptions = useMemo(
-    () =>
-      branches.map((branch) => ({
-        value: Number(branch.id),
-        label: `${branch.name} (${branch.code})`,
-      })),
-    [branches],
-  );
+  const [search, setSearch] = useState("");
 
   /*
-   * LOAD BRANCHES
+   * LOAD MATRIX
    */
-  const loadBranches = useCallback(async () => {
+  const loadMatrix = useCallback(async () => {
     try {
-      const payload = await getRateBranches();
-      const collection = extractCollection(payload);
-      const normalizedBranches = collection.rows
-        .map(normalizeBranch)
-        .filter((branch) => Number.isFinite(Number(branch?.id)));
-      setBranches(normalizedBranches);
+      setLoading(true);
+      const payload = await getBranchRouteRateMatrix();
+      const data = payload?.data ?? payload;
+
+      const rawLocations = Array.isArray(data?.branches) ? data.branches : [];
+      const rawRates = data?.rates ?? {};
+
+      const normalized = rawLocations.map(normalizeBranch);
+      setLocations(normalized);
+
+      // Normalize each rate value in the map
+      const normalizedMap = {};
+      for (const [key, rate] of Object.entries(rawRates)) {
+        normalizedMap[key] = normalizeBranchRate(rate);
+      }
+      setRateMap(normalizedMap);
+
+      // Auto-select first location
+      if (normalized.length > 0 && !selectedPickupId) {
+        setSelectedPickupId(Number(normalized[0].id));
+      }
     } catch (error) {
-      message.error(apiErrorMessage(error, "Could not load branch options."));
+      message.error(apiErrorMessage(error, "Could not load branch pricing matrix."));
+    } finally {
+      setLoading(false);
     }
   }, []);
 
-  /*
-   * LOAD RATES
-   */
-  const loadRows = useCallback(
-    async (page = pagination.current, pageSize = pagination.pageSize) => {
-      try {
-        setLoading(true);
-
-        const payload = await getBranchRouteRates({
-          page,
-          per_page: pageSize,
-
-          search: appliedFilters.search?.trim() || undefined,
-
-          pickup_coverage_location_id: appliedFilters.pickup_coverage_location_id || undefined,
-
-          delivery_coverage_location_id: appliedFilters.delivery_coverage_location_id || undefined,
-
-          is_active:
-            appliedFilters.is_active === undefined
-              ? undefined
-              : appliedFilters.is_active,
-        });
-
-        const collection = extractCollection(payload);
-
-        const normalized = collection.rows.map((row) =>
-          normalizeBranchRate(row),
-        );
-
-        setRows(normalized);
-
-        setSelected((current) => {
-          if (!normalized.length) {
-            return null;
-          }
-
-          return (
-            normalized.find((row) => Number(row.id) === Number(current?.id)) ||
-            normalized[0]
-          );
-        });
-
-        setPagination({
-          current: collection.currentPage || page,
-
-          pageSize: collection.pageSize || pageSize,
-
-          total: collection.total ?? normalized.length,
-        });
-      } catch (error) {
-        message.error(apiErrorMessage(error, "Could not load branch pricing."));
-      } finally {
-        setLoading(false);
-      }
-    },
-    [appliedFilters, pagination.current, pagination.pageSize],
-  );
-
   useEffect(() => {
-    loadBranches();
+    loadMatrix();
     getPricingSettings()
       .then((result) => setActivePricingSettings(result?.active ?? null))
       .catch(() => {});
-  }, [loadBranches]);
-
-  useEffect(() => {
-    if (branches.length > 0) {
-      loadRows(1, pagination.pageSize);
-    }
-  }, [branches.length]);
+  }, [loadMatrix]);
 
   /*
-   * STATISTICS
+   * STATS
    */
   const stats = useMemo(() => {
-    const active = rows.filter((row) => row.is_active).length;
-    const inactive = rows.length - active;
-    const average = rows.length
-      ? rows.reduce((sum, row) => sum + Number(row.base_rate || 0), 0) / rows.length
-      : 0;
-    const branchCount = new Set(rows.map((row) => Number(row.pickup_coverage_location_id))).size;
-    return { active, inactive, average, branchCount };
-  }, [rows]);
+    const rates = Object.values(rateMap);
+    const total = rates.length;
+    const active = rates.filter((r) => r.is_active).length;
+    const n = locations.length;
+    // max possible routes = n * (n-1) including self-routes (local)
+    const possible = n * n;
+    const coverage = possible > 0 ? Math.round((total / possible) * 100) : 0;
+    return { total, active, coverage, locationCount: n };
+  }, [rateMap, locations]);
 
   /*
-   * GROUP BY PICKUP BRANCH
+   * ROUTES FOR SELECTED PICKUP BRANCH
+   * Returns all locations as destinations, with rate or null
    */
-  const groupedRows = useMemo(() => {
-    const groups = new Map();
-
-    rows.forEach((row) => {
-      const locationId = Number(row.pickup_coverage_location_id);
-
-      if (!groups.has(locationId)) {
-        groups.set(locationId, {
-          branchId: locationId,
-          branch: row.pickup_branch,
-          rows: [],
-        });
-      }
-
-      groups.get(locationId).rows.push(row);
+  const destinationRows = useMemo(() => {
+    if (!selectedPickupId) return [];
+    return locations.map((loc) => {
+      const key = `${selectedPickupId}:${loc.id}`;
+      const rate = rateMap[key] ?? null;
+      return { location: loc, rate };
     });
+  }, [selectedPickupId, locations, rateMap]);
 
-    return Array.from(groups.values())
-      .map((group) => {
-        const activeCount = group.rows.filter((row) => row.is_active).length;
+  const filteredDestinations = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return destinationRows;
+    return destinationRows.filter(
+      ({ location }) =>
+        location.name?.toLowerCase().includes(q) ||
+        location.code?.toLowerCase().includes(q),
+    );
+  }, [destinationRows, search]);
 
-        return {
-          ...group,
-          activeCount,
-          totalCount: group.rows.length,
-          branchInfo: getBranchDisplay(group.branch, group.branchId),
-        };
-      })
-      .sort((a, b) => a.branchInfo.name.localeCompare(b.branchInfo.name));
-  }, [rows]);
+  const selectedPickupLocation = useMemo(
+    () => locations.find((l) => Number(l.id) === selectedPickupId) ?? null,
+    [locations, selectedPickupId],
+  );
 
   /*
-   * CREATE
+   * MODAL HELPERS
    */
   const openCreate = (prefill = {}) => {
     setEditing(null);
@@ -290,9 +191,6 @@ export default function BranchPricingPage() {
     setModalOpen(true);
   };
 
-  /*
-   * EDIT
-   */
   const openEdit = (row) => {
     setEditing(row);
     setModalDefaults(null);
@@ -320,13 +218,11 @@ export default function BranchPricingPage() {
 
     try {
       setSaving(true);
-
       if (editing) {
         await updateBranchRouteRate(editing.id, payload);
         message.success("Branch rate updated.");
       } else {
         await createBranchRouteRate(payload);
-
         if (values.create_reverse_route && values.reverse_base_rate != null) {
           await createBranchRouteRate({
             pickup_coverage_location_id: payload.delivery_coverage_location_id,
@@ -337,12 +233,10 @@ export default function BranchPricingPage() {
             same_day_enabled: payload.same_day_enabled,
           });
         }
-
         message.success("Branch rate created.");
       }
-
       closeModal();
-      await loadRows();
+      await loadMatrix();
     } catch (error) {
       message.error(apiErrorMessage(error, "Could not save branch rate."));
     } finally {
@@ -351,38 +245,33 @@ export default function BranchPricingPage() {
   };
 
   /*
-   * STATUS
+   * TOGGLE STATUS
    */
-  const toggleStatus = async (row) => {
+  const toggleStatus = async (rate) => {
     try {
-      await updateBranchRouteRateStatus(row.id, !row.is_active);
-
-      message.success(`Branch rate ${row.is_active ? "disabled" : "enabled"}.`);
-
-      await loadRows(pagination.current, pagination.pageSize);
+      await updateBranchRouteRateStatus(rate.id, !rate.is_active);
+      message.success(`Rate ${rate.is_active ? "disabled" : "enabled"}.`);
+      await loadMatrix();
     } catch (error) {
       message.error(apiErrorMessage(error, "Could not update rate status."));
     }
   };
 
   /*
-   * REVERSE
+   * CREATE REVERSE
    */
-  const createReverse = async (row) => {
+  const createReverse = async (rate) => {
     try {
       await createBranchRouteRate({
-        pickup_coverage_location_id: Number(row.delivery_coverage_location_id),
-        delivery_coverage_location_id: Number(row.pickup_coverage_location_id),
-        base_rate: Number(row.base_rate),
-        is_active: row.is_active,
-        express_enabled: row.express_enabled !== false,
-        same_day_enabled: row.same_day_enabled !== false,
-        create_reverse_route: false,
+        pickup_coverage_location_id: Number(rate.delivery_coverage_location_id),
+        delivery_coverage_location_id: Number(rate.pickup_coverage_location_id),
+        base_rate: Number(rate.base_rate),
+        is_active: rate.is_active,
+        express_enabled: rate.express_enabled !== false,
+        same_day_enabled: rate.same_day_enabled !== false,
       });
-
-      message.success("Reverse branch rate created.");
-
-      await loadRows(pagination.current, pagination.pageSize);
+      message.success("Reverse rate created.");
+      await loadMatrix();
     } catch (error) {
       message.error(apiErrorMessage(error, "Could not create reverse rate."));
     }
@@ -391,223 +280,195 @@ export default function BranchPricingPage() {
   /*
    * DELETE
    */
-  const removeRate = async (row) => {
+  const removeRate = async (rate) => {
     try {
-      await deleteBranchRouteRate(row.id);
-
+      await deleteBranchRouteRate(rate.id);
       message.success("Branch rate deleted.");
-
-      await loadRows(pagination.current, pagination.pageSize);
+      if (selectedRoute?.id === rate.id) setSelectedRoute(null);
+      await loadMatrix();
     } catch (error) {
       message.error(apiErrorMessage(error, "Could not delete branch rate."));
     }
   };
 
   /*
-   * APPLY FILTERS
+   * DESTINATION ROW
    */
-  const applyFilters = () => {
-    setAppliedFilters({
-      ...filters,
-    });
-
-    setPagination((current) => ({
-      ...current,
-      current: 1,
-    }));
-  };
-
-  const resetFilters = () => {
-    const emptyFilters = {
-      search: "",
-      pickup_coverage_location_id: undefined,
-      delivery_coverage_location_id: undefined,
-      is_active: undefined,
-    };
-
-    setFilters(emptyFilters);
-    setAppliedFilters(emptyFilters);
-
-    setPagination((current) => ({
-      ...current,
-      current: 1,
-    }));
-  };
-
-  /*
-   * RATE ROW
-   */
-  const RateRow = ({ row }) => {
-    const pickup = getBranchDisplay(row.pickup_branch, row.pickup_coverage_location_id);
-    const delivery = getBranchDisplay(row.delivery_branch, row.delivery_coverage_location_id);
-    const isSelected = Number(selected?.id) === Number(row.id);
-    const isSameBranch = Number(row.pickup_coverage_location_id) === Number(row.delivery_coverage_location_id);
-    const base = Number(row.base_rate || 0);
+  const DestinationRow = ({ location, rate }) => {
+    const isSelf = Number(location.id) === selectedPickupId;
+    const hasRate = Boolean(rate);
+    const isSelected = selectedRoute && hasRate && Number(selectedRoute.id) === Number(rate?.id);
 
     return (
       <div
-        onClick={() => setSelected(row)}
+        onClick={() => hasRate && setSelectedRoute(rate)}
         style={{
           display: "grid",
-          gridTemplateColumns: "minmax(220px, 1.6fr) 1fr 1fr 1fr 110px 155px 175px",
-          gap: 14,
+          gridTemplateColumns: "minmax(160px, 1.4fr) 1fr 1fr 1fr 90px 160px",
+          gap: 12,
           alignItems: "center",
-          minHeight: 78,
-          padding: "12px 16px",
-          marginBottom: 8,
-          borderRadius: 10,
-          background: isSelected ? "#f0f7ff" : "#ffffff",
-          border: isSelected ? "1px solid #91caff" : "1px solid #edf0f3",
-          borderLeft: isSelected ? "3px solid #1677ff" : "1px solid #edf0f3",
-          cursor: "pointer",
-          transition: "all .18s ease",
-          boxShadow: isSelected ? "0 2px 8px rgba(22,119,255,.08)" : "none",
+          minHeight: 64,
+          padding: "10px 14px",
+          marginBottom: 6,
+          borderRadius: 8,
+          background: isSelected ? "#f0f7ff" : hasRate ? "#ffffff" : "#fffbe6",
+          border: isSelected
+            ? "1px solid #91caff"
+            : hasRate
+              ? "1px solid #edf0f3"
+              : "1px dashed #ffd666",
+          borderLeft: isSelected
+            ? "3px solid #1677ff"
+            : hasRate
+              ? "1px solid #edf0f3"
+              : "3px solid #faad14",
+          cursor: hasRate ? "pointer" : "default",
+          transition: "all .15s ease",
         }}
       >
-        {/* ROUTE */}
+        {/* DESTINATION */}
         <div style={{ minWidth: 0 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-            <Text strong>{pickup.name}</Text>
-            <span style={{ color: "#1677ff", fontSize: 18, lineHeight: 1 }}>→</span>
-            <Text strong>{delivery.name}</Text>
-            {isSameBranch && <Tag color="blue" style={{ margin: 0 }}>Local</Tag>}
+          <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+            <Text strong style={{ fontSize: 13 }}>{location.name}</Text>
+            {isSelf && <Tag color="blue" style={{ margin: 0, fontSize: 10 }}>Local</Tag>}
           </div>
-          <Text type="secondary" style={{ display: "block", marginTop: 5, fontSize: 11 }}>
-            {pickup.code} → {delivery.code}
-          </Text>
+          <Text type="secondary" style={{ fontSize: 11 }}>{location.code}</Text>
         </div>
 
-        {/* STANDARD */}
+        {/* BASE RATE */}
         <div>
-          <Text type="secondary" style={{ fontSize: 11 }}>Standard</Text>
-          <div style={{ marginTop: 2, fontWeight: 600 }}>{formatMoney(base)}</div>
+          {hasRate ? (
+            <>
+              <Text type="secondary" style={{ fontSize: 11 }}>Standard</Text>
+              <div style={{ fontWeight: 600, marginTop: 2 }}>{formatMoney(rate.base_rate)}</div>
+            </>
+          ) : (
+            <Text type="secondary" style={{ fontSize: 12 }}>—</Text>
+          )}
         </div>
 
         {/* EXPRESS */}
         <div>
-          <Text type="secondary" style={{ fontSize: 11 }}>Express</Text>
-          <div style={{ marginTop: 4 }}>
-            <Tag color={row.express_enabled === false ? "default" : "orange"} style={{ margin: 0 }}>
-              {row.express_enabled === false ? "Disabled" : "Enabled"}
-            </Tag>
-          </div>
+          {hasRate ? (
+            <>
+              <Text type="secondary" style={{ fontSize: 11 }}>Express</Text>
+              <div style={{ marginTop: 3 }}>
+                <Tag color={rate.express_enabled === false ? "default" : "orange"} style={{ margin: 0 }}>
+                  {rate.express_enabled === false ? "Off" : "On"}
+                </Tag>
+              </div>
+            </>
+          ) : (
+            <Text type="secondary" style={{ fontSize: 12 }}>—</Text>
+          )}
         </div>
 
         {/* SAME DAY */}
         <div>
-          <Text type="secondary" style={{ fontSize: 11 }}>Same Day</Text>
-          <div style={{ marginTop: 4 }}>
-            <Tag color={row.same_day_enabled === false ? "default" : "magenta"} style={{ margin: 0 }}>
-              {row.same_day_enabled === false ? "Disabled" : "Enabled"}
-            </Tag>
-          </div>
+          {hasRate ? (
+            <>
+              <Text type="secondary" style={{ fontSize: 11 }}>Same Day</Text>
+              <div style={{ marginTop: 3 }}>
+                <Tag color={rate.same_day_enabled === false ? "default" : "magenta"} style={{ margin: 0 }}>
+                  {rate.same_day_enabled === false ? "Off" : "On"}
+                </Tag>
+              </div>
+            </>
+          ) : (
+            <Text type="secondary" style={{ fontSize: 12 }}>—</Text>
+          )}
         </div>
 
         {/* STATUS */}
         <div>
-          <Text type="secondary" style={{ display: "block", fontSize: 11, marginBottom: 4 }}>Status</Text>
-          <StatusTag active={row.is_active} />
-        </div>
-
-        {/* UPDATED */}
-        <div>
-          <Text type="secondary" style={{ display: "block", fontSize: 11 }}>Updated</Text>
-          <Text style={{ fontSize: 12 }}>{formatDate(row.updated_at)}</Text>
+          {hasRate ? (
+            <StatusTag active={rate.is_active} />
+          ) : (
+            <Tag icon={<WarningOutlined />} color="warning" style={{ margin: 0 }}>
+              Missing
+            </Tag>
+          )}
         </div>
 
         {/* ACTIONS */}
-        <Space size={4} onClick={(event) => event.stopPropagation()}>
-          <Tooltip title="Edit">
-            <Button size="small" icon={<EditOutlined />} onClick={() => openEdit(row)} />
-          </Tooltip>
-
-          <Tooltip title={isSameBranch ? "Same branch does not need a reverse route" : "Create reverse rate"}>
-            <Button size="small" disabled={isSameBranch} icon={<SwapOutlined />} onClick={() => createReverse(row)} />
-          </Tooltip>
-
-          <Button size="small" onClick={() => toggleStatus(row)}>
-            {row.is_active ? "Disable" : "Enable"}
-          </Button>
-
-          <Popconfirm
-            title="Delete this branch rate?"
-            description="This action cannot be undone."
-            okText="Delete"
-            cancelText="Cancel"
-            okButtonProps={{ danger: true }}
-            onConfirm={() => removeRate(row)}
-          >
-            <Button danger size="small" icon={<DeleteOutlined />} />
-          </Popconfirm>
+        <Space size={4} onClick={(e) => e.stopPropagation()}>
+          {hasRate ? (
+            <>
+              <Tooltip title="Edit">
+                <Button size="small" icon={<EditOutlined />} onClick={() => openEdit(rate)} />
+              </Tooltip>
+              <Tooltip title={isSelf ? "Same branch — no reverse needed" : "Create reverse rate"}>
+                <Button
+                  size="small"
+                  disabled={isSelf}
+                  icon={<SwapOutlined />}
+                  onClick={() => createReverse(rate)}
+                />
+              </Tooltip>
+              <Button size="small" onClick={() => toggleStatus(rate)}>
+                {rate.is_active ? "Disable" : "Enable"}
+              </Button>
+              <Popconfirm
+                title="Delete this rate?"
+                description="This cannot be undone."
+                okText="Delete"
+                cancelText="Cancel"
+                okButtonProps={{ danger: true }}
+                onConfirm={() => removeRate(rate)}
+              >
+                <Button danger size="small" icon={<DeleteOutlined />} />
+              </Popconfirm>
+            </>
+          ) : (
+            <Button
+              type="primary"
+              size="small"
+              icon={<PlusOutlined />}
+              onClick={() =>
+                openCreate({
+                  pickup_coverage_location_id: selectedPickupId,
+                  delivery_coverage_location_id: Number(location.id),
+                })
+              }
+            >
+              Add Rate
+            </Button>
+          )}
         </Space>
       </div>
     );
   };
 
-  const selectedNodes = selected
-    ? [selected.pickup_branch, selected.delivery_branch].filter(Boolean)
+  const missingCount = destinationRows.filter((r) => !r.rate).length;
+  const selectedRouteNodes = selectedRoute
+    ? [
+        locations.find((l) => Number(l.id) === Number(selectedRoute.pickup_coverage_location_id)),
+        locations.find((l) => Number(l.id) === Number(selectedRoute.delivery_coverage_location_id)),
+      ].filter(Boolean)
     : [];
 
-  const selectedPickup = selected
-    ? getBranchDisplay(selected.pickup_branch, selected.pickup_coverage_location_id)
-    : null;
-
-  const selectedDelivery = selected
-    ? getBranchDisplay(selected.delivery_branch, selected.delivery_coverage_location_id)
-    : null;
-
   return (
-    <div
-      style={{
-        width: "100%",
-        padding: "20px 22px 32px",
-        background: "#f5f7fa",
-        minHeight: "100vh",
-      }}
-    >
+    <div style={{ width: "100%", padding: "20px 22px 32px", background: "#f5f7fa", minHeight: "100vh" }}>
       {/* HEADER */}
       <Card
         bordered={false}
-        style={{
-          borderRadius: 12,
-          marginBottom: 16,
-        }}
-        styles={{
-          body: {
-            padding: "18px 20px",
-          },
-        }}
+        style={{ borderRadius: 12, marginBottom: 16 }}
+        styles={{ body: { padding: "18px 20px" } }}
       >
         <Row justify="space-between" align="middle" gutter={[16, 16]}>
           <Col>
-            <Title level={3} style={{ margin: 0 }}>
-              Branch Pricing
-            </Title>
+            <Title level={3} style={{ margin: 0 }}>Branch Pricing</Title>
             <Text type="secondary">
-              Set the base rate for each branch-to-branch route. These base
-              rates are used by the pricing engine together with global Pricing
-              Settings to calculate the final delivery charge.
+              Select a branch to view and manage its delivery rates to all other branches.
             </Text>
           </Col>
-
           <Col>
             <Space>
-              <Button
-                icon={<ReloadOutlined />}
-                loading={loading}
-                onClick={() =>
-                  loadRows(pagination.current, pagination.pageSize)
-                }
-              >
+              <Button icon={<ReloadOutlined />} loading={loading} onClick={loadMatrix}>
                 Refresh
               </Button>
-
-              <Button
-                type="primary"
-                icon={<PlusOutlined />}
-                onClick={() => openCreate()}
-              >
-                Add Branch Rate
+              <Button type="primary" icon={<PlusOutlined />} onClick={() => openCreate()}>
+                Add Rate
               </Button>
             </Space>
           </Col>
@@ -615,611 +476,280 @@ export default function BranchPricingPage() {
       </Card>
 
       {/* STATS */}
-      <Row
-        gutter={[12, 12]}
-        style={{
-          marginBottom: 16,
-        }}
-      >
+      <Row gutter={[12, 12]} style={{ marginBottom: 16 }}>
         <Col xs={24} sm={12} lg={6}>
-          <Card
-            bordered={false}
-            style={{
-              borderRadius: 10,
-            }}
-          >
-            <Statistic
-              title="Total Routes"
-              value={pagination.total || rows.length}
-              prefix={<EnvironmentOutlined />}
-            />
+          <Card bordered={false} style={{ borderRadius: 10 }}>
+            <Statistic title="Branches" value={stats.locationCount} prefix={<EnvironmentOutlined />} />
           </Card>
         </Col>
-
         <Col xs={24} sm={12} lg={6}>
-          <Card
-            bordered={false}
-            style={{
-              borderRadius: 10,
-            }}
-          >
+          <Card bordered={false} style={{ borderRadius: 10 }}>
+            <Statistic title="Total Routes" value={stats.total} />
+          </Card>
+        </Col>
+        <Col xs={24} sm={12} lg={6}>
+          <Card bordered={false} style={{ borderRadius: 10 }}>
             <Statistic
               title="Active Routes"
               value={stats.active}
-              suffix={`/ ${rows.length}`}
-              valueStyle={{
-                color: "#52c41a",
-              }}
+              suffix={`/ ${stats.total}`}
+              valueStyle={{ color: "#52c41a" }}
             />
           </Card>
         </Col>
-
         <Col xs={24} sm={12} lg={6}>
-          <Card
-            bordered={false}
-            style={{
-              borderRadius: 10,
-            }}
-          >
-            <Statistic title="Branches" value={stats.branchCount} />
-          </Card>
-        </Col>
-
-        <Col xs={24} sm={12} lg={6}>
-          <Card
-            bordered={false}
-            style={{
-              borderRadius: 10,
-            }}
-          >
+          <Card bordered={false} style={{ borderRadius: 10 }}>
             <Statistic
-              title="Average Base Rate"
-              value={stats.average}
-              precision={2}
-              prefix="NPR "
+              title="Matrix Coverage"
+              value={stats.coverage}
+              suffix="%"
+              valueStyle={{ color: stats.coverage === 100 ? "#52c41a" : "#faad14" }}
             />
           </Card>
         </Col>
       </Row>
 
-      {/* FILTERS */}
-      <Card
-        bordered={false}
-        style={{
-          borderRadius: 10,
-          marginBottom: 16,
-        }}
-      >
-        <Space
-          direction="vertical"
-          size={12}
-          style={{
-            width: "100%",
-          }}
-        >
-          <Space>
-            <FilterOutlined />
-
-            <Text strong>Route Filters</Text>
-
-            <Text
-              type="secondary"
-              style={{
-                fontSize: 12,
-              }}
-            >
-              Filter routes before reviewing them.
-            </Text>
-          </Space>
-
-          <Row gutter={[10, 10]}>
-            <Col xs={24} lg={7}>
-              <Input
-                allowClear
-                value={filters.search}
-                placeholder="Search branch or route..."
-                onChange={(event) =>
-                  setFilters((current) => ({
-                    ...current,
-                    search: event.target.value,
-                  }))
-                }
-                onPressEnter={applyFilters}
-              />
-            </Col>
-
-            <Col xs={24} sm={12} lg={5}>
-              <Select
-                allowClear
-                showSearch
-                optionFilterProp="label"
-                style={{
-                  width: "100%",
-                }}
-                placeholder="Pickup branch"
-                options={branchOptions}
-                value={filters.pickup_coverage_location_id}
-                onChange={(value) =>
-                  setFilters((current) => ({
-                    ...current,
-                    pickup_coverage_location_id: value,
-                  }))
-                }
-              />
-            </Col>
-
-            <Col xs={24} sm={12} lg={5}>
-              <Select
-                allowClear
-                showSearch
-                optionFilterProp="label"
-                style={{
-                  width: "100%",
-                }}
-                placeholder="Destination"
-                options={branchOptions}
-                value={filters.delivery_coverage_location_id}
-                onChange={(value) =>
-                  setFilters((current) => ({
-                    ...current,
-                    delivery_coverage_location_id: value,
-                  }))
-                }
-              />
-            </Col>
-
-            <Col xs={24} sm={12} lg={3}>
-              <Select
-                allowClear
-                style={{
-                  width: "100%",
-                }}
-                placeholder="Status"
-                value={filters.is_active}
-                onChange={(value) =>
-                  setFilters((current) => ({
-                    ...current,
-                    is_active: value,
-                  }))
-                }
-                options={[
-                  {
-                    label: "Active",
-                    value: 1,
-                  },
-                  {
-                    label: "Inactive",
-                    value: 0,
-                  },
-                ]}
-              />
-            </Col>
-
-            <Col xs={24} sm={12} lg={4}>
-              <Space
-                style={{
-                  width: "100%",
-                }}
-              >
-                <Button
-                  type="primary"
-                  icon={<FilterOutlined />}
-                  onClick={applyFilters}
-                >
-                  Apply
-                </Button>
-
-                <Button onClick={resetFilters}>Reset</Button>
-              </Space>
-            </Col>
-          </Row>
-        </Space>
-      </Card>
-
       {/* MAIN WORKSPACE */}
       <Row gutter={[16, 16]} align="top">
-        {/* LEFT */}
-        <Col xs={24} xl={17}>
+        {/* LEFT — BRANCH SELECTOR */}
+        <Col xs={24} xl={6}>
           <Card
             bordered={false}
-            style={{
-              borderRadius: 12,
-              overflow: "hidden",
-            }}
-            styles={{
-              body: {
-                padding: 0,
-              },
-            }}
+            style={{ borderRadius: 12 }}
+            styles={{ body: { padding: 0 } }}
             title={
               <Space>
                 <EnvironmentOutlined />
-
-                <Text strong>Branch Rates</Text>
-
-                <Tag color="blue">{groupedRows.length} branches</Tag>
+                <Text strong>Branches</Text>
+                <Tag color="blue">{locations.length}</Tag>
               </Space>
-            }
-            extra={
-              <Text
-                type="secondary"
-                style={{
-                  fontSize: 12,
-                }}
-              >
-                Click a route to view it on map
-              </Text>
             }
           >
             {loading ? (
-              <div
-                style={{
-                  padding: 60,
-                  textAlign: "center",
-                }}
-              >
-                Loading branch rates...
-              </div>
-            ) : !groupedRows.length ? (
-              <div
-                style={{
-                  padding: 60,
-                }}
-              >
-                <Empty description="No branch rates found">
-                  <Button
-                    type="primary"
-                    icon={<PlusOutlined />}
-                    onClick={() => openCreate()}
-                  >
-                    Create First Rate
-                  </Button>
-                </Empty>
+              <div style={{ padding: 40, textAlign: "center" }}>Loading...</div>
+            ) : !locations.length ? (
+              <div style={{ padding: 40 }}>
+                <Empty description="No branches found" />
               </div>
             ) : (
-              <Collapse
-                bordered={false}
-                expandIconPosition="start"
-                defaultActiveKey={[String(groupedRows[0]?.branchId)]}
-                items={groupedRows.map((group) => ({
-                  key: String(group.branchId),
+              <div style={{ padding: "8px 0" }}>
+                {locations.map((loc) => {
+                  const locId = Number(loc.id);
+                  const isActive = locId === selectedPickupId;
+                  const ratesFromThis = Object.keys(rateMap).filter(
+                    (k) => k.startsWith(`${locId}:`),
+                  ).length;
+                  const missing = locations.length - ratesFromThis;
 
-                  label: (
+                  return (
                     <div
+                      key={loc.id}
+                      onClick={() => {
+                        setSelectedPickupId(locId);
+                        setSelectedRoute(null);
+                        setSearch("");
+                      }}
                       style={{
                         display: "flex",
                         alignItems: "center",
-                        gap: 8,
-                        flexWrap: "wrap",
+                        justifyContent: "space-between",
+                        padding: "10px 16px",
+                        cursor: "pointer",
+                        background: isActive ? "#e6f4ff" : "transparent",
+                        borderLeft: isActive ? "3px solid #1677ff" : "3px solid transparent",
+                        transition: "all .15s",
                       }}
                     >
-                      <Text strong>{group.branchInfo.name}</Text>
-
-                      <Tag color="blue">{group.branchInfo.code}</Tag>
-
-                      <Tag>
-                        {group.totalCount}{" "}
-                        {group.totalCount === 1 ? "rate" : "rates"}
-                      </Tag>
-
-                      <Tag color="success">{group.activeCount} active</Tag>
+                      <div>
+                        <Text strong style={{ fontSize: 13 }}>{loc.name}</Text>
+                        <Text type="secondary" style={{ display: "block", fontSize: 11 }}>
+                          {loc.code}
+                        </Text>
+                      </div>
+                      <div style={{ textAlign: "right" }}>
+                        <div style={{ fontSize: 11, color: "#52c41a" }}>{ratesFromThis} routes</div>
+                        {missing > 0 && (
+                          <Badge
+                            count={missing}
+                            size="small"
+                            color="#faad14"
+                            title={`${missing} missing`}
+                          />
+                        )}
+                      </div>
                     </div>
-                  ),
-
-                  children: (
-                    <div
-                      style={{
-                        padding: "4px 12px 12px",
-                      }}
-                    >
-                      <Text
-                        type="secondary"
-                        style={{
-                          display: "block",
-                          margin: "0 0 12px 4px",
-                          fontSize: 12,
-                        }}
-                      >
-                        Delivery rates originating from{" "}
-                        <Text strong>{group.branchInfo.name}</Text>
-                      </Text>
-
-                      {group.rows.map((row) => (
-                        <RateRow key={row.id} row={row} />
-                      ))}
-                    </div>
-                  ),
-                }))}
-              />
-            )}
-
-            {!loading && rows.length > 0 && (
-              <div
-                style={{
-                  padding: "12px 18px",
-                  borderTop: "1px solid #f0f0f0",
-                  display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "center",
-                }}
-              >
-                <Text
-                  type="secondary"
-                  style={{
-                    fontSize: 12,
-                  }}
-                >
-                  Showing {rows.length} loaded routes
-                </Text>
-
-                <Space>
-                  <Button
-                    size="small"
-                    disabled={pagination.current <= 1}
-                    onClick={() =>
-                      loadRows(pagination.current - 1, pagination.pageSize)
-                    }
-                  >
-                    Previous
-                  </Button>
-
-                  <Tag>Page {pagination.current}</Tag>
-
-                  <Button
-                    size="small"
-                    disabled={
-                      pagination.current * pagination.pageSize >=
-                      pagination.total
-                    }
-                    onClick={() =>
-                      loadRows(pagination.current + 1, pagination.pageSize)
-                    }
-                  >
-                    Next
-                  </Button>
-                </Space>
+                  );
+                })}
               </div>
             )}
           </Card>
         </Col>
 
-        {/* RIGHT STICKY ROUTE PANEL */}
-        <Col
-          xs={24}
-          xl={7}
-          style={{
-            alignSelf: "flex-start",
-          }}
-        >
-          <div
-            style={{
-              position: "sticky",
-              top: 16,
-              zIndex: 10,
-            }}
+        {/* MIDDLE — DESTINATION RATES */}
+        <Col xs={24} xl={11}>
+          <Card
+            bordered={false}
+            style={{ borderRadius: 12 }}
+            styles={{ body: { padding: 0 } }}
+            title={
+              selectedPickupLocation ? (
+                <Space wrap>
+                  <Text strong>
+                    From: {selectedPickupLocation.name}
+                  </Text>
+                  <Tag color="blue">{selectedPickupLocation.code}</Tag>
+                  {missingCount > 0 && (
+                    <Tag color="warning" icon={<WarningOutlined />}>
+                      {missingCount} missing
+                    </Tag>
+                  )}
+                </Space>
+              ) : (
+                <Text type="secondary">Select a branch</Text>
+              )
+            }
+            extra={
+              selectedPickupLocation && (
+                <Button
+                  type="primary"
+                  size="small"
+                  icon={<PlusOutlined />}
+                  onClick={() => openCreate({ pickup_coverage_location_id: selectedPickupId })}
+                >
+                  Add Rate
+                </Button>
+              )
+            }
           >
+            {!selectedPickupId ? (
+              <div style={{ padding: 60 }}>
+                <Empty description="Select a branch on the left to manage its rates" />
+              </div>
+            ) : (
+              <>
+                <div style={{ padding: "10px 14px 6px" }}>
+                  <Input
+                    allowClear
+                    placeholder="Search destination..."
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    size="small"
+                  />
+                </div>
+                <div style={{ padding: "4px 14px 14px" }}>
+                  {filteredDestinations.length === 0 ? (
+                    <Empty description="No destinations match" style={{ padding: 40 }} />
+                  ) : (
+                    filteredDestinations.map(({ location, rate }) => (
+                      <DestinationRow key={location.id} location={location} rate={rate} />
+                    ))
+                  )}
+                </div>
+              </>
+            )}
+          </Card>
+        </Col>
+
+        {/* RIGHT — SELECTED ROUTE DETAIL */}
+        <Col xs={24} xl={7} style={{ alignSelf: "flex-start" }}>
+          <div style={{ position: "sticky", top: 16, zIndex: 10 }}>
             <Card
               bordered={false}
-              style={{
-                borderRadius: 12,
-                overflow: "hidden",
-              }}
-              styles={{
-                body: {
-                  padding: 0,
-                },
-              }}
+              style={{ borderRadius: 12, overflow: "hidden" }}
+              styles={{ body: { padding: 0 } }}
               title={
                 <Space>
-                  <EnvironmentOutlined
-                    style={{
-                      color: "#1677ff",
-                    }}
-                  />
-
-                  <Text strong>Selected Route</Text>
+                  <EnvironmentOutlined style={{ color: "#1677ff" }} />
+                  <Text strong>Route Detail</Text>
                 </Space>
               }
             >
-              {selected ? (
+              {selectedRoute ? (
                 <>
-                  {/* ROUTE HEADER */}
                   <div
                     style={{
-                      padding: "14px 16px",
+                      padding: "12px 16px",
                       background: "#f7fbff",
                       borderBottom: "1px solid #e6f4ff",
                     }}
                   >
-                    <Text
-                      type="secondary"
-                      style={{
-                        fontSize: 10,
-                        textTransform: "uppercase",
-                        letterSpacing: ".08em",
-                      }}
-                    >
+                    <Text type="secondary" style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: ".08em" }}>
                       Delivery Route
                     </Text>
-
-                    <div
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: 8,
-                        flexWrap: "wrap",
-                        marginTop: 6,
-                      }}
-                    >
-                      <Text strong>{selectedPickup?.name}</Text>
-
-                      <span
-                        style={{
-                          color: "#1677ff",
-                          fontSize: 18,
-                        }}
-                      >
-                        →
-                      </span>
-
-                      <Text strong>{selectedDelivery?.name}</Text>
-
-                      {Number(selected.pickup_coverage_location_id) ===
-                        Number(selected.delivery_coverage_location_id) && (
-                        <Tag color="blue">Local</Tag>
-                      )}
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginTop: 6 }}>
+                      <Text strong>
+                        {locations.find((l) => Number(l.id) === Number(selectedRoute.pickup_coverage_location_id))?.name}
+                      </Text>
+                      <span style={{ color: "#1677ff", fontSize: 18 }}>→</span>
+                      <Text strong>
+                        {locations.find((l) => Number(l.id) === Number(selectedRoute.delivery_coverage_location_id))?.name}
+                      </Text>
                     </div>
-
-                    <Text
-                      type="secondary"
-                      style={{
-                        display: "block",
-                        marginTop: 4,
-                        fontSize: 11,
-                      }}
-                    >
-                      {selectedPickup?.code} → {selectedDelivery?.code}
-                    </Text>
                   </div>
 
-                  {/* MAP */}
-                  <div
-                    style={{
-                      padding: 12,
-                    }}
-                  >
-                    <RouteMapS
-                      nodes={selectedNodes}
-                      height={360}
-                      selectedLabel="Actual road route"
-                    />
+                  <div style={{ padding: 12 }}>
+                    <RouteMapS nodes={selectedRouteNodes} height={280} selectedLabel="Route" />
                   </div>
 
-                  {/* RATE SUMMARY */}
-                  <div
-                    style={{
-                      padding: "0 12px 12px",
-                    }}
-                  >
+                  <div style={{ padding: "0 12px 12px" }}>
                     <Row gutter={8}>
                       <Col span={12}>
-                        <div
-                          style={{
-                            padding: 12,
-                            border: "1px solid #f0f0f0",
-                            borderRadius: 8,
-                          }}
-                        >
-                          <Text
-                            type="secondary"
-                            style={{
-                              fontSize: 10,
-                              textTransform: "uppercase",
-                            }}
-                          >
-                            Base Rate
-                          </Text>
-
-                          <div
-                            style={{
-                              marginTop: 3,
-                              fontSize: 17,
-                              fontWeight: 700,
-                            }}
-                          >
-                            {formatMoney(selected.base_rate)}
+                        <div style={{ padding: 10, border: "1px solid #f0f0f0", borderRadius: 8 }}>
+                          <Text type="secondary" style={{ fontSize: 10, textTransform: "uppercase" }}>Base Rate</Text>
+                          <div style={{ marginTop: 3, fontSize: 16, fontWeight: 700 }}>
+                            {formatMoney(selectedRoute.base_rate)}
                           </div>
                         </div>
                       </Col>
-
                       <Col span={12}>
-                        <div
-                          style={{
-                            padding: 12,
-                            border: "1px solid #f0f0f0",
-                            borderRadius: 8,
-                          }}
-                        >
-                          <Text
-                            type="secondary"
-                            style={{
-                              fontSize: 10,
-                              textTransform: "uppercase",
-                            }}
-                          >
-                            Status
-                          </Text>
-
-                          <div
-                            style={{
-                              marginTop: 7,
-                            }}
-                          >
-                            <StatusTag active={selected.is_active} />
+                        <div style={{ padding: 10, border: "1px solid #f0f0f0", borderRadius: 8 }}>
+                          <Text type="secondary" style={{ fontSize: 10, textTransform: "uppercase" }}>Status</Text>
+                          <div style={{ marginTop: 6 }}>
+                            <StatusTag active={selectedRoute.is_active} />
                           </div>
                         </div>
                       </Col>
                     </Row>
 
-                    <Descriptions
-                      column={1}
-                      size="small"
-                      style={{
-                        marginTop: 10,
-                      }}
-                    >
-                      <Descriptions.Item label="Pickup">
-                        {selectedPickup?.name}
+                    <Descriptions column={1} size="small" style={{ marginTop: 10 }}>
+                      <Descriptions.Item label="Express">
+                        <Tag color={selectedRoute.express_enabled === false ? "default" : "orange"}>
+                          {selectedRoute.express_enabled === false ? "Disabled" : "Enabled"}
+                        </Tag>
                       </Descriptions.Item>
-
-                      <Descriptions.Item label="Destination">
-                        {selectedDelivery?.name}
+                      <Descriptions.Item label="Same Day">
+                        <Tag color={selectedRoute.same_day_enabled === false ? "default" : "magenta"}>
+                          {selectedRoute.same_day_enabled === false ? "Disabled" : "Enabled"}
+                        </Tag>
                       </Descriptions.Item>
-
-                      <Descriptions.Item label="Last Updated">
-                        {formatDate(selected.updated_at)}
+                      <Descriptions.Item label="Updated">
+                        {formatDate(selectedRoute.updated_at)}
                       </Descriptions.Item>
                     </Descriptions>
 
-                    <Space
-                      style={{
-                        width: "100%",
-                        marginTop: 8,
-                      }}
-                    >
-                      <Button
-                        block
-                        icon={<EditOutlined />}
-                        onClick={() => openEdit(selected)}
-                      >
+                    <Space style={{ width: "100%", marginTop: 8 }}>
+                      <Button icon={<EditOutlined />} onClick={() => openEdit(selectedRoute)}>
                         Edit
                       </Button>
-
                       <Button
-                        block
                         icon={<SwapOutlined />}
                         disabled={
-                          Number(selected.pickup_coverage_location_id) ===
-                          Number(selected.delivery_coverage_location_id)
+                          Number(selectedRoute.pickup_coverage_location_id) ===
+                          Number(selectedRoute.delivery_coverage_location_id)
                         }
-                        onClick={() => createReverse(selected)}
+                        onClick={() => createReverse(selectedRoute)}
                       >
                         Reverse
                       </Button>
-
-                      <Button block onClick={() => toggleStatus(selected)}>
-                        {selected.is_active ? "Disable" : "Enable"}
+                      <Button onClick={() => toggleStatus(selectedRoute)}>
+                        {selectedRoute.is_active ? "Disable" : "Enable"}
                       </Button>
                     </Space>
                   </div>
                 </>
               ) : (
-                <div
-                  style={{
-                    padding: 60,
-                  }}
-                >
-                  <Empty description="Select a route to view its map" />
+                <div style={{ padding: 60 }}>
+                  <Empty description="Click a route to view details" />
                 </div>
               )}
             </Card>
@@ -1230,7 +760,7 @@ export default function BranchPricingPage() {
       <BranchRouteRateModal
         open={modalOpen}
         record={editing}
-        branches={branches}
+        branches={locations}
         saving={saving}
         defaults={modalDefaults}
         pricingSettings={activePricingSettings}
