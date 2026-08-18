@@ -16,6 +16,15 @@ function extractLocation(place) {
 
   return {
     address: place?.display_name || "",
+    province:
+      address.state ||
+      address.province ||
+      "",
+    district:
+      address.county ||
+      address.district ||
+      address.state_district ||
+      "",
     city:
       address.city ||
       address.town ||

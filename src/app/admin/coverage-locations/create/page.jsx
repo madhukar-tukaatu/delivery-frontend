@@ -31,9 +31,6 @@ export default function CreateCoverageLocationPage() {
     () => ({
       type,
       country: "Nepal",
-      province: "Bagmati",
-      district: "Kathmandu",
-      city: "Kathmandu",
       coverage_radius_km: type === "sub_branch_zone" ? 3 : 5,
       status: "active",
       is_hq_managed: true,
