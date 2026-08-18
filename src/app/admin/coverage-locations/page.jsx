@@ -557,12 +557,11 @@ export default function CoverageLocationsPage() {
               </Row>
               <CoverageRadiusMapFull
                 value={{}}
-                radiusKm={5}
                 existingLocations={rows}
                 existingBranches={[]}
                 showExisting
                 showBranches={false}
-                showCoverageRadius={false}
+                showCoverageRadius
                 height={650}
                 clickable={false}
                 showSearch={false}
