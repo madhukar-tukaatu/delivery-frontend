@@ -434,6 +434,7 @@ export default function BranchPricingPage() {
     const isSelected = hasRate && selectedRoute && Number(selectedRoute.id) === Number(rate?.id);
     const isEditing = hasRate && inlineEdit === rate?.id;
     const isAdding = !hasRate && inlineAdd === locId;
+    const hasReverseRate = hasRate && Boolean(rateMap[`${locId}:${selectedPickupId}`]);
 
     return (
       <div
@@ -536,8 +537,8 @@ export default function BranchPricingPage() {
                   <Tooltip title="Edit inline">
                     <Button size="small" icon={<EditOutlined />} onClick={() => startEdit(rate)} />
                   </Tooltip>
-                  <Tooltip title={isSelf ? "No reverse needed for same branch" : "Create reverse rate"}>
-                    <Button size="small" disabled={isSelf} icon={<SwapOutlined />} onClick={() => createReverse(rate)} />
+                  <Tooltip title={isSelf ? "Local route" : hasReverseRate ? "Reverse rate already exists" : "Create reverse rate"}>
+                    <Button size="small" disabled={isSelf || hasReverseRate} icon={<SwapOutlined />} onClick={() => createReverse(rate)} />
                   </Tooltip>
                   <Button size="small" onClick={() => toggleStatus(rate)}>
                     {rate.is_active ? "Disable" : "Enable"}
@@ -839,7 +840,10 @@ export default function BranchPricingPage() {
                     <Space style={{ marginTop: 10 }}>
                       <Button
                         icon={<SwapOutlined />}
-                        disabled={Number(selectedRoute.pickup_coverage_location_id) === Number(selectedRoute.delivery_coverage_location_id)}
+                        disabled={
+                          Number(selectedRoute.pickup_coverage_location_id) === Number(selectedRoute.delivery_coverage_location_id) ||
+                          Boolean(rateMap[`${selectedRoute.delivery_coverage_location_id}:${selectedRoute.pickup_coverage_location_id}`])
+                        }
                         onClick={() => createReverse(selectedRoute)}
                       >
                         Reverse
