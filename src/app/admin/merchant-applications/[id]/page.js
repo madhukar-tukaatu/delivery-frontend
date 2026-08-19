@@ -2210,6 +2210,7 @@ export default function AdminMerchantApplicationDetailPage() {
             <MerchantApplicationMap
               merchant={merchant}
               branches={branches}
+              
               showMerchantPin
               showBranchPins
             />
