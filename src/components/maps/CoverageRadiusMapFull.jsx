@@ -278,6 +278,39 @@ async function searchAddress(query) {
 
 /*
 |--------------------------------------------------------------------------
+| Custom SVG icons
+|--------------------------------------------------------------------------
+*/
+
+function makeIcon(L, { bg, border, label, size = 34 }) {
+  const half = size / 2;
+  const tip  = Math.round(size * 0.32);
+  const svg = [
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size + tip}">`,
+    `<defs><filter id="ds"><feDropShadow dx="0" dy="2" stdDeviation="2" flood-color="rgba(0,0,0,.3)"/></filter></defs>`,
+    `<circle cx="${half}" cy="${half}" r="${half - 2}" fill="${bg}" stroke="${border}" stroke-width="2.5" filter="url(#ds)"/>`,
+    `<polygon points="${half - 5},${size - 3} ${half + 5},${size - 3} ${half},${size + tip - 1}" fill="${border}"/>`,
+    `<text x="${half}" y="${half + 5}" text-anchor="middle" font-size="${Math.round(size * 0.38)}" font-family="Arial,sans-serif" font-weight="800" fill="#fff">${label}</text>`,
+    `</svg>`,
+  ].join("");
+  return L.divIcon({
+    html: svg,
+    className: "",
+    iconSize:    [size, size + tip],
+    iconAnchor:  [half, size + tip],
+    popupAnchor: [0, -(size + tip)],
+  });
+}
+
+const ICON_DEFS = {
+  main:     { bg: "#1677ff", border: "#0958d9", label: "M" },
+  sub:      { bg: "#52c41a", border: "#389e0d", label: "S" },
+  branch:   { bg: "#722ed1", border: "#531dab", label: "B" },
+  selected: { bg: "#fa8c16", border: "#d46b08", label: "★" },
+};
+
+/*
+|--------------------------------------------------------------------------
 | Map event handlers
 |--------------------------------------------------------------------------
 */
@@ -497,6 +530,13 @@ export default function CoverageRadiusMapFull({
           return;
         }
 
+        const icons = {
+          main:     makeIcon(L, ICON_DEFS.main),
+          sub:      makeIcon(L, ICON_DEFS.sub),
+          branch:   makeIcon(L, ICON_DEFS.branch),
+          selected: makeIcon(L, ICON_DEFS.selected),
+        };
+
         setMapTools({
           MapContainer: reactLeaflet.MapContainer,
           Marker: reactLeaflet.Marker,
@@ -506,6 +546,7 @@ export default function CoverageRadiusMapFull({
           Polyline: reactLeaflet.Polyline,
           useMap: reactLeaflet.useMap,
           useMapEvents: reactLeaflet.useMapEvents,
+          icons,
         });
       } catch (error) {
         console.error("Map loading error:", error);
@@ -660,6 +701,7 @@ export default function CoverageRadiusMapFull({
     Polyline,
     useMap,
     useMapEvents,
+    icons,
   } = mapTools;
 
   return (
@@ -786,6 +828,7 @@ export default function CoverageRadiusMapFull({
                       itemLatitude,
                       itemLongitude,
                     ]}
+                    icon={isMain ? icons.main : icons.sub}
                   >
                     <Popup>
                       <strong>
@@ -872,6 +915,7 @@ export default function CoverageRadiusMapFull({
                       officeCoordinates.latitude,
                       officeCoordinates.longitude,
                     ]}
+                    icon={icons.branch}
                   >
                     <Popup>
                       <strong>
@@ -946,6 +990,7 @@ export default function CoverageRadiusMapFull({
               <Fragment>
                 <Marker
                   position={[latitude, longitude]}
+                  icon={icons.selected}
                 >
                   <Popup>
                     Selected Location
@@ -975,6 +1020,30 @@ export default function CoverageRadiusMapFull({
             )}
         </MapContainer>
       </div>
+
+      {/* Legend */}
+      <Space wrap size={16} style={{ padding: "4px 0", fontSize: 12, color: "#475569" }}>
+        <Space size={6}>
+          <span style={{ display:"inline-block", width:13, height:13, borderRadius:"50%", background:"#1677ff", border:"2px solid #0958d9", verticalAlign:"middle" }} />
+          Main Branch Zone
+        </Space>
+        <Space size={6}>
+          <span style={{ display:"inline-block", width:13, height:13, borderRadius:"50%", background:"#52c41a", border:"2px solid #389e0d", verticalAlign:"middle" }} />
+          Sub-Branch Zone
+        </Space>
+        {validExistingBranches.length > 0 && (
+          <Space size={6}>
+            <span style={{ display:"inline-block", width:13, height:13, borderRadius:"50%", background:"#722ed1", border:"2px solid #531dab", verticalAlign:"middle" }} />
+            Branch Office
+          </Space>
+        )}
+        {latitude !== null && (
+          <Space size={6}>
+            <span style={{ display:"inline-block", width:13, height:13, borderRadius:"50%", background:"#fa8c16", border:"2px solid #d46b08", verticalAlign:"middle" }} />
+            Selected Pin
+          </Space>
+        )}
+      </Space>
 
       <Space wrap>
         {isNepalOverview ? (

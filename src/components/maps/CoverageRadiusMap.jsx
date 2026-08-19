@@ -89,6 +89,39 @@ async function searchAddress(query) {
   };
 }
 
+/*
+|--------------------------------------------------------------------------
+| Custom SVG icons
+|--------------------------------------------------------------------------
+*/
+
+function makeIcon(L, { bg, border, label, size = 34 }) {
+  const half = size / 2;
+  const tip  = Math.round(size * 0.32);
+  const svg = [
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size + tip}">`,
+    `<defs><filter id="ds"><feDropShadow dx="0" dy="2" stdDeviation="2" flood-color="rgba(0,0,0,.3)"/></filter></defs>`,
+    `<circle cx="${half}" cy="${half}" r="${half - 2}" fill="${bg}" stroke="${border}" stroke-width="2.5" filter="url(#ds)"/>`,
+    `<polygon points="${half - 5},${size - 3} ${half + 5},${size - 3} ${half},${size + tip - 1}" fill="${border}"/>`,
+    `<text x="${half}" y="${half + 5}" text-anchor="middle" font-size="${Math.round(size * 0.38)}" font-family="Arial,sans-serif" font-weight="800" fill="#fff">${label}</text>`,
+    `</svg>`,
+  ].join("");
+  return L.divIcon({
+    html: svg,
+    className: "",
+    iconSize:    [size, size + tip],
+    iconAnchor:  [half, size + tip],
+    popupAnchor: [0, -(size + tip)],
+  });
+}
+
+const ICON_DEFS = {
+  main:     { bg: "#1677ff", border: "#0958d9", label: "M" },
+  sub:      { bg: "#52c41a", border: "#389e0d", label: "S" },
+  branch:   { bg: "#722ed1", border: "#531dab", label: "B" },
+  selected: { bg: "#fa8c16", border: "#d46b08", label: "★" },
+};
+
 function MapClickHandler({ useMapEvents, onPick }) {
   useMapEvents({
     async click(event) {
@@ -174,6 +207,13 @@ export default function CoverageRadiusMap({
           });
         }
 
+        const icons = {
+          main:     makeIcon(L, ICON_DEFS.main),
+          sub:      makeIcon(L, ICON_DEFS.sub),
+          branch:   makeIcon(L, ICON_DEFS.branch),
+          selected: makeIcon(L, ICON_DEFS.selected),
+        };
+
         if (!active) return;
 
         setMapTools({
@@ -185,6 +225,7 @@ export default function CoverageRadiusMap({
           Polyline: reactLeaflet.Polyline,
           useMap: reactLeaflet.useMap,
           useMapEvents: reactLeaflet.useMapEvents,
+          icons,
         });
       } catch (error) {
         console.error(error);
@@ -264,6 +305,7 @@ export default function CoverageRadiusMap({
     Polyline,
     useMap,
     useMapEvents,
+    icons,
   } = mapTools;
 
   return (
@@ -331,7 +373,7 @@ export default function CoverageRadiusMap({
 
               return (
                 <Fragment key={`coverage-${item.id}`}>
-                  <Marker position={[lat, lng]}>
+                  <Marker position={[lat, lng]} icon={isMain ? icons.main : icons.sub}>
                     <Popup>
                       <strong>{item.name}</strong>
                       <br />
@@ -370,7 +412,7 @@ export default function CoverageRadiusMap({
 
               return (
                 <Fragment key={`branch-${branch.id}`}>
-                  <Marker position={[officeLat, officeLng]}>
+                  <Marker position={[officeLat, officeLng]} icon={icons.branch}>
                     <Popup>
                       <strong>{branch.name}</strong>
                       <br />
@@ -403,7 +445,7 @@ export default function CoverageRadiusMap({
 
           {latitude !== null && longitude !== null && (
             <Fragment>
-              <Marker position={[latitude, longitude]}>
+              <Marker position={[latitude, longitude]} icon={icons.selected}>
                 <Popup>
                   Selected Location
                   <br />
