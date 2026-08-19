@@ -534,10 +534,8 @@ function DocThumb({
 }
 
 const REQUIRED_DOCS = [
-  "business_registration",
   "pan_vat",
   "owner_id",
-  "bank_proof",
 ];
 
 export default function AdminMerchantApplicationDetailPage() {
@@ -2693,7 +2691,15 @@ export default function AdminMerchantApplicationDetailPage() {
           >
             <Checkbox.Group
               style={{ display: "flex", flexDirection: "column", gap: 6 }}
-              options={REQUIRED_DOCS.map((d) => ({
+              options={[
+                "business_registration",
+                "pan_vat",
+                "owner_id",
+                "bank_proof",
+                "office_photo",
+                "authorisation_letter",
+                "additional_documents",
+              ].map((d) => ({
                 value: d,
                 label: d.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()),
               }))}
