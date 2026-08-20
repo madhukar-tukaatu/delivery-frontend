@@ -1,5 +1,5 @@
 /* ==========================================================================
-   PAGE
+   PRICING PAGE
    ========================================================================== */
 
 .pricing-page {
@@ -27,8 +27,7 @@
   box-shadow: 0 2px 12px rgba(15, 23, 42, 0.05);
 }
 
-.simulator-header
-  .ant-card-body {
+.simulator-header .ant-card-body {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -46,22 +45,24 @@
   width: 46px;
   height: 46px;
   flex: 0 0 46px;
+
   display: flex;
   align-items: center;
   justify-content: center;
+
   border-radius: 12px;
+
   background: #eaf2ff;
   color: #1677ff;
+
   font-size: 21px;
 }
 
-.header-left
-  .ant-typography {
+.header-left .ant-typography {
   margin: 0;
 }
 
-.header-left
-  .ant-typography + .ant-typography {
+.header-left .ant-typography + .ant-typography {
   display: block;
   margin-top: 3px;
 }
@@ -72,9 +73,11 @@
 
 .simulator-grid {
   display: grid;
+
   grid-template-columns:
     minmax(0, 1.05fr)
     minmax(460px, 0.95fr);
+
   gap: 18px;
   align-items: start;
 }
@@ -100,15 +103,13 @@
 .result-card {
   border-radius: 14px;
   overflow: hidden;
+
   box-shadow:
-    0 2px 12px
-      rgba(15, 23, 42, 0.05);
+    0 2px 12px rgba(15, 23, 42, 0.05);
 }
 
-.section-card
-  .ant-card-head,
-.map-card
-  .ant-card-head {
+.section-card .ant-card-head,
+.map-card .ant-card-head {
   min-height: 66px;
 }
 
@@ -116,6 +117,7 @@
   display: flex;
   align-items: center;
   gap: 10px;
+
   color: #1677ff;
 }
 
@@ -124,8 +126,7 @@
   flex-direction: column;
 }
 
-.section-title
-  .ant-typography {
+.section-title .ant-typography {
   margin: 0;
 }
 
@@ -143,9 +144,12 @@
 .route-instruction {
   margin-bottom: 14px;
   padding: 9px 12px;
+
   border-radius: 8px;
+
   background: #f6f8fb;
   color: #667085;
+
   font-size: 12px;
 }
 
@@ -153,7 +157,9 @@
   display: flex;
   align-items: center;
   justify-content: center;
+
   height: 34px;
+
   color: #98a2b3;
   font-size: 17px;
 }
@@ -164,16 +170,22 @@
 
 .location-card {
   display: grid;
+
   grid-template-columns:
     38px
     minmax(0, 1fr)
     auto;
+
   gap: 10px;
   align-items: center;
+
   padding: 12px;
+
   border: 1px solid #e6eaf0;
   border-radius: 11px;
+
   background: #fff;
+
   transition:
     border-color 0.2s ease,
     box-shadow 0.2s ease;
@@ -181,9 +193,9 @@
 
 .location-card:hover {
   border-color: #b8c9df;
+
   box-shadow:
-    0 3px 12px
-      rgba(15, 23, 42, 0.04);
+    0 3px 12px rgba(15, 23, 42, 0.04);
 }
 
 .location-pickup {
@@ -197,22 +209,23 @@
 .location-icon {
   width: 34px;
   height: 34px;
+
   display: flex;
   align-items: center;
   justify-content: center;
+
   border-radius: 9px;
+
   font-weight: 700;
   font-size: 12px;
 }
 
-.location-pickup
-  .location-icon {
+.location-pickup .location-icon {
   background: #f0f9e9;
   color: #389e0d;
 }
 
-.location-delivery
-  .location-icon {
+.location-delivery .location-icon {
   background: #eaf2ff;
   color: #1677ff;
 }
@@ -221,8 +234,10 @@
   display: flex;
   align-items: center;
   justify-content: center;
+
   width: 22px;
   height: 22px;
+
   border: 1px solid currentColor;
   border-radius: 50%;
 }
@@ -235,19 +250,22 @@
   display: flex;
   align-items: center;
   gap: 7px;
+
   margin-bottom: 6px;
 }
 
-.location-heading
-  .ant-tag {
+.location-heading .ant-tag {
   margin: 0;
+
   font-size: 10px;
   line-height: 18px;
 }
 
 .coordinate-text {
   display: block;
+
   margin-top: 4px;
+
   font-size: 10px;
 }
 
@@ -278,8 +296,7 @@
   gap: 7px;
 }
 
-.store-header
-  .ant-typography-secondary {
+.store-header .ant-typography-secondary {
   margin-left: 3px;
   font-size: 11px;
 }
@@ -292,8 +309,10 @@
 
 .store-card {
   padding: 12px;
+
   border: 1px solid #e5e7eb;
   border-radius: 12px;
+
   background: #fafbfc;
 }
 
@@ -306,12 +325,16 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
+
   width: 25px;
   height: 25px;
   flex: 0 0 25px;
+
   border-radius: 7px;
+
   background: #eaf2ff;
   color: #1677ff;
+
   font-size: 11px;
   font-weight: 700;
 }
@@ -327,6 +350,7 @@
 .package-section {
   margin-top: 12px;
   padding-top: 12px;
+
   border-top: 1px solid #e9edf2;
 }
 
@@ -340,8 +364,7 @@
   gap: 7px;
 }
 
-.package-section-header
-  .ant-badge {
+.package-section-header .ant-badge {
   margin-left: 2px;
 }
 
@@ -353,8 +376,10 @@
 
 .package-card {
   padding: 10px;
+
   border: 1px solid #e5e7eb;
   border-radius: 9px;
+
   background: #fff;
 }
 
@@ -362,13 +387,17 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
+
   margin-bottom: 9px;
 }
 
 .field-label {
   display: block;
+
   margin-bottom: 4px;
+
   color: #667085;
+
   font-size: 11px;
   font-weight: 500;
 }
@@ -379,9 +408,12 @@
 
 .shipment-summary {
   display: grid;
+
   grid-template-columns:
     repeat(3, minmax(0, 1fr));
+
   gap: 8px;
+
   margin-top: 16px;
 }
 
@@ -389,8 +421,11 @@
   display: flex;
   flex-direction: column;
   gap: 2px;
+
   padding: 10px;
+
   border-radius: 9px;
+
   background: #f6f8fb;
 }
 
@@ -418,46 +453,65 @@
 
 .map-wrapper {
   position: relative;
+
   min-height: 480px;
+
   overflow: hidden;
+
   background: #e9edf2;
 }
 
 .leaflet-map {
   width: 100%;
   min-height: 480px;
+
   z-index: 1;
 }
 
 .map-loading {
   height: 480px;
+
   display: flex;
   align-items: center;
   justify-content: center;
+
   gap: 9px;
+
   background: #eef1f4;
   color: #667085;
+
   font-size: 13px;
 }
 
 .map-overlay-empty {
   position: absolute;
+
   z-index: 500;
+
   left: 50%;
   top: 50%;
+
   transform: translate(-50%, -50%);
+
   display: flex;
   flex-direction: column;
   align-items: center;
+
   gap: 6px;
+
   width: 220px;
+
   padding: 18px;
+
   border-radius: 12px;
+
   background: rgba(255, 255, 255, 0.95);
+
   box-shadow:
-    0 6px 24px
-      rgba(15, 23, 42, 0.15);
+    0 6px 24px rgba(15, 23, 42, 0.15);
+
   text-align: center;
+
   pointer-events: none;
 }
 
@@ -474,40 +528,54 @@
 
 .map-coordinates-panel {
   position: absolute;
+
   z-index: 500;
+
   right: 12px;
   bottom: 12px;
+
   min-width: 210px;
+
   padding: 8px 10px;
+
   border-radius: 9px;
+
   background: rgba(255, 255, 255, 0.94);
+
   box-shadow:
-    0 3px 12px
-      rgba(15, 23, 42, 0.15);
+    0 3px 12px rgba(15, 23, 42, 0.15);
+
   backdrop-filter: blur(5px);
 }
 
 .map-coordinates-panel > div {
   display: grid;
+
   grid-template-columns:
     10px
     auto
     auto;
+
   gap: 7px;
   align-items: center;
+
   padding: 4px 0;
+
   font-size: 10px;
 }
 
 .map-coordinates-panel strong {
   margin-left: auto;
-  font-size: 9px;
+
   color: #667085;
+
+  font-size: 9px;
 }
 
 .legend-dot {
   width: 7px;
   height: 7px;
+
   border-radius: 50%;
 }
 
@@ -519,46 +587,107 @@
   background: #1677ff;
 }
 
+.legend-dot.transfer {
+  background: #722ed1;
+}
+
 /* ==========================================================================
    LEAFLET CUSTOM MARKERS
    ========================================================================== */
 
-.leaflet-custom-marker {
+/*
+ * These classes match the current PricingMap component:
+ *
+ * pricing-map-marker
+ * pricing-map-marker-pickup
+ * pricing-map-marker-delivery
+ * pricing-map-marker-transfer
+ */
+
+.pricing-map-marker {
+  width: 42px;
+  height: 42px;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  border: 3px solid #fff;
+  border-radius: 50% 50% 50% 0;
+
+  transform: rotate(-45deg);
+
+  box-shadow:
+    0 3px 10px rgba(0, 0, 0, 0.28);
+
+  transition:
+    transform 0.18s ease,
+    box-shadow 0.18s ease;
+
+  cursor: pointer;
+}
+
+.pricing-map-marker span {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  width: 100%;
+  height: 100%;
+
+  transform: rotate(45deg);
+
+  color: #fff;
+
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.pricing-map-marker-pickup {
+  background: #52c41a;
+}
+
+.pricing-map-marker-delivery {
+  background: #1677ff;
+}
+
+.pricing-map-marker-transfer {
+  background: #722ed1;
+}
+
+/*
+ * Hover state
+ */
+
+.pricing-map-marker:hover {
+  transform:
+    rotate(-45deg)
+    scale(1.08);
+
+  box-shadow:
+    0 5px 14px rgba(0, 0, 0, 0.32);
+}
+
+/*
+ * Prevent Leaflet's default divIcon styling
+ * from adding unwanted backgrounds/borders.
+ */
+
+.leaflet-marker-icon.pricing-map-marker-wrapper,
+.pricing-map-marker-wrapper {
   background: transparent !important;
   border: 0 !important;
 }
 
-.map-marker {
-  width: 38px;
-  height: 38px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border: 3px solid #fff;
-  border-radius: 50% 50% 50% 0;
-  transform: rotate(-45deg);
-  box-shadow:
-    0 3px 10px
-      rgba(0, 0, 0, 0.28);
-}
+/*
+ * Current component uses className: ""
+ * on L.divIcon, so this is mostly defensive.
+ */
 
-.map-marker span {
-  transform: rotate(45deg);
-  color: #fff;
-  font-size: 15px;
-  font-weight: 700;
-}
-
-.map-marker.pickup {
-  background: #52c41a;
-}
-
-.map-marker.delivery {
-  background: #1677ff;
-}
-
-.map-marker.transfer {
-  background: #722ed1;
+.leaflet-div-icon {
+  background: transparent;
+  border: 0;
 }
 
 /* ==========================================================================
@@ -571,24 +700,34 @@
 
 .result-tabs {
   display: grid;
+
   grid-template-columns:
     repeat(3, 1fr);
+
   border-bottom: 1px solid #e5e7eb;
 }
 
 .result-tabs button {
   position: relative;
+
   display: flex;
   align-items: center;
   justify-content: center;
+
   gap: 7px;
+
   min-height: 48px;
+
   border: 0;
   border-bottom: 2px solid transparent;
+
   background: transparent;
   color: #667085;
+
   cursor: pointer;
+
   font-size: 12px;
+
   transition:
     color 0.2s ease,
     background 0.2s ease;
@@ -601,12 +740,13 @@
 
 .result-tabs button.active {
   border-bottom-color: #1677ff;
+
   color: #1677ff;
+
   font-weight: 600;
 }
 
-.result-tabs
-  .ant-badge {
+.result-tabs .ant-badge {
   margin-left: 3px;
 }
 
@@ -621,18 +761,24 @@
 
 .result-empty {
   min-height: 230px;
+
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
+
   gap: 7px;
+
   color: #98a2b3;
+
   text-align: center;
 }
 
 .result-empty > svg {
   margin-bottom: 4px;
+
   color: #1677ff;
+
   font-size: 28px;
 }
 
@@ -644,9 +790,13 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
+
   gap: 15px;
+
   padding: 15px;
+
   border-radius: 11px;
+
   background: #f6f8fb;
 }
 
@@ -658,7 +808,9 @@
 
 .result-price {
   margin-top: 2px;
+
   color: #1677ff;
+
   font-size: 27px;
   font-weight: 700;
 }
@@ -670,9 +822,13 @@
 .summary-box {
   display: flex;
   flex-direction: column;
+
   gap: 3px;
+
   padding: 9px;
+
   border-radius: 8px;
+
   background: #f6f8fb;
 }
 
@@ -698,8 +854,11 @@
 .result-section-heading {
   display: flex;
   align-items: center;
+
   gap: 7px;
+
   margin-bottom: 8px;
+
   color: #1677ff;
 }
 
@@ -707,8 +866,11 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
+
   min-height: 34px;
+
   border-bottom: 1px solid #f0f1f3;
+
   font-size: 12px;
 }
 
@@ -720,8 +882,10 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
+
   margin-top: 8px;
   padding-top: 11px;
+
   font-size: 14px;
 }
 
@@ -735,21 +899,28 @@
 
 .timeline-item {
   display: grid;
+
   grid-template-columns:
     30px
     minmax(0, 1fr);
+
   gap: 11px;
+
   align-items: start;
 }
 
 .timeline-marker {
   width: 28px;
   height: 28px;
+
   display: flex;
   align-items: center;
   justify-content: center;
+
   border-radius: 50%;
+
   color: #fff;
+
   font-size: 11px;
   font-weight: 700;
 }
@@ -769,14 +940,18 @@
 .timeline-content {
   display: flex;
   flex-direction: column;
+
   gap: 2px;
+
   padding-bottom: 5px;
 }
 
 .timeline-title {
   color: #8c8c8c;
+
   font-size: 10px;
   font-weight: 600;
+
   text-transform: uppercase;
 }
 
@@ -788,7 +963,9 @@
 .timeline-line {
   width: 2px;
   height: 25px;
+
   margin-left: 13px;
+
   background: #d9dfe7;
 }
 
@@ -799,24 +976,32 @@
 .payload-view {
   display: flex;
   flex-direction: column;
+
   gap: 12px;
 }
 
 .payload-view pre {
   max-height: 420px;
+
   margin: 0;
   padding: 14px;
+
   overflow: auto;
+
   border-radius: 9px;
+
   background: #111827;
   color: #e5e7eb;
+
   font-family:
     "SFMono-Regular",
     Consolas,
     "Liberation Mono",
     monospace;
+
   font-size: 10px;
   line-height: 1.55;
+
   white-space: pre-wrap;
   word-break: break-word;
 }
@@ -827,16 +1012,21 @@
 
 .picker-layout {
   display: grid;
+
   grid-template-columns:
     minmax(0, 1fr)
     255px;
+
   gap: 16px;
 }
 
 .picker-map {
   position: relative;
+
   min-width: 0;
+
   overflow: hidden;
+
   border-radius: 10px;
 }
 
@@ -846,23 +1036,35 @@
 
 .picker-help {
   position: absolute;
+
   z-index: 500;
+
   left: 50%;
   bottom: 10px;
+
   transform: translateX(-50%);
+
   display: flex;
   align-items: center;
+
   gap: 7px;
+
   width: max-content;
   max-width: calc(100% - 20px);
+
   padding: 8px 11px;
+
   border-radius: 7px;
+
   background: rgba(255, 255, 255, 0.95);
+
   box-shadow:
-    0 3px 12px
-      rgba(0, 0, 0, 0.15);
+    0 3px 12px rgba(0, 0, 0, 0.15);
+
   color: #667085;
+
   font-size: 11px;
+
   pointer-events: none;
 }
 
@@ -873,23 +1075,26 @@
 .picker-info-icon {
   width: 40px;
   height: 40px;
+
   display: flex;
   align-items: center;
   justify-content: center;
+
   margin-bottom: 15px;
+
   border-radius: 10px;
+
   background: #eaf2ff;
   color: #1677ff;
+
   font-size: 20px;
 }
 
-.picker-info
-  .ant-typography {
+.picker-info .ant-typography {
   display: block;
 }
 
-.picker-info
-  .ant-typography h5 {
+.picker-info .ant-typography h5 {
   margin-bottom: 7px;
 }
 
@@ -897,7 +1102,9 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
+
   padding: 11px 0;
+
   border-bottom: 1px solid #edf0f3;
 }
 
@@ -912,18 +1119,25 @@
     "SFMono-Regular",
     Consolas,
     monospace;
+
   font-size: 11px;
 }
 
 .coordinate-note {
   display: flex;
-  gap: 8px;
   align-items: flex-start;
+
+  gap: 8px;
+
   margin-top: 15px;
   padding: 10px;
+
   border-radius: 8px;
+
   background: #f4f7fb;
+
   color: #667085;
+
   font-size: 10px;
   line-height: 1.45;
 }
@@ -934,14 +1148,15 @@
 
 .leaflet-container {
   font-family: inherit;
+
   background: #e6e9ed;
 }
 
 .leaflet-control-zoom {
   border: 0 !important;
+
   box-shadow:
-    0 2px 8px
-      rgba(0, 0, 0, 0.18) !important;
+    0 2px 8px rgba(0, 0, 0, 0.18) !important;
 }
 
 .leaflet-control-zoom a {
@@ -956,6 +1171,27 @@
   border-radius: 8px;
 }
 
+.leaflet-popup-content p {
+  margin: 4px 0;
+}
+
+.leaflet-popup-content strong {
+  color: #1f2937;
+}
+
+/* ==========================================================================
+   MAP ROUTE
+   ========================================================================== */
+
+.leaflet-overlay-pane svg {
+  overflow: visible;
+}
+
+.leaflet-overlay-pane path {
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
 /* ==========================================================================
    AUTO CALCULATE
    ========================================================================== */
@@ -963,15 +1199,20 @@
 .auto-calculate {
   display: flex;
   align-items: center;
+
   gap: 6px;
+
   color: #667085;
+
   font-size: 12px;
+
   cursor: pointer;
 }
 
 .auto-calculate input {
   width: 14px;
   height: 14px;
+
   margin: 0;
 }
 
@@ -995,8 +1236,7 @@
     padding: 12px;
   }
 
-  .simulator-header
-    .ant-card-body {
+  .simulator-header .ant-card-body {
     flex-direction: column;
     align-items: flex-start;
   }
@@ -1022,6 +1262,7 @@
 
   .location-card > .ant-btn {
     grid-column: 2;
+
     justify-self: start;
   }
 
@@ -1068,5 +1309,27 @@
 
   .map-coordinates-panel {
     display: none;
+  }
+
+  .result-tabs button {
+    gap: 4px;
+    font-size: 11px;
+  }
+
+  .pricing-map-marker {
+    width: 38px;
+    height: 38px;
+  }
+}
+
+/* ==========================================================================
+   REDUCED MOTION
+   ========================================================================== */
+
+@media (prefers-reduced-motion: reduce) {
+  .location-card,
+  .pricing-map-marker,
+  .result-tabs button {
+    transition: none;
   }
 }

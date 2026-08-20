@@ -40,27 +40,27 @@ function normalizePoint(point) {
   }
 
   if (Array.isArray(point)) {
-    const first = Number(point[0]);
-    const second = Number(point[1]);
+    const latitude = Number(point[0]);
+    const longitude = Number(point[1]);
 
     if (
-      Number.isFinite(first) &&
-      Number.isFinite(second)
+      isValidCoordinate(
+        latitude,
+        longitude
+      )
     ) {
-      /*
-       * Arrays used by this component are normally
-       * [latitude, longitude].
-       */
-      if (
-        isValidCoordinate(first, second)
-      ) {
-        return {
-          latitude: first,
-          longitude: second,
-        };
-      }
+      return {
+        latitude,
+        longitude,
+      };
     }
 
+    return null;
+  }
+
+  if (
+    typeof point !== "object"
+  ) {
     return null;
   }
 
@@ -78,7 +78,7 @@ function normalizePoint(point) {
   if (
     !isValidCoordinate(
       latitude,
-      longitude,
+      longitude
     )
   ) {
     return null;
@@ -92,32 +92,28 @@ function normalizePoint(point) {
 
 function getPointKey(point) {
   return `${point.latitude.toFixed(
-    6,
+    6
   )},${point.longitude.toFixed(6)}`;
 }
 
 /* ==========================================================================
-   MARKER ICONS
+   MARKERS
    ========================================================================== */
 
 function createMarkerIcon(type) {
-  const isDelivery =
-    type === "delivery";
-
-  const isTransfer =
-    type === "transfer";
-
   let className =
     "pricing-map-marker";
 
   let label = "P";
 
-  if (isDelivery) {
+  if (type === "delivery") {
     className +=
       " pricing-map-marker-delivery";
 
     label = "D";
-  } else if (isTransfer) {
+  } else if (
+    type === "transfer"
+  ) {
     className +=
       " pricing-map-marker-transfer";
 
@@ -125,17 +121,24 @@ function createMarkerIcon(type) {
   } else {
     className +=
       " pricing-map-marker-pickup";
+
+    label = "P";
   }
 
   return L.divIcon({
-    className: "",
+    className:
+      "pricing-map-marker-wrapper",
+
     html: `
       <div class="${className}">
         <span>${label}</span>
       </div>
     `,
+
     iconSize: [42, 42],
+
     iconAnchor: [21, 36],
+
     popupAnchor: [0, -36],
   });
 }
@@ -149,17 +152,17 @@ function isCoordinatePair(value) {
     Array.isArray(value) &&
     value.length >= 2 &&
     Number.isFinite(
-      Number(value[0]),
+      Number(value[0])
     ) &&
     Number.isFinite(
-      Number(value[1]),
+      Number(value[1])
     )
   );
 }
 
 function normalizeCoordinateArray(
   coordinates,
-  format = "latlng",
+  format = "latlng"
 ) {
   if (
     !Array.isArray(coordinates)
@@ -171,7 +174,7 @@ function normalizeCoordinateArray(
     .map((coordinate) => {
       if (
         !isCoordinatePair(
-          coordinate,
+          coordinate
         )
       ) {
         return null;
@@ -180,7 +183,9 @@ function normalizeCoordinateArray(
       let latitude;
       let longitude;
 
-      if (format === "geojson") {
+      if (
+        format === "geojson"
+      ) {
         longitude =
           Number(coordinate[0]);
 
@@ -197,7 +202,7 @@ function normalizeCoordinateArray(
       if (
         !isValidCoordinate(
           latitude,
-          longitude,
+          longitude
         )
       ) {
         return null;
@@ -212,51 +217,38 @@ function normalizeCoordinateArray(
 }
 
 function extractCoordinatesFromValue(
-  value,
+  value
 ) {
   if (!value) {
     return [];
   }
 
-  /*
-   * Direct array of objects.
-   */
   if (Array.isArray(value)) {
     if (!value.length) {
       return [];
     }
 
-    /*
-     * Array of [lat, lng] or [lng, lat].
-     *
-     * Do not automatically assume GeoJSON here because
-     * backend APIs commonly return [latitude, longitude].
-     */
     if (
       value.every(
         (item) =>
           Array.isArray(item) &&
-          item.length >= 2,
+          item.length >= 2
       )
     ) {
       return normalizeCoordinateArray(
         value,
-        "latlng",
+        "latlng"
       );
     }
 
     const normalized =
       value
         .map((item) =>
-          normalizePoint(item),
+          normalizePoint(item)
         )
         .filter(Boolean);
 
-    if (normalized.length) {
-      return normalized;
-    }
-
-    return [];
+    return normalized;
   }
 
   if (
@@ -265,24 +257,19 @@ function extractCoordinatesFromValue(
     return [];
   }
 
-  /*
-   * GeoJSON geometry.
-   */
   if (
-    value.type === "LineString" &&
+    value.type ===
+      "LineString" &&
     Array.isArray(
-      value.coordinates,
+      value.coordinates
     )
   ) {
     return normalizeCoordinateArray(
       value.coordinates,
-      "geojson",
+      "geojson"
     );
   }
 
-  /*
-   * Direct coordinate fields.
-   */
   const directPoint =
     normalizePoint(value);
 
@@ -290,9 +277,6 @@ function extractCoordinatesFromValue(
     return [directPoint];
   }
 
-  /*
-   * Possible route containers.
-   */
   const possibleArrays = [
     value.coordinates,
     value.path,
@@ -300,15 +284,18 @@ function extractCoordinatesFromValue(
     value.route,
     value.polyline,
     value.polyline_points,
+
     value.geometry?.coordinates,
     value.geometry?.points,
     value.geometry?.path,
+
     value.route?.coordinates,
     value.route?.path,
     value.route?.points,
     value.route?.polyline,
     value.route?.polyline_points,
     value.route?.geometry,
+
     value.geometry,
   ];
 
@@ -319,9 +306,6 @@ function extractCoordinatesFromValue(
       continue;
     }
 
-    /*
-     * Explicit GeoJSON.
-     */
     if (
       candidate &&
       typeof candidate ===
@@ -329,19 +313,17 @@ function extractCoordinatesFromValue(
       candidate.type ===
         "LineString" &&
       Array.isArray(
-        candidate.coordinates,
+        candidate.coordinates
       )
     ) {
-      const geoJsonPoints =
+      const points =
         normalizeCoordinateArray(
           candidate.coordinates,
-          "geojson",
+          "geojson"
         );
 
-      if (
-        geoJsonPoints.length >= 2
-      ) {
-        return geoJsonPoints;
+      if (points.length >= 2) {
+        return points;
       }
     }
 
@@ -351,13 +333,13 @@ function extractCoordinatesFromValue(
       if (
         candidate.length > 0 &&
         Array.isArray(
-          candidate[0],
+          candidate[0]
         )
       ) {
         const points =
           normalizeCoordinateArray(
             candidate,
-            "latlng",
+            "latlng"
           );
 
         if (points.length >= 2) {
@@ -368,11 +350,13 @@ function extractCoordinatesFromValue(
       const normalized =
         candidate
           .map((item) =>
-            normalizePoint(item),
+            normalizePoint(item)
           )
           .filter(Boolean);
 
-      if (normalized.length >= 2) {
+      if (
+        normalized.length >= 2
+      ) {
         return normalized;
       }
     }
@@ -383,10 +367,12 @@ function extractCoordinatesFromValue(
     ) {
       const nested =
         extractCoordinatesFromValue(
-          candidate,
+          candidate
         );
 
-      if (nested.length >= 2) {
+      if (
+        nested.length >= 2
+      ) {
         return nested;
       }
     }
@@ -408,21 +394,27 @@ function extractRoutePoints(result) {
     result.route_geometry,
     result.routeGeometry,
     result.geometry,
+
     result.route?.geometry,
     result.route?.coordinates,
     result.route?.path,
     result.route?.points,
     result.route?.polyline,
     result.route?.polyline_points,
+
     result.path,
     result.points,
     result.polyline,
     result.polyline_points,
+
     result.data?.route_geometry,
     result.data?.routeGeometry,
     result.data?.geometry,
+
     result.data?.route?.geometry,
     result.data?.route?.coordinates,
+    result.data?.route?.path,
+    result.data?.route?.points,
   ];
 
   for (
@@ -430,10 +422,12 @@ function extractRoutePoints(result) {
   ) {
     const points =
       extractCoordinatesFromValue(
-        candidate,
+        candidate
       );
 
-    if (points.length >= 2) {
+    if (
+      points.length >= 2
+    ) {
       return points;
     }
   }
@@ -446,30 +440,32 @@ function extractRoutePoints(result) {
    ========================================================================== */
 
 function extractTransferPoints(
-  result,
+  result
 ) {
   if (!result) {
     return [];
   }
 
   const transfers =
-    result?.transfer_lanes ||
-    result?.transferLanes ||
+    result?.transfer_lanes ??
+    result?.transferLanes ??
     result?.route
-      ?.transfer_lanes ||
+      ?.transfer_lanes ??
     result?.route
-      ?.transferLanes ||
-    result?.transfers ||
-    result?.route?.transfers ||
+      ?.transferLanes ??
+    result?.transfers ??
+    result?.route?.transfers ??
     result?.data
-      ?.transfer_lanes ||
+      ?.transfer_lanes ??
     result?.data
-      ?.transferLanes ||
+      ?.transferLanes ??
     result?.data
-      ?.transfers ||
+      ?.transfers ??
     [];
 
-  if (!Array.isArray(transfers)) {
+  if (
+    !Array.isArray(transfers)
+  ) {
     return [];
   }
 
@@ -481,13 +477,19 @@ function extractTransferPoints(
         return;
       }
 
+      const label =
+        transfer.name ||
+        transfer.branch_name ||
+        transfer.branch?.name ||
+        transfer.code ||
+        "Transfer";
+
       const candidates = [
         transfer.coordinates,
         transfer.coordinate,
         transfer.location,
         transfer.point,
         transfer.geometry,
-        transfer.branch,
         transfer.branch_location,
         transfer.transfer_location,
       ];
@@ -497,19 +499,14 @@ function extractTransferPoints(
       ) {
         const normalized =
           normalizePoint(
-            candidate,
+            candidate
           );
 
         if (normalized) {
           points.push({
             ...normalized,
             type: "transfer",
-            label:
-              transfer.name ||
-              transfer.branch_name ||
-              transfer.branch?.name ||
-              transfer.code ||
-              "Transfer",
+            label,
           });
 
           return;
@@ -517,46 +514,37 @@ function extractTransferPoints(
 
         const nested =
           extractCoordinatesFromValue(
-            candidate,
+            candidate
           );
 
         if (
           nested.length > 0
         ) {
-          const point =
-            nested[0];
-
           points.push({
-            ...point,
+            ...nested[0],
             type: "transfer",
-            label:
-              transfer.name ||
-              transfer.branch_name ||
-              transfer.branch?.name ||
-              transfer.code ||
-              "Transfer",
+            label,
           });
 
           return;
         }
       }
 
-      /*
-       * Direct latitude/longitude.
-       */
       const direct =
         normalizePoint({
           latitude:
             transfer.latitude ??
             transfer.lat ??
-            transfer.branch?.latitude ??
+            transfer.branch
+              ?.latitude ??
             transfer.branch?.lat,
 
           longitude:
             transfer.longitude ??
             transfer.lng ??
             transfer.lon ??
-            transfer.branch?.longitude ??
+            transfer.branch
+              ?.longitude ??
             transfer.branch?.lng,
         });
 
@@ -564,26 +552,21 @@ function extractTransferPoints(
         points.push({
           ...direct,
           type: "transfer",
-          label:
-            transfer.name ||
-            transfer.branch_name ||
-            transfer.branch?.name ||
-            transfer.code ||
-            "Transfer",
+          label,
         });
       }
-    },
+    }
   );
 
   return points;
 }
 
 /* ==========================================================================
-   ROUTING API
+   OSRM
    ========================================================================== */
 
 async function fetchRoadRoute(
-  points,
+  points
 ) {
   if (
     !Array.isArray(points) ||
@@ -593,17 +576,11 @@ async function fetchRoadRoute(
   }
 
   try {
-    /*
-     * OSRM expects:
-     *
-     * longitude,latitude;
-     * longitude,latitude
-     */
     const coordinates =
       points
         .map(
           (point) =>
-            `${point.longitude},${point.latitude}`,
+            `${point.longitude},${point.latitude}`
         )
         .join(";");
 
@@ -622,15 +599,14 @@ async function fetchRoadRoute(
     const data =
       await response.json();
 
-    const route =
-      data?.routes?.[0];
-
     const geometry =
-      route?.geometry?.coordinates;
+      data?.routes?.[0]
+        ?.geometry
+        ?.coordinates;
 
     if (
       !Array.isArray(
-        geometry,
+        geometry
       ) ||
       geometry.length < 2
     ) {
@@ -641,18 +617,18 @@ async function fetchRoadRoute(
       .map((coordinate) => {
         const longitude =
           Number(
-            coordinate?.[0],
+            coordinate?.[0]
           );
 
         const latitude =
           Number(
-            coordinate?.[1],
+            coordinate?.[1]
           );
 
         if (
           !isValidCoordinate(
             latitude,
-            longitude,
+            longitude
           )
         ) {
           return null;
@@ -667,7 +643,7 @@ async function fetchRoadRoute(
   } catch (error) {
     console.error(
       "Unable to load road route:",
-      error,
+      error
     );
 
     return [];
@@ -675,7 +651,7 @@ async function fetchRoadRoute(
 }
 
 /* ==========================================================================
-   MAP COMPONENT
+   COMPONENT
    ========================================================================== */
 
 function PricingMap({
@@ -683,11 +659,29 @@ function PricingMap({
   stores = [],
   delivery = null,
   result = null,
+
+  /*
+   * This is now the controlled location
+   * coming from the latitude/longitude
+   * input fields.
+   */
   selectedLocation = null,
+
+  /*
+   * Called when user clicks the map.
+   */
   onSelect = null,
+
   height = 480,
+
   className = "",
+
   mode = null,
+
+  /*
+   * If true, clicking map is enabled.
+   */
+  selectable = true,
 }) {
   const containerRef =
     useRef(null);
@@ -715,15 +709,17 @@ function PricingMap({
       onSelect;
   }, [onSelect]);
 
-  /* ------------------------------------------------------------------------
+  /* ==========================================================================
      SHIPMENT POINTS
-     ------------------------------------------------------------------------ */
+     ========================================================================== */
 
   const shipmentPoints =
     useMemo(() => {
-      const resultPoints =
-        [];
+      const resultPoints = [];
 
+      /*
+       * Pickup stores.
+       */
       if (
         Array.isArray(stores)
       ) {
@@ -743,33 +739,36 @@ function PricingMap({
                 type: "pickup",
                 label:
                   store?.external_store_id ||
+                  store?.name ||
                   "Pickup",
               });
             }
-          },
+          }
         );
       }
 
       /*
-       * Add transfer locations returned
-       * from backend.
+       * Configured transfer lanes.
        */
-      const transferPoints =
+      const transfers =
         extractTransferPoints(
-          result,
+          result
         );
 
-      transferPoints.forEach(
+      transfers.forEach(
         (point) => {
           resultPoints.push(
-            point,
+            point
           );
-        },
+        }
       );
 
+      /*
+       * Delivery.
+       */
       const deliveryPoint =
         normalizePoint(
-          delivery,
+          delivery
         );
 
       if (deliveryPoint) {
@@ -781,29 +780,27 @@ function PricingMap({
       }
 
       /*
-       * Picker fallback.
+       * If the map is being used as a
+       * picker, show the selected point.
        */
       if (
-        resultPoints.length ===
-          0 &&
+        resultPoints.length === 0 &&
         selectedLocation
       ) {
         const selected =
           normalizePoint(
-            selectedLocation,
+            selectedLocation
           );
 
         if (selected) {
           resultPoints.push({
             ...selected,
             type:
-              mode ===
-              "delivery"
+              mode === "delivery"
                 ? "delivery"
                 : "pickup",
             label:
-              mode ===
-              "delivery"
+              mode === "delivery"
                 ? "Delivery"
                 : "Pickup",
           });
@@ -811,28 +808,29 @@ function PricingMap({
       }
 
       /*
-       * Direct points fallback.
+       * Fallback points.
        */
       if (
-        resultPoints.length ===
-          0 &&
+        resultPoints.length === 0 &&
         Array.isArray(points)
       ) {
         points.forEach(
           (point, index) => {
             const normalized =
               normalizePoint(
-                point,
+                point
               );
 
             if (normalized) {
               resultPoints.push({
                 ...normalized,
+
                 type:
                   index ===
                   points.length - 1
                     ? "delivery"
                     : "pickup",
+
                 label:
                   index ===
                   points.length - 1
@@ -842,12 +840,12 @@ function PricingMap({
                       }`,
               });
             }
-          },
+          }
         );
       }
 
       /*
-       * Remove duplicates.
+       * Deduplicate.
        */
       const unique =
         new Map();
@@ -856,42 +854,41 @@ function PricingMap({
         (point) => {
           const key =
             `${point.type}:${getPointKey(
-              point,
+              point
             )}`;
 
-          if (!unique.has(key)) {
+          if (
+            !unique.has(key)
+          ) {
             unique.set(
               key,
-              point,
+              point
             );
           }
-        },
+        }
       );
 
       return Array.from(
-        unique.values(),
+        unique.values()
       );
     }, [
       stores,
       delivery,
+      result,
       selectedLocation,
       points,
       mode,
-      result,
     ]);
 
-  /* ------------------------------------------------------------------------
+  /* ==========================================================================
      CREATE MAP
-     ------------------------------------------------------------------------ */
+     ========================================================================== */
 
   useEffect(() => {
     if (
-      !containerRef.current
+      !containerRef.current ||
+      mapRef.current
     ) {
-      return undefined;
-    }
-
-    if (mapRef.current) {
       return undefined;
     }
 
@@ -901,94 +898,100 @@ function PricingMap({
         {
           center:
             DEFAULT_CENTER,
-          zoom: DEFAULT_ZOOM,
+
+          zoom:
+            DEFAULT_ZOOM,
+
           zoomControl: true,
+
           attributionControl: true,
-        },
+        }
       );
 
     L.tileLayer(
       "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
       {
         maxZoom: 19,
+
         attribution:
           '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">OpenStreetMap</a> contributors',
-      },
+      }
     ).addTo(map);
 
-    map.on(
-      "click",
-      (event) => {
-        const callback =
-          onSelectRef.current;
+    if (selectable) {
+      map.on(
+        "click",
+        (event) => {
+          const callback =
+            onSelectRef.current;
 
-        if (
-          typeof callback !==
-          "function"
-        ) {
-          return;
-        }
+          if (
+            typeof callback !==
+            "function"
+          ) {
+            return;
+          }
 
-        const latitude =
-          Number(
-            event.latlng.lat,
-          );
+          const latitude =
+            Number(
+              event.latlng.lat
+            );
 
-        const longitude =
-          Number(
-            event.latlng.lng,
-          );
+          const longitude =
+            Number(
+              event.latlng.lng
+            );
 
-        if (
-          !isValidCoordinate(
+          if (
+            !isValidCoordinate(
+              latitude,
+              longitude
+            )
+          ) {
+            return;
+          }
+
+          callback({
             latitude,
             longitude,
-          )
-        ) {
-          return;
-        }
 
-        callback({
-          latitude,
-          longitude,
-          address:
-            `${latitude.toFixed(
-              6,
-            )}, ${longitude.toFixed(
-              6,
-            )}`,
-        });
-      },
-    );
+            address:
+              `${latitude.toFixed(
+                6
+              )}, ${longitude.toFixed(
+                6
+              )}`,
+          });
+        }
+      );
+    }
 
     mapRef.current =
       map;
 
-    const resizeTimer =
+    const timer =
       setTimeout(() => {
         map.invalidateSize();
       }, 150);
 
     return () => {
-      clearTimeout(
-        resizeTimer,
-      );
+      clearTimeout(timer);
 
       try {
         map.off();
         map.remove();
       } catch {
-        // Ignore cleanup errors.
+        // Ignore.
       }
 
       mapRef.current =
         null;
     };
-  }, []);
+  }, [selectable]);
 
-  /* ------------------------------------------------------------------------
-     MAP SIZE
-     ------------------------------------------------------------------------ */
+  /* ==========================================================================
+     INVALIDATE SIZE
+     ========================================================================== */
 
   useEffect(() => {
     if (!mapRef.current) {
@@ -1004,9 +1007,9 @@ function PricingMap({
       clearTimeout(timer);
   }, [height]);
 
-  /* ------------------------------------------------------------------------
+  /* ==========================================================================
      DRAW MARKERS
-     ------------------------------------------------------------------------ */
+     ========================================================================== */
 
   useEffect(() => {
     const map =
@@ -1023,7 +1026,7 @@ function PricingMap({
         } catch {
           // Ignore.
         }
-      },
+      }
     );
 
     markersRef.current = [];
@@ -1039,9 +1042,9 @@ function PricingMap({
             {
               icon:
                 createMarkerIcon(
-                  point.type,
+                  point.type
                 ),
-            },
+            }
           ).addTo(map);
 
         marker.bindPopup(`
@@ -1049,27 +1052,34 @@ function PricingMap({
             <strong>
               ${point.label}
             </strong>
+
             <br />
+
             <span>
               ${point.latitude.toFixed(
-                6,
+                6
               )},
               ${point.longitude.toFixed(
-                6,
+                6
               )}
             </span>
           </div>
         `);
 
         markersRef.current.push(
-          marker,
+          marker
         );
-      },
+      }
     );
 
+    /*
+     * Do not automatically fit the map
+     * when a user is manually entering
+     * coordinates into the picker.
+     */
     if (
-      shipmentPoints.length >
-      0
+      shipmentPoints.length > 0 &&
+      !selectedLocation
     ) {
       const bounds =
         L.latLngBounds(
@@ -1077,8 +1087,8 @@ function PricingMap({
             (point) => [
               point.latitude,
               point.longitude,
-            ],
-          ),
+            ]
+          )
         );
 
       if (bounds.isValid()) {
@@ -1089,16 +1099,20 @@ function PricingMap({
               50,
               50,
             ],
+
             maxZoom: 15,
-          },
+          }
         );
       }
     }
-  }, [shipmentPoints]);
+  }, [
+    shipmentPoints,
+    selectedLocation,
+  ]);
 
-  /* ------------------------------------------------------------------------
-     SELECTED PICKER LOCATION
-     ------------------------------------------------------------------------ */
+  /* ==========================================================================
+     SELECTED LOCATION MARKER
+     ========================================================================== */
 
   useEffect(() => {
     const map =
@@ -1123,7 +1137,7 @@ function PricingMap({
 
     const selected =
       normalizePoint(
-        selectedLocation,
+        selectedLocation
       );
 
     if (!selected) {
@@ -1139,33 +1153,45 @@ function PricingMap({
         {
           icon:
             createMarkerIcon(
-              mode ===
-              "delivery"
+              mode === "delivery"
                 ? "delivery"
-                : "pickup",
+                : "pickup"
             ),
+
           zIndexOffset: 1000,
-        },
+        }
       ).addTo(map);
 
     marker.bindPopup(`
-      <div>
+      <div style="min-width:150px">
         <strong>
-          Selected location
+          ${
+            mode === "delivery"
+              ? "Delivery"
+              : "Pickup"
+          }
         </strong>
+
         <br />
-        ${selected.latitude.toFixed(
-          6,
-        )},
-        ${selected.longitude.toFixed(
-          6,
-        )}
+
+        <span>
+          ${selected.latitude.toFixed(
+            6
+          )},
+          ${selected.longitude.toFixed(
+            6
+          )}
+        </span>
       </div>
     `);
 
     selectedMarkerRef.current =
       marker;
 
+    /*
+     * Move the map to the manually
+     * entered coordinates.
+     */
     map.setView(
       [
         selected.latitude,
@@ -1173,20 +1199,20 @@ function PricingMap({
       ],
       Math.max(
         map.getZoom(),
-        15,
+        15
       ),
       {
         animate: false,
-      },
+      }
     );
   }, [
     selectedLocation,
     mode,
   ]);
 
-  /* ------------------------------------------------------------------------
-     DRAW ROAD ROUTE
-     ------------------------------------------------------------------------ */
+  /* ==========================================================================
+     DRAW ROUTE
+     ========================================================================== */
 
   useEffect(() => {
     const map =
@@ -1209,15 +1235,14 @@ function PricingMap({
         null;
     }
 
+    /*
+     * Backend route takes priority.
+     */
     const backendRoute =
       extractRoutePoints(
-        result,
+        result
       );
 
-    /*
-     * Prefer exact route geometry returned
-     * by the backend.
-     */
     if (
       backendRoute.length >= 2
     ) {
@@ -1227,14 +1252,14 @@ function PricingMap({
             (point) => [
               point.latitude,
               point.longitude,
-            ],
+            ]
           ),
           {
             weight: 5,
             opacity: 0.9,
             lineCap: "round",
             lineJoin: "round",
-          },
+          }
         ).addTo(map);
 
       routeLayerRef.current =
@@ -1244,17 +1269,17 @@ function PricingMap({
     }
 
     /*
-     * Otherwise use the pickup → transfer →
-     * delivery points.
+     * OSRM fallback.
      */
     const routingPoints =
       shipmentPoints.map(
         (point) => ({
           latitude:
             point.latitude,
+
           longitude:
             point.longitude,
-        }),
+        })
       );
 
     if (
@@ -1269,7 +1294,7 @@ function PricingMap({
     let cancelled = false;
 
     fetchRoadRoute(
-      routingPoints,
+      routingPoints
     ).then(
       (roadPoints) => {
         if (
@@ -1293,21 +1318,21 @@ function PricingMap({
               (point) => [
                 point.latitude,
                 point.longitude,
-              ],
+              ]
             ),
             {
               weight: 5,
               opacity: 0.9,
               lineCap: "round",
               lineJoin: "round",
-            },
+            }
           ).addTo(
-            mapRef.current,
+            mapRef.current
           );
 
         routeLayerRef.current =
           polyline;
-      },
+      }
     );
 
     return () => {
@@ -1318,9 +1343,9 @@ function PricingMap({
     result,
   ]);
 
-  /* ------------------------------------------------------------------------
+  /* ==========================================================================
      RENDER
-     ------------------------------------------------------------------------ */
+     ========================================================================== */
 
   return (
     <div
@@ -1331,18 +1356,27 @@ function PricingMap({
       }
       style={{
         width: "100%",
+
         height:
           typeof height ===
           "number"
             ? `${height}px`
             : height,
+
         minHeight:
           typeof height ===
           "number"
             ? `${height}px`
             : "300px",
+
         position: "relative",
+
         zIndex: 0,
+
+        cursor:
+          selectable
+            ? "crosshair"
+            : "default",
       }}
     />
   );
