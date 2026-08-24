@@ -2,7 +2,14 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 
-import { Alert, Button, message, Space, Spin, Typography } from "antd";
+import {
+  Alert,
+  Button,
+  message,
+  Space,
+  Spin,
+  Typography,
+} from "antd";
 
 import { useParams, useRouter } from "next/navigation";
 
@@ -45,20 +52,6 @@ function numberOrNull(value) {
   return Number.isFinite(number) ? number : null;
 }
 
-/**
- * IMPORTANT:
- *
- * Always return a primitive string.
- *
- * This prevents values such as:
- *
- * null
- * undefined
- * {}
- * []
- *
- * from reaching Laravel's "string" validation.
- */
 function stringValue(value, fallback = "") {
   if (value === null || value === undefined) {
     return fallback;
@@ -72,9 +65,6 @@ function stringValue(value, fallback = "") {
     return String(value).trim();
   }
 
-  /*
-   * Defensive handling for accidental objects.
-   */
   if (typeof value === "object") {
     if (typeof value.value === "string") {
       return value.value.trim();
@@ -110,14 +100,19 @@ function getType(location) {
 }
 
 function isMainZone(location) {
-  return ["main", "main_branch", "main_branch_zone"].includes(
-    getType(location),
-  );
+  return [
+    "main",
+    "main_branch",
+    "main_branch_zone",
+  ].includes(getType(location));
 }
 
 function getName(location) {
   return (
-    location?.name || location?.branch_name || location?.title || "Unnamed"
+    location?.name ||
+    location?.branch_name ||
+    location?.title ||
+    "Unnamed"
   );
 }
 
@@ -155,15 +150,18 @@ function flattenLocations(locations) {
     const key =
       id !== undefined && id !== null
         ? String(id)
-        : [location?.latitude, location?.longitude, getName(location)].join(
-            "-",
-          );
+        : [
+            location?.latitude,
+            location?.longitude,
+            getName(location),
+          ].join("-");
 
     if (seen.has(key)) {
       return;
     }
 
     seen.add(key);
+
     result.push(location);
 
     getChildren(location).forEach(walk);
@@ -240,9 +238,14 @@ export default function ConvertMainToSubBranchPage() {
 
       setLongitude(numberOrNull(location?.longitude));
 
-      setRadius(numberOrNull(location?.coverage_radius_km) ?? 10);
+      setRadius(
+        numberOrNull(location?.coverage_radius_km) ?? 10,
+      );
     } catch (error) {
-      console.error("LOAD CURRENT LOCATION ERROR:", error);
+      console.error(
+        "LOAD CURRENT LOCATION ERROR:",
+        error,
+      );
 
       message.error(
         error?.response?.data?.message ||
@@ -266,15 +269,25 @@ export default function ConvertMainToSubBranchPage() {
         per_page: 1000,
       });
 
-      const normalized = normalizeCoverageLocations(response);
+      const normalized =
+        normalizeCoverageLocations(response);
 
-      setLocations(Array.isArray(normalized) ? normalized : []);
+      setLocations(
+        Array.isArray(normalized)
+          ? normalized
+          : [],
+      );
     } catch (error) {
-      console.error("LOAD LOCATIONS ERROR:", error);
+      console.error(
+        "LOAD LOCATIONS ERROR:",
+        error,
+      );
 
       setLocations([]);
 
-      message.warning("Could not load coverage zones.");
+      message.warning(
+        "Could not load coverage zones.",
+      );
     } finally {
       setLoadingLocations(false);
     }
@@ -292,11 +305,19 @@ export default function ConvertMainToSubBranchPage() {
         per_page: 1000,
       });
 
-      const normalized = normalizeBranches(response);
+      const normalized =
+        normalizeBranches(response);
 
-      setBranches(Array.isArray(normalized) ? normalized : []);
+      setBranches(
+        Array.isArray(normalized)
+          ? normalized
+          : [],
+      );
     } catch (error) {
-      console.error("LOAD BRANCHES ERROR:", error);
+      console.error(
+        "LOAD BRANCHES ERROR:",
+        error,
+      );
 
       setBranches([]);
     } finally {
@@ -312,13 +333,20 @@ export default function ConvertMainToSubBranchPage() {
     loadCurrentLocation();
     loadLocations();
     loadBranches();
-  }, [loadCurrentLocation, loadLocations, loadBranches]);
+  }, [
+    loadCurrentLocation,
+    loadLocations,
+    loadBranches,
+  ]);
 
   /* ------------------------------------------------------------------------ */
   /* Flatten locations                                                        */
   /* ------------------------------------------------------------------------ */
 
-  const allLocations = useMemo(() => flattenLocations(locations), [locations]);
+  const allLocations = useMemo(
+    () => flattenLocations(locations),
+    [locations],
+  );
 
   /* ------------------------------------------------------------------------ */
   /* Destination main zones                                                  */
@@ -326,7 +354,10 @@ export default function ConvertMainToSubBranchPage() {
 
   const destinationMainZones = useMemo(() => {
     return allLocations
-      .filter((location) => Number(location?.id) !== Number(id))
+      .filter(
+        (location) =>
+          Number(location?.id) !== Number(id),
+      )
       .filter(isMainZone)
       .filter(
         (location) =>
@@ -334,7 +365,9 @@ export default function ConvertMainToSubBranchPage() {
           location?.status === null ||
           location?.status === "active",
       )
-      .sort((a, b) => getName(a).localeCompare(getName(b)));
+      .sort((a, b) =>
+        getName(a).localeCompare(getName(b)),
+      );
   }, [allLocations, id]);
 
   /* ------------------------------------------------------------------------ */
@@ -346,16 +379,22 @@ export default function ConvertMainToSubBranchPage() {
       return [];
     }
 
-    const directChildren = getChildren(currentLocation);
+    const directChildren =
+      getChildren(currentLocation);
 
     if (directChildren.length > 0) {
       return directChildren;
     }
 
     return allLocations.filter(
-      (location) => Number(location?.parent_id) === Number(id),
+      (location) =>
+        Number(location?.parent_id) === Number(id),
     );
-  }, [currentLocation, allLocations, id]);
+  }, [
+    currentLocation,
+    allLocations,
+    id,
+  ]);
 
   /* ------------------------------------------------------------------------ */
   /* Map locations                                                            */
@@ -408,132 +447,276 @@ export default function ConvertMainToSubBranchPage() {
 
       return true;
     });
-  }, [branches, mapLocations]);
+  }, [
+    branches,
+    mapLocations,
+  ]);
 
   /* ------------------------------------------------------------------------ */
   /* Map change                                                               */
   /* ------------------------------------------------------------------------ */
 
-  const handleMapChange = useCallback((value) => {
-    if (!value) {
-      return;
-    }
+  const handleMapChange = useCallback(
+    (value) => {
+      if (!value) {
+        return;
+      }
 
-    const lat = numberOrNull(value.latitude);
+      const lat = numberOrNull(
+        value.latitude,
+      );
 
-    const lng = numberOrNull(value.longitude);
+      const lng = numberOrNull(
+        value.longitude,
+      );
 
-    if (lat === null || lng === null) {
-      return;
-    }
+      if (lat === null || lng === null) {
+        return;
+      }
 
-    setLatitude(lat);
-    setLongitude(lng);
-  }, []);
+      setLatitude(lat);
+      setLongitude(lng);
+    },
+    [],
+  );
 
   /* ------------------------------------------------------------------------ */
-  /* CONVERSION                                                               */
+  /* Cancel                                                                   */
+  /* ------------------------------------------------------------------------ */
+
+  const handleCancel = useCallback(() => {
+    if (converting) {
+      return;
+    }
+
+    router.push("/admin/coverage-locations");
+  }, [
+    converting,
+    router,
+  ]);
+
+  /* ------------------------------------------------------------------------ */
+  /* Conversion                                                               */
   /* ------------------------------------------------------------------------ */
 
   const handleConvert = useCallback(
     async (payload) => {
       if (!currentLocation) {
-        message.error("Current coverage location is unavailable.");
+        message.error(
+          "Current coverage location is unavailable.",
+        );
 
         return;
       }
 
-      /*
-       * ================================================================
-       * FINAL BACKEND PAYLOAD
-       * ================================================================
-       *
-       * Every string field is explicitly forced to a primitive string.
-       *
-       * Particularly:
-       *
-       * landmark: ""
-       *
-       * NOT:
-       *
-       * landmark: null
-       * landmark: {}
-       * landmark: []
-       * landmark: undefined
-       *
-       * This is the important fix.
-       */
-
       const finalPayload = {
-        parent_id: Number(payload?.parent_id),
+        parent_id: Number(
+          payload?.parent_id,
+        ),
 
-        name: stringValue(payload?.name),
+        name: stringValue(
+          payload?.name,
+        ),
 
-        latitude: Number(payload?.latitude),
+        latitude: Number(
+          payload?.latitude,
+        ),
 
-        longitude: Number(payload?.longitude),
+        longitude: Number(
+          payload?.longitude,
+        ),
 
-        coverage_radius_km: Number(payload?.coverage_radius_km),
+        coverage_radius_km: Number(
+          payload?.coverage_radius_km,
+        ),
 
-        country: stringValue(payload?.country, "Nepal"),
+        country: stringValue(
+          payload?.country,
+          "Nepal",
+        ),
 
-        province: stringValue(payload?.province),
+        province: stringValue(
+          payload?.province,
+        ),
 
-        district: stringValue(payload?.district),
+        district: stringValue(
+          payload?.district,
+        ),
 
-        city: stringValue(payload?.city),
+        city: stringValue(
+          payload?.city,
+        ),
 
-        area: stringValue(payload?.area),
+        area: stringValue(
+          payload?.area,
+        ),
 
-        street: stringValue(payload?.street),
+        street: stringValue(
+          payload?.street,
+        ),
 
-        /*
-         * DO NOT USE:
-         *
-         * payload.landmark || null
-         *
-         * DO NOT USE:
-         *
-         * payload.landmark ?? null
-         *
-         * Always send a string.
-         */
-        landmark: stringValue(payload?.landmark, ""),
+        landmark: stringValue(
+          payload?.landmark,
+          "",
+        ),
 
-        address: stringValue(payload?.address),
+        address: stringValue(
+          payload?.address,
+        ),
 
-        transfer_child_zones: Boolean(payload?.transfer_child_zones),
+        transfer_child_zones:
+          Boolean(
+            payload?.transfer_child_zones,
+          ),
 
-        preserve_location_configuration: true,
+        preserve_location_configuration:
+          true,
       };
 
-      /*
-       * Deep clone the object.
-       *
-       * This ensures that Axios receives only a plain JSON object.
-       */
-      const cleanPayload = JSON.parse(JSON.stringify(finalPayload));
+      /* ------------------------------------------------------------------ */
+      /* Validation                                                         */
+      /* ------------------------------------------------------------------ */
 
-      console.log("================================================");
+      if (
+        !Number.isInteger(
+          finalPayload.parent_id,
+        ) ||
+        finalPayload.parent_id <= 0
+      ) {
+        message.error(
+          "Please select a valid destination main zone.",
+        );
 
-      console.log("CONVERT MAIN → SUB-BRANCH");
-
-      console.log("URL ID:", currentLocation.id);
-
-      console.log("FINAL JSON PAYLOAD:", JSON.stringify(cleanPayload, null, 2));
-
-      console.log("LANDMARK VALUE:", cleanPayload.landmark);
-
-      console.log("LANDMARK TYPE:", typeof cleanPayload.landmark);
-
-      console.log("================================================");
-
-      /*
-       * Last absolute safety check.
-       */
-      if (typeof cleanPayload.landmark !== "string") {
-        cleanPayload.landmark = "";
+        return;
       }
+
+      if (
+        !finalPayload.name
+      ) {
+        message.error(
+          "Please enter a sub-branch name.",
+        );
+
+        return;
+      }
+
+      if (
+        !Number.isFinite(
+          finalPayload.latitude,
+        ) ||
+        finalPayload.latitude < -90 ||
+        finalPayload.latitude > 90
+      ) {
+        message.error(
+          "Please enter a valid latitude.",
+        );
+
+        return;
+      }
+
+      if (
+        !Number.isFinite(
+          finalPayload.longitude,
+        ) ||
+        finalPayload.longitude < -180 ||
+        finalPayload.longitude > 180
+      ) {
+        message.error(
+          "Please enter a valid longitude.",
+        );
+
+        return;
+      }
+
+      if (
+        !Number.isFinite(
+          finalPayload.coverage_radius_km,
+        ) ||
+        finalPayload.coverage_radius_km <= 0
+      ) {
+        message.error(
+          "Coverage radius must be greater than 0.",
+        );
+
+        return;
+      }
+
+      /* ------------------------------------------------------------------ */
+      /* Force all string fields to primitive strings                       */
+      /* ------------------------------------------------------------------ */
+
+      const stringFields = [
+        "country",
+        "province",
+        "district",
+        "city",
+        "area",
+        "street",
+        "landmark",
+        "address",
+        "name",
+      ];
+
+      stringFields.forEach(
+        (field) => {
+          if (
+            typeof finalPayload[field] !==
+            "string"
+          ) {
+            finalPayload[field] =
+              field === "country"
+                ? "Nepal"
+                : "";
+          }
+        },
+      );
+
+      finalPayload.transfer_child_zones =
+        Boolean(
+          finalPayload.transfer_child_zones,
+        );
+
+      finalPayload.preserve_location_configuration =
+        true;
+
+      const cleanPayload =
+        JSON.parse(
+          JSON.stringify(
+            finalPayload,
+          ),
+        );
+
+      console.log(
+        "================================================",
+      );
+
+      console.log(
+        "CONVERT MAIN → SUB-BRANCH",
+      );
+
+      console.log(
+        "SOURCE LOCATION:",
+        currentLocation.id,
+      );
+
+      console.log(
+        "FINAL JSON PAYLOAD:",
+        JSON.stringify(
+          cleanPayload,
+          null,
+          2,
+        ),
+      );
+
+      console.log(
+        "LANDMARK:",
+        cleanPayload.landmark,
+        typeof cleanPayload.landmark,
+      );
+
+      console.log(
+        "================================================",
+      );
 
       try {
         setConverting(true);
@@ -549,21 +732,40 @@ export default function ConvertMainToSubBranchPage() {
           )} was converted to "${cleanPayload.name}" successfully.`,
         );
 
-        router.push("/admin/coverage-locations");
+        router.push(
+          "/admin/coverage-locations",
+        );
       } catch (error) {
-        console.error("CONVERSION ERROR:", error);
+        console.error(
+          "CONVERSION ERROR:",
+          error,
+        );
 
-        const data = error?.response?.data;
+        const data =
+          error?.response?.data;
 
-        const errors = data?.errors;
+        const errors =
+          data?.errors;
 
-        if (errors && typeof errors === "object") {
-          const firstError = Object.values(errors)[0];
+        if (
+          errors &&
+          typeof errors === "object"
+        ) {
+          const firstError =
+            Object.values(
+              errors,
+            )[0];
 
           message.error(
-            Array.isArray(firstError)
-              ? String(firstError[0])
-              : String(firstError),
+            Array.isArray(
+              firstError,
+            )
+              ? String(
+                  firstError[0],
+                )
+              : String(
+                  firstError,
+                ),
           );
         } else {
           message.error(
@@ -576,7 +778,10 @@ export default function ConvertMainToSubBranchPage() {
         setConverting(false);
       }
     },
-    [currentLocation, router],
+    [
+      currentLocation,
+      router,
+    ],
   );
 
   /* ------------------------------------------------------------------------ */
@@ -587,16 +792,22 @@ export default function ConvertMainToSubBranchPage() {
     return (
       <div
         style={{
-          height: "calc(100vh - 70px)",
+          height:
+            "calc(100vh - 70px)",
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
         }}
       >
-        <Space direction="vertical" align="center">
+        <Space
+          direction="vertical"
+          align="center"
+        >
           <Spin size="large" />
 
-          <Text type="secondary">Loading coverage location...</Text>
+          <Text type="secondary">
+            Loading coverage location...
+          </Text>
         </Space>
       </div>
     );
@@ -618,7 +829,13 @@ export default function ConvertMainToSubBranchPage() {
           showIcon
           message="Coverage location could not be loaded."
           action={
-            <Button onClick={() => router.push("/admin/coverage-locations")}>
+            <Button
+              onClick={() =>
+                router.push(
+                  "/admin/coverage-locations",
+                )
+              }
+            >
               Back
             </Button>
           }
@@ -633,27 +850,80 @@ export default function ConvertMainToSubBranchPage() {
 
   return (
     <ConvertMainToSubBranchForm
-      currentLocation={currentLocation}
-      destinationId={destinationId}
-      onDestinationChange={setDestinationId}
+      currentLocation={
+        currentLocation
+      }
+
+      destinationMainZones={
+        destinationMainZones
+      }
+
+      destinationId={
+        destinationId
+      }
+
+      onDestinationChange={
+        setDestinationId
+      }
+
       name={name}
       onNameChange={setName}
+
       latitude={latitude}
       longitude={longitude}
       radius={radius}
-      onLatitudeChange={setLatitude}
-      onLongitudeChange={setLongitude}
-      onRadiusChange={setRadius}
+
+      onLatitudeChange={
+        setLatitude
+      }
+
+      onLongitudeChange={
+        setLongitude
+      }
+
+      onRadiusChange={
+        setRadius
+      }
+
       childZones={childZones}
-      keepChildZones={keepChildZones}
-      onKeepChildZonesChange={setKeepChildZones}
-      mapLocations={mapLocations}
-      mapBranches={mapBranches}
-      loadingBranches={loadingBranches}
+
+      keepChildZones={
+        keepChildZones
+      }
+
+      onKeepChildZonesChange={
+        setKeepChildZones
+      }
+
+      mapLocations={
+        mapLocations
+      }
+
+      mapBranches={
+        mapBranches
+      }
+
+      loadingBranches={
+        loadingBranches
+      }
+
+      loadingLocations={
+        loadingLocations
+      }
+
       converting={converting}
-      onMapChange={handleMapChange}
-      onCancel={handleCancel}
-      onConvert={handleConvert}
+
+      onMapChange={
+        handleMapChange
+      }
+
+      onCancel={
+        handleCancel
+      }
+
+      onConvert={
+        handleConvert
+      }
     />
   );
 }
