@@ -1,8 +1,6 @@
 "use client";
 
-import {
-  useMemo,
-} from "react";
+import { useMemo } from "react";
 
 import dynamic from "next/dynamic";
 
@@ -31,63 +29,44 @@ import {
   WarningOutlined,
 } from "@ant-design/icons";
 
-const {
-  Text,
-  Title,
-} = Typography;
+const { Text, Title } = Typography;
 
 /* -------------------------------------------------------------------------- */
 /* Map                                                                        */
 /* -------------------------------------------------------------------------- */
 
-const CoverageRadiusMap =
-  dynamic(
-    () =>
-      import(
-        "@/components/maps/CoverageRadiusMap"
-      ),
-    {
-      ssr: false,
+const CoverageRadiusMap = dynamic(
+  () => import("@/components/maps/CoverageRadiusMap"),
+  {
+    ssr: false,
 
-      loading: () => (
-        <div
-          style={{
-            height: "100%",
-            minHeight: 500,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            background:
-              "#f5f7fa",
-          }}
-        >
-          <Space
-            direction="vertical"
-            align="center"
-          >
-            <Spin size="large" />
+    loading: () => (
+      <div
+        style={{
+          height: "100%",
+          minHeight: 500,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          background: "#f5f7fa",
+        }}
+      >
+        <Space direction="vertical" align="center">
+          <Spin size="large" />
 
-            <Text type="secondary">
-              Loading map...
-            </Text>
-          </Space>
-        </div>
-      ),
-    },
-  );
+          <Text type="secondary">Loading map...</Text>
+        </Space>
+      </div>
+    ),
+  },
+);
 
 /* -------------------------------------------------------------------------- */
 /* Helpers                                                                    */
 /* -------------------------------------------------------------------------- */
 
-function stringValue(
-  value,
-  fallback = "",
-) {
-  if (
-    value === null ||
-    value === undefined
-  ) {
+function stringValue(value, fallback = "") {
+  if (value === null || value === undefined) {
     return fallback;
   }
 
@@ -95,44 +74,27 @@ function stringValue(
     return value.trim();
   }
 
-  if (
-    typeof value === "number" ||
-    typeof value === "boolean"
-  ) {
+  if (typeof value === "number" || typeof value === "boolean") {
     return String(value).trim();
   }
 
   /*
    * Prevent accidental object values.
    */
-  if (
-    typeof value === "object"
-  ) {
-    if (
-      typeof value.value ===
-      "string"
-    ) {
+  if (typeof value === "object") {
+    if (typeof value.value === "string") {
       return value.value.trim();
     }
 
-    if (
-      typeof value.label ===
-      "string"
-    ) {
+    if (typeof value.label === "string") {
       return value.label.trim();
     }
 
-    if (
-      typeof value.name ===
-      "string"
-    ) {
+    if (typeof value.name === "string") {
       return value.name.trim();
     }
 
-    if (
-      typeof value.text ===
-      "string"
-    ) {
+    if (typeof value.text === "string") {
       return value.text.trim();
     }
 
@@ -143,100 +105,67 @@ function stringValue(
 }
 
 function numberOrNull(value) {
-  if (
-    value === null ||
-    value === undefined ||
-    value === ""
-  ) {
+  if (value === null || value === undefined || value === "") {
     return null;
   }
 
   const number = Number(value);
 
-  return Number.isFinite(number)
-    ? number
-    : null;
+  return Number.isFinite(number) ? number : null;
 }
 
 function getName(location) {
   return (
-    location?.name ||
-    location?.branch_name ||
-    location?.title ||
-    "Unnamed"
+    location?.name || location?.branch_name || location?.title || "Unnamed"
   );
 }
 
 function getCode(location) {
-  return (
-    location?.code ||
-    location?.branch_code ||
-    ""
-  );
+  return location?.code || location?.branch_code || "";
 }
 
 function getChildren(location) {
-  if (
-    Array.isArray(location?.children)
-  ) {
+  if (Array.isArray(location?.children)) {
     return location.children;
   }
 
-  if (
-    Array.isArray(
-      location?.child_zones,
-    )
-  ) {
+  if (Array.isArray(location?.child_zones)) {
     return location.child_zones;
   }
 
-  if (
-    Array.isArray(location?.sub_zones)
-  ) {
+  if (Array.isArray(location?.sub_zones)) {
     return location.sub_zones;
   }
 
   return [];
 }
 
-function getPreservedArea(
-  location,
-) {
-  const area = stringValue(
-    location?.area,
-  );
+function getPreservedArea(location) {
+  const area = stringValue(location?.area);
 
   if (area) {
     return area;
   }
 
-  const city = stringValue(
-    location?.city,
-  );
+  const city = stringValue(location?.city);
 
   if (city) {
     return city;
   }
 
-  const district = stringValue(
-    location?.district,
-  );
+  const district = stringValue(location?.district);
 
   if (district) {
     return district;
   }
 
-  const province = stringValue(
-    location?.province,
-  );
+  const province = stringValue(location?.province);
 
   if (province) {
     return province;
   }
 
-  const name = stringValue(
-    location?.name,
-  );
+  const name = stringValue(location?.name);
 
   if (name) {
     return name;
@@ -246,43 +175,25 @@ function getPreservedArea(
 }
 
 function getAddress(location) {
-  const fullAddress =
-    stringValue(
-      location?.full_address,
-    );
+  const fullAddress = stringValue(location?.full_address);
 
   if (fullAddress) {
     return fullAddress;
   }
 
-  const address =
-    stringValue(
-      location?.address,
-    );
+  const address = stringValue(location?.address);
 
   if (address) {
     return address;
   }
 
   return [
-    stringValue(
-      location?.area,
-    ),
-    stringValue(
-      location?.city,
-    ),
-    stringValue(
-      location?.district,
-    ),
-    stringValue(
-      location?.province,
-    ),
-    stringValue(
-      location?.postal_code,
-    ),
-    stringValue(
-      location?.country,
-    ),
+    stringValue(location?.area),
+    stringValue(location?.city),
+    stringValue(location?.district),
+    stringValue(location?.province),
+    stringValue(location?.postal_code),
+    stringValue(location?.country),
   ]
     .filter(Boolean)
     .join(", ");
@@ -292,46 +203,26 @@ function getAddress(location) {
 /* Preserve location configuration                                            */
 /* -------------------------------------------------------------------------- */
 
-function buildLocationConfiguration(
-  location,
-) {
+function buildLocationConfiguration(location) {
   return {
-    country: stringValue(
-      location?.country,
-      "Nepal",
-    ),
+    country: stringValue(location?.country, "Nepal"),
 
-    province: stringValue(
-      location?.province,
-    ),
+    province: stringValue(location?.province),
 
-    district: stringValue(
-      location?.district,
-    ),
+    district: stringValue(location?.district),
 
-    city: stringValue(
-      location?.city,
-    ),
+    city: stringValue(location?.city),
 
-    area: getPreservedArea(
-      location,
-    ),
+    area: getPreservedArea(location),
 
-    street: stringValue(
-      location?.street,
-    ),
+    street: stringValue(location?.street),
 
     /*
      * ALWAYS STRING.
      */
-    landmark: stringValue(
-      location?.landmark,
-      "-",
-    ),
+    landmark: stringValue(location?.landmark, "-"),
 
-    address: stringValue(
-      location?.address,
-    ),
+    address: stringValue(location?.address),
   };
 }
 
@@ -367,124 +258,66 @@ export default function ConvertMainToSubBranchForm({
   /* Destination                                                              */
   /* ------------------------------------------------------------------------ */
 
-  const destination =
-    useMemo(
-      () =>
-        destinationMainZones.find(
-          (zone) =>
-            Number(zone?.id) ===
-            Number(
-              destinationId,
-            ),
-        ),
-      [
-        destinationMainZones,
-        destinationId,
-      ],
-    );
+  const destination = useMemo(
+    () =>
+      destinationMainZones.find(
+        (zone) => Number(zone?.id) === Number(destinationId),
+      ),
+    [destinationMainZones, destinationId],
+  );
 
   /* ------------------------------------------------------------------------ */
   /* Location configuration                                                   */
   /* ------------------------------------------------------------------------ */
 
-  const locationConfiguration =
-    useMemo(
-      () =>
-        buildLocationConfiguration(
-          currentLocation,
-        ),
-      [currentLocation],
-    );
+  const locationConfiguration = useMemo(
+    () => buildLocationConfiguration(currentLocation),
+    [currentLocation],
+  );
 
   /* ------------------------------------------------------------------------ */
   /* Validation                                                               */
   /* ------------------------------------------------------------------------ */
 
-  const validationErrors =
-    useMemo(() => {
-      const errors = [];
+  const validationErrors = useMemo(() => {
+    const errors = [];
 
-      if (
-        !destinationId
-      ) {
-        errors.push(
-          "Select a destination main zone.",
-        );
+    if (!destinationId) {
+      errors.push("Select a destination main zone.");
+    }
+
+    if (!stringValue(name)) {
+      errors.push("Enter a sub-branch name.");
+    }
+
+    const lat = numberOrNull(latitude);
+
+    const lng = numberOrNull(longitude);
+
+    if (lat === null || lng === null) {
+      errors.push("Enter valid coordinates or select a location on the map.");
+    } else {
+      if (lat < -90 || lat > 90) {
+        errors.push("Latitude must be between -90 and 90.");
       }
 
-      if (
-        !stringValue(name)
-      ) {
-        errors.push(
-          "Enter a sub-branch name.",
-        );
+      if (lng < -180 || lng > 180) {
+        errors.push("Longitude must be between -180 and 180.");
       }
+    }
 
-      const lat =
-        numberOrNull(
-          latitude,
-        );
+    const radiusNumber = numberOrNull(radius);
 
-      const lng =
-        numberOrNull(
-          longitude,
-        );
+    if (radiusNumber === null || radiusNumber <= 0) {
+      errors.push("Coverage radius must be greater than 0.");
+    }
 
-      if (
-        lat === null ||
-        lng === null
-      ) {
-        errors.push(
-          "Enter valid coordinates or select a location on the map.",
-        );
-      } else {
-        if (
-          lat < -90 ||
-          lat > 90
-        ) {
-          errors.push(
-            "Latitude must be between -90 and 90.",
-          );
-        }
+    return errors;
+  }, [destinationId, name, latitude, longitude, radius]);
 
-        if (
-          lng < -180 ||
-          lng > 180
-        ) {
-          errors.push(
-            "Longitude must be between -180 and 180.",
-          );
-        }
-      }
-
-      const radiusNumber =
-        numberOrNull(radius);
-
-      if (
-        radiusNumber === null ||
-        radiusNumber <= 0
-      ) {
-        errors.push(
-          "Coverage radius must be greater than 0.",
-        );
-      }
-
-      return errors;
-    }, [
-      destinationId,
-      name,
-      latitude,
-      longitude,
-      radius,
-    ]);
-
-  const canConvert =
-    Boolean(
-      currentLocation &&
-        validationErrors.length ===
-          0 &&
-        !converting,
-    );
+  const canConvert = Boolean(
+    currentLocation && validationErrors.length === 0 && !converting,
+  );
 
   /* ------------------------------------------------------------------------ */
   /* Map value                                                                */
@@ -492,19 +325,10 @@ export default function ConvertMainToSubBranchForm({
 
   const mapValue = useMemo(
     () => ({
-      latitude:
-        numberOrNull(
-          latitude,
-        ),
-      longitude:
-        numberOrNull(
-          longitude,
-        ),
+      latitude: numberOrNull(latitude),
+      longitude: numberOrNull(longitude),
     }),
-    [
-      latitude,
-      longitude,
-    ],
+    [latitude, longitude],
   );
 
   /* ------------------------------------------------------------------------ */
@@ -512,10 +336,7 @@ export default function ConvertMainToSubBranchForm({
   /* ------------------------------------------------------------------------ */
 
   function handleConvert() {
-    if (
-      validationErrors.length >
-      0
-    ) {
+    if (validationErrors.length > 0) {
       return;
     }
 
@@ -533,138 +354,77 @@ export default function ConvertMainToSubBranchForm({
      */
 
     const payload = {
-      parent_id: Number(
-        destinationId,
-      ),
+      parent_id: Number(destinationId),
 
       name: stringValue(name),
 
-      latitude: Number(
-        latitude,
-      ),
+      latitude: Number(latitude),
 
-      longitude: Number(
-        longitude,
-      ),
+      longitude: Number(longitude),
 
-      coverage_radius_km:
-        Number(radius),
+      coverage_radius_km: Number(radius),
 
-      country: stringValue(
-        locationConfiguration.country,
-        "Nepal",
-      ),
+      country: stringValue(locationConfiguration.country, "Nepal"),
 
-      province: stringValue(
-        locationConfiguration.province,
-      ),
+      province: stringValue(locationConfiguration.province),
 
-      district: stringValue(
-        locationConfiguration.district,
-      ),
+      district: stringValue(locationConfiguration.district),
 
-      city: stringValue(
-        locationConfiguration.city,
-      ),
+      city: stringValue(locationConfiguration.city),
 
-      area: stringValue(
-        locationConfiguration.area,
-      ),
+      area: stringValue(locationConfiguration.area),
 
-      street: stringValue(
-        locationConfiguration.street,
-      ),
+      street: stringValue(locationConfiguration.street),
 
       /*
        * THIS MUST ALWAYS BE A STRING.
        */
-      landmark: stringValue(
-        locationConfiguration.landmark,
-        "",
-      ),
+      landmark: stringValue(locationConfiguration.landmark, ""),
 
-      address: stringValue(
-        locationConfiguration.address,
-      ),
+      address: stringValue(locationConfiguration.address),
 
       transfer_child_zones:
-        childZones.length > 0
-          ? Boolean(
-              keepChildZones,
-            )
-          : false,
+        childZones.length > 0 ? Boolean(keepChildZones) : false,
 
-      preserve_location_configuration:
-        true,
+      preserve_location_configuration: true,
     };
 
     /*
      * Absolute final sanitation.
      */
-    if (
-      typeof payload.landmark !==
-      "string"
-    ) {
+    if (typeof payload.landmark !== "string") {
       payload.landmark = "";
     }
 
-    if (
-      typeof payload.street !==
-      "string"
-    ) {
+    if (typeof payload.street !== "string") {
       payload.street = "";
     }
 
-    if (
-      typeof payload.address !==
-      "string"
-    ) {
+    if (typeof payload.address !== "string") {
       payload.address = "";
     }
 
-    if (
-      typeof payload.area !==
-      "string"
-    ) {
+    if (typeof payload.area !== "string") {
       payload.area = "";
     }
 
-    if (
-      typeof payload.city !==
-      "string"
-    ) {
+    if (typeof payload.city !== "string") {
       payload.city = "";
     }
 
-    if (
-      typeof payload.district !==
-      "string"
-    ) {
+    if (typeof payload.district !== "string") {
       payload.district = "";
     }
 
-    if (
-      typeof payload.province !==
-      "string"
-    ) {
+    if (typeof payload.province !== "string") {
       payload.province = "";
     }
 
-    if (
-      typeof payload.country !==
-      "string"
-    ) {
+    if (typeof payload.country !== "string") {
       payload.country = "Nepal";
     }
 
-    console.log(
-      "FORM CONVERSION PAYLOAD:",
-      JSON.stringify(
-        payload,
-        null,
-        2,
-      ),
-    );
+    console.log("FORM CONVERSION PAYLOAD:", JSON.stringify(payload, null, 2));
 
     console.log(
       "FORM LANDMARK:",
@@ -683,13 +443,10 @@ export default function ConvertMainToSubBranchForm({
   return (
     <div
       style={{
-        height:
-          "calc(100vh - 70px)",
+        height: "calc(100vh - 70px)",
         minHeight: 700,
-        padding:
-          "12px 18px",
-        background:
-          "#f5f7fa",
+        padding: "12px 18px",
+        background: "#f5f7fa",
         overflow: "hidden",
       }}
     >
@@ -713,15 +470,11 @@ export default function ConvertMainToSubBranchForm({
           }}
           styles={{
             body: {
-              padding:
-                "10px 15px",
+              padding: "10px 15px",
             },
           }}
         >
-          <Row
-            justify="space-between"
-            align="middle"
-          >
+          <Row justify="space-between" align="middle">
             <Col>
               <Space wrap>
                 <Title
@@ -730,40 +483,23 @@ export default function ConvertMainToSubBranchForm({
                     margin: 0,
                   }}
                 >
-                  Convert Main to
-                  Sub-Branch
+                  Convert Main to Sub-Branch
                 </Title>
 
-                <Tag color="blue">
-                  Main → Sub-Branch
-                </Tag>
+                <Tag color="blue">Main → Sub-Branch</Tag>
 
                 <Text type="secondary">
-                  Preserve location
-                  configuration while
-                  changing hierarchy.
+                  Preserve location configuration while changing hierarchy.
                 </Text>
               </Space>
             </Col>
 
             <Col>
               <Tag
-                color={
-                  canConvert
-                    ? "success"
-                    : "warning"
-                }
-                icon={
-                  canConvert ? (
-                    <InfoCircleOutlined />
-                  ) : (
-                    <WarningOutlined />
-                  )
-                }
+                color={canConvert ? "success" : "warning"}
+                icon={canConvert ? <InfoCircleOutlined /> : <WarningOutlined />}
               >
-                {canConvert
-                  ? "Ready to Convert"
-                  : "Complete Required Fields"}
+                {canConvert ? "Ready to Convert" : "Complete Required Fields"}
               </Tag>
             </Col>
           </Row>
@@ -779,15 +515,11 @@ export default function ConvertMainToSubBranchForm({
           }}
           styles={{
             body: {
-              padding:
-                "9px 15px",
+              padding: "9px 15px",
             },
           }}
         >
-          <Row
-            gutter={[20, 8]}
-            align="middle"
-          >
+          <Row gutter={[20, 8]} align="middle">
             <Col xs={24} md={6}>
               <Space>
                 <EnvironmentOutlined />
@@ -796,8 +528,7 @@ export default function ConvertMainToSubBranchForm({
                   <Text
                     type="secondary"
                     style={{
-                      display:
-                        "block",
+                      display: "block",
                       fontSize: 10,
                     }}
                   >
@@ -805,20 +536,10 @@ export default function ConvertMainToSubBranchForm({
                   </Text>
 
                   <Space size={5}>
-                    <Text strong>
-                      {getName(
-                        currentLocation,
-                      )}
-                    </Text>
+                    <Text strong>{getName(currentLocation)}</Text>
 
-                    {getCode(
-                      currentLocation,
-                    ) && (
-                      <Tag color="blue">
-                        {getCode(
-                          currentLocation,
-                        )}
-                      </Tag>
+                    {getCode(currentLocation) && (
+                      <Tag color="blue">{getCode(currentLocation)}</Tag>
                     )}
                   </Space>
                 </div>
@@ -829,8 +550,7 @@ export default function ConvertMainToSubBranchForm({
               <Text
                 type="secondary"
                 style={{
-                  display:
-                    "block",
+                  display: "block",
                   fontSize: 10,
                 }}
               >
@@ -838,13 +558,9 @@ export default function ConvertMainToSubBranchForm({
               </Text>
 
               <Text strong>
-                {numberOrNull(
-                  currentLocation?.latitude,
-                )?.toFixed(7)}
+                {numberOrNull(currentLocation?.latitude)?.toFixed(7)}
                 {" , "}
-                {numberOrNull(
-                  currentLocation?.longitude,
-                )?.toFixed(7)}
+                {numberOrNull(currentLocation?.longitude)?.toFixed(7)}
               </Text>
             </Col>
 
@@ -852,24 +568,18 @@ export default function ConvertMainToSubBranchForm({
               <Text
                 type="secondary"
                 style={{
-                  display:
-                    "block",
+                  display: "block",
                   fontSize: 10,
                 }}
               >
                 CHILD ZONES
               </Text>
 
-              <Text strong>
-                {childZones.length}
-              </Text>
+              <Text strong>{childZones.length}</Text>
             </Col>
 
             <Col>
-              <Tag color="green">
-                {currentLocation?.status ||
-                  "active"}
-              </Tag>
+              <Tag color="green">{currentLocation?.status || "active"}</Tag>
             </Col>
           </Row>
         </Card>
@@ -911,10 +621,8 @@ export default function ConvertMainToSubBranchForm({
                 }}
                 styles={{
                   body: {
-                    height:
-                      "calc(100% - 56px)",
-                    overflowY:
-                      "auto",
+                    height: "calc(100% - 56px)",
+                    overflowY: "auto",
                     padding: 14,
                   },
                 }}
@@ -932,48 +640,41 @@ export default function ConvertMainToSubBranchForm({
                     <Text strong>
                       <span
                         style={{
-                          color:
-                            "#ff4d4f",
+                          color: "#ff4d4f",
                         }}
                       >
                         *
                       </span>{" "}
-                      Destination Main
-                      Zone
+                      Destination Main Zone
                     </Text>
 
                     <Select
                       showSearch
                       allowClear
-                      value={
-                        destinationId
-                      }
-                      placeholder="Select destination main zone"
+                      value={destinationId}
+                      placeholder="Search destination main zone..."
                       optionFilterProp="label"
-                      onChange={
-                        onDestinationChange
+                      filterOption={(input, option) =>
+                        String(option?.label ?? "")
+                          .toLowerCase()
+                          .includes(
+                            String(input ?? "")
+                              .toLowerCase()
+                              .trim(),
+                          )
                       }
+                      onChange={onDestinationChange}
                       style={{
                         width: "100%",
                         marginTop: 5,
                       }}
-                      options={destinationMainZones.map(
-                        (zone) => ({
-                          value:
-                            zone.id,
-                          label: `${getName(
-                            zone,
-                          )}${
-                            getCode(
-                              zone,
-                            )
-                              ? ` (${getCode(
-                                  zone,
-                                )})`
-                              : ""
-                          }`,
-                        }),
-                      )}
+                      options={destinationMainZones.map((zone) => ({
+                        value: Number(zone.id),
+
+                        label: `${getName(zone)}${
+                          getCode(zone) ? ` (${getCode(zone)})` : ""
+                        }`,
+                      }))}
                     />
                   </div>
 
@@ -983,16 +684,9 @@ export default function ConvertMainToSubBranchForm({
                       showIcon
                       message={
                         <Space>
-                          <Text strong>
-                            Parent Main
-                            Zone
-                          </Text>
+                          <Text strong>Parent Main Zone</Text>
 
-                          <Tag color="blue">
-                            {getName(
-                              destination,
-                            )}
-                          </Tag>
+                          <Tag color="blue">{getName(destination)}</Tag>
                         </Space>
                       }
                     />
@@ -1000,8 +694,7 @@ export default function ConvertMainToSubBranchForm({
 
                   <Divider
                     style={{
-                      margin:
-                        "2px 0",
+                      margin: "2px 0",
                     }}
                   />
 
@@ -1011,14 +704,12 @@ export default function ConvertMainToSubBranchForm({
                     <Text strong>
                       <span
                         style={{
-                          color:
-                            "#ff4d4f",
+                          color: "#ff4d4f",
                         }}
                       >
                         *
                       </span>{" "}
-                      New Sub-Branch
-                      Name
+                      New Sub-Branch Name
                     </Text>
 
                     <Input
@@ -1026,12 +717,7 @@ export default function ConvertMainToSubBranchForm({
                       maxLength={150}
                       showCount
                       placeholder="e.g. Hetauda Sub 1"
-                      onChange={(e) =>
-                        onNameChange(
-                          e.target
-                            .value,
-                        )
-                      }
+                      onChange={(e) => onNameChange(e.target.value)}
                       style={{
                         marginTop: 5,
                       }}
@@ -1042,65 +728,39 @@ export default function ConvertMainToSubBranchForm({
 
                   <Row gutter={8}>
                     <Col span={12}>
-                      <Text strong>
-                        Latitude
-                      </Text>
+                      <Text strong>Latitude</Text>
 
                       <InputNumber
-                        value={
-                          latitude
-                        }
+                        value={latitude}
                         precision={7}
-                        controls={
-                          false
-                        }
+                        controls={false}
                         min={-90}
                         max={90}
                         style={{
-                          width:
-                            "100%",
+                          width: "100%",
                           marginTop: 5,
                         }}
-                        onChange={(
-                          value,
-                        ) =>
-                          onLatitudeChange(
-                            numberOrNull(
-                              value,
-                            ),
-                          )
+                        onChange={(value) =>
+                          onLatitudeChange(numberOrNull(value))
                         }
                       />
                     </Col>
 
                     <Col span={12}>
-                      <Text strong>
-                        Longitude
-                      </Text>
+                      <Text strong>Longitude</Text>
 
                       <InputNumber
-                        value={
-                          longitude
-                        }
+                        value={longitude}
                         precision={7}
-                        controls={
-                          false
-                        }
+                        controls={false}
                         min={-180}
                         max={180}
                         style={{
-                          width:
-                            "100%",
+                          width: "100%",
                           marginTop: 5,
                         }}
-                        onChange={(
-                          value,
-                        ) =>
-                          onLongitudeChange(
-                            numberOrNull(
-                              value,
-                            ),
-                          )
+                        onChange={(value) =>
+                          onLongitudeChange(numberOrNull(value))
                         }
                       />
                     </Col>
@@ -1109,42 +769,28 @@ export default function ConvertMainToSubBranchForm({
                   {/* RADIUS */}
 
                   <div>
-                    <Text strong>
-                      Coverage Radius
-                    </Text>
+                    <Text strong>Coverage Radius</Text>
 
                     <InputNumber
-                      value={
-                        radius
-                      }
+                      value={radius}
                       min={0.1}
                       max={500}
                       precision={2}
-                      controls={
-                        false
-                      }
+                      controls={false}
                       addonAfter="km"
                       style={{
-                        width:
-                          "100%",
+                        width: "100%",
                         marginTop: 5,
                       }}
-                      onChange={(
-                        value,
-                      ) =>
-                        onRadiusChange(
-                          numberOrNull(
-                            value,
-                          ) ?? 10,
-                        )
+                      onChange={(value) =>
+                        onRadiusChange(numberOrNull(value) ?? 10)
                       }
                     />
                   </div>
 
                   <Divider
                     style={{
-                      margin:
-                        "2px 0",
+                      margin: "2px 0",
                     }}
                   />
 
@@ -1158,123 +804,70 @@ export default function ConvertMainToSubBranchForm({
                     >
                       <EnvironmentOutlined />
 
-                      <Text strong>
-                        Preserved
-                        Location
-                      </Text>
+                      <Text strong>Preserved Location</Text>
 
-                      <Tag color="green">
-                        Preserved
-                      </Tag>
+                      <Tag color="green">Preserved</Tag>
                     </Space>
 
                     <div
                       style={{
-                        border:
-                          "1px solid #e5e7eb",
+                        border: "1px solid #e5e7eb",
                         borderRadius: 9,
-                        background:
-                          "#fafafa",
+                        background: "#fafafa",
                         padding: 10,
                       }}
                     >
                       <Text
                         type="secondary"
                         style={{
-                          display:
-                            "block",
+                          display: "block",
                           fontSize: 10,
                         }}
                       >
                         AREA
                       </Text>
 
-                      <Text strong>
-                        {
-                          locationConfiguration.area
-                        }
-                      </Text>
+                      <Text strong>{locationConfiguration.area}</Text>
 
                       <Divider
                         style={{
-                          margin:
-                            "8px 0",
+                          margin: "8px 0",
                         }}
                       />
 
                       <Text
                         type="secondary"
                         style={{
-                          display:
-                            "block",
+                          display: "block",
                           fontSize: 10,
                         }}
                       >
                         FULL ADDRESS
                       </Text>
 
-                      <Text strong>
-                        {getAddress(
-                          currentLocation,
-                        ) ||
-                          "—"}
-                      </Text>
+                      <Text strong>{getAddress(currentLocation) || "—"}</Text>
 
                       <Space
                         wrap
-                        size={[
-                          5,
-                          5,
-                        ]}
+                        size={[5, 5]}
                         style={{
                           marginTop: 8,
                         }}
                       >
-                        <Tag>
-                          Country:{" "}
-                          {
-                            locationConfiguration.country
-                          }
-                        </Tag>
+                        <Tag>Country: {locationConfiguration.country}</Tag>
+
+                        <Tag>Province: {locationConfiguration.province}</Tag>
+
+                        <Tag>District: {locationConfiguration.district}</Tag>
+
+                        <Tag>City: {locationConfiguration.city}</Tag>
+
+                        <Tag>Area: {locationConfiguration.area}</Tag>
+
+                        <Tag>Street: {locationConfiguration.street || "—"}</Tag>
 
                         <Tag>
-                          Province:{" "}
-                          {
-                            locationConfiguration.province
-                          }
-                        </Tag>
-
-                        <Tag>
-                          District:{" "}
-                          {
-                            locationConfiguration.district
-                          }
-                        </Tag>
-
-                        <Tag>
-                          City:{" "}
-                          {
-                            locationConfiguration.city
-                          }
-                        </Tag>
-
-                        <Tag>
-                          Area:{" "}
-                          {
-                            locationConfiguration.area
-                          }
-                        </Tag>
-
-                        <Tag>
-                          Street:{" "}
-                          {locationConfiguration.street ||
-                            "—"}
-                        </Tag>
-
-                        <Tag>
-                          Landmark:{" "}
-                          {locationConfiguration.landmark ||
-                            "—"}
+                          Landmark: {locationConfiguration.landmark || "—"}
                         </Tag>
                       </Space>
                     </div>
@@ -1282,14 +875,11 @@ export default function ConvertMainToSubBranchForm({
 
                   {/* CHILDREN */}
 
-                  {childZones.length >
-                    0 && (
+                  {childZones.length > 0 && (
                     <div
                       style={{
-                        border:
-                          "1px solid #91caff",
-                        background:
-                          "#e6f4ff",
+                        border: "1px solid #91caff",
+                        background: "#e6f4ff",
                         borderRadius: 9,
                         padding: 11,
                       }}
@@ -1298,47 +888,27 @@ export default function ConvertMainToSubBranchForm({
                         <ApartmentOutlined />
 
                         <div>
-                          <Text strong>
-                            Existing
-                            Sub-Branch
-                            Transfer
-                          </Text>
+                          <Text strong>Existing Sub-Branch Transfer</Text>
 
                           <br />
 
                           <Checkbox
-                            checked={
-                              keepChildZones
-                            }
-                            onChange={(
-                              e,
-                            ) =>
-                              onKeepChildZonesChange(
-                                e
-                                  .target
-                                  .checked,
-                              )
+                            checked={keepChildZones}
+                            onChange={(e) =>
+                              onKeepChildZonesChange(e.target.checked)
                             }
                           >
-                            Keep all
-                            existing
-                            child zones
+                            Keep all existing child zones
                           </Checkbox>
 
                           <Text
                             type="secondary"
                             style={{
-                              display:
-                                "block",
+                              display: "block",
                               marginTop: 5,
                             }}
                           >
-                            {
-                              childZones.length
-                            }{" "}
-                            child
-                            zone(s)
-                            found.
+                            {childZones.length} child zone(s) found.
                           </Text>
                         </div>
                       </Space>
@@ -1350,8 +920,7 @@ export default function ConvertMainToSubBranchForm({
                   {destination && (
                     <div
                       style={{
-                        border:
-                          "1px solid #d9d9d9",
+                        border: "1px solid #d9d9d9",
                         borderRadius: 9,
                         padding: 11,
                       }}
@@ -1360,27 +929,13 @@ export default function ConvertMainToSubBranchForm({
                         <InfoCircleOutlined />
 
                         <div>
-                          <Text strong>
-                            Conversion
-                            Result
-                          </Text>
+                          <Text strong>Conversion Result</Text>
 
                           <div>
-                            <Tag color="blue">
-                              {getName(
-                                destination,
-                              )}
-                            </Tag>
-
-                            will become
-                            the parent
-                            of
-
+                            <Tag color="blue">{getName(destination)}</Tag>
+                            will become the parent of
                             <Tag color="green">
-                              {stringValue(
-                                name,
-                              ) ||
-                                "New Sub-Branch"}
+                              {stringValue(name) || "New Sub-Branch"}
                             </Tag>
                           </div>
                         </div>
@@ -1390,8 +945,7 @@ export default function ConvertMainToSubBranchForm({
 
                   {/* VALIDATION */}
 
-                  {validationErrors.length >
-                    0 && (
+                  {validationErrors.length > 0 && (
                     <Alert
                       type="warning"
                       showIcon
@@ -1399,25 +953,13 @@ export default function ConvertMainToSubBranchForm({
                       description={
                         <ul
                           style={{
-                            margin:
-                              "5px 0 0 18px",
+                            margin: "5px 0 0 18px",
                             padding: 0,
                           }}
                         >
-                          {validationErrors.map(
-                            (
-                              error,
-                              index,
-                            ) => (
-                              <li
-                                key={
-                                  index
-                                }
-                              >
-                                {error}
-                              </li>
-                            ),
-                          )}
+                          {validationErrors.map((error, index) => (
+                            <li key={index}>{error}</li>
+                          ))}
                         </ul>
                       }
                     />
@@ -1441,37 +983,18 @@ export default function ConvertMainToSubBranchForm({
                   <Space>
                     <EnvironmentOutlined />
 
-                    <span>
-                      New Sub-Branch
-                      Location
-                    </span>
+                    <span>New Sub-Branch Location</span>
                   </Space>
                 }
                 extra={
                   <Space>
-                    {loadingBranches && (
-                      <Spin size="small" />
-                    )}
+                    {loadingBranches && <Spin size="small" />}
 
-                    <Tag color="purple">
-                      {radius ||
-                        0}{" "}
-                      km
-                    </Tag>
+                    <Tag color="purple">{radius || 0} km</Tag>
 
-                    <Tag color="blue">
-                      {
-                        mapLocations.length
-                      }{" "}
-                      zones
-                    </Tag>
+                    <Tag color="blue">{mapLocations.length} zones</Tag>
 
-                    <Tag color="cyan">
-                      {
-                        mapBranches.length
-                      }{" "}
-                      branches
-                    </Tag>
+                    <Tag color="cyan">{mapBranches.length} branches</Tag>
                   </Space>
                 }
                 style={{
@@ -1480,13 +1003,10 @@ export default function ConvertMainToSubBranchForm({
                 }}
                 styles={{
                   body: {
-                    height:
-                      "calc(100% - 56px)",
+                    height: "calc(100% - 56px)",
                     padding: 10,
-                    display:
-                      "flex",
-                    flexDirection:
-                      "column",
+                    display: "flex",
+                    flexDirection: "column",
                     minHeight: 0,
                   },
                 }}
@@ -1499,56 +1019,35 @@ export default function ConvertMainToSubBranchForm({
                 >
                   <CoverageRadiusMap
                     value={mapValue}
-                    radiusKm={
-                      Number(
-                        radius,
-                      ) || 10
-                    }
-                    existingLocations={
-                      mapLocations
-                    }
-                    existingBranches={
-                      mapBranches
-                    }
-                    selectedLocationId={
-                      currentLocation?.id
-                    }
-                    highlightedLocationId={
-                      destinationId
-                    }
+                    radiusKm={Number(radius) || 10}
+                    existingLocations={mapLocations}
+                    existingBranches={mapBranches}
+                    selectedLocationId={currentLocation?.id}
+                    highlightedLocationId={destinationId}
                     showExisting
                     showBranches
                     showSearch
                     clickable
                     height="100%"
-                    onChange={
-                      onMapChange
-                    }
+                    onChange={onMapChange}
                   />
                 </div>
 
                 <div
                   style={{
                     marginTop: 8,
-                    border:
-                      "1px solid #e5e7eb",
+                    border: "1px solid #e5e7eb",
                     borderRadius: 8,
-                    background:
-                      "#fafafa",
-                    padding:
-                      "8px 12px",
+                    background: "#fafafa",
+                    padding: "8px 12px",
                   }}
                 >
-                  <Row
-                    gutter={12}
-                    align="middle"
-                  >
+                  <Row gutter={12} align="middle">
                     <Col flex="auto">
                       <Text
                         type="secondary"
                         style={{
-                          display:
-                            "block",
+                          display: "block",
                           fontSize: 10,
                         }}
                       >
@@ -1556,27 +1055,16 @@ export default function ConvertMainToSubBranchForm({
                       </Text>
 
                       <Text strong>
-                        {latitude !==
-                          null &&
-                        longitude !==
-                          null
-                          ? `${Number(
-                              latitude,
-                            ).toFixed(
-                              7,
-                            )}, ${Number(
+                        {latitude !== null && longitude !== null
+                          ? `${Number(latitude).toFixed(7)}, ${Number(
                               longitude,
-                            ).toFixed(
-                              7,
-                            )}`
+                            ).toFixed(7)}`
                           : "Select on map"}
                       </Text>
                     </Col>
 
                     <Col>
-                      <Tag color="green">
-                        Sub-Branch
-                      </Tag>
+                      <Tag color="green">Sub-Branch</Tag>
                     </Col>
                   </Row>
                 </div>
@@ -1595,19 +1083,14 @@ export default function ConvertMainToSubBranchForm({
           }}
           styles={{
             body: {
-              padding:
-                "7px 12px",
+              padding: "7px 12px",
             },
           }}
         >
-          <Row
-            justify="space-between"
-            align="middle"
-          >
+          <Row justify="space-between" align="middle">
             <Col>
               <Text type="secondary">
-                {childZones.length >
-                0
+                {childZones.length > 0
                   ? keepChildZones
                     ? `${childZones.length} child zone(s) will remain under the converted sub-branch.`
                     : `${childZones.length} child zone(s) will be detached.`
@@ -1617,34 +1100,18 @@ export default function ConvertMainToSubBranchForm({
 
             <Col>
               <Space>
-                <Button
-                  disabled={
-                    converting
-                  }
-                  onClick={
-                    onCancel
-                  }
-                >
+                <Button disabled={converting} onClick={onCancel}>
                   Cancel
                 </Button>
 
                 <Button
                   type="primary"
-                  icon={
-                    <SwapOutlined />
-                  }
-                  loading={
-                    converting
-                  }
-                  disabled={
-                    !canConvert
-                  }
-                  onClick={
-                    handleConvert
-                  }
+                  icon={<SwapOutlined />}
+                  loading={converting}
+                  disabled={!canConvert}
+                  onClick={handleConvert}
                 >
-                  Convert to
-                  Sub-Branch
+                  Convert to Sub-Branch
                 </Button>
               </Space>
             </Col>
