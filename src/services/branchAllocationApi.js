@@ -7,7 +7,7 @@ import api from "@/lib/api";
 */
 
 export async function getCoverageLocations(params = {}) {
-  const response = await api.get("/api/v1/admin/coverage-locations", {
+  const response = await api.get("/admin/coverage-locations", {
     params: {
       page: params.page ?? 1,
       per_page: params.per_page ?? 100,
