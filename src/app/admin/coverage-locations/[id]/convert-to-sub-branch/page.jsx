@@ -8,12 +8,12 @@ import {
 } from "react";
 
 import {
-  message,
-  Spin,
-  Space,
-  Typography,
   Alert,
   Button,
+  message,
+  Space,
+  Spin,
+  Typography,
 } from "antd";
 
 import { useParams, useRouter } from "next/navigation";
@@ -31,16 +31,16 @@ import ConvertMainToSubBranchForm from "../../components/ConvertMainToSubBranchF
 
 const { Text } = Typography;
 
-/* ==========================================================================
-   RESPONSE HELPERS
-   ========================================================================== */
+/* -------------------------------------------------------------------------- */
+/* Helpers                                                                    */
+/* -------------------------------------------------------------------------- */
 
 function unwrap(response) {
-  if (response?.data?.data) {
+  if (response?.data?.data !== undefined) {
     return response.data.data;
   }
 
-  if (response?.data) {
+  if (response?.data !== undefined) {
     return response.data;
   }
 
@@ -63,22 +63,72 @@ function numberOrNull(value) {
     : null;
 }
 
-function stringOrNull(value) {
+/**
+ * IMPORTANT:
+ *
+ * Always return a primitive string.
+ *
+ * This prevents values such as:
+ *
+ * null
+ * undefined
+ * {}
+ * []
+ *
+ * from reaching Laravel's "string" validation.
+ */
+function stringValue(value, fallback = "") {
   if (
     value === null ||
     value === undefined
   ) {
-    return null;
+    return fallback;
   }
 
-  const result = String(value).trim();
+  if (typeof value === "string") {
+    return value.trim();
+  }
 
-  return result || null;
+  if (
+    typeof value === "number" ||
+    typeof value === "boolean"
+  ) {
+    return String(value).trim();
+  }
+
+  /*
+   * Defensive handling for accidental objects.
+   */
+  if (typeof value === "object") {
+    if (
+      typeof value.value === "string"
+    ) {
+      return value.value.trim();
+    }
+
+    if (
+      typeof value.label === "string"
+    ) {
+      return value.label.trim();
+    }
+
+    if (
+      typeof value.name === "string"
+    ) {
+      return value.name.trim();
+    }
+
+    if (
+      typeof value.text === "string"
+    ) {
+      return value.text.trim();
+    }
+
+    return fallback;
+  }
+
+  return fallback;
 }
-
-/* ==========================================================================
-   LOCATION HELPERS
-   ========================================================================== */
 
 function getType(location) {
   return (
@@ -88,8 +138,7 @@ function getType(location) {
     ""
   )
     .toString()
-    .toLowerCase()
-    .trim();
+    .toLowerCase();
 }
 
 function isMainZone(location) {
@@ -141,10 +190,6 @@ function getChildren(location) {
   return [];
 }
 
-/* ==========================================================================
-   FLATTEN LOCATIONS
-   ========================================================================== */
-
 function flattenLocations(locations) {
   const result = [];
   const seen = new Set();
@@ -160,16 +205,17 @@ function flattenLocations(locations) {
       id !== undefined &&
       id !== null
         ? String(id)
-        : `${location?.latitude}-${location?.longitude}-${getName(
-            location,
-          )}`;
+        : [
+            location?.latitude,
+            location?.longitude,
+            getName(location),
+          ].join("-");
 
     if (seen.has(key)) {
       return;
     }
 
     seen.add(key);
-
     result.push(location);
 
     getChildren(location).forEach(
@@ -184,171 +230,9 @@ function flattenLocations(locations) {
   return result;
 }
 
-/* ==========================================================================
-   PAGINATION HELPERS
-   ========================================================================== */
-
-/**
- * Extract pagination information from Laravel pagination response.
- *
- * Laravel:
- *
- * {
- *   data: [...],
- *   current_page: 1,
- *   last_page: 2,
- *   per_page: 100,
- *   total: 126,
- *   next_page_url: "...",
- * }
- */
-function getPaginationData(response) {
-  const root =
-    response?.data ?? response;
-
-  const data =
-    root?.data ?? [];
-
-  const currentPage =
-    Number(
-      root?.current_page ??
-        root?.meta?.current_page ??
-        1,
-    );
-
-  const lastPage =
-    Number(
-      root?.last_page ??
-        root?.meta?.last_page ??
-        currentPage,
-    );
-
-  const nextPageUrl =
-    root?.next_page_url ??
-    root?.links?.next ??
-    null;
-
-  return {
-    data: Array.isArray(data)
-      ? data
-      : [],
-    currentPage,
-    lastPage,
-    nextPageUrl,
-  };
-}
-
-/**
- * Fetch ALL coverage-location pages.
- *
- * Important:
- * The backend currently caps per_page at 100.
- * Therefore per_page=1000 does NOT mean 1000 records.
- *
- * This function keeps requesting:
- *
- * page=1
- * page=2
- * page=3
- * ...
- *
- * until Laravel says last_page has been reached.
- */
-async function fetchAllCoverageLocations() {
-  const all = [];
-
-  let page = 1;
-  let lastPage = 1;
-
-  const perPage = 100;
-
-  do {
-    const response =
-      await getCoverageLocations({
-        page,
-        per_page: perPage,
-      });
-
-    const pagination =
-      getPaginationData(response);
-
-    all.push(
-      ...pagination.data,
-    );
-
-    lastPage =
-      pagination.lastPage;
-
-    page =
-      pagination.currentPage + 1;
-
-    /*
-     * Safety protection.
-     *
-     * Prevent an infinite loop if the API
-     * returns malformed pagination metadata.
-     */
-    if (page > 1000) {
-      console.warn(
-        "Stopped coverage-location pagination after 1000 pages.",
-      );
-
-      break;
-    }
-  } while (page <= lastPage);
-
-  return all;
-}
-
-/**
- * Fetch ALL branches.
- *
- * This is kept separate because branches may also
- * be paginated independently by the backend.
- */
-async function fetchAllCoverageBranches() {
-  const all = [];
-
-  let page = 1;
-  let lastPage = 1;
-
-  const perPage = 100;
-
-  do {
-    const response =
-      await getCoverageBranches({
-        page,
-        per_page: perPage,
-      });
-
-    const pagination =
-      getPaginationData(response);
-
-    all.push(
-      ...pagination.data,
-    );
-
-    lastPage =
-      pagination.lastPage;
-
-    page =
-      pagination.currentPage + 1;
-
-    if (page > 1000) {
-      console.warn(
-        "Stopped branch pagination after 1000 pages.",
-      );
-
-      break;
-    }
-  } while (page <= lastPage);
-
-  return all;
-}
-
-/* ==========================================================================
-   PAGE
-   ========================================================================== */
+/* -------------------------------------------------------------------------- */
+/* Page                                                                       */
+/* -------------------------------------------------------------------------- */
 
 export default function ConvertMainToSubBranchPage() {
   const params = useParams();
@@ -421,194 +305,150 @@ export default function ConvertMainToSubBranchPage() {
     setKeepChildZones,
   ] = useState(true);
 
-  /* ==========================================================================
-     LOAD CURRENT LOCATION
-     ========================================================================== */
+  /* ------------------------------------------------------------------------ */
+  /* Load current location                                                   */
+  /* ------------------------------------------------------------------------ */
 
   const loadCurrentLocation =
-    useCallback(
-      async () => {
-        if (!id) {
-          return;
+    useCallback(async () => {
+      if (!id) {
+        return;
+      }
+
+      try {
+        setLoading(true);
+
+        const response =
+          await getCoverageLocation(id);
+
+        const location =
+          unwrap(response);
+
+        if (!location) {
+          throw new Error(
+            "Coverage location not found.",
+          );
         }
 
-        try {
-          setLoading(true);
+        setCurrentLocation(location);
 
-          const response =
-            await getCoverageLocation(
-              id,
-            );
+        setName(
+          stringValue(
+            location?.name,
+          ),
+        );
 
-          const location =
-            unwrap(response);
+        setLatitude(
+          numberOrNull(
+            location?.latitude,
+          ),
+        );
 
-          if (!location) {
-            throw new Error(
-              "Coverage location not found.",
-            );
-          }
+        setLongitude(
+          numberOrNull(
+            location?.longitude,
+          ),
+        );
 
-          setCurrentLocation(
-            location,
-          );
+        setRadius(
+          numberOrNull(
+            location?.coverage_radius_km,
+          ) ?? 10,
+        );
+      } catch (error) {
+        console.error(
+          "LOAD CURRENT LOCATION ERROR:",
+          error,
+        );
 
-          setName(
-            String(
-              location?.name || "",
-            ),
-          );
+        message.error(
+          error?.response?.data
+            ?.message ||
+            error?.message ||
+            "Could not load coverage location.",
+        );
+      } finally {
+        setLoading(false);
+      }
+    }, [id]);
 
-          setLatitude(
-            numberOrNull(
-              location?.latitude,
-            ),
-          );
-
-          setLongitude(
-            numberOrNull(
-              location?.longitude,
-            ),
-          );
-
-          setRadius(
-            numberOrNull(
-              location?.coverage_radius_km,
-            ) ?? 10,
-          );
-        } catch (error) {
-          console.error(
-            "Load current coverage location error:",
-            error,
-          );
-
-          message.error(
-            error?.response?.data
-              ?.message ||
-              error?.message ||
-              "Could not load coverage location.",
-          );
-        } finally {
-          setLoading(false);
-        }
-      },
-      [id],
-    );
-
-  /* ==========================================================================
-     LOAD ALL COVERAGE LOCATIONS
-     ========================================================================== */
+  /* ------------------------------------------------------------------------ */
+  /* Load coverage locations                                                  */
+  /* ------------------------------------------------------------------------ */
 
   const loadLocations =
-    useCallback(
-      async () => {
-        try {
-          setLoadingLocations(true);
+    useCallback(async () => {
+      try {
+        setLoadingLocations(true);
 
-          /*
-           * IMPORTANT:
-           *
-           * Do NOT use:
-           *
-           * getCoverageLocations({
-           *   per_page: 1000
-           * })
-           *
-           * because the backend currently caps it at 100.
-           *
-           * Instead fetch every page.
-           */
+        const response =
+          await getCoverageLocations({
+            per_page: 1000,
+          });
 
-          const rawLocations =
-            await fetchAllCoverageLocations();
-
-          console.log(
-            "[ConvertMainToSubBranch] Loaded coverage locations:",
-            rawLocations.length,
+        const normalized =
+          normalizeCoverageLocations(
+            response,
           );
 
-          const normalized =
-            normalizeCoverageLocations(
-              {
-                data: rawLocations,
-              },
-            );
+        setLocations(
+          Array.isArray(normalized)
+            ? normalized
+            : [],
+        );
+      } catch (error) {
+        console.error(
+          "LOAD LOCATIONS ERROR:",
+          error,
+        );
 
-          console.log(
-            "[ConvertMainToSubBranch] Normalized coverage locations:",
-            normalized.length,
-          );
+        setLocations([]);
 
-          setLocations(
-            Array.isArray(normalized)
-              ? normalized
-              : [],
-          );
-        } catch (error) {
-          console.error(
-            "Load all coverage locations error:",
-            error,
-          );
+        message.warning(
+          "Could not load coverage zones.",
+        );
+      } finally {
+        setLoadingLocations(false);
+      }
+    }, []);
 
-          setLocations([]);
-
-          message.warning(
-            "Could not load all coverage zones.",
-          );
-        } finally {
-          setLoadingLocations(false);
-        }
-      },
-      [],
-    );
-
-  /* ==========================================================================
-     LOAD ALL BRANCHES
-     ========================================================================== */
+  /* ------------------------------------------------------------------------ */
+  /* Load branches                                                            */
+  /* ------------------------------------------------------------------------ */
 
   const loadBranches =
-    useCallback(
-      async () => {
-        try {
-          setLoadingBranches(true);
+    useCallback(async () => {
+      try {
+        setLoadingBranches(true);
 
-          const rawBranches =
-            await fetchAllCoverageBranches();
+        const response =
+          await getCoverageBranches({
+            per_page: 1000,
+          });
 
-          console.log(
-            "[ConvertMainToSubBranch] Loaded branches:",
-            rawBranches.length,
-          );
+        const normalized =
+          normalizeBranches(response);
 
-          const normalized =
-            normalizeBranches(
-              {
-                data: rawBranches,
-              },
-            );
+        setBranches(
+          Array.isArray(normalized)
+            ? normalized
+            : [],
+        );
+      } catch (error) {
+        console.error(
+          "LOAD BRANCHES ERROR:",
+          error,
+        );
 
-          setBranches(
-            Array.isArray(normalized)
-              ? normalized
-              : [],
-          );
-        } catch (error) {
-          console.error(
-            "Load all branches error:",
-            error,
-          );
+        setBranches([]);
+      } finally {
+        setLoadingBranches(false);
+      }
+    }, []);
 
-          setBranches([]);
-        } finally {
-          setLoadingBranches(false);
-        }
-      },
-      [],
-    );
-
-  /* ==========================================================================
-     INITIAL LOAD
-     ========================================================================== */
+  /* ------------------------------------------------------------------------ */
+  /* Initial load                                                             */
+  /* ------------------------------------------------------------------------ */
 
   useEffect(() => {
     loadCurrentLocation();
@@ -620,215 +460,188 @@ export default function ConvertMainToSubBranchPage() {
     loadBranches,
   ]);
 
-  /* ==========================================================================
-     ALL LOCATIONS
-     ========================================================================== */
+  /* ------------------------------------------------------------------------ */
+  /* Flatten locations                                                        */
+  /* ------------------------------------------------------------------------ */
 
-  const allLocations =
-    useMemo(
-      () =>
-        flattenLocations(
-          locations,
-        ),
-      [locations],
-    );
+  const allLocations = useMemo(
+    () =>
+      flattenLocations(
+        locations,
+      ),
+    [locations],
+  );
 
-  /* ==========================================================================
-     DESTINATION MAIN ZONES
-     ========================================================================== */
+  /* ------------------------------------------------------------------------ */
+  /* Destination main zones                                                  */
+  /* ------------------------------------------------------------------------ */
 
   const destinationMainZones =
     useMemo(() => {
-      const result =
-        allLocations
-          .filter(
-            (location) =>
-              Number(location?.id) !==
-              Number(id),
-          )
-          .filter(isMainZone)
-          .filter(
-            (location) =>
-              location?.status ===
-                undefined ||
-              location?.status ===
-                null ||
-              location?.status ===
-                "active",
-          )
-          .sort(
-            (a, b) =>
-              getName(a).localeCompare(
-                getName(b),
-                undefined,
-                {
-                  sensitivity:
-                    "base",
-                },
-              ),
-          );
-
-      console.log(
-        "[ConvertMainToSubBranch] Destination main zones:",
-        result.map((item) => ({
-          id: item.id,
-          name: item.name,
-          code: item.code,
-          type: item.type,
-          parent_id:
-            item.parent_id,
-        })),
-      );
-
-      return result;
-    }, [
-      allLocations,
-      id,
-    ]);
-
-  /* ==========================================================================
-     CHILD ZONES
-     ========================================================================== */
-
-  const childZones =
-    useMemo(() => {
-      if (!currentLocation) {
-        return [];
-      }
-
-      const direct =
-        getChildren(
-          currentLocation,
-        );
-
-      if (direct.length) {
-        return direct;
-      }
-
-      return allLocations.filter(
-        (location) =>
-          Number(
-            location?.parent_id,
-          ) === Number(id),
-      );
-    }, [
-      currentLocation,
-      allLocations,
-      id,
-    ]);
-
-  /* ==========================================================================
-     MAP LOCATIONS
-     ========================================================================== */
-
-  const mapLocations =
-    useMemo(
-      () =>
-        allLocations.filter(
+      return allLocations
+        .filter(
           (location) =>
-            numberOrNull(
-              location?.latitude,
-            ) !== null &&
-            numberOrNull(
-              location?.longitude,
-            ) !== null,
-        ),
-      [allLocations],
-    );
-
-  /* ==========================================================================
-     MAP BRANCHES
-     ========================================================================== */
-
-  const mapBranches =
-    useMemo(() => {
-      const result = [
-        ...branches,
-      ];
-
-      mapLocations.forEach(
-        (location) => {
-          const assigned =
-            location?.assignedBranches ||
-            location?.assigned_branches ||
-            location?.branches ||
-            [];
-
-          if (
-            Array.isArray(
-              assigned,
-            )
-          ) {
-            result.push(
-              ...assigned,
-            );
-          }
-        },
-      );
-
-      const seen = new Set();
-
-      return result.filter(
-        (branch, index) => {
-          const branchId =
-            branch?.id ??
-            branch?.branch_id ??
-            `${branch?.latitude}-${branch?.longitude}-${index}`;
-
-          const key =
-            String(branchId);
-
-          if (seen.has(key)) {
-            return false;
-          }
-
-          seen.add(key);
-
-          return true;
-        },
-      );
+            Number(location?.id) !==
+            Number(id),
+        )
+        .filter(isMainZone)
+        .filter(
+          (location) =>
+            location?.status ===
+              undefined ||
+            location?.status ===
+              null ||
+            location?.status ===
+              "active",
+        )
+        .sort((a, b) =>
+          getName(a).localeCompare(
+            getName(b),
+          ),
+        );
     }, [
-      branches,
-      mapLocations,
+      allLocations,
+      id,
     ]);
 
-  /* ==========================================================================
-     MAP CHANGE
-     ========================================================================== */
+  /* ------------------------------------------------------------------------ */
+  /* Child zones                                                              */
+  /* ------------------------------------------------------------------------ */
 
-  const handleMapChange =
-    useCallback(
-      (value) => {
-        if (!value) {
-          return;
-        }
+  const childZones = useMemo(() => {
+    if (!currentLocation) {
+      return [];
+    }
 
-        const lat =
+    const directChildren =
+      getChildren(
+        currentLocation,
+      );
+
+    if (
+      directChildren.length > 0
+    ) {
+      return directChildren;
+    }
+
+    return allLocations.filter(
+      (location) =>
+        Number(
+          location?.parent_id,
+        ) === Number(id),
+    );
+  }, [
+    currentLocation,
+    allLocations,
+    id,
+  ]);
+
+  /* ------------------------------------------------------------------------ */
+  /* Map locations                                                            */
+  /* ------------------------------------------------------------------------ */
+
+  const mapLocations = useMemo(
+    () =>
+      allLocations.filter(
+        (location) =>
           numberOrNull(
-            value.latitude,
-          );
-
-        const lng =
+            location?.latitude,
+          ) !== null &&
           numberOrNull(
-            value.longitude,
-          );
+            location?.longitude,
+          ) !== null,
+      ),
+    [allLocations],
+  );
+
+  /* ------------------------------------------------------------------------ */
+  /* Map branches                                                             */
+  /* ------------------------------------------------------------------------ */
+
+  const mapBranches = useMemo(() => {
+    const result = [
+      ...branches,
+    ];
+
+    mapLocations.forEach(
+      (location) => {
+        const assigned =
+          location?.assignedBranches ||
+          location?.assigned_branches ||
+          location?.branches ||
+          [];
 
         if (
-          lat === null ||
-          lng === null
+          Array.isArray(assigned)
         ) {
-          return;
+          result.push(
+            ...assigned,
+          );
         }
-
-        setLatitude(lat);
-        setLongitude(lng);
       },
-      [],
     );
 
-  /* ==========================================================================
-     CONVERSION
-     ========================================================================== */
+    const seen = new Set();
+
+    return result.filter(
+      (branch, index) => {
+        const branchId =
+          branch?.id ??
+          branch?.branch_id ??
+          `${branch?.latitude}-${branch?.longitude}-${index}`;
+
+        const key = String(
+          branchId,
+        );
+
+        if (seen.has(key)) {
+          return false;
+        }
+
+        seen.add(key);
+
+        return true;
+      },
+    );
+  }, [
+    branches,
+    mapLocations,
+  ]);
+
+  /* ------------------------------------------------------------------------ */
+  /* Map change                                                               */
+  /* ------------------------------------------------------------------------ */
+
+  const handleMapChange =
+    useCallback((value) => {
+      if (!value) {
+        return;
+      }
+
+      const lat =
+        numberOrNull(
+          value.latitude,
+        );
+
+      const lng =
+        numberOrNull(
+          value.longitude,
+        );
+
+      if (
+        lat === null ||
+        lng === null
+      ) {
+        return;
+      }
+
+      setLatitude(lat);
+      setLongitude(lng);
+    }, []);
+
+  /* ------------------------------------------------------------------------ */
+  /* CONVERSION                                                               */
+  /* ------------------------------------------------------------------------ */
 
   const handleConvert =
     useCallback(
@@ -842,77 +655,91 @@ export default function ConvertMainToSubBranchPage() {
         }
 
         /*
-         * Final defensive normalization.
+         * ================================================================
+         * FINAL BACKEND PAYLOAD
+         * ================================================================
          *
-         * Landmark is intentionally normalized to a STRING.
+         * Every string field is explicitly forced to a primitive string.
+         *
+         * Particularly:
+         *
+         * landmark: ""
+         *
+         * NOT:
+         *
+         * landmark: null
+         * landmark: {}
+         * landmark: []
+         * landmark: undefined
+         *
+         * This is the important fix.
          */
+
         const finalPayload = {
-          ...payload,
+          parent_id: Number(
+            payload?.parent_id,
+          ),
 
-          parent_id:
-            Number(
-              payload?.parent_id,
-            ),
+          name: stringValue(
+            payload?.name,
+          ),
 
-          name:
-            String(
-              payload?.name ?? "",
-            ).trim(),
+          latitude: Number(
+            payload?.latitude,
+          ),
 
-          latitude:
-            Number(
-              payload?.latitude,
-            ),
+          longitude: Number(
+            payload?.longitude,
+          ),
 
-          longitude:
-            Number(
-              payload?.longitude,
-            ),
+          coverage_radius_km: Number(
+            payload?.coverage_radius_km,
+          ),
 
-          coverage_radius_km:
-            Number(
-              payload?.coverage_radius_km,
-            ),
+          country: stringValue(
+            payload?.country,
+            "Nepal",
+          ),
 
-          country:
-            String(
-              payload?.country ?? "",
-            ),
+          province: stringValue(
+            payload?.province,
+          ),
 
-          province:
-            String(
-              payload?.province ?? "",
-            ),
+          district: stringValue(
+            payload?.district,
+          ),
 
-          district:
-            String(
-              payload?.district ?? "",
-            ),
+          city: stringValue(
+            payload?.city,
+          ),
 
-          city:
-            String(
-              payload?.city ?? "",
-            ),
+          area: stringValue(
+            payload?.area,
+          ),
 
-          area:
-            String(
-              payload?.area ?? "",
-            ),
+          street: stringValue(
+            payload?.street,
+          ),
 
-          street:
-            String(
-              payload?.street ?? "",
-            ),
+          /*
+           * DO NOT USE:
+           *
+           * payload.landmark || null
+           *
+           * DO NOT USE:
+           *
+           * payload.landmark ?? null
+           *
+           * Always send a string.
+           */
+          landmark: stringValue(
+            payload?.landmark,
+            "",
+          ),
 
-          landmark:
-            String(
-              payload?.landmark ?? "",
-            ),
-
-          address:
-            String(
-              payload?.address ?? "",
-            ),
+          address: stringValue(
+            payload?.address,
+          ),
 
           transfer_child_zones:
             Boolean(
@@ -923,23 +750,76 @@ export default function ConvertMainToSubBranchPage() {
             true,
         };
 
+        /*
+         * Deep clone the object.
+         *
+         * This ensures that Axios receives only a plain JSON object.
+         */
+        const cleanPayload =
+          JSON.parse(
+            JSON.stringify(
+              finalPayload,
+            ),
+          );
+
         console.log(
-          "FINAL CONVERSION PAYLOAD:",
-          finalPayload,
+          "================================================",
         );
+
+        console.log(
+          "CONVERT MAIN → SUB-BRANCH",
+        );
+
+        console.log(
+          "URL ID:",
+          currentLocation.id,
+        );
+
+        console.log(
+          "FINAL JSON PAYLOAD:",
+          JSON.stringify(
+            cleanPayload,
+            null,
+            2,
+          ),
+        );
+
+        console.log(
+          "LANDMARK VALUE:",
+          cleanPayload.landmark,
+        );
+
+        console.log(
+          "LANDMARK TYPE:",
+          typeof cleanPayload.landmark,
+        );
+
+        console.log(
+          "================================================",
+        );
+
+        /*
+         * Last absolute safety check.
+         */
+        if (
+          typeof cleanPayload.landmark !==
+          "string"
+        ) {
+          cleanPayload.landmark = "";
+        }
 
         try {
           setConverting(true);
 
           await convertCoverageLocationToSubBranch(
             currentLocation.id,
-            finalPayload,
+            cleanPayload,
           );
 
           message.success(
             `${getName(
               currentLocation,
-            )} was converted to "${finalPayload.name}" successfully.`,
+            )} was converted to "${cleanPayload.name}" successfully.`,
           );
 
           router.push(
@@ -947,7 +827,7 @@ export default function ConvertMainToSubBranchPage() {
           );
         } catch (error) {
           console.error(
-            "Conversion error:",
+            "CONVERSION ERROR:",
             error,
           );
 
@@ -962,15 +842,21 @@ export default function ConvertMainToSubBranchPage() {
             typeof errors ===
               "object"
           ) {
-            const first =
+            const firstError =
               Object.values(
                 errors,
               )[0];
 
             message.error(
-              Array.isArray(first)
-                ? first[0]
-                : String(first),
+              Array.isArray(
+                firstError,
+              )
+                ? String(
+                    firstError[0],
+                  )
+                : String(
+                    firstError,
+                  ),
             );
           } else {
             message.error(
@@ -989,9 +875,9 @@ export default function ConvertMainToSubBranchPage() {
       ],
     );
 
-  /* ==========================================================================
-     LOADING
-     ========================================================================== */
+  /* ------------------------------------------------------------------------ */
+  /* Loading                                                                  */
+  /* ------------------------------------------------------------------------ */
 
   if (loading) {
     return (
@@ -1018,9 +904,9 @@ export default function ConvertMainToSubBranchPage() {
     );
   }
 
-  /* ==========================================================================
-     NOT FOUND
-     ========================================================================== */
+  /* ------------------------------------------------------------------------ */
+  /* Error                                                                    */
+  /* ------------------------------------------------------------------------ */
 
   if (!currentLocation) {
     return (
@@ -1049,85 +935,58 @@ export default function ConvertMainToSubBranchPage() {
     );
   }
 
-  /* ==========================================================================
-     FORM
-     ========================================================================== */
+  /* ------------------------------------------------------------------------ */
+  /* Render                                                                   */
+  /* ------------------------------------------------------------------------ */
 
   return (
     <ConvertMainToSubBranchForm
       currentLocation={
         currentLocation
       }
-
       destinationMainZones={
         destinationMainZones
       }
-
       destinationId={
         destinationId
       }
-
       onDestinationChange={
         setDestinationId
       }
-
       name={name}
       onNameChange={setName}
-
       latitude={latitude}
       longitude={longitude}
-
       radius={radius}
-
       onLatitudeChange={
         setLatitude
       }
-
       onLongitudeChange={
         setLongitude
       }
-
-      onRadiusChange={
-        setRadius
-      }
-
+      onRadiusChange={setRadius}
       childZones={childZones}
-
       keepChildZones={
         keepChildZones
       }
-
       onKeepChildZonesChange={
         setKeepChildZones
       }
-
-      mapLocations={
-        mapLocations
-      }
-
-      mapBranches={
-        mapBranches
-      }
-
+      mapLocations={mapLocations}
+      mapBranches={mapBranches}
       loadingBranches={
         loadingBranches
       }
-
       converting={converting}
-
       onMapChange={
         handleMapChange
       }
-
       onCancel={() =>
         router.push(
           `/admin/coverage-locations/${id}/edit`,
         )
       }
-
-      onConvert={
-        handleConvert
-      }
+      onConvert={handleConvert}
     />
   );
 }
