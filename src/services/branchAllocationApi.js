@@ -7,19 +7,17 @@ import api from "@/lib/api";
 */
 
 /**
- * Get coverage locations.
+ * Get paginated coverage locations.
  *
- * Supports:
+ * Supported params:
  * - page
  * - per_page
- * - q/search
+ * - q
+ * - search
  * - type
  * - parent_id
  * - status
  * - all
- *
- * Backend:
- * GET /api/v1/admin/coverage-locations
  */
 export async function getCoverageLocations(params = {}) {
   const queryParams = {
@@ -28,19 +26,24 @@ export async function getCoverageLocations(params = {}) {
   };
 
   /*
-   * Laravel controller expects `q`, not `search`.
+   * Backend search parameter is `q`.
    */
-  if (params.q) {
-    queryParams.q = params.q;
-  } else if (params.search) {
-    queryParams.q = params.search;
+  const search = String(
+    params.q ?? params.search ?? "",
+  ).trim();
+
+  if (search) {
+    queryParams.q = search;
   }
 
   if (params.type) {
     queryParams.type = params.type;
   }
 
-  if (params.parent_id !== undefined && params.parent_id !== null) {
+  if (
+    params.parent_id !== undefined &&
+    params.parent_id !== null
+  ) {
     queryParams.parent_id = params.parent_id;
   }
 
@@ -49,18 +52,14 @@ export async function getCoverageLocations(params = {}) {
   }
 
   /*
-   * IMPORTANT:
+   * Request all records.
    *
-   * When all=true, backend returns:
-   *
-   * {
-   *   data: [...]
-   * }
-   *
-   * instead of Laravel pagination.
+   * Only use this when you really need all coverage
+   * locations, not for Select dropdowns.
    */
   if (params.all === true) {
     queryParams.all = true;
+
     delete queryParams.page;
     delete queryParams.per_page;
   }
@@ -76,48 +75,46 @@ export async function getCoverageLocations(params = {}) {
 }
 
 /**
- * Get ALL coverage locations.
+ * Get all coverage locations.
  *
- * Useful for dropdown/select components.
- *
- * Backend limits this to 2000 records.
+ * NOTE:
+ * This is intentionally NOT used by the
+ * Main -> Sub Branch searchable Select.
  */
-export async function getAllCoverageLocations(params = {}) {
+export async function getAllCoverageLocations(
+  params = {},
+) {
+  const queryParams = {
+    all: true,
+  };
+
+  const search = String(
+    params.q ?? params.search ?? "",
+  ).trim();
+
+  if (search) {
+    queryParams.q = search;
+  }
+
+  if (params.type) {
+    queryParams.type = params.type;
+  }
+
+  if (
+    params.parent_id !== undefined &&
+    params.parent_id !== null
+  ) {
+    queryParams.parent_id = params.parent_id;
+  }
+
+  if (params.status) {
+    queryParams.status = params.status;
+  }
+
   const response = await api.get(
     "/admin/coverage-locations",
     {
-      params: {
-        all: true,
-
-        ...(params.q
-          ? {
-              q: params.q,
-            }
-          : params.search
-            ? {
-                q: params.search,
-              }
-            : {}),
-
-        ...(params.type
-          ? {
-              type: params.type,
-            }
-          : {}),
-
-        ...(params.parent_id !== undefined &&
-        params.parent_id !== null
-          ? {
-              parent_id: params.parent_id,
-            }
-          : {}),
-
-        ...(params.status
-          ? {
-              status: params.status,
-            }
-          : {}),
-      },
+      params: queryParams,
     },
   );
 
@@ -125,7 +122,7 @@ export async function getAllCoverageLocations(params = {}) {
 }
 
 /**
- * Get single coverage location.
+ * Get a single coverage location.
  */
 export async function getCoverageLocation(id) {
   const response = await api.get(
@@ -138,7 +135,9 @@ export async function getCoverageLocation(id) {
 /**
  * Create coverage location.
  */
-export async function createCoverageLocation(payload) {
+export async function createCoverageLocation(
+  payload,
+) {
   const response = await api.post(
     "/admin/coverage-locations",
     payload,
@@ -150,7 +149,10 @@ export async function createCoverageLocation(payload) {
 /**
  * Update coverage location.
  */
-export async function updateCoverageLocation(id, payload) {
+export async function updateCoverageLocation(
+  id,
+  payload,
+) {
   const response = await api.put(
     `/admin/coverage-locations/${id}`,
     payload,
@@ -175,34 +177,42 @@ export async function deleteCoverageLocation(id) {
 | Coverage Location Parent Options
 |--------------------------------------------------------------------------
 |
-| IMPORTANT:
+| SERVER-SIDE SEARCH
 |
-| This should be used for the Parent Main Branch select.
+| Example:
 |
-| Backend:
+| GET /api/v1/admin/coverage-locations/parent-options?q=chit
 |
-| GET /api/v1/admin/coverage-locations/parent-options
-|
-| It returns ONLY:
-| - MAIN_BRANCH_ZONE
-| - ACTIVE
+| Returns only matching ACTIVE MAIN_BRANCH_ZONE records.
 |
 |--------------------------------------------------------------------------
 */
 
 export async function getCoverageLocationParentOptions(
-  excludeId = null,
+  {
+    q = "",
+    excludeId = null,
+  } = {},
 ) {
+  const params = {};
+
+  const search = String(q || "").trim();
+
+  if (search) {
+    params.q = search;
+  }
+
+  if (
+    excludeId !== null &&
+    excludeId !== undefined
+  ) {
+    params.exclude_id = excludeId;
+  }
+
   const response = await api.get(
     "/admin/coverage-locations/parent-options",
     {
-      params:
-        excludeId !== null &&
-        excludeId !== undefined
-          ? {
-              exclude_id: excludeId,
-            }
-          : {},
+      params,
     },
   );
 
@@ -211,11 +221,16 @@ export async function getCoverageLocationParentOptions(
 
 /*
 |--------------------------------------------------------------------------
-| Main → Sub-Branch Conversion
+| Main -> Sub Branch Conversion
 |--------------------------------------------------------------------------
 */
 
-export async function getCoverageConversionOptions(id) {
+/**
+ * Get conversion options.
+ */
+export async function getCoverageConversionOptions(
+  id,
+) {
   const response = await api.get(
     `/admin/coverage-locations/${id}/conversion-options`,
   );
@@ -224,13 +239,13 @@ export async function getCoverageConversionOptions(id) {
 }
 
 /**
- * Convert main coverage location to sub branch.
+ * Convert Main Coverage Location to Sub Branch.
  *
- * UI can send either:
+ * UI may provide:
  *
  * parent_id
  *
- * OR
+ * OR:
  *
  * destination_main_zone_id
  *
@@ -250,13 +265,30 @@ export async function convertCoverageLocationToSubBranch(
 
   delete normalizedPayload.destination_main_zone_id;
 
+  /*
+   * Do not accidentally send undefined parent_id.
+   */
+  if (
+    normalizedPayload.parent_id === undefined ||
+    normalizedPayload.parent_id === null ||
+    normalizedPayload.parent_id === ""
+  ) {
+    throw new Error(
+      "A destination main zone is required.",
+    );
+  }
+
+  normalizedPayload.parent_id = Number(
+    normalizedPayload.parent_id,
+  );
+
   const response = await api.post(
     `/admin/coverage-locations/${id}/convert-to-sub-branch`,
     normalizedPayload,
   );
 
   return response.data;
-};
+}
 
 /*
 |--------------------------------------------------------------------------
@@ -264,27 +296,61 @@ export async function convertCoverageLocationToSubBranch(
 |--------------------------------------------------------------------------
 */
 
+/**
+ * Get branches.
+ *
+ * Supports server-side params:
+ *
+ * {
+ *   page,
+ *   per_page,
+ *   q,
+ *   search,
+ *   type,
+ *   status,
+ *   parent_id
+ * }
+ */
 export async function getBranches(params = {}) {
+  const queryParams = {
+    ...params,
+  };
+
+  /*
+   * Normalize frontend `search` to backend `q`
+   * when necessary.
+   */
+  if (
+    !queryParams.q &&
+    queryParams.search
+  ) {
+    queryParams.q = queryParams.search;
+  }
+
+  delete queryParams.search;
+
   const response = await api.get(
     "/admin/branches",
     {
-      params,
+      params: queryParams,
     },
   );
 
   return response.data;
 }
 
-/*
-|--------------------------------------------------------------------------
-| Compatibility
-|--------------------------------------------------------------------------
-*/
-
-export async function getCoverageBranches(params = {}) {
+/**
+ * Compatibility alias.
+ */
+export async function getCoverageBranches(
+  params = {},
+) {
   return getBranches(params);
 }
 
+/**
+ * Get single branch.
+ */
 export async function getBranch(id) {
   const response = await api.get(
     `/admin/branches/${id}`,
@@ -308,22 +374,34 @@ function unwrapCollection(response) {
     return response.data;
   }
 
-  if (Array.isArray(response?.data?.data)) {
+  if (
+    Array.isArray(
+      response?.data?.data,
+    )
+  ) {
     return response.data.data;
   }
 
-  if (Array.isArray(response?.data?.items)) {
+  if (
+    Array.isArray(
+      response?.data?.items,
+    )
+  ) {
     return response.data.items;
   }
 
-  if (Array.isArray(response?.items)) {
+  if (
+    Array.isArray(response?.items)
+  ) {
     return response.items;
   }
 
   return [];
 }
 
-export function normalizeCoverageLocations(response) {
+export function normalizeCoverageLocations(
+  response,
+) {
   return unwrapCollection(response);
 }
 
@@ -337,8 +415,12 @@ export function normalizeBranches(response) {
 |--------------------------------------------------------------------------
 */
 
-function buildBranchPayload(payload) {
-  const documents = payload.documents || [];
+function buildBranchPayload(payload = {}) {
+  const documents = Array.isArray(
+    payload.documents,
+  )
+    ? payload.documents
+    : [];
 
   const cleanPayload = {
     ...payload,
@@ -359,10 +441,15 @@ function buildBranchPayload(payload) {
 
       if (Array.isArray(value)) {
         value.forEach((item) => {
-          formData.append(
-            `${key}[]`,
-            item,
-          );
+          if (
+            item !== undefined &&
+            item !== null
+          ) {
+            formData.append(
+              `${key}[]`,
+              item,
+            );
+          }
         });
 
         return;
@@ -377,7 +464,10 @@ function buildBranchPayload(payload) {
         return;
       }
 
-      formData.append(key, value);
+      formData.append(
+        key,
+        value,
+      );
     },
   );
 
@@ -389,7 +479,8 @@ function buildBranchPayload(payload) {
 
       formData.append(
         `documents[${index}][document_type]`,
-        document.document_type || "other",
+        document.document_type ||
+          "other",
       );
 
       formData.append(
@@ -412,7 +503,12 @@ function buildBranchPayload(payload) {
   return formData;
 }
 
-export async function createBranch(payload) {
+/**
+ * Create branch.
+ */
+export async function createBranch(
+  payload,
+) {
   const response = await api.post(
     "/admin/branches",
     buildBranchPayload(payload),
@@ -427,6 +523,12 @@ export async function createBranch(payload) {
   return response.data;
 }
 
+/**
+ * Update branch.
+ *
+ * Laravel method spoofing is used because
+ * multipart/form-data + PUT can be problematic.
+ */
 export async function updateBranch(
   id,
   payload,
@@ -448,6 +550,9 @@ export async function updateBranch(
   return response.data;
 }
 
+/**
+ * Delete branch.
+ */
 export async function deleteBranch(id) {
   const response = await api.delete(
     `/admin/branches/${id}`,
@@ -456,6 +561,9 @@ export async function deleteBranch(id) {
   return response.data;
 }
 
+/**
+ * Get branch parent options.
+ */
 export async function getBranchParentOptions(
   type,
 ) {
@@ -471,6 +579,9 @@ export async function getBranchParentOptions(
   return response.data;
 }
 
+/**
+ * Approve branch.
+ */
 export async function approveBranch(id) {
   const response = await api.post(
     `/admin/branches/${id}/approve`,
@@ -479,6 +590,9 @@ export async function approveBranch(id) {
   return response.data;
 }
 
+/**
+ * Activate branch.
+ */
 export async function activateBranch(id) {
   const response = await api.post(
     `/admin/branches/${id}/activate`,
@@ -487,6 +601,9 @@ export async function activateBranch(id) {
   return response.data;
 }
 
+/**
+ * Suspend branch.
+ */
 export async function suspendBranch(
   id,
   reason = "Suspended from admin panel.",
@@ -501,6 +618,9 @@ export async function suspendBranch(
   return response.data;
 }
 
+/**
+ * Reject branch.
+ */
 export async function rejectBranch(
   id,
   reason = "Rejected from admin panel.",
