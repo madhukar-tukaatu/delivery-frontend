@@ -30,7 +30,7 @@ import { useRouter } from "next/navigation";
 import {
   getShipments,
   getShipmentsByBranchId,
-} from "@/services/shipmentService";
+} from "@/services/merchantShipmentService";
 
 import { usePermissions } from "@/hooks/usePermission";
 

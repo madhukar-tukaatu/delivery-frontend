@@ -32,16 +32,20 @@ import {
 
 import { StatusTag } from "@/components/PageTools";
 
-// Use the hook your project already uses for authenticated user.
-// Change this import if your project has a different auth/user hook.
-import { useAuth } from "@/hooks/useAuth";
+import { usePermissions } from "@/hooks/usePermission";
 
 const { Text } = Typography;
 
 export default function MerchantsPage() {
   const router = useRouter();
 
-  const { user } = useAuth();
+  const {
+    user,
+    loading: authLoading,
+    isSuperAdmin,
+    branchId,
+    can,
+  } = usePermissions();
 
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -55,13 +59,65 @@ export default function MerchantsPage() {
   const [search, setSearch] = useState("");
   const [searchInput, setSearchInput] = useState("");
 
+  /*
+   * Permission check.
+   *
+   * Super admin is automatically allowed by your usePermissions()
+   * implementation.
+   *
+   * Other users need merchant.view.
+   *
+   * If your backend uses a different permission name, change it here.
+   */
+  const canViewMerchants = can("merchants.view");
+
+  /*
+   * Load merchants.
+   *
+   * Super admin:
+   *   GET /admin/merchants
+   *
+   * Branch-scoped users:
+   *   GET /admin/branches/{branchId}/merchants
+   */
   const load = useCallback(
     async (
       page = 1,
       pageSize = 15,
-      currentSearch = search
+      currentSearch = "",
     ) => {
       if (!user) {
+        return;
+      }
+
+      if (!canViewMerchants) {
+        setRows([]);
+
+        setPagination({
+          current: 1,
+          pageSize,
+          total: 0,
+        });
+
+        return;
+      }
+
+      /*
+       * Non-super-admin users must have a branch.
+       */
+      if (!isSuperAdmin && !branchId) {
+        setRows([]);
+
+        setPagination({
+          current: 1,
+          pageSize,
+          total: 0,
+        });
+
+        message.warning(
+          "No branch is assigned to your account.",
+        );
+
         return;
       }
 
@@ -81,80 +137,94 @@ export default function MerchantsPage() {
         let result;
 
         /*
-         * IMPORTANT:
-         *
-         * Super admin:
-         *   Can see every merchant.
-         *
-         * Everyone else:
-         *   Must use their branch_id.
-         *
-         * This means branch_manager does NOT get
-         * the global merchant list.
+         * SUPER ADMIN
+         * -----------
+         * Can see all merchants.
          */
-        if (user.role === "super_admin") {
+        if (isSuperAdmin) {
           result = await getMerchants(params);
         } else {
-          if (!user.branch_id) {
-            setRows([]);
-            setPagination({
-              current: 1,
-              pageSize,
-              total: 0,
-            });
-
-            message.warning(
-              "No branch is assigned to your account."
-            );
-
-            return;
-          }
-
+          /*
+           * BRANCH-SCOPED USER
+           * ------------------
+           * Only retrieve merchants belonging
+           * to their assigned branch.
+           */
           result = await getMerchantsByBranchId(
-            user.branch_id,
-            params
+            branchId,
+            params,
           );
         }
 
-        setRows(result.list || []);
+        setRows(result?.list || []);
 
         setPagination({
-          current: result.currentPage || page,
-          pageSize: result.pageSize || pageSize,
-          total: result.total || 0,
+          current:
+            result?.currentPage || page,
+
+          pageSize:
+            result?.pageSize || pageSize,
+
+          total:
+            result?.total || 0,
         });
       } catch (error) {
         console.error(
           "Could not load merchants:",
-          error
+          error,
         );
 
         message.error(
           error?.response?.data?.message ||
-            "Could not load merchants."
+            "Could not load merchants.",
         );
+
+        setRows([]);
       } finally {
         setLoading(false);
       }
     },
-    [user, search]
+    [
+      user,
+      canViewMerchants,
+      isSuperAdmin,
+      branchId,
+    ],
   );
 
   /*
-   * Load once user is available.
+   * Load after the authenticated user has been
+   * retrieved by usePermissions().
    */
   useEffect(() => {
+    if (authLoading) {
+      return;
+    }
+
     if (!user) {
+      return;
+    }
+
+    if (!canViewMerchants) {
       return;
     }
 
     load(
       1,
       pagination.pageSize,
-      search
+      "",
     );
-  }, [user]);
+  }, [
+    authLoading,
+    user,
+    canViewMerchants,
+    load,
+    pagination.pageSize,
+  ]);
 
+  /*
+   * Search
+   */
   const handleSearch = () => {
     const value = searchInput.trim();
 
@@ -163,10 +233,13 @@ export default function MerchantsPage() {
     load(
       1,
       pagination.pageSize,
-      value
+      value,
     );
   };
 
+  /*
+   * Reset search
+   */
   const handleReset = () => {
     setSearchInput("");
     setSearch("");
@@ -174,10 +247,24 @@ export default function MerchantsPage() {
     load(
       1,
       pagination.pageSize,
-      ""
+      "",
     );
   };
 
+  /*
+   * Refresh
+   */
+  const handleRefresh = () => {
+    load(
+      pagination.current,
+      pagination.pageSize,
+      search,
+    );
+  };
+
+  /*
+   * Table columns
+   */
   const columns = [
     {
       title: "Merchant / Store",
@@ -334,13 +421,15 @@ export default function MerchantsPage() {
           }}
         >
           {value
-            ? new Date(value).toLocaleDateString(
+            ? new Date(
+                value,
+              ).toLocaleDateString(
                 "en-NP",
                 {
                   day: "2-digit",
                   month: "short",
                   year: "2-digit",
-                }
+                },
               )
             : "—"}
         </Text>
@@ -365,13 +454,96 @@ export default function MerchantsPage() {
             event.stopPropagation();
 
             router.push(
-              `/admin/merchants/${row.id}`
+              `/admin/merchants/${row.id}`,
             );
           }}
         />
       ),
     },
   ];
+
+  /*
+   * Authentication is still loading.
+   */
+  if (authLoading) {
+    return (
+      <Card loading>
+        <Text>
+          Loading merchant permissions...
+        </Text>
+      </Card>
+    );
+  }
+
+  /*
+   * No authenticated user.
+   */
+  if (!user) {
+    return (
+      <Card>
+        <Text type="danger">
+          Unable to determine the authenticated user.
+        </Text>
+      </Card>
+    );
+  }
+
+  /*
+   * User is authenticated but does not have
+   * permission to view merchants.
+   */
+  if (!canViewMerchants) {
+    return (
+      <Card>
+        <Space
+          direction="vertical"
+          size={4}
+        >
+          <Text
+            strong
+            style={{
+              fontSize: 16,
+            }}
+          >
+            Access Denied
+          </Text>
+
+          <Text type="secondary">
+            You do not have permission to view
+            merchants.
+          </Text>
+        </Space>
+      </Card>
+    );
+  }
+
+  /*
+   * Branch-scoped user without a branch.
+   */
+  if (!isSuperAdmin && !branchId) {
+    return (
+      <Card>
+        <Space
+          direction="vertical"
+          size={4}
+        >
+          <Text
+            strong
+            style={{
+              fontSize: 16,
+            }}
+          >
+            No Branch Assigned
+          </Text>
+
+          <Text type="secondary">
+            Your account does not have an assigned
+            branch, so merchants cannot be loaded.
+          </Text>
+        </Space>
+      </Card>
+    );
+  }
 
   return (
     <Space
@@ -381,6 +553,7 @@ export default function MerchantsPage() {
         width: "100%",
       }}
     >
+      {/* Header */}
       <Card>
         <Space
           style={{
@@ -407,7 +580,7 @@ export default function MerchantsPage() {
                 fontSize: 12,
               }}
             >
-              {user?.role === "super_admin"
+              {isSuperAdmin
                 ? "View all merchants and stores."
                 : "View merchants assigned to your branch."}
             </Text>
@@ -415,19 +588,14 @@ export default function MerchantsPage() {
 
           <Button
             icon={<ReloadOutlined />}
-            onClick={() =>
-              load(
-                pagination.current,
-                pagination.pageSize,
-                search
-              )
-            }
+            onClick={handleRefresh}
             loading={loading}
           >
             Refresh
           </Button>
         </Space>
 
+        {/* Search */}
         <Space
           wrap
           style={{
@@ -444,7 +612,7 @@ export default function MerchantsPage() {
             value={searchInput}
             onChange={(event) => {
               setSearchInput(
-                event.target.value
+                event.target.value,
               );
             }}
             onPressEnter={handleSearch}
@@ -463,6 +631,7 @@ export default function MerchantsPage() {
         </Space>
       </Card>
 
+      {/* Merchant table */}
       <Card
         title={
           <Text
@@ -496,18 +665,18 @@ export default function MerchantsPage() {
 
             showTotal: (
               total,
-              range
+              range,
             ) =>
               `${range[0]}–${range[1]} of ${total} merchants`,
 
             onChange: (
               page,
-              pageSize
+              pageSize,
             ) => {
               load(
                 page,
                 pageSize,
-                search
+                search,
               );
             },
           }}
@@ -518,7 +687,7 @@ export default function MerchantsPage() {
 
             onClick: () => {
               router.push(
-                `/admin/merchants/${row.id}`
+                `/admin/merchants/${row.id}`,
               );
             },
           })}
