@@ -27,7 +27,6 @@ import { useRouter } from "next/navigation";
 
 import {
   getMerchants,
-  getMerchantsByBranchId,
 } from "@/services/merchantService";
 
 import { StatusTag } from "@/components/PageTools";
@@ -48,47 +47,74 @@ export default function MerchantsPage() {
   } = usePermissions();
 
   const [rows, setRows] = useState([]);
-  const [loading, setLoading] = useState(false);
 
-  const [pagination, setPagination] = useState({
-    current: 1,
-    pageSize: 15,
-    total: 0,
-  });
+  const [loading, setLoading] =
+    useState(false);
 
-  const [search, setSearch] = useState("");
-  const [searchInput, setSearchInput] = useState("");
+  const [pagination, setPagination] =
+    useState({
+      current: 1,
+      pageSize: 15,
+      total: 0,
+    });
 
-  /*
-   * Permission check.
-   *
-   * Super admin is automatically allowed by your usePermissions()
-   * implementation.
-   *
-   * Other users need merchant.view.
-   *
-   * If your backend uses a different permission name, change it here.
-   */
-  const canViewMerchants = can("merchants.view");
+  const [search, setSearch] =
+    useState("");
+
+  const [searchInput, setSearchInput] =
+    useState("");
 
   /*
-   * Load merchants.
-   *
-   * Super admin:
-   *   GET /admin/merchants
-   *
-   * Branch-scoped users:
-   *   GET /admin/branches/{branchId}/merchants
-   */
+  |--------------------------------------------------------------------------
+  | Permission
+  |--------------------------------------------------------------------------
+  */
+
+  const canViewMerchants =
+    can("merchants.view");
+
+  /*
+  |--------------------------------------------------------------------------
+  | Load Merchants
+  |--------------------------------------------------------------------------
+  |
+  | IMPORTANT:
+  |
+  | Both Super Admin and Branch Manager use:
+  |
+  | GET /admin/merchants
+  |
+  | The backend decides whether the user gets:
+  |
+  | Super Admin
+  |   -> all merchants
+  |
+  | Branch Manager
+  |   -> only merchants belonging to their branch
+  |
+  */
+
   const load = useCallback(
     async (
       page = 1,
       pageSize = 15,
       currentSearch = "",
     ) => {
+      /*
+      |--------------------------------------------------------------------------
+      | No authenticated user
+      |--------------------------------------------------------------------------
+      */
+
       if (!user) {
         return;
       }
+
+      /*
+      |--------------------------------------------------------------------------
+      | Permission check
+      |--------------------------------------------------------------------------
+      */
 
       if (!canViewMerchants) {
         setRows([]);
@@ -103,9 +129,20 @@ export default function MerchantsPage() {
       }
 
       /*
-       * Non-super-admin users must have a branch.
-       */
-      if (!isSuperAdmin && !branchId) {
+      |--------------------------------------------------------------------------
+      | Branch check
+      |--------------------------------------------------------------------------
+      |
+      | Super admin does not need a branch.
+      |
+      | Branch manager must have one.
+      |
+      */
+
+      if (
+        !isSuperAdmin &&
+        !branchId
+      ) {
         setRows([]);
 
         setPagination({
@@ -124,49 +161,64 @@ export default function MerchantsPage() {
       setLoading(true);
 
       try {
+        /*
+        |--------------------------------------------------------------------------
+        | API parameters
+        |--------------------------------------------------------------------------
+        */
+
         const params = {
           page,
           per_page: pageSize,
+
           ...(currentSearch
             ? {
-                search: currentSearch,
+                search:
+                  currentSearch,
               }
             : {}),
         };
 
-        let result;
-
         /*
-         * SUPER ADMIN
-         * -----------
-         * Can see all merchants.
-         */
-        if (isSuperAdmin) {
-          result = await getMerchants(params);
-        } else {
-          /*
-           * BRANCH-SCOPED USER
-           * ------------------
-           * Only retrieve merchants belonging
-           * to their assigned branch.
-           */
-          result = await getMerchantsByBranchId(
-            branchId,
+        |--------------------------------------------------------------------------
+        | IMPORTANT
+        |--------------------------------------------------------------------------
+        |
+        | NEVER call:
+        |
+        | /admin/branches/{branchId}/merchants
+        |
+        | Both user types use the same endpoint.
+        |
+        */
+
+        const result =
+          await getMerchants(
             params,
           );
-        }
 
-        setRows(result?.list || []);
+        /*
+        |--------------------------------------------------------------------------
+        | Update table
+        |--------------------------------------------------------------------------
+        */
+
+        setRows(
+          result?.list ?? [],
+        );
 
         setPagination({
           current:
-            result?.currentPage || page,
+            result?.currentPage ??
+            page,
 
           pageSize:
-            result?.pageSize || pageSize,
+            result?.pageSize ??
+            pageSize,
 
           total:
-            result?.total || 0,
+            result?.total ??
+            0,
         });
       } catch (error) {
         console.error(
@@ -175,11 +227,18 @@ export default function MerchantsPage() {
         );
 
         message.error(
-          error?.response?.data?.message ||
+          error?.response?.data
+            ?.message ??
             "Could not load merchants.",
         );
 
         setRows([]);
+
+        setPagination({
+          current: page,
+          pageSize,
+          total: 0,
+        });
       } finally {
         setLoading(false);
       }
@@ -193,9 +252,11 @@ export default function MerchantsPage() {
   );
 
   /*
-   * Load after the authenticated user has been
-   * retrieved by usePermissions().
-   */
+  |--------------------------------------------------------------------------
+  | Initial Load
+  |--------------------------------------------------------------------------
+  */
+
   useEffect(() => {
     if (authLoading) {
       return;
@@ -209,24 +270,42 @@ export default function MerchantsPage() {
       return;
     }
 
+    /*
+     * Branch managers need branchId.
+     *
+     * Super admin does not.
+     */
+    if (
+      !isSuperAdmin &&
+      !branchId
+    ) {
+      return;
+    }
+
     load(
       1,
       pagination.pageSize,
-      "",
+      search,
     );
   }, [
     authLoading,
     user,
     canViewMerchants,
+    isSuperAdmin,
+    branchId,
     load,
     pagination.pageSize,
   ]);
 
   /*
-   * Search
-   */
+  |--------------------------------------------------------------------------
+  | Search
+  |--------------------------------------------------------------------------
+  */
+
   const handleSearch = () => {
-    const value = searchInput.trim();
+    const value =
+      searchInput.trim();
 
     setSearch(value);
 
@@ -238,10 +317,14 @@ export default function MerchantsPage() {
   };
 
   /*
-   * Reset search
-   */
+  |--------------------------------------------------------------------------
+  | Reset
+  |--------------------------------------------------------------------------
+  */
+
   const handleReset = () => {
     setSearchInput("");
+
     setSearch("");
 
     load(
@@ -252,8 +335,11 @@ export default function MerchantsPage() {
   };
 
   /*
-   * Refresh
-   */
+  |--------------------------------------------------------------------------
+  | Refresh
+  |--------------------------------------------------------------------------
+  */
+
   const handleRefresh = () => {
     load(
       pagination.current,
@@ -263,15 +349,23 @@ export default function MerchantsPage() {
   };
 
   /*
-   * Table columns
-   */
+  |--------------------------------------------------------------------------
+  | Columns
+  |--------------------------------------------------------------------------
+  */
+
   const columns = [
     {
       title: "Merchant / Store",
+
       dataIndex: "name",
+
       key: "name",
 
-      render: (value, row) => (
+      render: (
+        value,
+        row,
+      ) => (
         <div>
           <Text
             strong
@@ -300,10 +394,14 @@ export default function MerchantsPage() {
 
     {
       title: "Code",
+
       dataIndex: "code",
+
       key: "code",
 
-      render: (value) =>
+      render: (
+        value,
+      ) =>
         value ? (
           <Tag
             style={{
@@ -320,10 +418,14 @@ export default function MerchantsPage() {
 
     {
       title: "Phone",
+
       dataIndex: "phone",
+
       key: "phone",
 
-      render: (value) => (
+      render: (
+        value,
+      ) => (
         <Text
           style={{
             fontSize: 12,
@@ -336,10 +438,14 @@ export default function MerchantsPage() {
 
     {
       title: "Email",
+
       dataIndex: "email",
+
       key: "email",
 
-      render: (value) => (
+      render: (
+        value,
+      ) => (
         <Text
           style={{
             fontSize: 12,
@@ -352,11 +458,15 @@ export default function MerchantsPage() {
 
     {
       title: "Branch",
+
       key: "branch",
 
-      render: (_, row) => {
+      render: (
+        _,
+        row,
+      ) => {
         const branch =
-          row.default_branch ||
+          row.default_branch ??
           row.branch;
 
         if (!branch) {
@@ -380,7 +490,8 @@ export default function MerchantsPage() {
                 fontWeight: 500,
               }}
             >
-              {branch.name || "—"}
+              {branch.name ||
+                "—"}
             </div>
 
             {branch.code && (
@@ -400,20 +511,30 @@ export default function MerchantsPage() {
 
     {
       title: "Status",
+
       dataIndex: "status",
+
       key: "status",
 
-      render: (value) => (
-        <StatusTag value={value} />
+      render: (
+        value,
+      ) => (
+        <StatusTag
+          value={value}
+        />
       ),
     },
 
     {
       title: "Created",
+
       dataIndex: "created_at",
+
       key: "created_at",
 
-      render: (value) => (
+      render: (
+        value,
+      ) => (
         <Text
           type="secondary"
           style={{
@@ -438,19 +559,30 @@ export default function MerchantsPage() {
 
     {
       title: "Action",
+
       key: "action",
+
       width: 70,
+
       align: "center",
 
-      render: (_, row) => (
+      render: (
+        _,
+        row,
+      ) => (
         <Button
           type="text"
           size="small"
-          icon={<EyeOutlined />}
+          icon={
+            <EyeOutlined />
+          }
           style={{
-            color: "#6366f1",
+            color:
+              "#6366f1",
           }}
-          onClick={(event) => {
+          onClick={(
+            event,
+          ) => {
             event.stopPropagation();
 
             router.push(
@@ -463,8 +595,11 @@ export default function MerchantsPage() {
   ];
 
   /*
-   * Authentication is still loading.
-   */
+  |--------------------------------------------------------------------------
+  | Auth Loading
+  |--------------------------------------------------------------------------
+  */
+
   if (authLoading) {
     return (
       <Card loading>
@@ -476,22 +611,28 @@ export default function MerchantsPage() {
   }
 
   /*
-   * No authenticated user.
-   */
+  |--------------------------------------------------------------------------
+  | Not Authenticated
+  |--------------------------------------------------------------------------
+  */
+
   if (!user) {
     return (
       <Card>
         <Text type="danger">
-          Unable to determine the authenticated user.
+          Unable to determine the
+          authenticated user.
         </Text>
       </Card>
     );
   }
 
   /*
-   * User is authenticated but does not have
-   * permission to view merchants.
-   */
+  |--------------------------------------------------------------------------
+  | Permission Denied
+  |--------------------------------------------------------------------------
+  */
+
   if (!canViewMerchants) {
     return (
       <Card>
@@ -509,8 +650,8 @@ export default function MerchantsPage() {
           </Text>
 
           <Text type="secondary">
-            You do not have permission to view
-            merchants.
+            You do not have permission
+            to view merchants.
           </Text>
         </Space>
       </Card>
@@ -518,9 +659,15 @@ export default function MerchantsPage() {
   }
 
   /*
-   * Branch-scoped user without a branch.
-   */
-  if (!isSuperAdmin && !branchId) {
+  |--------------------------------------------------------------------------
+  | Branch Not Assigned
+  |--------------------------------------------------------------------------
+  */
+
+  if (
+    !isSuperAdmin &&
+    !branchId
+  ) {
     return (
       <Card>
         <Space
@@ -537,13 +684,20 @@ export default function MerchantsPage() {
           </Text>
 
           <Text type="secondary">
-            Your account does not have an assigned
-            branch, so merchants cannot be loaded.
+            Your account does not have
+            an assigned branch, so
+            merchants cannot be loaded.
           </Text>
         </Space>
       </Card>
     );
   }
+
+  /*
+  |--------------------------------------------------------------------------
+  | Main Page
+  |--------------------------------------------------------------------------
+  */
 
   return (
     <Space
@@ -554,10 +708,12 @@ export default function MerchantsPage() {
       }}
     >
       {/* Header */}
+
       <Card>
         <Space
           style={{
-            justifyContent: "space-between",
+            justifyContent:
+              "space-between",
             width: "100%",
           }}
           wrap
@@ -587,8 +743,12 @@ export default function MerchantsPage() {
           </div>
 
           <Button
-            icon={<ReloadOutlined />}
-            onClick={handleRefresh}
+            icon={
+              <ReloadOutlined />
+            }
+            onClick={
+              handleRefresh
+            }
             loading={loading}
           >
             Refresh
@@ -596,6 +756,7 @@ export default function MerchantsPage() {
         </Space>
 
         {/* Search */}
+
         <Space
           wrap
           style={{
@@ -608,30 +769,46 @@ export default function MerchantsPage() {
               width: 240,
             }}
             placeholder="Search name / email / phone"
-            prefix={<SearchOutlined />}
-            value={searchInput}
-            onChange={(event) => {
+            prefix={
+              <SearchOutlined />
+            }
+            value={
+              searchInput
+            }
+            onChange={(
+              event,
+            ) => {
               setSearchInput(
-                event.target.value,
+                event.target
+                  .value,
               );
             }}
-            onPressEnter={handleSearch}
+            onPressEnter={
+              handleSearch
+            }
           />
 
           <Button
             type="primary"
-            onClick={handleSearch}
+            onClick={
+              handleSearch
+            }
           >
             Search
           </Button>
 
-          <Button onClick={handleReset}>
+          <Button
+            onClick={
+              handleReset
+            }
+          >
             Reset
           </Button>
         </Space>
       </Card>
 
-      {/* Merchant table */}
+      {/* Table */}
+
       <Card
         title={
           <Text
@@ -655,7 +832,8 @@ export default function MerchantsPage() {
           pagination={{
             ...pagination,
 
-            showSizeChanger: true,
+            showSizeChanger:
+              true,
 
             pageSizeOptions: [
               "15",
@@ -680,9 +858,12 @@ export default function MerchantsPage() {
               );
             },
           }}
-          onRow={(row) => ({
+          onRow={(
+            row,
+          ) => ({
             style: {
-              cursor: "pointer",
+              cursor:
+                "pointer",
             },
 
             onClick: () => {

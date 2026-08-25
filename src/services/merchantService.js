@@ -14,6 +14,17 @@ export async function getMerchants(params = {}) {
   );
 }
 
+export async function getMerchant(id) {
+  const response = await api.get(
+    `/admin/merchants/${id}`,
+  );
+
+  return (
+    response.data?.data ??
+    response.data
+  );
+}
+
 function normalizeMerchantResponse(
   response,
   params = {},
@@ -21,6 +32,17 @@ function normalizeMerchantResponse(
   const payload =
     response.data?.data ??
     response.data;
+
+  /*
+   * Laravel pagination:
+   *
+   * {
+   *   data: [...],
+   *   current_page: 1,
+   *   per_page: 15,
+   *   total: 100
+   * }
+   */
 
   const list =
     payload?.data ??
