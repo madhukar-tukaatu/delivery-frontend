@@ -1,22 +1,8 @@
 import api from "@/lib/api";
 
 export async function getMerchants(params = {}) {
-  const response = await api.get("/admin/merchants", {
-    params,
-  });
-
-  return normalizeMerchantResponse(
-    response,
-    params,
-  );
-}
-
-export async function getMerchantsByBranchId(
-  branchId,
-  params = {},
-) {
   const response = await api.get(
-    `/admin/branches/${branchId}/merchants`,
+    "/admin/merchants",
     {
       params,
     },
@@ -33,12 +19,11 @@ function normalizeMerchantResponse(
   params = {},
 ) {
   const payload =
-    response.data?.data ||
+    response.data?.data ??
     response.data;
 
   const list =
-    payload?.data ||
-    payload ||
+    payload?.data ??
     [];
 
   return {
@@ -47,19 +32,20 @@ function normalizeMerchantResponse(
       : [],
 
     currentPage: Number(
-      payload?.current_page ||
-        params.page ||
+      payload?.current_page ??
+        params.page ??
         1,
     ),
 
     pageSize: Number(
-      payload?.per_page ||
-        params.per_page ||
+      payload?.per_page ??
+        params.per_page ??
         15,
     ),
 
     total: Number(
-      payload?.total || 0,
+      payload?.total ??
+        0,
     ),
   };
 }
