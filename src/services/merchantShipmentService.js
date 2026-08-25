@@ -10,40 +10,49 @@ export async function getMerchantPickupLocations() {
   return response.data?.data || response.data;
 }
 
-function normalizeShipmentResponse(response) {
-  const payload = response?.data?.data || response?.data || {};
-
-  const resource = payload?.shipments || payload;
-
-  const list = Array.isArray(resource) ? resource : resource?.data || [];
-
-  return {
-    list: Array.isArray(list) ? list : [],
-
-    currentPage: Number(resource?.current_page || 1),
-
-    pageSize: Number(resource?.per_page || 20),
-
-    total: Number(resource?.total || list.length),
-  };
-}
-
 export async function getShipments(params = {}) {
   const response = await api.get("/admin/shipments", {
     params,
   });
 
-  return normalizeShipmentResponse(response);
+  return normalizeShipmentResponse(response, params);
 }
 
-export async function getShipmentsByBranchId(branchId, params = {}) {
-  if (!branchId) {
-    throw new Error("Branch ID is required to load shipments.");
-  }
+/**
+ * Get a single shipment.
+ */
+export async function getShipment(id) {
+  const response = await api.get(`/admin/shipments/${id}`);
 
-  const response = await api.get(`/admin/branches/${branchId}/shipments`, {
-    params,
-  });
+  return response.data?.data ?? response.data;
+}
 
-  return normalizeShipmentResponse(response);
+/**
+ * Normalize Laravel pagination response.
+ *
+ * Expected Laravel response:
+ *
+ * {
+ *   data: {
+ *     data: [...],
+ *     current_page: 1,
+ *     per_page: 20,
+ *     total: 100
+ *   }
+ * }
+ */
+function normalizeShipmentResponse(response, params = {}) {
+  const payload = response.data?.data ?? response.data;
+
+  const list = payload?.data ?? [];
+
+  return {
+    list: Array.isArray(list) ? list : [],
+
+    currentPage: Number(payload?.current_page ?? params.page ?? 1),
+
+    pageSize: Number(payload?.per_page ?? params.per_page ?? 20),
+
+    total: Number(payload?.total ?? 0),
+  };
 }
