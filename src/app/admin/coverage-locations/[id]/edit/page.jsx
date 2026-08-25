@@ -32,6 +32,7 @@ import {
   UndoOutlined,
   SwapOutlined,
   AimOutlined,
+  LockOutlined,
 } from "@ant-design/icons";
 
 import {
@@ -40,10 +41,17 @@ import {
   updateCoverageLocation,
 } from "@/services/branchAllocationApi";
 
+import { useAccess } from "@/hooks/useAccess";
+
+/* -------------------------------------------------------------------------- */
+/* Map                                                                        */
+/* -------------------------------------------------------------------------- */
+
 const CoverageRadiusMap = dynamic(
   () => import("@/components/maps/CoverageRadiusMap"),
   {
     ssr: false,
+
     loading: () => (
       <div
         style={{
@@ -58,6 +66,7 @@ const CoverageRadiusMap = dynamic(
       >
         <Space direction="vertical" align="center">
           <Spin size="large" />
+
           <Typography.Text type="secondary">
             Loading map...
           </Typography.Text>
@@ -69,6 +78,16 @@ const CoverageRadiusMap = dynamic(
 
 const { Text, Title } = Typography;
 const { TextArea } = Input;
+
+/* -------------------------------------------------------------------------- */
+/* Permissions                                                               */
+/* -------------------------------------------------------------------------- */
+
+const PERMISSIONS = {
+  VIEW: "coverage_locations.view",
+  EDIT: "coverage_locations.edit",
+  STATUS: "coverage_locations.status",
+};
 
 /* -------------------------------------------------------------------------- */
 /* Helpers                                                                    */
@@ -109,11 +128,7 @@ function normalizeLocations(response) {
 }
 
 function numberOrNull(value) {
-  if (
-    value === null ||
-    value === undefined ||
-    value === ""
-  ) {
+  if (value === null || value === undefined || value === "") {
     return null;
   }
 
@@ -131,7 +146,7 @@ function getLocationId(location) {
 /**
  * Get parent main branch zone ID.
  *
- * Supports both:
+ * Supports:
  *
  * parent_id
  *
@@ -142,25 +157,15 @@ function getLocationId(location) {
  * }
  */
 function getParentId(location) {
-  const directParentId = Number(
-    location?.parent_id,
-  );
+  const directParentId = Number(location?.parent_id);
 
-  if (
-    Number.isFinite(directParentId) &&
-    directParentId > 0
-  ) {
+  if (Number.isFinite(directParentId) && directParentId > 0) {
     return directParentId;
   }
 
-  const nestedParentId = Number(
-    location?.parent?.id,
-  );
+  const nestedParentId = Number(location?.parent?.id);
 
-  if (
-    Number.isFinite(nestedParentId) &&
-    nestedParentId > 0
-  ) {
+  if (Number.isFinite(nestedParentId) && nestedParentId > 0) {
     return nestedParentId;
   }
 
@@ -209,17 +214,11 @@ function normalizeType(location) {
 }
 
 function isMainZone(location) {
-  return (
-    normalizeType(location) ===
-    "main_branch_zone"
-  );
+  return normalizeType(location) === "main_branch_zone";
 }
 
 function isSubBranchZone(location) {
-  return (
-    normalizeType(location) ===
-    "sub_branch_zone"
-  );
+  return normalizeType(location) === "sub_branch_zone";
 }
 
 function getAddress(location) {
@@ -239,22 +238,12 @@ function getAddress(location) {
   );
 }
 
-function normalizeMapLocation(
-  location,
-  parent = null,
-) {
-  const latitude = numberOrNull(
-    location?.latitude,
-  );
+function normalizeMapLocation(location, parent = null) {
+  const latitude = numberOrNull(location?.latitude);
 
-  const longitude = numberOrNull(
-    location?.longitude,
-  );
+  const longitude = numberOrNull(location?.longitude);
 
-  if (
-    latitude === null ||
-    longitude === null
-  ) {
+  if (latitude === null || longitude === null) {
     return null;
   }
 
@@ -268,12 +257,11 @@ function normalizeMapLocation(
     type,
 
     latitude,
+
     longitude,
 
     coverage_radius_km:
-      numberOrNull(
-        location?.coverage_radius_km,
-      ) ?? 0,
+      numberOrNull(location?.coverage_radius_km) ?? 0,
 
     parent_id:
       location?.parent_id ??
@@ -282,11 +270,9 @@ function normalizeMapLocation(
 
     parent,
 
-    is_main_zone:
-      type === "main_branch_zone",
+    is_main_zone: type === "main_branch_zone",
 
-    is_sub_branch:
-      type === "sub_branch_zone",
+    is_sub_branch: type === "sub_branch_zone",
   };
 }
 
@@ -300,20 +286,28 @@ export default function EditCoverageLocationPage() {
 
   const id = params?.id;
 
-  const [record, setRecord] =
-    useState(null);
+  /*
+   * Permission system.
+   *
+   * The backend remains the final authorization layer.
+   * These checks control what the current frontend user
+   * can see/use.
+   */
+  const { can } = useAccess();
 
-  const [allLocations, setAllLocations] =
-    useState([]);
+  const canView = can(PERMISSIONS.VIEW);
+  const canEdit = can(PERMISSIONS.EDIT);
+  const canChangeStatus = can(PERMISSIONS.STATUS);
 
-  const [loading, setLoading] =
-    useState(true);
+  const [record, setRecord] = useState(null);
 
-  const [loadingLocations, setLoadingLocations] =
-    useState(true);
+  const [allLocations, setAllLocations] = useState([]);
 
-  const [saving, setSaving] =
-    useState(false);
+  const [loading, setLoading] = useState(true);
+
+  const [loadingLocations, setLoadingLocations] = useState(true);
+
+  const [saving, setSaving] = useState(false);
 
   const [form, setForm] = useState({
     name: "",
@@ -334,65 +328,65 @@ export default function EditCoverageLocationPage() {
     parent_id: null,
   });
 
-  const [originalForm, setOriginalForm] =
-    useState(null);
+  const [originalForm, setOriginalForm] = useState(null);
+
+  /* ---------------------------------------------------------------------- */
+  /* Permission guard                                                        */
+  /* ---------------------------------------------------------------------- */
+
+  /**
+   * This is an EDIT page.
+   *
+   * We intentionally do not call the API if the user does not
+   * have the edit permission.
+   */
+  useEffect(() => {
+    if (!canEdit) {
+      setLoading(false);
+    }
+  }, [canEdit]);
 
   /* ---------------------------------------------------------------------- */
   /* Load current record                                                     */
   /* ---------------------------------------------------------------------- */
 
   const loadData = useCallback(async () => {
-    if (!id) {
+    if (!id || !canEdit) {
       return;
     }
 
     try {
       setLoading(true);
 
-      const response =
-        await getCoverageLocation(id);
+      const response = await getCoverageLocation(id);
 
       const location = unwrap(response);
 
       if (!location) {
-        throw new Error(
-          "Coverage location not found.",
-        );
+        throw new Error("Coverage location not found.");
       }
 
       const normalizedType =
-        normalizeType(location) ||
-        "main_branch_zone";
+        normalizeType(location) || "main_branch_zone";
 
-      const parentId =
-        getParentId(location);
+      const parentId = getParentId(location);
 
       const initialForm = {
         name: location.name || "",
 
-        latitude: numberOrNull(
-          location.latitude,
-        ),
+        latitude: numberOrNull(location.latitude),
 
-        longitude: numberOrNull(
-          location.longitude,
-        ),
+        longitude: numberOrNull(location.longitude),
 
         coverage_radius_km:
-          numberOrNull(
-            location.coverage_radius_km,
-          ) ?? 20,
+          numberOrNull(location.coverage_radius_km) ?? 20,
 
         notes: location.notes || "",
 
-        status:
-          location.status || "active",
+        status: location.status || "active",
 
         type: normalizedType,
 
-        /**
-         * Preserve parent.
-         */
         parent_id: parentId,
       };
 
@@ -403,8 +397,7 @@ export default function EditCoverageLocationPage() {
 
         parent_id: parentId,
 
-        parent:
-          location.parent ?? null,
+        parent: location.parent ?? null,
       });
 
       setForm(initialForm);
@@ -424,79 +417,77 @@ export default function EditCoverageLocationPage() {
     } finally {
       setLoading(false);
     }
-  }, [id]);
+  }, [id, canEdit]);
 
   /* ---------------------------------------------------------------------- */
   /* Load all locations                                                      */
   /* ---------------------------------------------------------------------- */
 
-  const loadAllLocations =
-    useCallback(async () => {
-      try {
-        setLoadingLocations(true);
+  const loadAllLocations = useCallback(async () => {
+    if (!canEdit) {
+      return;
+    }
 
-        const response =
-          await getCoverageLocations();
+    try {
+      setLoadingLocations(true);
 
-        const locations =
-          normalizeLocations(response);
+      const response = await getCoverageLocations();
 
-        setAllLocations(locations);
-      } catch (error) {
-        console.error(
-          "Coverage locations loading error:",
-          error,
-        );
+      const locations = normalizeLocations(response);
 
-        message.warning(
-          error?.response?.data?.message ||
-            "Could not load other coverage locations for the map.",
-        );
+      setAllLocations(locations);
+    } catch (error) {
+      console.error(
+        "Coverage locations loading error:",
+        error,
+      );
 
-        setAllLocations([]);
-      } finally {
-        setLoadingLocations(false);
-      }
-    }, []);
+      message.warning(
+        error?.response?.data?.message ||
+          "Could not load other coverage locations for the map.",
+      );
+
+      setAllLocations([]);
+    } finally {
+      setLoadingLocations(false);
+    }
+  }, [canEdit]);
 
   useEffect(() => {
+    if (!canEdit) {
+      return;
+    }
+
     loadData();
     loadAllLocations();
-  }, [
-    loadData,
-    loadAllLocations,
-  ]);
+  }, [loadData, loadAllLocations, canEdit]);
 
   /* ---------------------------------------------------------------------- */
   /* Form helpers                                                            */
   /* ---------------------------------------------------------------------- */
 
-  const updateField = useCallback(
-    (field, value) => {
-      setForm((previous) => ({
-        ...previous,
-        [field]: value,
-      }));
-    },
-    [],
-  );
+  const updateField = useCallback((field, value) => {
+    setForm((previous) => ({
+      ...previous,
+      [field]: value,
+    }));
+  }, []);
 
-  const handleMapChange =
-    useCallback((value) => {
+  const handleMapChange = useCallback(
+    (value) => {
+      if (!canEdit) {
+        return;
+      }
+
       if (!value) {
         return;
       }
 
-      const latitude =
-        numberOrNull(value.latitude);
+      const latitude = numberOrNull(value.latitude);
 
-      const longitude =
-        numberOrNull(value.longitude);
+      const longitude = numberOrNull(value.longitude);
 
-      if (
-        latitude === null ||
-        longitude === null
-      ) {
+      if (latitude === null || longitude === null) {
         return;
       }
 
@@ -505,7 +496,9 @@ export default function EditCoverageLocationPage() {
         latitude,
         longitude,
       }));
-    }, []);
+    },
+    [canEdit],
+  );
 
   /* ---------------------------------------------------------------------- */
   /* Map locations                                                           */
@@ -513,18 +506,15 @@ export default function EditCoverageLocationPage() {
 
   const mapLocations = useMemo(() => {
     const result = [];
+
     const seen = new Set();
 
-    const addLocation = (
-      location,
-      parent = null,
-    ) => {
+    const addLocation = (location, parent = null) => {
       if (!location) {
         return;
       }
 
-      const locationId =
-        getLocationId(location);
+      const locationId = getLocationId(location);
 
       const key =
         locationId !== null
@@ -535,11 +525,10 @@ export default function EditCoverageLocationPage() {
         return;
       }
 
-      const normalized =
-        normalizeMapLocation(
-          location,
-          parent,
-        );
+      const normalized = normalizeMapLocation(
+        location,
+        parent,
+      );
 
       if (!normalized) {
         return;
@@ -549,79 +538,54 @@ export default function EditCoverageLocationPage() {
 
       result.push(normalized);
 
-      if (
-        Array.isArray(
-          location.children,
-        )
-      ) {
-        location.children.forEach(
-          (child) => {
-            addLocation(
-              child,
-              normalized,
-            );
-          },
-        );
+      if (Array.isArray(location.children)) {
+        location.children.forEach((child) => {
+          addLocation(child, normalized);
+        });
       }
     };
 
-    allLocations.forEach(
-      (location) => {
-        addLocation(location);
-      },
-    );
+    allLocations.forEach((location) => {
+      addLocation(location);
+    });
 
     if (record) {
       addLocation(record);
 
-      if (
-        Array.isArray(record.children)
-      ) {
-        record.children.forEach(
-          (child) => {
-            addLocation(
-              child,
-              record,
-            );
-          },
-        );
+      if (Array.isArray(record.children)) {
+        record.children.forEach((child) => {
+          addLocation(child, record);
+        });
       }
     }
 
     /**
-     * Always guarantee current record
-     * is visible.
+     * Always guarantee current record is visible.
      */
     if (record) {
-      const currentId =
-        getLocationId(record);
+      const currentId = getLocationId(record);
 
       const exists = result.some(
-        (item) =>
-          item.id === currentId,
+        (item) => item.id === currentId,
       );
 
       if (!exists) {
-        const current =
-          normalizeMapLocation({
-            ...record,
+        const current = normalizeMapLocation({
+          ...record,
 
-            type:
-              normalizeType(record) ||
-              form.type,
+          type:
+            normalizeType(record) ||
+            form.type,
 
-            latitude:
-              form.latitude,
+          latitude: form.latitude,
 
-            longitude:
-              form.longitude,
+          longitude: form.longitude,
 
-            coverage_radius_km:
-              form.coverage_radius_km,
+          coverage_radius_km:
+            form.coverage_radius_km,
 
-            parent_id:
-              form.parent_id,
-          });
+          parent_id: form.parent_id,
+        });
 
         if (current) {
           result.push(current);
@@ -660,8 +624,7 @@ export default function EditCoverageLocationPage() {
 
       longitude: form.longitude,
 
-      coverage_radius_km:
-        form.coverage_radius_km,
+      coverage_radius_km: form.coverage_radius_km,
 
       type:
         normalizeType(record) ||
@@ -671,52 +634,37 @@ export default function EditCoverageLocationPage() {
         getParentId(record) ??
         form.parent_id,
     };
-  }, [
-    record,
-    form,
-  ]);
+  }, [record, form]);
 
   /* ---------------------------------------------------------------------- */
   /* Changes                                                                 */
   /* ---------------------------------------------------------------------- */
 
   const hasChanges = useMemo(() => {
-    if (!originalForm) {
+    if (!originalForm || !canEdit) {
       return false;
     }
 
     return (
-      form.name !==
-        originalForm.name ||
+      form.name !== originalForm.name ||
       Number(form.latitude) !==
-        Number(
-          originalForm.latitude,
-        ) ||
+        Number(originalForm.latitude) ||
       Number(form.longitude) !==
-        Number(
-          originalForm.longitude,
-        ) ||
-      Number(
-        form.coverage_radius_km,
-      ) !==
-        Number(
-          originalForm.coverage_radius_km,
-        ) ||
-      form.notes !==
-        originalForm.notes ||
-      form.status !==
-        originalForm.status ||
+        Number(originalForm.longitude) ||
+      Number(form.coverage_radius_km) !==
+        Number(originalForm.coverage_radius_km) ||
+      form.notes !== originalForm.notes ||
+      form.status !== originalForm.status ||
       Number(form.parent_id) !==
-        Number(
-          originalForm.parent_id,
-        )
+        Number(originalForm.parent_id)
     );
-  }, [
-    form,
-    originalForm,
-  ]);
+  }, [form, originalForm, canEdit]);
 
   const resetChanges = () => {
+    if (!canEdit) {
+      return;
+    }
+
     if (!originalForm) {
       return;
     }
@@ -725,9 +673,7 @@ export default function EditCoverageLocationPage() {
       ...originalForm,
     });
 
-    message.info(
-      "Changes have been reset.",
-    );
+    message.info("Changes have been reset.");
   };
 
   /* ---------------------------------------------------------------------- */
@@ -735,10 +681,16 @@ export default function EditCoverageLocationPage() {
   /* ---------------------------------------------------------------------- */
 
   const validate = () => {
-    if (!form.name?.trim()) {
+    if (!canEdit) {
       message.error(
-        "Coverage name is required.",
+        "You do not have permission to edit coverage locations.",
       );
+
+      return false;
+    }
+
+    if (!form.name?.trim()) {
+      message.error("Coverage name is required.");
 
       return false;
     }
@@ -748,9 +700,7 @@ export default function EditCoverageLocationPage() {
       form.latitude < -90 ||
       form.latitude > 90
     ) {
-      message.error(
-        "Please enter a valid latitude.",
-      );
+      message.error("Please enter a valid latitude.");
 
       return false;
     }
@@ -760,19 +710,14 @@ export default function EditCoverageLocationPage() {
       form.longitude < -180 ||
       form.longitude > 180
     ) {
-      message.error(
-        "Please enter a valid longitude.",
-      );
+      message.error("Please enter a valid longitude.");
 
       return false;
     }
 
     if (
-      form.coverage_radius_km ===
-        null ||
-      Number(
-        form.coverage_radius_km,
-      ) <= 0
+      form.coverage_radius_km === null ||
+      Number(form.coverage_radius_km) <= 0
     ) {
       message.error(
         "Coverage radius must be greater than 0.",
@@ -786,8 +731,7 @@ export default function EditCoverageLocationPage() {
       form.type;
 
     if (
-      currentType ===
-        "sub_branch_zone" &&
+      currentType === "sub_branch_zone" &&
       !getParentId(record) &&
       !form.parent_id
     ) {
@@ -806,10 +750,15 @@ export default function EditCoverageLocationPage() {
   /* ---------------------------------------------------------------------- */
 
   const saveChanges = async () => {
-    if (
-      !record ||
-      !validate()
-    ) {
+    if (!canEdit) {
+      message.error(
+        "You do not have permission to edit coverage locations.",
+      );
+
+      return;
+    }
+
+    if (!record || !validate()) {
       return;
     }
 
@@ -826,8 +775,6 @@ export default function EditCoverageLocationPage() {
         "main_branch_zone";
 
       /**
-       * IMPORTANT:
-       *
        * First use record.parent_id / record.parent.id.
        * Then fall back to form.parent_id.
        */
@@ -840,8 +787,7 @@ export default function EditCoverageLocationPage() {
        * sub_branch_zone.
        */
       if (
-        existingType ===
-          "sub_branch_zone" &&
+        existingType === "sub_branch_zone" &&
         !existingParentId
       ) {
         message.error(
@@ -854,22 +800,17 @@ export default function EditCoverageLocationPage() {
       const payload = {
         name: form.name.trim(),
 
-        latitude:
-          Number(form.latitude),
+        latitude: Number(form.latitude),
 
-        longitude:
-          Number(form.longitude),
+        longitude: Number(form.longitude),
 
-        coverage_radius_km:
-          Number(
-            form.coverage_radius_km,
-          ),
+        coverage_radius_km: Number(
+          form.coverage_radius_km,
+        ),
 
-        notes:
-          form.notes?.trim() || null,
+        notes: form.notes?.trim() || null,
 
-        status:
-          form.status || "active",
+        status: form.status || "active",
 
         /**
          * Preserve existing type.
@@ -881,8 +822,7 @@ export default function EditCoverageLocationPage() {
          * Sub zones must preserve their parent.
          */
         parent_id:
-          existingType ===
-          "sub_branch_zone"
+          existingType === "sub_branch_zone"
             ? existingParentId
             : null,
       };
@@ -919,20 +859,16 @@ export default function EditCoverageLocationPage() {
 
       if (validationErrors) {
         const firstError =
-          Object.values(
-            validationErrors,
-          )?.[0]?.[0];
+          Object.values(validationErrors)?.[0]?.[0];
 
         message.error(
           firstError ||
-            error?.response?.data
-              ?.message ||
+            error?.response?.data?.message ||
             "Could not update coverage location.",
         );
       } else {
         message.error(
-          error?.response?.data
-            ?.message ||
+          error?.response?.data?.message ||
             error?.message ||
             "Could not update coverage location.",
         );
@@ -943,6 +879,42 @@ export default function EditCoverageLocationPage() {
   };
 
   /* ---------------------------------------------------------------------- */
+  /* Permission denied                                                       */
+  /* ---------------------------------------------------------------------- */
+
+  if (!canEdit) {
+    return (
+      <div
+        style={{
+          minHeight: "calc(100vh - 72px)",
+          padding: 24,
+          background: "#f5f7fa",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+        }}
+      >
+        <Card
+          bordered={false}
+          style={{
+            width: "100%",
+            maxWidth: 560,
+            borderRadius: 12,
+          }}
+        >
+          <ResultLikePermissionDenied
+            onBack={() =>
+              router.push(
+                "/admin/coverage-locations",
+              )
+            }
+          />
+        </Card>
+      </div>
+    );
+  }
+
+  /* ---------------------------------------------------------------------- */
   /* Loading                                                                 */
   /* ---------------------------------------------------------------------- */
 
@@ -950,8 +922,7 @@ export default function EditCoverageLocationPage() {
     return (
       <div
         style={{
-          height:
-            "calc(100vh - 72px)",
+          height: "calc(100vh - 72px)",
           minHeight: 600,
           display: "flex",
           alignItems: "center",
@@ -1004,11 +975,9 @@ export default function EditCoverageLocationPage() {
     );
   }
 
-  const isMain =
-    isMainZone(record);
+  const isMain = isMainZone(record);
 
-  const isSub =
-    isSubBranchZone(record);
+  const isSub = isSubBranchZone(record);
 
   const childCount =
     Array.isArray(record.children)
@@ -1022,8 +991,7 @@ export default function EditCoverageLocationPage() {
   const branchCount = Number(
     record.assigned_branches_count ??
       record.branches_count ??
-      record.assignedBranches
-        ?.length ??
+      record.assignedBranches?.length ??
       0,
   );
 
@@ -1038,8 +1006,7 @@ export default function EditCoverageLocationPage() {
   return (
     <div
       style={{
-        height:
-          "calc(100vh - 72px)",
+        height: "calc(100vh - 72px)",
         minHeight: 650,
         padding: "14px 18px",
         overflow: "hidden",
@@ -1103,9 +1070,7 @@ export default function EditCoverageLocationPage() {
                 <Button
                   type="text"
                   size="small"
-                  icon={
-                    <ArrowLeftOutlined />
-                  }
+                  icon={<ArrowLeftOutlined />}
                   onClick={() =>
                     router.push(
                       "/admin/coverage-locations",
@@ -1131,8 +1096,7 @@ export default function EditCoverageLocationPage() {
 
                 <Tag
                   color={
-                    form.status ===
-                    "active"
+                    form.status === "active"
                       ? "success"
                       : "default"
                   }
@@ -1155,8 +1119,7 @@ export default function EditCoverageLocationPage() {
                 >
                   Code:{" "}
                   <Text code>
-                    {record.code ||
-                      "—"}
+                    {record.code || "—"}
                   </Text>
 
                   {" · "}
@@ -1172,16 +1135,15 @@ export default function EditCoverageLocationPage() {
                       : "Sub-Branch"}
                   </Text>
 
-                  {isSub &&
-                    parentId && (
-                      <>
-                        {" · "}
-                        Parent ID:{" "}
-                        <Text strong>
-                          {parentId}
-                        </Text>
-                      </>
-                    )}
+                  {isSub && parentId && (
+                    <>
+                      {" · "}
+                      Parent ID:{" "}
+                      <Text strong>
+                        {parentId}
+                      </Text>
+                    </>
+                  )}
                 </Text>
               </div>
             </Col>
@@ -1197,36 +1159,55 @@ export default function EditCoverageLocationPage() {
                     fontSize: 12,
                   }}
                 >
-                  {form.status ===
-                  "active"
+                  {form.status === "active"
                     ? "Active"
                     : "Inactive"}
                 </Text>
 
+                {/* STATUS PERMISSION */}
+
                 <Switch
                   size="small"
                   checked={
-                    form.status ===
-                    "active"
+                    form.status === "active"
                   }
-                  onChange={(
-                    checked,
-                  ) =>
+                  disabled={
+                    !canChangeStatus ||
+                    saving
+                  }
+                  onChange={(checked) => {
+                    if (!canChangeStatus) {
+                      message.warning(
+                        "You do not have permission to change coverage location status.",
+                      );
+
+                      return;
+                    }
+
                     updateField(
                       "status",
                       checked
                         ? "active"
                         : "inactive",
-                    )
-                  }
+                    );
+                  }}
                 />
 
-                {isMain && (
+                {!canChangeStatus && (
+                  <Tag
+                    icon={<LockOutlined />}
+                    color="default"
+                  >
+                    No status permission
+                  </Tag>
+                )}
+
+                {/* EDIT PERMISSION */}
+
+                {isMain && canEdit && (
                   <Button
                     size="small"
-                    icon={
-                      <SwapOutlined />
-                    }
+                    icon={<SwapOutlined />}
                     onClick={() =>
                       router.push(
                         `/admin/coverage-locations/${record.id}/convert-to-sub-branch`,
@@ -1237,16 +1218,20 @@ export default function EditCoverageLocationPage() {
                   </Button>
                 )}
 
-                <Button
-                  size="small"
-                  onClick={() =>
-                    router.push(
-                      `/admin/coverage-locations/${record.id}`,
-                    )
-                  }
-                >
-                  View
-                </Button>
+                {/* VIEW PERMISSION */}
+
+                {canView && (
+                  <Button
+                    size="small"
+                    onClick={() =>
+                      router.push(
+                        `/admin/coverage-locations/${record.id}`,
+                      )
+                    }
+                  >
+                    View
+                  </Button>
+                )}
               </Space>
             </Col>
           </Row>
@@ -1280,6 +1265,7 @@ export default function EditCoverageLocationPage() {
                 title={
                   <Space size={7}>
                     <InfoCircleOutlined />
+
                     <span>
                       Coverage Configuration
                     </span>
@@ -1316,8 +1302,7 @@ export default function EditCoverageLocationPage() {
                     <Text strong>
                       <span
                         style={{
-                          color:
-                            "#ff4d4f",
+                          color: "#ff4d4f",
                         }}
                       >
                         *
@@ -1328,6 +1313,7 @@ export default function EditCoverageLocationPage() {
                     <Input
                       value={form.name}
                       maxLength={150}
+                      disabled={!canEdit || saving}
                       onChange={(e) =>
                         updateField(
                           "name",
@@ -1341,10 +1327,7 @@ export default function EditCoverageLocationPage() {
                             fontSize: 11,
                           }}
                         >
-                          {
-                            form.name
-                              .length
-                          }
+                          {form.name.length}
                           /150
                         </Text>
                       }
@@ -1435,16 +1418,14 @@ export default function EditCoverageLocationPage() {
                       </Text>
 
                       <Text strong>
-                        {record.parent
-                          ?.name ||
+                        {record.parent?.name ||
                           record.parent_name ||
                           (parentId
                             ? `Parent #${parentId}`
                             : "Not assigned")}
                       </Text>
 
-                      {record.parent
-                        ?.code && (
+                      {record.parent?.code && (
                         <Text
                           type="secondary"
                           style={{
@@ -1465,8 +1446,7 @@ export default function EditCoverageLocationPage() {
                       <Text strong>
                         <span
                           style={{
-                            color:
-                              "#ff4d4f",
+                            color: "#ff4d4f",
                           }}
                         >
                           *
@@ -1475,20 +1455,19 @@ export default function EditCoverageLocationPage() {
                       </Text>
 
                       <InputNumber
-                        value={
-                          form.latitude
-                        }
+                        value={form.latitude}
                         precision={7}
                         step={0.000001}
                         controls={false}
+                        disabled={
+                          !canEdit ||
+                          saving
+                        }
                         style={{
-                          width:
-                            "100%",
+                          width: "100%",
                           marginTop: 5,
                         }}
-                        onChange={(
-                          value,
-                        ) =>
+                        onChange={(value) =>
                           updateField(
                             "latitude",
                             value,
@@ -1501,8 +1480,7 @@ export default function EditCoverageLocationPage() {
                       <Text strong>
                         <span
                           style={{
-                            color:
-                              "#ff4d4f",
+                            color: "#ff4d4f",
                           }}
                         >
                           *
@@ -1511,20 +1489,19 @@ export default function EditCoverageLocationPage() {
                       </Text>
 
                       <InputNumber
-                        value={
-                          form.longitude
-                        }
+                        value={form.longitude}
                         precision={7}
                         step={0.000001}
                         controls={false}
+                        disabled={
+                          !canEdit ||
+                          saving
+                        }
                         style={{
-                          width:
-                            "100%",
+                          width: "100%",
                           marginTop: 5,
                         }}
-                        onChange={(
-                          value,
-                        ) =>
+                        onChange={(value) =>
                           updateField(
                             "longitude",
                             value,
@@ -1540,8 +1517,7 @@ export default function EditCoverageLocationPage() {
                     <Text strong>
                       <span
                         style={{
-                          color:
-                            "#ff4d4f",
+                          color: "#ff4d4f",
                         }}
                       >
                         *
@@ -1558,14 +1534,15 @@ export default function EditCoverageLocationPage() {
                       precision={2}
                       controls={false}
                       addonAfter="km"
+                      disabled={
+                        !canEdit ||
+                        saving
+                      }
                       style={{
-                        width:
-                          "100%",
+                        width: "100%",
                         marginTop: 5,
                       }}
-                      onChange={(
-                        value,
-                      ) =>
+                      onChange={(value) =>
                         updateField(
                           "coverage_radius_km",
                           value,
@@ -1618,8 +1595,7 @@ export default function EditCoverageLocationPage() {
                           fontSize: 10,
                           textTransform:
                             "uppercase",
-                          letterSpacing:
-                            0.5,
+                          letterSpacing: 0.5,
                         }}
                       >
                         Full Address
@@ -1631,14 +1607,12 @@ export default function EditCoverageLocationPage() {
                           display:
                             "block",
                           marginTop: 3,
-                          lineHeight:
-                            1.4,
+                          lineHeight: 1.4,
                           fontSize: 13,
                         }}
                       >
-                        {getAddress(
-                          record,
-                        ) || "—"}
+                        {getAddress(record) ||
+                          "—"}
                       </Text>
 
                       <Space
@@ -1651,36 +1625,28 @@ export default function EditCoverageLocationPage() {
                         {record.country && (
                           <Tag>
                             Country:{" "}
-                            {
-                              record.country
-                            }
+                            {record.country}
                           </Tag>
                         )}
 
                         {record.province && (
                           <Tag>
                             Province:{" "}
-                            {
-                              record.province
-                            }
+                            {record.province}
                           </Tag>
                         )}
 
                         {record.district && (
                           <Tag>
                             District:{" "}
-                            {
-                              record.district
-                            }
+                            {record.district}
                           </Tag>
                         )}
 
                         {record.city && (
                           <Tag>
                             City:{" "}
-                            {
-                              record.city
-                            }
+                            {record.city}
                           </Tag>
                         )}
 
@@ -1694,18 +1660,14 @@ export default function EditCoverageLocationPage() {
                         {record.street && (
                           <Tag>
                             Street:{" "}
-                            {
-                              record.street
-                            }
+                            {record.street}
                           </Tag>
                         )}
 
                         {record.landmark && (
                           <Tag>
                             Landmark:{" "}
-                            {
-                              record.landmark
-                            }
+                            {record.landmark}
                           </Tag>
                         )}
                       </Space>
@@ -1720,12 +1682,14 @@ export default function EditCoverageLocationPage() {
                     </Text>
 
                     <TextArea
-                      value={
-                        form.notes
-                      }
+                      value={form.notes}
                       maxLength={500}
                       showCount
                       rows={2}
+                      disabled={
+                        !canEdit ||
+                        saving
+                      }
                       placeholder="Optional internal notes"
                       onChange={(e) =>
                         updateField(
@@ -1869,6 +1833,7 @@ export default function EditCoverageLocationPage() {
                 title={
                   <Space size={7}>
                     <EnvironmentOutlined />
+
                     <span>
                       Map & Coverage
                     </span>
@@ -1877,16 +1842,11 @@ export default function EditCoverageLocationPage() {
                 extra={
                   <Space size={5}>
                     <Tag color="purple">
-                      {
-                        form.coverage_radius_km
-                      }{" "}
-                      km
+                      {form.coverage_radius_km} km
                     </Tag>
 
                     <Tag color="blue">
-                      {
-                        mapLocations.length
-                      }{" "}
+                      {mapLocations.length}{" "}
                       locations
                     </Tag>
                   </Space>
@@ -1941,7 +1901,7 @@ export default function EditCoverageLocationPage() {
                     showExisting
                     showBranches
                     showSearch
-                    clickable
+                    clickable={canEdit}
                     height="100%"
                     onChange={
                       handleMapChange
@@ -2079,8 +2039,9 @@ export default function EditCoverageLocationPage() {
                           fontSize: 11,
                         }}
                       >
-                        Click map to
-                        move location
+                        {canEdit
+                          ? "Click map to move location"
+                          : "Map editing disabled"}
                       </Text>
                     </Space>
                   </div>
@@ -2115,8 +2076,7 @@ export default function EditCoverageLocationPage() {
                       </Text>
 
                       <Text strong>
-                        {form.latitude ??
-                          "—"}
+                        {form.latitude ?? "—"}
                       </Text>
                     </Col>
 
@@ -2133,8 +2093,7 @@ export default function EditCoverageLocationPage() {
                       </Text>
 
                       <Text strong>
-                        {form.longitude ??
-                          "—"}
+                        {form.longitude ?? "—"}
                       </Text>
                     </Col>
 
@@ -2225,16 +2184,13 @@ export default function EditCoverageLocationPage() {
               <Space size={6}>
                 <Button
                   size="small"
-                  icon={
-                    <UndoOutlined />
-                  }
+                  icon={<UndoOutlined />}
                   disabled={
                     !hasChanges ||
-                    saving
+                    saving ||
+                    !canEdit
                   }
-                  onClick={
-                    resetChanges
-                  }
+                  onClick={resetChanges}
                 >
                   Reset
                 </Button>
@@ -2251,26 +2207,101 @@ export default function EditCoverageLocationPage() {
                   Cancel
                 </Button>
 
-                <Button
-                  size="small"
-                  type="primary"
-                  icon={
-                    <SaveOutlined />
-                  }
-                  loading={saving}
-                  disabled={
-                    !hasChanges
-                  }
-                  onClick={
-                    saveChanges
-                  }
-                >
-                  Save Changes
-                </Button>
+                {/* SAVE REQUIRES EDIT */}
+
+                {canEdit && (
+                  <Button
+                    size="small"
+                    type="primary"
+                    icon={<SaveOutlined />}
+                    loading={saving}
+                    disabled={!hasChanges}
+                    onClick={saveChanges}
+                  >
+                    Save Changes
+                  </Button>
+                )}
               </Space>
             </Col>
           </Row>
         </Card>
+      </div>
+    </div>
+  );
+}
+
+/* -------------------------------------------------------------------------- */
+/* Permission denied component                                                */
+/* -------------------------------------------------------------------------- */
+
+function ResultLikePermissionDenied({ onBack }) {
+  return (
+    <div
+      style={{
+        textAlign: "center",
+        padding: "40px 20px",
+      }}
+    >
+      <div
+        style={{
+          width: 64,
+          height: 64,
+          margin: "0 auto 18px",
+          borderRadius: "50%",
+          background: "#fff1f0",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+        }}
+      >
+        <LockOutlined
+          style={{
+            fontSize: 28,
+            color: "#ff4d4f",
+          }}
+        />
+      </div>
+
+      <Title
+        level={3}
+        style={{
+          marginBottom: 8,
+        }}
+      >
+        Access Denied
+      </Title>
+
+      <Text
+        type="secondary"
+        style={{
+          display: "block",
+          maxWidth: 420,
+          margin: "0 auto 24px",
+        }}
+      >
+        You do not have permission to edit
+        coverage locations.
+      </Text>
+
+      <Tag
+        color="error"
+        style={{
+          marginBottom: 20,
+        }}
+      >
+        Required permission:
+        {" "}
+        coverage_locations.edit
+      </Tag>
+
+      <div>
+        <Button
+          type="primary"
+          icon={<ArrowLeftOutlined />}
+          onClick={onBack}
+        >
+          Back to Coverage Locations
+        </Button>
       </div>
     </div>
   );

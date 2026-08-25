@@ -184,16 +184,16 @@ export default function CoverageLocationsPage() {
   const [filterForm] = Form.useForm();
 
   /*
-   * Central access control.
-   */
+  |--------------------------------------------------------------------------
+  | Access control
+  |--------------------------------------------------------------------------
+  */
+
   const {
     can,
     loading: accessLoading,
   } = useAccess();
 
-  /*
-   * Permission flags.
-   */
   const canView = can(PERMISSIONS.VIEW);
   const canCreate = can(PERMISSIONS.CREATE);
   const canEdit = can(PERMISSIONS.EDIT);
@@ -201,8 +201,11 @@ export default function CoverageLocationsPage() {
   const canChangeStatus = can(PERMISSIONS.STATUS);
 
   /*
-   * Data state.
-   */
+  |--------------------------------------------------------------------------
+  | State
+  |--------------------------------------------------------------------------
+  */
+
   const [rows, setRows] = useState([]);
 
   const [loading, setLoading] = useState(false);
@@ -221,23 +224,33 @@ export default function CoverageLocationsPage() {
 
   /*
   |--------------------------------------------------------------------------
-  | Filters
+  | Filters from URL
   |--------------------------------------------------------------------------
   */
 
   useEffect(() => {
     filterForm.setFieldsValue({
-      q: searchParams.get("q") || undefined,
+      q:
+        searchParams.get("q") ||
+        undefined,
 
-      parent_id: searchParams.get("parent_id")
-        ? Number(searchParams.get("parent_id"))
-        : undefined,
+      parent_id:
+        searchParams.get("parent_id")
+          ? Number(
+              searchParams.get(
+                "parent_id"
+              )
+            )
+          : undefined,
 
       status:
         searchParams.get("status") ||
         undefined,
     });
-  }, [filterForm, searchParams]);
+  }, [
+    filterForm,
+    searchParams,
+  ]);
 
   /*
   |--------------------------------------------------------------------------
@@ -249,7 +262,8 @@ export default function CoverageLocationsPage() {
     () =>
       rows.filter(
         (r) =>
-          r.type === "main_branch_zone"
+          r.type ===
+          "main_branch_zone"
       ),
     [rows]
   );
@@ -258,23 +272,29 @@ export default function CoverageLocationsPage() {
     () =>
       rows.filter(
         (r) =>
-          r.type === "sub_branch_zone"
+          r.type ===
+          "sub_branch_zone"
       ),
     [rows]
   );
 
-  const subCountByParent = useMemo(() => {
-    const map = {};
+  const subCountByParent =
+    useMemo(() => {
+      const map = {};
 
-    subZones.forEach((record) => {
-      if (record.parent_id) {
-        map[record.parent_id] =
-          (map[record.parent_id] || 0) + 1;
-      }
-    });
+      subZones.forEach(
+        (record) => {
+          if (record.parent_id) {
+            map[record.parent_id] =
+              (map[
+                record.parent_id
+              ] || 0) + 1;
+          }
+        }
+      );
 
-    return map;
-  }, [subZones]);
+      return map;
+    }, [subZones]);
 
   /*
   |--------------------------------------------------------------------------
@@ -288,7 +308,10 @@ export default function CoverageLocationsPage() {
         new URLSearchParams();
 
       if (values.q) {
-        params.set("q", values.q);
+        params.set(
+          "q",
+          values.q
+        );
       }
 
       if (values.parent_id) {
@@ -305,8 +328,13 @@ export default function CoverageLocationsPage() {
         );
       }
 
+      const query =
+        params.toString();
+
       router.replace(
-        `?${params.toString()}`,
+        query
+          ? `?${query}`
+          : "?",
         {
           scroll: false,
         }
@@ -317,7 +345,7 @@ export default function CoverageLocationsPage() {
 
   /*
   |--------------------------------------------------------------------------
-  | Load
+  | Load rows
   |--------------------------------------------------------------------------
   */
 
@@ -357,11 +385,14 @@ export default function CoverageLocationsPage() {
           );
 
         setRows(
-          normalizeRows(response)
+          normalizeRows(
+            response
+          )
         );
       } catch (error) {
         message.error(
-          error?.response?.data?.message ||
+          error?.response?.data
+            ?.message ||
             "Could not load coverage allocations."
         );
       } finally {
@@ -376,7 +407,10 @@ export default function CoverageLocationsPage() {
   );
 
   useEffect(() => {
-    if (!accessLoading && canView) {
+    if (
+      !accessLoading &&
+      canView
+    ) {
       loadRows();
     }
   }, [
@@ -407,13 +441,16 @@ export default function CoverageLocationsPage() {
             id
           );
 
-          message.success("Deleted.");
+          message.success(
+            "Coverage allocation deleted."
+          );
 
           await loadRows();
         } catch (error) {
           message.error(
-            error?.response?.data?.message ||
-              "Could not delete."
+            error?.response?.data
+              ?.message ||
+              "Could not delete coverage allocation."
           );
         }
       },
@@ -440,10 +477,19 @@ export default function CoverageLocationsPage() {
           return;
         }
 
+        if (
+          !Array.isArray(ids) ||
+          !ids.length
+        ) {
+          return;
+        }
+
         try {
           await Promise.all(
             ids.map((id) =>
-              deleteCoverageLocation(id)
+              deleteCoverageLocation(
+                id
+              )
             )
           );
 
@@ -451,14 +497,20 @@ export default function CoverageLocationsPage() {
             `${ids.length} allocation(s) deleted.`
           );
 
-          setSelectedMainKeys([]);
-          setSelectedSubKeys([]);
+          setSelectedMainKeys(
+            []
+          );
+
+          setSelectedSubKeys(
+            []
+          );
 
           await loadRows();
         } catch (error) {
           message.error(
-            error?.response?.data?.message ||
-              "Could not delete."
+            error?.response?.data
+              ?.message ||
+              "Could not delete selected allocations."
           );
         }
       },
@@ -477,7 +529,9 @@ export default function CoverageLocationsPage() {
   const toggleStatus =
     useCallback(
       async (record) => {
-        if (!canChangeStatus) {
+        if (
+          !canChangeStatus
+        ) {
           message.warning(
             "You do not have permission to change allocation status."
           );
@@ -485,11 +539,14 @@ export default function CoverageLocationsPage() {
           return;
         }
 
-        setTogglingId(record.id);
+        setTogglingId(
+          record.id
+        );
 
         try {
           const newStatus =
-            record.status === "active"
+            record.status ===
+            "active"
               ? "inactive"
               : "active";
 
@@ -502,17 +559,20 @@ export default function CoverageLocationsPage() {
           );
 
           message.success(
-            `Status → ${newStatus}.`
+            `Status changed to ${newStatus}.`
           );
 
           await loadRows();
         } catch (error) {
           message.error(
-            error?.response?.data?.message ||
-              "Could not update status."
+            error?.response?.data
+              ?.message ||
+              "Could not update allocation status."
           );
         } finally {
-          setTogglingId(null);
+          setTogglingId(
+            null
+          );
         }
       },
       [
@@ -531,11 +591,16 @@ export default function CoverageLocationsPage() {
     useCallback(() => {
       filterForm.resetFields();
 
-      router.replace("?", {
-        scroll: false,
-      });
+      router.replace(
+        "?",
+        {
+          scroll: false,
+        }
+      );
 
-      loadRows();
+      setTimeout(() => {
+        loadRows();
+      }, 0);
     }, [
       filterForm,
       router,
@@ -554,9 +619,9 @@ export default function CoverageLocationsPage() {
         const actions = [];
 
         /*
-         * View is available whenever
-         * coverage_locations.view exists.
+         * VIEW
          */
+
         if (canView) {
           actions.push(
             <Link
@@ -565,15 +630,18 @@ export default function CoverageLocationsPage() {
             >
               <Button
                 size="small"
-                icon={<EyeOutlined />}
+                icon={
+                  <EyeOutlined />
+                }
               />
             </Link>
           );
         }
 
         /*
-         * Edit requires edit permission.
+         * EDIT
          */
+
         if (canEdit) {
           actions.push(
             <Link
@@ -582,15 +650,18 @@ export default function CoverageLocationsPage() {
             >
               <Button
                 size="small"
-                icon={<EditOutlined />}
+                icon={
+                  <EditOutlined />
+                }
               />
             </Link>
           );
         }
 
         /*
-         * Delete requires delete permission.
+         * DELETE
          */
+
         if (canDelete) {
           actions.push(
             <Popconfirm
@@ -598,7 +669,9 @@ export default function CoverageLocationsPage() {
               title="Delete this allocation?"
               description="This action cannot be undone."
               onConfirm={() =>
-                removeRecord(record.id)
+                removeRecord(
+                  record.id
+                )
               }
             >
               <Button
@@ -643,7 +716,10 @@ export default function CoverageLocationsPage() {
          * User can see status,
          * but cannot change it.
          */
-        if (!canChangeStatus) {
+
+        if (
+          !canChangeStatus
+        ) {
           return (
             <Tag
               color={
@@ -673,7 +749,9 @@ export default function CoverageLocationsPage() {
               record.id
             }
             onChange={() =>
-              toggleStatus(record)
+              toggleStatus(
+                record
+              )
             }
             checkedChildren="Active"
             unCheckedChildren="Inactive"
@@ -840,10 +918,6 @@ export default function CoverageLocationsPage() {
         },
       ];
 
-      /*
-       * Only show actions if at least
-       * one action is actually allowed.
-       */
       if (
         canView ||
         canEdit ||
@@ -1016,7 +1090,7 @@ export default function CoverageLocationsPage() {
 
   /*
   |--------------------------------------------------------------------------
-  | Toolbar
+  | Tab toolbar
   |--------------------------------------------------------------------------
   */
 
@@ -1040,6 +1114,7 @@ export default function CoverageLocationsPage() {
               0 && (
               <Popconfirm
                 title={`Delete ${selectedKeys.length} allocation(s)?`}
+                description="This action cannot be undone."
                 onConfirm={() =>
                   onBulkDelete(
                     selectedKeys
@@ -1085,7 +1160,7 @@ export default function CoverageLocationsPage() {
 
   /*
   |--------------------------------------------------------------------------
-  | Header toolbar
+  | Header actions
   |--------------------------------------------------------------------------
   */
 
@@ -1124,7 +1199,7 @@ export default function CoverageLocationsPage() {
 
   /*
   |--------------------------------------------------------------------------
-  | Tab toolbar
+  | View toolbar
   |--------------------------------------------------------------------------
   */
 
@@ -1163,6 +1238,7 @@ export default function CoverageLocationsPage() {
           <ReloadOutlined />
         }
         onClick={loadRows}
+        loading={loading}
       >
         Refresh
       </Button>
@@ -1205,7 +1281,13 @@ export default function CoverageLocationsPage() {
       >
         <Card>
           <Empty
-            description="You do not have permission to view branch coverage allocations."
+            description={
+              <span>
+                You do not have permission
+                to view branch coverage
+                allocations.
+              </span>
+            }
           />
         </Card>
       </div>
@@ -1238,7 +1320,10 @@ export default function CoverageLocationsPage() {
         <Row
           justify="space-between"
           align="middle"
-          gutter={[16, 12]}
+          gutter={[
+            16,
+            12,
+          ]}
         >
           <Col>
             <Space
@@ -1269,7 +1354,12 @@ export default function CoverageLocationsPage() {
 
         {/* Stats */}
 
-        <Row gutter={[16, 16]}>
+        <Row
+          gutter={[
+            16,
+            16,
+          ]}
+        >
           <Col
             xs={24}
             sm={8}
@@ -1567,25 +1657,24 @@ export default function CoverageLocationsPage() {
                           x: 900,
                         }}
                         locale={{
-                          emptyText:
-                            (
-                              <Empty description="No main branch allocations">
-                                {canCreate && (
-                                  <Link href="/admin/coverage-locations/create?type=main_branch_zone">
-                                    <Button
-                                      type="primary"
-                                      size="small"
-                                      icon={
-                                        <PlusOutlined />
-                                      }
-                                    >
-                                      Add Main
-                                      Allocation
-                                    </Button>
-                                  </Link>
-                                )}
-                              </Empty>
-                            ),
+                          emptyText: (
+                            <Empty description="No main branch allocations">
+                              {canCreate && (
+                                <Link href="/admin/coverage-locations/create?type=main_branch_zone">
+                                  <Button
+                                    type="primary"
+                                    size="small"
+                                    icon={
+                                      <PlusOutlined />
+                                    }
+                                  >
+                                    Add Main
+                                    Allocation
+                                  </Button>
+                                </Link>
+                              )}
+                            </Empty>
+                          ),
                         }}
                       />
                     </>
@@ -1644,25 +1733,24 @@ export default function CoverageLocationsPage() {
                           x: 900,
                         }}
                         locale={{
-                          emptyText:
-                            (
-                              <Empty description="No sub-branch allocations">
-                                {canCreate && (
-                                  <Link href="/admin/coverage-locations/create?type=sub_branch_zone">
-                                    <Button
-                                      size="small"
-                                      icon={
-                                        <PlusOutlined />
-                                      }
-                                    >
-                                      Add
-                                      Sub-Branch
-                                      Allocation
-                                    </Button>
-                                  </Link>
-                                )}
-                              </Empty>
-                            ),
+                          emptyText: (
+                            <Empty description="No sub-branch allocations">
+                              {canCreate && (
+                                <Link href="/admin/coverage-locations/create?type=sub_branch_zone">
+                                  <Button
+                                    size="small"
+                                    icon={
+                                      <PlusOutlined />
+                                    }
+                                  >
+                                    Add
+                                    Sub-Branch
+                                    Allocation
+                                  </Button>
+                                </Link>
+                              )}
+                            </Empty>
+                          ),
                         }}
                       />
                     </>
@@ -1686,21 +1774,13 @@ export default function CoverageLocationsPage() {
                 existingLocations={
                   rows
                 }
-                existingBranches={
-                  []
-                }
+                existingBranches={[]}
                 showExisting
-                showBranches={
-                  false
-                }
+                showBranches={false}
                 showCoverageRadius
                 height={650}
-                clickable={
-                  false
-                }
-                showSearch={
-                  false
-                }
+                clickable={false}
+                showSearch={false}
                 viewMode="nepal"
                 onChange={() => {}}
               />
