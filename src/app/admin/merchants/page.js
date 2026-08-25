@@ -1,146 +1,455 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
-import { Button, Card, Col, Form, Input, Modal, Row, Space, Table, Tag, Typography, message } from "antd";
-import { PlusOutlined, ReloadOutlined, SearchOutlined } from "@ant-design/icons";
-import api from "@/lib/api";
-import { usePermissions } from "@/hooks/usePermission";
+import {
+  useCallback,
+  useEffect,
+  useState,
+} from "react";
+
+import {
+  Button,
+  Card,
+  Input,
+  Space,
+  Table,
+  Tag,
+  Typography,
+  message,
+} from "antd";
+
+import {
+  EyeOutlined,
+  ReloadOutlined,
+  SearchOutlined,
+} from "@ant-design/icons";
+
+import { useRouter } from "next/navigation";
+
+import { getMerchants } from "@/services/merchantService";
 import { StatusTag } from "@/components/PageTools";
 
 const { Text } = Typography;
 
 export default function MerchantsPage() {
-  const { can } = usePermissions();
+  const router = useRouter();
+
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [pagination, setPagination] = useState({ current: 1, pageSize: 15, total: 0 });
+
+  const [pagination, setPagination] = useState({
+    current: 1,
+    pageSize: 15,
+    total: 0,
+  });
+
   const [search, setSearch] = useState("");
-  const [open, setOpen] = useState(false);
-  const [submitting, setSubmitting] = useState(false);
-  const [refresh, setRefresh] = useState(0);
-  const [form] = Form.useForm();
+  const [searchInput, setSearchInput] = useState("");
 
-  const load = useCallback(async (page = 1, pageSize = 15) => {
-    setLoading(true);
-    try {
-      const params = { page, per_page: pageSize, ...(search && { search }) };
-      const res = await api.get("/admin/merchants", { params });
-      const payload = res.data?.data || res.data;
-      const list = payload?.data || payload || [];
-      setRows(Array.isArray(list) ? list : []);
-      setPagination({ current: payload?.current_page || page, pageSize: payload?.per_page || pageSize, total: payload?.total || list.length });
-    } catch {
-      message.error("Could not load merchants.");
-    } finally {
-      setLoading(false);
-    }
-  }, [search, refresh]);
+  const load = useCallback(
+    async (page = 1, pageSize = 15, currentSearch = search) => {
+      setLoading(true);
 
-  useEffect(() => { load(); }, [load]);
+      try {
+        const result = await getMerchants({
+          page,
+          per_page: pageSize,
+          ...(currentSearch
+            ? {
+                search: currentSearch,
+              }
+            : {}),
+        });
 
-  const handleApprove = async (id) => {
-    try {
-      await api.post(`/admin/merchants/${id}/approve`);
-      message.success("Approved.");
-      load(pagination.current, pagination.pageSize);
-    } catch (err) {
-      message.error(err?.response?.data?.message || "Failed.");
-    }
+        setRows(result.list);
+
+        setPagination({
+          current: result.currentPage,
+          pageSize: result.pageSize,
+          total: result.total,
+        });
+      } catch (error) {
+        console.error(
+          "Could not load merchants:",
+          error,
+        );
+
+        message.error(
+          error?.response?.data?.message ||
+            "Could not load merchants.",
+        );
+      } finally {
+        setLoading(false);
+      }
+    },
+    [search],
+  );
+
+  useEffect(() => {
+    load(1, pagination.pageSize, search);
+  }, []);
+
+  const handleSearch = () => {
+    setSearch(searchInput.trim());
+
+    load(
+      1,
+      pagination.pageSize,
+      searchInput.trim(),
+    );
   };
 
-  const handleSubmit = async (values) => {
-    setSubmitting(true);
-    try {
-      await api.post("/admin/merchants", { ...values, create_login: true });
-      message.success("Merchant created.");
-      setOpen(false);
-      form.resetFields();
-      setRefresh(Date.now());
-    } catch (err) {
-      message.error(err?.response?.data?.message || "Failed.");
-    } finally {
-      setSubmitting(false);
-    }
+  const handleReset = () => {
+    setSearchInput("");
+    setSearch("");
+
+    load(
+      1,
+      pagination.pageSize,
+      "",
+    );
   };
 
   const columns = [
-    { title: "Name", dataIndex: "name", render: v => <Text strong>{v || "—"}</Text> },
-    { title: "Code", dataIndex: "code", render: v => v ? <Tag>{v}</Tag> : "—" },
-    { title: "Phone", dataIndex: "phone", render: v => v || "—" },
-    { title: "Email", dataIndex: "email", render: v => v || "—" },
-    { title: "Status", dataIndex: "status", render: v => <StatusTag value={v} /> },
     {
-      title: "Action", width: 100,
-      render: (_, r) => (
-        <Space size={4}>
-          {can("merchants.approve") && r.status === "pending" && (
-            <Button size="small" type="primary" onClick={() => handleApprove(r.id)}>Approve</Button>
+      title: "Merchant / Store",
+      dataIndex: "name",
+      key: "name",
+
+      render: (value, row) => (
+        <div>
+          <Text
+            strong
+            style={{
+              fontSize: 13,
+            }}
+          >
+            {value || "—"}
+          </Text>
+
+          {row.owner_name && (
+            <div>
+              <Text
+                type="secondary"
+                style={{
+                  fontSize: 11,
+                }}
+              >
+                {row.owner_name}
+              </Text>
+            </div>
           )}
-        </Space>
+        </div>
+      ),
+    },
+
+    {
+      title: "Code",
+      dataIndex: "code",
+      key: "code",
+
+      render: (value) =>
+        value ? (
+          <Tag
+            style={{
+              margin: 0,
+              fontSize: 11,
+            }}
+          >
+            {value}
+          </Tag>
+        ) : (
+          "—"
+        ),
+    },
+
+    {
+      title: "Phone",
+      dataIndex: "phone",
+      key: "phone",
+
+      render: (value) => (
+        <Text
+          style={{
+            fontSize: 12,
+          }}
+        >
+          {value || "—"}
+        </Text>
+      ),
+    },
+
+    {
+      title: "Email",
+      dataIndex: "email",
+      key: "email",
+
+      render: (value) => (
+        <Text
+          style={{
+            fontSize: 12,
+          }}
+        >
+          {value || "—"}
+        </Text>
+      ),
+    },
+
+    {
+      title: "Branch",
+      key: "branch",
+
+      render: (_, row) => {
+        const branch =
+          row.default_branch ||
+          row.branch;
+
+        if (!branch) {
+          return (
+            <Text
+              type="secondary"
+              style={{
+                fontSize: 11,
+              }}
+            >
+              —
+            </Text>
+          );
+        }
+
+        return (
+          <div>
+            <div
+              style={{
+                fontSize: 12,
+                fontWeight: 500,
+              }}
+            >
+              {branch.name || "—"}
+            </div>
+
+            {branch.code && (
+              <Text
+                type="secondary"
+                style={{
+                  fontSize: 10,
+                }}
+              >
+                {branch.code}
+              </Text>
+            )}
+          </div>
+        );
+      },
+    },
+
+    {
+      title: "Status",
+      dataIndex: "status",
+      key: "status",
+
+      render: (value) => (
+        <StatusTag value={value} />
+      ),
+    },
+
+    {
+      title: "Created",
+      dataIndex: "created_at",
+      key: "created_at",
+
+      render: (value) => (
+        <Text
+          type="secondary"
+          style={{
+            fontSize: 11,
+          }}
+        >
+          {value
+            ? new Date(value).toLocaleDateString(
+                "en-NP",
+                {
+                  day: "2-digit",
+                  month: "short",
+                  year: "2-digit",
+                },
+              )
+            : "—"}
+        </Text>
+      ),
+    },
+
+    {
+      title: "Action",
+      key: "action",
+      width: 70,
+      align: "center",
+
+      render: (_, row) => (
+        <Button
+          type="text"
+          size="small"
+          icon={<EyeOutlined />}
+          style={{
+            color: "#6366f1",
+          }}
+          onClick={() => {
+            router.push(
+              `/admin/merchants/${row.id}`,
+            );
+          }}
+        />
       ),
     },
   ];
 
   return (
-    <Space direction="vertical" size={12} style={{ width: "100%" }}>
+    <Space
+      direction="vertical"
+      size={12}
+      style={{
+        width: "100%",
+      }}
+    >
+      {/* Header */}
       <Card>
-        <Space style={{ justifyContent: "space-between", width: "100%" }} wrap>
+        <Space
+          style={{
+            justifyContent: "space-between",
+            width: "100%",
+          }}
+          wrap
+        >
           <div>
-            <Text style={{ fontSize: 18, fontWeight: 700 }}>Merchants / Stores</Text>
+            <Text
+              style={{
+                fontSize: 18,
+                fontWeight: 700,
+              }}
+            >
+              Merchants / Stores
+            </Text>
+
             <br />
-            <Text type="secondary" style={{ fontSize: 12 }}>Manage merchant accounts.</Text>
+
+            <Text
+              type="secondary"
+              style={{
+                fontSize: 12,
+              }}
+            >
+              View merchants assigned to your branch.
+            </Text>
           </div>
-          <Space>
-            {can("merchants.create") && (
-              <Button type="primary" icon={<PlusOutlined />} onClick={() => setOpen(true)}>Add Merchant</Button>
-            )}
-            <Button icon={<ReloadOutlined />} onClick={() => load(1, pagination.pageSize)}>Refresh</Button>
-          </Space>
+
+          <Button
+            icon={<ReloadOutlined />}
+            onClick={() =>
+              load(
+                pagination.current,
+                pagination.pageSize,
+              )
+            }
+            loading={loading}
+          >
+            Refresh
+          </Button>
         </Space>
-        <Space wrap style={{ marginTop: 12 }}>
-          <Input allowClear style={{ width: 240 }} placeholder="Search name / email"
-            prefix={<SearchOutlined />} value={search}
-            onChange={e => setSearch(e.target.value)}
-            onPressEnter={() => load(1, pagination.pageSize)}
+
+        {/* Search */}
+        <Space
+          wrap
+          style={{
+            marginTop: 12,
+          }}
+        >
+          <Input
+            allowClear
+            style={{
+              width: 240,
+            }}
+            placeholder="Search name / email / phone"
+            prefix={<SearchOutlined />}
+            value={searchInput}
+            onChange={(event) => {
+              setSearchInput(
+                event.target.value,
+              );
+            }}
+            onPressEnter={handleSearch}
           />
-          <Button type="primary" onClick={() => load(1, pagination.pageSize)}>Search</Button>
-          <Button onClick={() => { setSearch(""); setTimeout(() => load(1, pagination.pageSize), 0); }}>Reset</Button>
+
+          <Button
+            type="primary"
+            onClick={handleSearch}
+          >
+            Search
+          </Button>
+
+          <Button onClick={handleReset}>
+            Reset
+          </Button>
         </Space>
       </Card>
 
-      <Card>
-        <Table rowKey="id" loading={loading} columns={columns} dataSource={rows} scroll={{ x: 800 }}
-          pagination={{ ...pagination, showSizeChanger: true, showTotal: t => `${t} merchants`, onChange: (p, ps) => load(p, ps) }}
+      {/* Merchant List */}
+      <Card
+        title={
+          <Text
+            style={{
+              fontSize: 14,
+              fontWeight: 600,
+            }}
+          >
+            Merchant Directory
+          </Text>
+        }
+      >
+        <Table
+          rowKey="id"
+          loading={loading}
+          columns={columns}
+          dataSource={rows}
+          scroll={{
+            x: 950,
+          }}
+          pagination={{
+            ...pagination,
+
+            showSizeChanger: true,
+
+            pageSizeOptions: [
+              "15",
+              "30",
+              "50",
+            ],
+
+            showTotal: (total, range) =>
+              `${range[0]}–${range[1]} of ${total} merchants`,
+
+            onChange: (
+              page,
+              pageSize,
+            ) => {
+              load(
+                page,
+                pageSize,
+                search,
+              );
+            },
+          }}
+          onRow={(row) => ({
+            style: {
+              cursor: "pointer",
+            },
+
+            onClick: () => {
+              router.push(
+                `/admin/merchants/${row.id}`,
+              );
+            },
+          })}
         />
       </Card>
-
-      <Modal open={open} title="Add Merchant" onCancel={() => { setOpen(false); form.resetFields(); }}
-        onOk={() => form.submit()} confirmLoading={submitting} width={520} destroyOnClose>
-        <Form layout="vertical" form={form} onFinish={handleSubmit}>
-          <Row gutter={12}>
-            <Col xs={24} md={12}>
-              <Form.Item name="name" label="Store Name" rules={[{ required: true }]}><Input /></Form.Item>
-            </Col>
-            <Col xs={24} md={12}>
-              <Form.Item name="email" label="Email"><Input /></Form.Item>
-            </Col>
-            <Col xs={24} md={12}>
-              <Form.Item name="phone" label="Phone"><Input /></Form.Item>
-            </Col>
-            <Col xs={24} md={12}>
-              <Form.Item name="contact_person" label="Contact Person"><Input /></Form.Item>
-            </Col>
-            <Col xs={24}>
-              <Form.Item name="address" label="Address"><Input.TextArea rows={2} /></Form.Item>
-            </Col>
-            <Col xs={24} md={12}>
-              <Form.Item name="password" label="Login Password" initialValue="password">
-                <Input.Password />
-              </Form.Item>
-            </Col>
-          </Row>
-        </Form>
-      </Modal>
     </Space>
   );
 }
