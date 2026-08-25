@@ -25,13 +25,23 @@ import {
 
 import { useRouter } from "next/navigation";
 
-import { getMerchants } from "@/services/merchantService";
+import {
+  getMerchants,
+  getMerchantsByBranchId,
+} from "@/services/merchantService";
+
 import { StatusTag } from "@/components/PageTools";
+
+// Use the hook your project already uses for authenticated user.
+// Change this import if your project has a different auth/user hook.
+import { useAuth } from "@/hooks/useAuth";
 
 const { Text } = Typography;
 
 export default function MerchantsPage() {
   const router = useRouter();
+
+  const { user } = useAuth();
 
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -46,11 +56,19 @@ export default function MerchantsPage() {
   const [searchInput, setSearchInput] = useState("");
 
   const load = useCallback(
-    async (page = 1, pageSize = 15, currentSearch = search) => {
+    async (
+      page = 1,
+      pageSize = 15,
+      currentSearch = search
+    ) => {
+      if (!user) {
+        return;
+      }
+
       setLoading(true);
 
       try {
-        const result = await getMerchants({
+        const params = {
           page,
           per_page: pageSize,
           ...(currentSearch
@@ -58,43 +76,94 @@ export default function MerchantsPage() {
                 search: currentSearch,
               }
             : {}),
-        });
+        };
 
-        setRows(result.list);
+        let result;
+
+        /*
+         * IMPORTANT:
+         *
+         * Super admin:
+         *   Can see every merchant.
+         *
+         * Everyone else:
+         *   Must use their branch_id.
+         *
+         * This means branch_manager does NOT get
+         * the global merchant list.
+         */
+        if (user.role === "super_admin") {
+          result = await getMerchants(params);
+        } else {
+          if (!user.branch_id) {
+            setRows([]);
+            setPagination({
+              current: 1,
+              pageSize,
+              total: 0,
+            });
+
+            message.warning(
+              "No branch is assigned to your account."
+            );
+
+            return;
+          }
+
+          result = await getMerchantsByBranchId(
+            user.branch_id,
+            params
+          );
+        }
+
+        setRows(result.list || []);
 
         setPagination({
-          current: result.currentPage,
-          pageSize: result.pageSize,
-          total: result.total,
+          current: result.currentPage || page,
+          pageSize: result.pageSize || pageSize,
+          total: result.total || 0,
         });
       } catch (error) {
         console.error(
           "Could not load merchants:",
-          error,
+          error
         );
 
         message.error(
           error?.response?.data?.message ||
-            "Could not load merchants.",
+            "Could not load merchants."
         );
       } finally {
         setLoading(false);
       }
     },
-    [search],
+    [user, search]
   );
 
+  /*
+   * Load once user is available.
+   */
   useEffect(() => {
-    load(1, pagination.pageSize, search);
-  }, []);
-
-  const handleSearch = () => {
-    setSearch(searchInput.trim());
+    if (!user) {
+      return;
+    }
 
     load(
       1,
       pagination.pageSize,
-      searchInput.trim(),
+      search
+    );
+  }, [user]);
+
+  const handleSearch = () => {
+    const value = searchInput.trim();
+
+    setSearch(value);
+
+    load(
+      1,
+      pagination.pageSize,
+      value
     );
   };
 
@@ -105,7 +174,7 @@ export default function MerchantsPage() {
     load(
       1,
       pagination.pageSize,
-      "",
+      ""
     );
   };
 
@@ -271,7 +340,7 @@ export default function MerchantsPage() {
                   day: "2-digit",
                   month: "short",
                   year: "2-digit",
-                },
+                }
               )
             : "—"}
         </Text>
@@ -292,9 +361,11 @@ export default function MerchantsPage() {
           style={{
             color: "#6366f1",
           }}
-          onClick={() => {
+          onClick={(event) => {
+            event.stopPropagation();
+
             router.push(
-              `/admin/merchants/${row.id}`,
+              `/admin/merchants/${row.id}`
             );
           }}
         />
@@ -310,7 +381,6 @@ export default function MerchantsPage() {
         width: "100%",
       }}
     >
-      {/* Header */}
       <Card>
         <Space
           style={{
@@ -337,7 +407,9 @@ export default function MerchantsPage() {
                 fontSize: 12,
               }}
             >
-              View merchants assigned to your branch.
+              {user?.role === "super_admin"
+                ? "View all merchants and stores."
+                : "View merchants assigned to your branch."}
             </Text>
           </div>
 
@@ -347,6 +419,7 @@ export default function MerchantsPage() {
               load(
                 pagination.current,
                 pagination.pageSize,
+                search
               )
             }
             loading={loading}
@@ -355,7 +428,6 @@ export default function MerchantsPage() {
           </Button>
         </Space>
 
-        {/* Search */}
         <Space
           wrap
           style={{
@@ -372,7 +444,7 @@ export default function MerchantsPage() {
             value={searchInput}
             onChange={(event) => {
               setSearchInput(
-                event.target.value,
+                event.target.value
               );
             }}
             onPressEnter={handleSearch}
@@ -391,7 +463,6 @@ export default function MerchantsPage() {
         </Space>
       </Card>
 
-      {/* Merchant List */}
       <Card
         title={
           <Text
@@ -423,17 +494,20 @@ export default function MerchantsPage() {
               "50",
             ],
 
-            showTotal: (total, range) =>
+            showTotal: (
+              total,
+              range
+            ) =>
               `${range[0]}–${range[1]} of ${total} merchants`,
 
             onChange: (
               page,
-              pageSize,
+              pageSize
             ) => {
               load(
                 page,
                 pageSize,
-                search,
+                search
               );
             },
           }}
@@ -444,7 +518,7 @@ export default function MerchantsPage() {
 
             onClick: () => {
               router.push(
-                `/admin/merchants/${row.id}`,
+                `/admin/merchants/${row.id}`
               );
             },
           })}
