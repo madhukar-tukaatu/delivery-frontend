@@ -1,368 +1,323 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
-
+import { useEffect, useState } from "react";
 import {
   Button,
   Card,
+  Col,
   Input,
+  Row,
   Select,
   Space,
   Table,
-  Tag,
   Typography,
   message,
+  Tag,
 } from "antd";
 
 import {
-  EyeOutlined,
-  PlusOutlined,
   ReloadOutlined,
   SearchOutlined,
+  EyeOutlined,
 } from "@ant-design/icons";
 
 import { useRouter } from "next/navigation";
 
-import { getShipments } from "@/services/merchantShipmentService";
-
-import { usePermissions } from "@/hooks/usePermission";
+import {
+  getShipments,
+} from "@/services/merchantShipmentService";
 
 import WorkflowStatusTag from "@/features/workflow/components/WorkflowStatusTag";
 
-import { formatDateTime, formatMoney } from "@/config/workflowStatus";
-
-const { Text } = Typography;
+const { Title, Text } = Typography;
 
 const STATUS_OPTIONS = [
-  {
-    label: "Booked",
-    value: "booked",
-  },
-  {
-    label: "Pickup Assigned",
-    value: "pickup_assigned",
-  },
-  {
-    label: "Picked Up",
-    value: "picked_up",
-  },
-  {
-    label: "In Transit",
-    value: "in_transit",
-  },
-  {
-    label: "Out For Delivery",
-    value: "out_for_delivery",
-  },
-  {
-    label: "Delivered",
-    value: "delivered",
-  },
-  {
-    label: "Delivery Failed",
-    value: "delivery_failed",
-  },
-  {
-    label: "Returned",
-    value: "returned",
-  },
+  "pending",
+  "confirmed",
+  "pickup_requested",
+  "pickup_assigned",
+  "picked_up",
+  "received_at_origin",
+  "in_transit",
+  "received_at_destination",
+  "out_for_delivery",
+  "delivered",
+  "failed",
+  "cancelled",
 ];
+
+const SERVICE_OPTIONS = [
+  "standard",
+  "express",
+  "same_day",
+];
+
+const PAYMENT_OPTIONS = [
+  "prepaid",
+  "pod",
+  "to_pay",
+];
+
+function branchLabel(branch) {
+  if (!branch) {
+    return "-";
+  }
+
+  if (typeof branch === "string") {
+    return branch;
+  }
+
+  return [
+    branch.name,
+    branch.area,
+  ]
+    .filter(Boolean)
+    .join(", ") || "-";
+}
 
 export default function ShipmentsPage() {
   const router = useRouter();
 
-  const {
-    user,
-    loading: authLoading,
-    isSuperAdmin,
-    branchId,
-    can,
-  } = usePermissions();
+  const [loading, setLoading] =
+    useState(false);
 
-  const [rows, setRows] = useState([]);
+  const [shipments, setShipments] =
+    useState([]);
 
-  const [loading, setLoading] = useState(false);
+  const [pagination, setPagination] =
+    useState({
+      current: 1,
+      pageSize: 20,
+      total: 0,
+    });
 
-  const [pagination, setPagination] = useState({
-    current: 1,
-    pageSize: 20,
-    total: 0,
-  });
+  const [filters, setFilters] =
+    useState({
+      search: "",
+      status: undefined,
+      service_type: undefined,
+      payment_type: undefined,
 
-  const [filters, setFilters] = useState({
-    search: "",
-    status: "",
-    service_type: "",
-    payment_type: "",
-  });
+      /*
+       * IMPORTANT:
+       *
+       * branch_id should only be shown/used
+       * by super admin.
+       *
+       * You can conditionally render this
+       * after loading auth/permissions.
+       */
+      branch_id: undefined,
+    });
 
-  /*
-   * Permission
-   *
-   * Super admin is automatically allowed
-   * by your usePermissions() implementation.
-   *
-   * Other users need:
-   *
-   * shipments.view
-   */
-  const canViewShipments = can("shipments.view");
+  async function load(page = 1, pageSize = 20) {
+    try {
+      setLoading(true);
 
-  /*
-   * Load shipments.
-   *
-   * IMPORTANT:
-   *
-   * We intentionally DO NOT call:
-   *
-   * /admin/branches/{branchId}/shipments
-   *
-   * There is no such Laravel route.
-   *
-   * Everyone calls:
-   *
-   * /admin/shipments
-   *
-   * The Laravel controller determines whether
-   * the authenticated user is super admin or
-   * branch scoped.
-   */
-  const load = useCallback(
-    async (page = 1, pageSize = 20, currentFilters = filters) => {
-      if (!user) {
-        return;
+      const params = {
+        page,
+        per_page: pageSize,
+      };
+
+      if (filters.search?.trim()) {
+        params.search =
+          filters.search.trim();
       }
 
-      if (!canViewShipments) {
-        setRows([]);
+      if (filters.status) {
+        params.status =
+          filters.status;
+      }
 
-        setPagination({
-          current: 1,
-          pageSize,
-          total: 0,
-        });
+      if (filters.service_type) {
+        params.service_type =
+          filters.service_type;
+      }
 
-        return;
+      if (filters.payment_type) {
+        params.payment_type =
+          filters.payment_type;
       }
 
       /*
-       * Branch users must have a branch.
+       * Only send branch_id if explicitly selected.
        *
-       * Super admin does not need one.
+       * Backend MUST enforce authorization.
        */
-      if (!isSuperAdmin && !branchId) {
-        setRows([]);
-
-        setPagination({
-          current: 1,
-          pageSize,
-          total: 0,
-        });
-
-        message.warning("No branch is assigned to your account.");
-
-        return;
+      if (filters.branch_id) {
+        params.branch_id =
+          filters.branch_id;
       }
 
-      setLoading(true);
+      const result =
+        await getShipments(params);
 
-      try {
-        const params = {
-          page,
-          per_page: pageSize,
+      setShipments(
+        result.list
+      );
 
-          ...(currentFilters.search
-            ? {
-                search: currentFilters.search,
-              }
-            : {}),
+      setPagination({
+        current:
+          result.currentPage,
 
-          ...(currentFilters.status
-            ? {
-                status: currentFilters.status,
-              }
-            : {}),
+        pageSize:
+          result.pageSize,
 
-          ...(currentFilters.service_type
-            ? {
-                service_type: currentFilters.service_type,
-              }
-            : {}),
+        total:
+          result.total,
+      });
+    } catch (error) {
+      message.error(
+        error?.response?.data?.message ||
+        "Could not load shipments."
+      );
+    } finally {
+      setLoading(false);
+    }
+  }
 
-          ...(currentFilters.payment_type
-            ? {
-                payment_type: currentFilters.payment_type,
-              }
-            : {}),
-        };
-
-        /*
-         * BOTH super admin and branch users
-         * call the same endpoint.
-         *
-         * Backend performs the actual scope.
-         */
-        const result = await getShipments(params);
-
-        setRows(result?.list || []);
-
-        setPagination({
-          current: result?.currentPage || page,
-
-          pageSize: result?.pageSize || pageSize,
-
-          total: result?.total || 0,
-        });
-      } catch (error) {
-        console.error("Could not load shipments:", error);
-
-        message.error(
-          error?.response?.data?.message || "Could not load shipments.",
-        );
-
-        setRows([]);
-      } finally {
-        setLoading(false);
-      }
-    },
-    [user, canViewShipments, isSuperAdmin, branchId, filters],
-  );
-
-  /*
-   * Initial load.
-   *
-   * Wait until usePermissions()
-   * finishes loading the authenticated user.
-   */
   useEffect(() => {
-    if (authLoading) {
-      return;
-    }
+    load(1, 20);
 
-    if (!user) {
-      return;
-    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
-    if (!canViewShipments) {
-      return;
-    }
+  function updateFilter(key, value) {
+    setFilters((previous) => ({
+      ...previous,
+      [key]: value,
+    }));
+  }
 
-    load(1, pagination.pageSize, filters);
-  }, [authLoading, user, canViewShipments, load]);
-
-  /*
-   * Search
-   */
-  const handleSearch = () => {
-    load(1, pagination.pageSize, filters);
-  };
-
-  /*
-   * Reset filters
-   */
-  const handleReset = () => {
-    const resetFilters = {
+  function resetFilters() {
+    setFilters({
       search: "",
-      status: "",
-      service_type: "",
-      payment_type: "",
-    };
+      status: undefined,
+      service_type: undefined,
+      payment_type: undefined,
+      branch_id: undefined,
+    });
 
-    setFilters(resetFilters);
+    setTimeout(() => {
+      load(1, pagination.pageSize);
+    }, 0);
+  }
 
-    load(1, pagination.pageSize, resetFilters);
-  };
-
-  /*
-   * Refresh
-   */
-  const handleRefresh = () => {
-    load(pagination.current, pagination.pageSize, filters);
-  };
-
-  /*
-   * Table columns
-   */
   const columns = [
     {
-      title: "Tracking",
+      title: "Tracking Number",
       dataIndex: "tracking_number",
       key: "tracking_number",
-      fixed: "left",
-
-      render: (value, row) => (
+      render: (value, record) => (
         <Space direction="vertical" size={0}>
           <Button
             type="link"
-            style={{
-              padding: 0,
-              fontWeight: 700,
-            }}
-            onClick={() => router.push(`/admin/shipments/${row.id}`)}
+            style={{ padding: 0 }}
+            onClick={() =>
+              router.push(
+                `/admin/shipments/${record.id}`
+              )
+            }
           >
-            {value || "—"}
+            {value || "-"}
           </Button>
 
           <Text
             type="secondary"
-            style={{
-              fontSize: 11,
-            }}
+            style={{ fontSize: 12 }}
           >
-            Order: {row.merchant_order_id || "—"}
+            {record.merchant_order_id || "-"}
           </Text>
         </Space>
       ),
     },
 
     {
-      title: "Customer",
-      key: "customer",
+      title: "Merchant",
+      key: "merchant",
+      render: (_, record) =>
+        record.merchant?.name ||
+        record.merchant_name ||
+        "-",
+    },
 
-      render: (_, row) => (
+    {
+      title: "Origin",
+      key: "origin",
+      render: (_, record) => (
         <Space direction="vertical" size={0}>
-          <Text
-            strong
-            style={{
-              fontSize: 13,
-            }}
-          >
-            {row.receiver_name || row.customer_name || "—"}
+          <Text strong>
+            {branchLabel(
+              record.origin_branch ||
+              record.originBranch
+            )}
           </Text>
 
-          <Text
-            type="secondary"
-            style={{
-              fontSize: 11,
-            }}
-          >
-            {row.receiver_phone || row.customer_phone || "—"}
+          <Text type="secondary">
+            {branchLabel(
+              record.origin_sub_branch ||
+              record.originSubBranch
+            )}
           </Text>
         </Space>
       ),
     },
 
     {
-      title: "Route",
-      key: "route",
-
-      render: (_, row) => (
+      title: "Current Location",
+      key: "current",
+      render: (_, record) => (
         <Space direction="vertical" size={0}>
-          <Text
-            style={{
-              fontSize: 12,
-            }}
-          >
-            {row.origin_branch?.name || row.sender_city || "—"}
+          <Text strong>
+            {branchLabel(
+              record.current_branch ||
+              record.currentBranch
+            )}
           </Text>
 
-          <Text
-            type="secondary"
-            style={{
-              fontSize: 11,
-            }}
-          >
-            → {row.destination_branch?.name || row.receiver_city || "—"}
+          <Text type="secondary">
+            {branchLabel(
+              record.current_sub_branch ||
+              record.currentSubBranch
+            )}
+          </Text>
+        </Space>
+      ),
+    },
+
+    {
+      title: "Destination",
+      key: "destination",
+      render: (_, record) => (
+        <Space direction="vertical" size={0}>
+          <Text strong>
+            {branchLabel(
+              record.destination_branch ||
+              record.destinationBranch
+            )}
+          </Text>
+
+          <Text type="secondary">
+            {branchLabel(
+              record.destination_sub_branch ||
+              record.destinationSubBranch
+            )}
+          </Text>
+        </Space>
+      ),
+    },
+
+    {
+      title: "Receiver",
+      key: "receiver",
+      render: (_, record) => (
+        <Space direction="vertical" size={0}>
+          <Text>
+            {record.receiver_name || "-"}
+          </Text>
+
+          <Text type="secondary">
+            {record.receiver_phone || "-"}
           </Text>
         </Space>
       ),
@@ -372,314 +327,262 @@ export default function ShipmentsPage() {
       title: "Service",
       dataIndex: "service_type",
       key: "service_type",
-
-      render: (value) => (value ? <Tag color="blue">{value}</Tag> : "—"),
+      render: (value) =>
+        value ? (
+          <Tag>
+            {String(value).toUpperCase()}
+          </Tag>
+        ) : (
+          "-"
+        ),
     },
 
     {
       title: "Payment",
       dataIndex: "payment_type",
       key: "payment_type",
-
-      render: (value) => (
-        <Tag color={value === "pod" ? "orange" : "green"}>{value || "—"}</Tag>
-      ),
-    },
-
-    {
-      title: "Fee",
-      key: "fee",
-      align: "right",
-
-      render: (_, row) =>
-        formatMoney(Number(row.delivery_charge || row.delivery_fee || 0)),
-    },
-
-    {
-      title: "POD",
-      key: "pod",
-      align: "right",
-
-      render: (_, row) => formatMoney(Number(row.pod_amount || 0)),
+      render: (value) =>
+        value ? (
+          <WorkflowStatusTag
+            status={value}
+          />
+        ) : (
+          "-"
+        ),
     },
 
     {
       title: "Status",
       dataIndex: "status",
       key: "status",
-
-      render: (value) => <WorkflowStatusTag status={value} />,
+      render: (value) => (
+        <WorkflowStatusTag
+          status={value}
+        />
+      ),
     },
 
     {
-      title: "Created",
-      dataIndex: "created_at",
-      key: "created_at",
-
-      render: (value) => formatDateTime(value),
-    },
-
-    {
-      title: "Action",
-      key: "action",
+      title: "Actions",
+      key: "actions",
       fixed: "right",
-
-      render: (_, row) => (
-        <Space size={4}>
-          <Button
-            size="small"
-            icon={<EyeOutlined />}
-            onClick={() => router.push(`/admin/shipments/${row.id}`)}
-          >
-            View
-          </Button>
-        </Space>
+      render: (_, record) => (
+        <Button
+          icon={<EyeOutlined />}
+          onClick={() =>
+            router.push(
+              `/admin/shipments/${record.id}`
+            )
+          }
+        >
+          View
+        </Button>
       ),
     },
   ];
 
-  /*
-   * Authentication loading
-   */
-  if (authLoading) {
-    return (
-      <Card loading>
-        <Text>Loading shipment permissions...</Text>
-      </Card>
-    );
-  }
-
-  /*
-   * No authenticated user
-   */
-  if (!user) {
-    return (
-      <Card>
-        <Text type="danger">Unable to determine the authenticated user.</Text>
-      </Card>
-    );
-  }
-
-  /*
-   * Permission denied
-   */
-  if (!canViewShipments) {
-    return (
-      <Card>
-        <Space direction="vertical" size={4}>
-          <Text
-            strong
-            style={{
-              fontSize: 16,
-            }}
-          >
-            Access Denied
-          </Text>
-
-          <Text type="secondary">
-            You do not have permission to view shipments.
-          </Text>
-        </Space>
-      </Card>
-    );
-  }
-
-  /*
-   * Branch user without branch
-   */
-  if (!isSuperAdmin && !branchId) {
-    return (
-      <Card>
-        <Space direction="vertical" size={4}>
-          <Text
-            strong
-            style={{
-              fontSize: 16,
-            }}
-          >
-            No Branch Assigned
-          </Text>
-
-          <Text type="secondary">
-            Your account does not have an assigned branch, so shipments cannot
-            be loaded.
-          </Text>
-        </Space>
-      </Card>
-    );
-  }
-
   return (
     <Space
       direction="vertical"
-      size={12}
+      size={16}
       style={{
         width: "100%",
       }}
     >
-      {/* Header */}
       <Card>
-        <Space
-          direction="vertical"
-          size={12}
-          style={{
-            width: "100%",
-          }}
+        <Row
+          justify="space-between"
+          align="middle"
+          gutter={[16, 16]}
         >
-          <Space
-            style={{
-              justifyContent: "space-between",
-              width: "100%",
-            }}
-            wrap
-          >
-            <div>
-              <Text
-                style={{
-                  fontSize: 18,
-                  fontWeight: 700,
-                }}
-              >
-                Shipments
-              </Text>
+          <Col>
+            <Title
+              level={3}
+              style={{ margin: 0 }}
+            >
+              Shipments
+            </Title>
 
-              <br />
+            <Text type="secondary">
+              Branch shipment operations
+            </Text>
+          </Col>
 
-              <Text
-                type="secondary"
-                style={{
-                  fontSize: 12,
-                }}
-              >
-                {isSuperAdmin
-                  ? "Track and manage all courier shipments."
-                  : "View and manage shipments assigned to your branch."}
-              </Text>
-            </div>
-
-            <Space>
-              {can("shipments.create") && (
-                <Button
-                  type="primary"
-                  icon={<PlusOutlined />}
-                  onClick={() => router.push("/admin/shipments/create")}
-                >
-                  New Shipment
-                </Button>
-              )}
-
-              <Button
-                icon={<ReloadOutlined />}
-                onClick={handleRefresh}
-                loading={loading}
-              >
-                Refresh
-              </Button>
-            </Space>
-          </Space>
-
-          {/* Filters */}
-          <Space wrap>
-            <Input
-              allowClear
-              style={{
-                width: 240,
-              }}
-              placeholder="Search tracking / customer"
-              prefix={<SearchOutlined />}
-              value={filters.search}
-              onChange={(event) =>
-                setFilters((current) => ({
-                  ...current,
-                  search: event.target.value,
-                }))
+          <Col>
+            <Button
+              icon={<ReloadOutlined />}
+              onClick={() =>
+                load(
+                  pagination.current,
+                  pagination.pageSize
+                )
               }
-              onPressEnter={handleSearch}
-            />
-
-            <Select
-              allowClear
-              style={{
-                width: 180,
-              }}
-              placeholder="Status"
-              value={filters.status || undefined}
-              onChange={(value) =>
-                setFilters((current) => ({
-                  ...current,
-                  status: value || "",
-                }))
-              }
-              options={STATUS_OPTIONS}
-            />
-
-            <Select
-              allowClear
-              style={{
-                width: 150,
-              }}
-              placeholder="Payment"
-              value={filters.payment_type || undefined}
-              onChange={(value) =>
-                setFilters((current) => ({
-                  ...current,
-                  payment_type: value || "",
-                }))
-              }
-              options={[
-                {
-                  label: "POD",
-                  value: "pod",
-                },
-                {
-                  label: "Prepaid",
-                  value: "prepaid",
-                },
-              ]}
-            />
-
-            <Button type="primary" onClick={handleSearch}>
-              Search
+              loading={loading}
+            >
+              Refresh
             </Button>
-
-            <Button onClick={handleReset}>Reset</Button>
-          </Space>
-        </Space>
+          </Col>
+        </Row>
       </Card>
 
-      {/* Table */}
-      <Card
-        title={
-          <Text
-            style={{
-              fontSize: 14,
-              fontWeight: 600,
-            }}
-          >
-            Shipment Directory
-          </Text>
-        }
-      >
+      <Card title="Shipment Filters">
+        <Row gutter={[12, 12]}>
+          <Col xs={24} md={8} lg={6}>
+            <Input
+              allowClear
+              prefix={<SearchOutlined />}
+              placeholder="Tracking / Order / Receiver"
+              value={filters.search}
+              onChange={(event) =>
+                updateFilter(
+                  "search",
+                  event.target.value
+                )
+              }
+              onPressEnter={() =>
+                load(
+                  1,
+                  pagination.pageSize
+                )
+              }
+            />
+          </Col>
+
+          <Col xs={12} md={5}>
+            <Select
+              allowClear
+              style={{
+                width: "100%",
+              }}
+              placeholder="Status"
+              value={filters.status}
+              onChange={(value) =>
+                updateFilter(
+                  "status",
+                  value
+                )
+              }
+              options={STATUS_OPTIONS.map(
+                (value) => ({
+                  label: value
+                    .replaceAll("_", " ")
+                    .toUpperCase(),
+                  value,
+                })
+              )}
+            />
+          </Col>
+
+          <Col xs={12} md={5}>
+            <Select
+              allowClear
+              style={{
+                width: "100%",
+              }}
+              placeholder="Service"
+              value={
+                filters.service_type
+              }
+              onChange={(value) =>
+                updateFilter(
+                  "service_type",
+                  value
+                )
+              }
+              options={SERVICE_OPTIONS.map(
+                (value) => ({
+                  label:
+                    value.toUpperCase(),
+                  value,
+                })
+              )}
+            />
+          </Col>
+
+          <Col xs={12} md={5}>
+            <Select
+              allowClear
+              style={{
+                width: "100%",
+              }}
+              placeholder="Payment"
+              value={
+                filters.payment_type
+              }
+              onChange={(value) =>
+                updateFilter(
+                  "payment_type",
+                  value
+                )
+              }
+              options={PAYMENT_OPTIONS.map(
+                (value) => ({
+                  label:
+                    value.toUpperCase(),
+                  value,
+                })
+              )}
+            />
+          </Col>
+
+          <Col xs={12} md={3}>
+            <Button
+              type="primary"
+              block
+              onClick={() =>
+                load(
+                  1,
+                  pagination.pageSize
+                )
+              }
+            >
+              Search
+            </Button>
+          </Col>
+
+          <Col xs={12} md={3}>
+            <Button
+              block
+              onClick={resetFilters}
+            >
+              Reset
+            </Button>
+          </Col>
+        </Row>
+      </Card>
+
+      <Card>
         <Table
           rowKey="id"
           loading={loading}
+          dataSource={shipments}
           columns={columns}
-          dataSource={rows}
           scroll={{
-            x: 1200,
+            x: 1500,
           }}
           pagination={{
-            ...pagination,
+            current:
+              pagination.current,
+
+            pageSize:
+              pagination.pageSize,
+
+            total:
+              pagination.total,
 
             showSizeChanger: true,
 
-            pageSizeOptions: ["20", "50", "100"],
+            showTotal: (total) =>
+              `${total} shipments`,
 
-            showTotal: (total, range) =>
-              `${range[0]}–${range[1]} of ${total} shipments`,
-
-            onChange: (page, pageSize) => {
-              load(page, pageSize, filters);
+            onChange: (
+              page,
+              pageSize
+            ) => {
+              load(
+                page,
+                pageSize
+              );
             },
           }}
         />

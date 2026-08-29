@@ -1,148 +1,507 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Button, Card, Input, Select, Space, Table, Tag, Tooltip, Typography, message } from "antd";
-import { ReloadOutlined, SearchOutlined, UserAddOutlined } from "@ant-design/icons";
-import api from "@/lib/api";
-import { usePermissions } from "@/hooks/usePermission";
-import { StatusTag } from "@/components/PageTools";
 
-const { Text } = Typography;
+import {
+  Button,
+  Card,
+  Col,
+  Input,
+  Row,
+  Select,
+  Space,
+  Table,
+  Tag,
+  Typography,
+  message,
+} from "antd";
+
+import {
+  EyeOutlined,
+  ReloadOutlined,
+  SearchOutlined,
+} from "@ant-design/icons";
+
+import { useRouter } from "next/navigation";
+
+import {
+  getPickups,
+} from "@/services/pickupService";
+
+const {
+  Title,
+  Text,
+} = Typography;
 
 const STATUS_OPTIONS = [
-  { label: "Pending", value: "pending" },
-  { label: "Assigned", value: "assigned" },
-  { label: "Accepted", value: "accepted" },
-  { label: "Picked Up", value: "picked_up" },
-  { label: "Failed", value: "failed" },
+  "requested",
+  "pending",
+  "assigned",
+  "started",
+  "arrived",
+  "collecting",
+  "completed",
+  "failed",
+  "cancelled",
 ];
 
-export default function PickupsPage() {
-  const { can, branchId } = usePermissions();
-  const [rows, setRows] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const [pagination, setPagination] = useState({ current: 1, pageSize: 20, total: 0 });
-  const [search, setSearch] = useState("");
-  const [status, setStatus] = useState("");
+function branchLabel(branch) {
+  if (!branch) {
+    return "-";
+  }
 
-  const load = async (page = 1, pageSize = 20) => {
-    setLoading(true);
+  if (typeof branch === "string") {
+    return branch;
+  }
+
+  return [
+    branch.name,
+    branch.area,
+  ]
+    .filter(Boolean)
+    .join(", ") || "-";
+}
+
+function statusTag(status) {
+  if (!status) {
+    return "-";
+  }
+
+  return (
+    <Tag>
+      {String(status)
+        .replaceAll("_", " ")
+        .toUpperCase()}
+    </Tag>
+  );
+}
+
+export default function PickupsPage() {
+  const router = useRouter();
+
+  const [loading, setLoading] =
+    useState(false);
+
+  const [pickups, setPickups] =
+    useState([]);
+
+  const [pagination, setPagination] =
+    useState({
+      current: 1,
+      pageSize: 20,
+      total: 0,
+    });
+
+  const [filters, setFilters] =
+    useState({
+      search: "",
+      status: undefined,
+      branch_id: undefined,
+    });
+
+  async function load(
+    page = 1,
+    pageSize = 20
+  ) {
     try {
-      const params = { page, per_page: pageSize, search, status };
-      if (branchId) params.branch_id = branchId;
-      const res = await api.get("/admin/pickups", { params });
-      const payload = res.data?.data || res.data;
-      const list = payload?.data || payload || [];
-      const meta = payload;
-      setRows(Array.isArray(list) ? list : []);
-      setPagination({ current: meta?.current_page || page, pageSize: meta?.per_page || pageSize, total: meta?.total || list.length });
-    } catch {
-      message.error("Could not load pickups.");
+      setLoading(true);
+
+      const params = {
+        page,
+        per_page: pageSize,
+      };
+
+      if (filters.search?.trim()) {
+        params.search =
+          filters.search.trim();
+      }
+
+      if (filters.status) {
+        params.status =
+          filters.status;
+      }
+
+      /*
+       * Super admin can use this.
+       *
+       * Branch users must still be
+       * restricted by backend.
+       */
+      if (filters.branch_id) {
+        params.branch_id =
+          filters.branch_id;
+      }
+
+      const result =
+        await getPickups(params);
+
+      setPickups(
+        result.list
+      );
+
+      setPagination({
+        current:
+          result.currentPage,
+
+        pageSize:
+          result.pageSize,
+
+        total:
+          result.total,
+      });
+    } catch (error) {
+      message.error(
+        error?.response?.data?.message ||
+        "Could not load pickups."
+      );
     } finally {
       setLoading(false);
     }
-  };
+  }
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => {
+    load();
 
-  const updateStatus = async (id, action) => {
-    try {
-      await api.post(`/admin/pickups/${id}/${action}`);
-      message.success("Status updated.");
-      load(pagination.current, pagination.pageSize);
-    } catch (err) {
-      message.error(err?.response?.data?.message || "Failed.");
-    }
-  };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  function updateFilter(
+    key,
+    value
+  ) {
+    setFilters((previous) => ({
+      ...previous,
+      [key]: value,
+    }));
+  }
+
+  function resetFilters() {
+    setFilters({
+      search: "",
+      status: undefined,
+      branch_id: undefined,
+    });
+
+    setTimeout(() => {
+      load(
+        1,
+        pagination.pageSize
+      );
+    }, 0);
+  }
 
   const columns = [
     {
-      title: "Pickup",
-      render: (_, r) => (
-        <Space direction="vertical" size={0}>
-          <Text strong style={{ fontSize: 13 }}>{r.pickup_name || r.customer_name || "—"}</Text>
-          <Text type="secondary" style={{ fontSize: 11 }}>{r.pickup_phone || "—"}</Text>
-        </Space>
+      title: "Pickup Request",
+      dataIndex: "request_number",
+      key: "request_number",
+      render: (
+        value,
+        record
+      ) => (
+        <Button
+          type="link"
+          style={{
+            padding: 0,
+          }}
+          onClick={() =>
+            router.push(
+              `/admin/pickups/${record.id}`
+            )
+          }
+        >
+          {value || `#${record.id}`}
+        </Button>
       ),
     },
-    {
-      title: "Address",
-      render: (_, r) => (
-        <Space direction="vertical" size={0}>
-          <Text style={{ fontSize: 12 }}>{r.pickup_address || "—"}</Text>
-          <Text type="secondary" style={{ fontSize: 11 }}>{r.pickup_city || "—"}{r.pickup_area ? ` — ${r.pickup_area}` : ""}</Text>
-        </Space>
-      ),
-    },
+
     {
       title: "Merchant",
-      render: (_, r) => r.merchant?.name || <Text type="secondary">—</Text>,
+      key: "merchant",
+      render: (_, record) =>
+        record.merchant?.name ||
+        "-",
     },
+
     {
-      title: "Assigned To",
-      render: (_, r) => r.assigned_staff?.name
-        ? <Text>{r.assigned_staff.name}</Text>
-        : <Text type="danger" italic style={{ fontSize: 12 }}>Unassigned</Text>,
+      title: "Pickup",
+      key: "pickup",
+      render: (_, record) => (
+        <Space
+          direction="vertical"
+          size={0}
+        >
+          <Text strong>
+            {record.pickup_name ||
+              "-"}
+          </Text>
+
+          <Text type="secondary">
+            {record.pickup_phone ||
+              "-"}
+          </Text>
+        </Space>
+      ),
     },
-    { title: "Scheduled", dataIndex: "scheduled_date", render: v => v || "—" },
-    { title: "Status", dataIndex: "status", render: v => <StatusTag value={v} /> },
+
+    {
+      title: "Branch",
+      key: "branch",
+      render: (_, record) => (
+        <Space
+          direction="vertical"
+          size={0}
+        >
+          <Text strong>
+            {branchLabel(
+              record.branch
+            )}
+          </Text>
+
+          <Text type="secondary">
+            {branchLabel(
+              record.subBranch ||
+              record.sub_branch
+            )}
+          </Text>
+        </Space>
+      ),
+    },
+
+    {
+      title: "Pickup Location",
+      key: "pickup_location",
+      render: (_, record) =>
+        record.pickupLocation?.name ||
+        record.pickup_location?.name ||
+        "-",
+    },
+
+    {
+      title: "Assigned",
+      key: "assigned",
+      render: (_, record) =>
+        record.assignedStaff?.name ||
+        record.assigned_staff?.name ||
+        record.assigned_to ||
+        "-",
+    },
+
+    {
+      title: "Shipments",
+      key: "shipments",
+      render: (_, record) => {
+        const count =
+          Array.isArray(
+            record.shipments
+          )
+            ? record.shipments.length
+            : record.shipment_count ?? 0;
+
+        return count;
+      },
+    },
+
+    {
+      title: "Status",
+      dataIndex: "status",
+      key: "status",
+      render: statusTag,
+    },
+
     {
       title: "Actions",
-      render: (_, r) => (
-        <Space size={4}>
-          {can("pickups.assign") && !r.assigned_staff && (
-            <Tooltip title="Assign rider">
-              <Button size="small" icon={<UserAddOutlined />}
-                onClick={() => message.info("Assign rider — open assign modal")}>
-                Assign
-              </Button>
-            </Tooltip>
-          )}
-          {can("pickups.status") && r.status === "assigned" && (
-            <Button size="small" type="primary" ghost
-              onClick={() => updateStatus(r.id, "accept")}>Accept</Button>
-          )}
-          {can("pickups.picked_up") && r.status === "accepted" && (
-            <Button size="small" type="primary"
-              onClick={() => updateStatus(r.id, "picked-up")}>Picked Up</Button>
-          )}
-          {can("pickups.failed") && ["assigned", "accepted"].includes(r.status) && (
-            <Button size="small" danger
-              onClick={() => updateStatus(r.id, "failed")}>Failed</Button>
-          )}
-        </Space>
+      key: "actions",
+      render: (_, record) => (
+        <Button
+          icon={<EyeOutlined />}
+          onClick={() =>
+            router.push(
+              `/admin/pickups/${record.id}`
+            )
+          }
+        >
+          View
+        </Button>
       ),
     },
   ];
 
   return (
-    <Space direction="vertical" size={12} style={{ width: "100%" }}>
+    <Space
+      direction="vertical"
+      size={16}
+      style={{
+        width: "100%",
+      }}
+    >
       <Card>
-        <Space style={{ justifyContent: "space-between", width: "100%" }} wrap>
-          <div>
-            <Text style={{ fontSize: 18, fontWeight: 700 }}>Pickups</Text>
-            <br />
-            <Text type="secondary" style={{ fontSize: 12 }}>Manage pickup assignments and status.</Text>
-          </div>
-          <Button icon={<ReloadOutlined />} onClick={() => load(pagination.current, pagination.pageSize)}>Refresh</Button>
-        </Space>
-        <Space wrap style={{ marginTop: 12 }}>
-          <Input allowClear style={{ width: 220 }} placeholder="Search name / phone"
-            prefix={<SearchOutlined />} value={search}
-            onChange={e => setSearch(e.target.value)}
-            onPressEnter={() => load(1, pagination.pageSize)}
-          />
-          <Select allowClear style={{ width: 160 }} placeholder="Status"
-            value={status || undefined} onChange={v => setStatus(v || "")}
-            options={STATUS_OPTIONS}
-          />
-          <Button type="primary" onClick={() => load(1, pagination.pageSize)}>Search</Button>
-          <Button onClick={() => { setSearch(""); setStatus(""); setTimeout(() => load(1, pagination.pageSize), 0); }}>Reset</Button>
-        </Space>
+        <Row
+          justify="space-between"
+          align="middle"
+          gutter={[16, 16]}
+        >
+          <Col>
+            <Title
+              level={3}
+              style={{
+                margin: 0,
+              }}
+            >
+              Pickup Operations
+            </Title>
+
+            <Text type="secondary">
+              Branch pickup requests
+            </Text>
+          </Col>
+
+          <Col>
+            <Button
+              icon={
+                <ReloadOutlined />
+              }
+              loading={loading}
+              onClick={() =>
+                load(
+                  pagination.current,
+                  pagination.pageSize
+                )
+              }
+            >
+              Refresh
+            </Button>
+          </Col>
+        </Row>
       </Card>
+
+      <Card title="Pickup Filters">
+        <Row gutter={[12, 12]}>
+          <Col
+            xs={24}
+            md={10}
+          >
+            <Input
+              allowClear
+              prefix={
+                <SearchOutlined />
+              }
+              placeholder="Request number / pickup name / phone"
+              value={filters.search}
+              onChange={(event) =>
+                updateFilter(
+                  "search",
+                  event.target.value
+                )
+              }
+              onPressEnter={() =>
+                load(
+                  1,
+                  pagination.pageSize
+                )
+              }
+            />
+          </Col>
+
+          <Col
+            xs={12}
+            md={6}
+          >
+            <Select
+              allowClear
+              style={{
+                width: "100%",
+              }}
+              placeholder="Status"
+              value={filters.status}
+              onChange={(value) =>
+                updateFilter(
+                  "status",
+                  value
+                )
+              }
+              options={STATUS_OPTIONS.map(
+                (value) => ({
+                  value,
+                  label:
+                    value
+                      .replaceAll(
+                        "_",
+                        " "
+                      )
+                      .toUpperCase(),
+                })
+              )}
+            />
+          </Col>
+
+          <Col
+            xs={12}
+            md={4}
+          >
+            <Button
+              type="primary"
+              block
+              onClick={() =>
+                load(
+                  1,
+                  pagination.pageSize
+                )
+              }
+            >
+              Search
+            </Button>
+          </Col>
+
+          <Col
+            xs={12}
+            md={4}
+          >
+            <Button
+              block
+              onClick={
+                resetFilters
+              }
+            >
+              Reset
+            </Button>
+          </Col>
+        </Row>
+      </Card>
+
       <Card>
-        <Table rowKey="id" loading={loading} columns={columns} dataSource={rows} scroll={{ x: 900 }}
-          pagination={{ ...pagination, showSizeChanger: true, showTotal: t => `${t} pickups`, onChange: (p, ps) => load(p, ps) }}
+        <Table
+          rowKey="id"
+          loading={loading}
+          dataSource={pickups}
+          columns={columns}
+          scroll={{
+            x: 1200,
+          }}
+          pagination={{
+            current:
+              pagination.current,
+
+            pageSize:
+              pagination.pageSize,
+
+            total:
+              pagination.total,
+
+            showSizeChanger: true,
+
+            showTotal: (total) =>
+              `${total} pickup requests`,
+
+            onChange: (
+              page,
+              pageSize
+            ) =>
+              load(
+                page,
+                pageSize
+              ),
+          }}
         />
       </Card>
     </Space>
