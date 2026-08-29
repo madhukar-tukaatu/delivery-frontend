@@ -1,89 +1,49 @@
-import api from "@/lib/api";
-import {
-  normalizeShipmentDetailResponse,
-} from "@/services/merchantShipmentService";
+// services/pickupService.js
 
-/*
-|--------------------------------------------------------------------------
-| Shipment
-|--------------------------------------------------------------------------
-*/
+import api from '@/lib/api';
 
-export async function getAdminShipment(id) {
-  const response = await api.get(`/admin/shipments/${id}`);
+export async function getPickups(params = {}) {
+  const response = await api.get('/admin/pickups', {
+    params: {
+      per_page: 20,
+      ...params,
+    },
+  });
 
-  return normalizeShipmentDetailResponse(response);
+  return response.data?.data ?? response.data;
 }
 
-export async function receiveOriginSubBranch(
+export async function getPickup(id) {
+  const response = await api.get(`/admin/pickups/${id}`);
+
+  return response.data?.data ?? response.data;
+}
+
+export async function assignPickup(id, payload) {
+  const response = await api.post(
+    `/admin/pickups/${id}/assign`,
+    payload
+  );
+
+  return response.data?.data ?? response.data;
+}
+
+export async function failPickup(id, payload) {
+  const response = await api.post(
+    `/admin/pickups/${id}/fail`,
+    payload
+  );
+
+  return response.data?.data ?? response.data;
+}
+
+export async function receivePickupShipment(
+  pickupId,
   shipmentId,
   payload = {}
 ) {
   const response = await api.post(
-    `/admin/shipments/${shipmentId}/receive-origin-sub-branch`,
-    payload
-  );
-
-  return response.data?.data ?? response.data;
-}
-
-export async function dispatchNextRouteStep(
-  shipmentId,
-  payload = {}
-) {
-  const response = await api.post(
-    `/admin/shipments/${shipmentId}/dispatch-next-step`,
-    payload
-  );
-
-  return response.data?.data ?? response.data;
-}
-
-export async function receiveCurrentRouteStep(
-  shipmentId,
-  payload = {}
-) {
-  const response = await api.post(
-    `/admin/shipments/${shipmentId}/receive-current-step`,
-    payload
-  );
-
-  return response.data?.data ?? response.data;
-}
-
-/*
-|--------------------------------------------------------------------------
-| Shipment tasks
-|--------------------------------------------------------------------------
-*/
-
-export async function getShipmentTasks(params = {}) {
-  const response = await api.get(
-    "/admin/shipment-tasks",
-    { params }
-  );
-
-  return response.data?.data ?? response.data;
-}
-
-export async function assignShipmentTask(
-  id,
-  payload
-) {
-  const response = await api.post(
-    `/admin/shipment-tasks/${id}/assign`,
-    payload
-  );
-
-  return response.data?.data ?? response.data;
-}
-
-export async function updateShipmentTaskStatus(
-  id,
-  payload
-) {
-  const response = await api.post(
-    `/admin/shipment-tasks/${id}/status`,
+    `/admin/pickups/${pickupId}/shipments/${shipmentId}/receive`,
     payload
   );
 
