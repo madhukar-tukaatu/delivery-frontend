@@ -1,6 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
+
 import {
   AlertCircle,
   ArrowRight,
@@ -46,40 +52,60 @@ const STATUS = {
   CANCELLED: "cancelled",
 };
 
+const ACTIVE_STATUSES = [
+  STATUS.REQUESTED,
+  STATUS.ASSIGNED,
+  STATUS.STARTED,
+  STATUS.ARRIVED,
+];
+
+const CLOSED_STATUSES = [
+  STATUS.COMPLETED,
+  STATUS.FAILED,
+  STATUS.CANCELLED,
+];
+
 const STATUS_META = {
   requested: {
     label: "Requested",
-    className: "bg-amber-50 text-amber-700 ring-amber-200",
+    className:
+      "bg-amber-50 text-amber-700 ring-amber-200",
   },
 
   assigned: {
     label: "Assigned",
-    className: "bg-blue-50 text-blue-700 ring-blue-200",
+    className:
+      "bg-blue-50 text-blue-700 ring-blue-200",
   },
 
   started: {
     label: "Started",
-    className: "bg-indigo-50 text-indigo-700 ring-indigo-200",
+    className:
+      "bg-indigo-50 text-indigo-700 ring-indigo-200",
   },
 
   arrived: {
     label: "Arrived",
-    className: "bg-purple-50 text-purple-700 ring-purple-200",
+    className:
+      "bg-purple-50 text-purple-700 ring-purple-200",
   },
 
   completed: {
     label: "Completed",
-    className: "bg-emerald-50 text-emerald-700 ring-emerald-200",
+    className:
+      "bg-emerald-50 text-emerald-700 ring-emerald-200",
   },
 
   failed: {
     label: "Failed",
-    className: "bg-red-50 text-red-700 ring-red-200",
+    className:
+      "bg-red-50 text-red-700 ring-red-200",
   },
 
   cancelled: {
     label: "Cancelled",
-    className: "bg-gray-100 text-gray-600 ring-gray-200",
+    className:
+      "bg-gray-100 text-gray-600 ring-gray-200",
   },
 };
 
@@ -89,15 +115,26 @@ const STATUS_META = {
 |--------------------------------------------------------------------------
 */
 
+function normalizeStatus(status) {
+  return String(status || "")
+    .trim()
+    .toLowerCase();
+}
+
 function getStatusMeta(status) {
-  const normalized = String(status || "").toLowerCase();
+  const normalized =
+    normalizeStatus(status);
 
   return (
     STATUS_META[normalized] || {
       label: normalized
-        ? normalized.replaceAll("_", " ")
+        ? normalized.replaceAll(
+            "_",
+            " "
+          )
         : "Unknown",
-      className: "bg-gray-100 text-gray-600 ring-gray-200",
+      className:
+        "bg-gray-100 text-gray-600 ring-gray-200",
     }
   );
 }
@@ -110,13 +147,16 @@ function formatDate(value) {
   const date = new Date(value);
 
   if (Number.isNaN(date.getTime())) {
-    return value;
+    return String(value);
   }
 
-  return new Intl.DateTimeFormat("en-NP", {
-    dateStyle: "medium",
-    timeStyle: "short",
-  }).format(date);
+  return new Intl.DateTimeFormat(
+    "en-NP",
+    {
+      dateStyle: "medium",
+      timeStyle: "short",
+    }
+  ).format(date);
 }
 
 function getInitials(name) {
@@ -128,48 +168,123 @@ function getInitials(name) {
     .split(" ")
     .filter(Boolean)
     .slice(0, 2)
-    .map((part) => part.charAt(0).toUpperCase())
+    .map((part) =>
+      part.charAt(0).toUpperCase()
+    )
     .join("");
+}
+
+function getMerchantName(pickup) {
+  return (
+    pickup?.merchant?.business_name ||
+    pickup?.merchant?.name ||
+    pickup?.merchant_name ||
+    pickup?.pickup_name ||
+    "—"
+  );
+}
+
+function getPickupLocation(pickup) {
+  return (
+    pickup?.pickupLocation ||
+    pickup?.pickup_location ||
+    null
+  );
+}
+
+function getAssignedStaff(pickup) {
+  return (
+    pickup?.assignedStaff ||
+    pickup?.assigned_staff ||
+    null
+  );
+}
+
+function getShipments(pickup) {
+  return (
+    pickup?.active_shipments ||
+    pickup?.shipments ||
+    []
+  );
+}
+
+function getShipmentCount(pickup) {
+  if (
+    pickup?.parcel_quantity !==
+      undefined &&
+    pickup?.parcel_quantity !== null
+  ) {
+    return Number(
+      pickup.parcel_quantity
+    );
+  }
+
+  return getShipments(pickup).length;
 }
 
 /*
 |--------------------------------------------------------------------------
-| Main page
+| Main Page
 |--------------------------------------------------------------------------
 */
 
 export default function AdminPickupsPage() {
-  const [pickups, setPickups] = useState([]);
+  const [pickups, setPickups] =
+    useState([]);
 
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
+  const [loading, setLoading] =
+    useState(true);
 
-  const [error, setError] = useState("");
+  const [refreshing, setRefreshing] =
+    useState(false);
 
-  const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState("all");
+  const [error, setError] =
+    useState("");
 
-  const [page, setPage] = useState(1);
+  const [search, setSearch] =
+    useState("");
+
+  const [statusFilter, setStatusFilter] =
+    useState("all");
+
+  const [page, setPage] =
+    useState(1);
+
   const perPage = 15;
 
-  const [pagination, setPagination] = useState(null);
+  const [pagination, setPagination] =
+    useState(null);
 
-  const [selectedPickup, setSelectedPickup] = useState(null);
-  const [detailsLoading, setDetailsLoading] = useState(false);
+  const [selectedPickup, setSelectedPickup] =
+    useState(null);
 
-  const [actionLoading, setActionLoading] = useState("");
+  const [detailsLoading, setDetailsLoading] =
+    useState(false);
 
-  const [showAssignModal, setShowAssignModal] = useState(false);
-  const [riders, setRiders] = useState([]);
-  const [ridersLoading, setRidersLoading] = useState(false);
-  const [selectedRider, setSelectedRider] = useState("");
+  const [actionLoading, setActionLoading] =
+    useState("");
 
-  const [showFailModal, setShowFailModal] = useState(false);
-  const [failReason, setFailReason] = useState("");
+  const [showAssignModal, setShowAssignModal] =
+    useState(false);
+
+  const [riders, setRiders] =
+    useState([]);
+
+  const [ridersLoading, setRidersLoading] =
+    useState(false);
+
+  const [selectedRider, setSelectedRider] =
+    useState("");
+
+  const [showFailModal, setShowFailModal] =
+    useState(false);
+
+  const [failReason, setFailReason] =
+    useState("");
 
   /*
   |--------------------------------------------------------------------------
-  | Fetch pickups
+  | Fetch
   |--------------------------------------------------------------------------
   */
 
@@ -177,6 +292,8 @@ export default function AdminPickupsPage() {
     async ({
       silent = false,
       requestedPage = page,
+      requestedSearch = search,
+      requestedStatus = statusFilter,
     } = {}) => {
       try {
         setError("");
@@ -187,24 +304,28 @@ export default function AdminPickupsPage() {
           setLoading(true);
         }
 
-        const result = await getPickups({
-          page: requestedPage,
-          per_page: perPage,
-          ...(search.trim()
-            ? {
-                search: search.trim(),
-              }
-            : {}),
-          ...(statusFilter !== "all"
-            ? {
-                status: statusFilter,
-              }
-            : {}),
-        });
+        const result =
+          await getPickups({
+            page: requestedPage,
+            per_page: perPage,
+            search:
+              requestedSearch?.trim() ||
+              "",
+            status:
+              requestedStatus === "all"
+                ? ""
+                : requestedStatus,
+          });
 
-        setPickups(result?.items || []);
+        setPickups(
+          Array.isArray(result?.items)
+            ? result.items
+            : []
+        );
 
-        setPagination(result?.meta || null);
+        setPagination(
+          result?.meta || null
+        );
       } catch (err) {
         console.error(
           "Failed to load pickup requests:",
@@ -222,7 +343,6 @@ export default function AdminPickupsPage() {
     },
     [
       page,
-      perPage,
       search,
       statusFilter,
     ]
@@ -245,17 +365,25 @@ export default function AdminPickupsPage() {
 
     fetchPickups({
       requestedPage: 1,
+      requestedSearch: search,
+      requestedStatus: statusFilter,
     });
   }
 
   function handleStatusChange(value) {
     setStatusFilter(value);
     setPage(1);
+
+    fetchPickups({
+      requestedPage: 1,
+      requestedSearch: search,
+      requestedStatus: value,
+    });
   }
 
   /*
   |--------------------------------------------------------------------------
-  | Open pickup details
+  | Details
   |--------------------------------------------------------------------------
   */
 
@@ -277,7 +405,9 @@ export default function AdminPickupsPage() {
       setError("");
 
       const data =
-        await getPickup(requestNumber);
+        await getPickup(
+          requestNumber
+        );
 
       setSelectedPickup(
         data || pickup
@@ -313,7 +443,11 @@ export default function AdminPickupsPage() {
       const data =
         await getPickupRiders();
 
-      setRiders(data || []);
+      setRiders(
+        Array.isArray(data)
+          ? data
+          : []
+      );
     } catch (err) {
       console.error(
         "Failed to load riders:",
@@ -334,10 +468,16 @@ export default function AdminPickupsPage() {
       return;
     }
 
+    const assigned =
+      getAssignedStaff(
+        selectedPickup
+      );
+
     setSelectedRider(
       String(
         selectedPickup?.assigned_to ||
-          selectedPickup?.assignedStaff?.id ||
+          assigned?.id ||
+          assigned?.user_id ||
           ""
       )
     );
@@ -349,7 +489,7 @@ export default function AdminPickupsPage() {
 
   /*
   |--------------------------------------------------------------------------
-  | Pickup action
+  | Actions
   |--------------------------------------------------------------------------
   */
 
@@ -424,6 +564,10 @@ export default function AdminPickupsPage() {
 
       if (updated) {
         setSelectedPickup(updated);
+      } else {
+        await openDetails(
+          selectedPickup
+        );
       }
 
       await fetchPickups({
@@ -445,12 +589,6 @@ export default function AdminPickupsPage() {
     }
   }
 
-  /*
-  |--------------------------------------------------------------------------
-  | Assign rider
-  |--------------------------------------------------------------------------
-  */
-
   async function assignRider() {
     if (!selectedRider) {
       setError(
@@ -463,20 +601,13 @@ export default function AdminPickupsPage() {
     await performAction(
       "assign",
       {
-        staff_id: Number(
-          selectedRider
-        ),
+        staff_id:
+          Number(selectedRider),
       }
     );
 
     setShowAssignModal(false);
   }
-
-  /*
-  |--------------------------------------------------------------------------
-  | Fail pickup
-  |--------------------------------------------------------------------------
-  */
 
   async function submitFailure() {
     const reason =
@@ -524,12 +655,6 @@ export default function AdminPickupsPage() {
       )
     );
 
-  const canPrevious =
-    currentPage > 1;
-
-  const canNext =
-    currentPage < lastPage;
-
   /*
   |--------------------------------------------------------------------------
   | Summary
@@ -538,12 +663,13 @@ export default function AdminPickupsPage() {
 
   const summary = useMemo(() => {
     return {
-      total: pickups.length,
+      total: total,
 
       requested: pickups.filter(
         (pickup) =>
-          pickup.status ===
-          STATUS.REQUESTED
+          normalizeStatus(
+            pickup.status
+          ) === STATUS.REQUESTED
       ).length,
 
       assigned: pickups.filter(
@@ -553,17 +679,20 @@ export default function AdminPickupsPage() {
             STATUS.STARTED,
             STATUS.ARRIVED,
           ].includes(
-            pickup.status
+            normalizeStatus(
+              pickup.status
+            )
           )
       ).length,
 
       completed: pickups.filter(
         (pickup) =>
-          pickup.status ===
-          STATUS.COMPLETED
+          normalizeStatus(
+            pickup.status
+          ) === STATUS.COMPLETED
       ).length,
     };
-  }, [pickups]);
+  }, [pickups, total]);
 
   /*
   |--------------------------------------------------------------------------
@@ -575,25 +704,21 @@ export default function AdminPickupsPage() {
     <div className="min-h-screen bg-gray-50 p-4 sm:p-6 lg:p-8">
       <div className="mx-auto max-w-[1600px] space-y-6">
 
-        {/* Header */}
-
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-          <div>
-            <div className="flex items-center gap-3">
-              <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-gray-900 text-white">
-                <Truck className="h-5 w-5" />
-              </div>
+          <div className="flex items-center gap-3">
+            <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-gray-900 text-white">
+              <Truck className="h-5 w-5" />
+            </div>
 
-              <div>
-                <h1 className="text-2xl font-bold tracking-tight text-gray-900">
-                  Pickup Requests
-                </h1>
+            <div>
+              <h1 className="text-2xl font-bold tracking-tight text-gray-900">
+                Pickup Requests
+              </h1>
 
-                <p className="mt-0.5 text-sm text-gray-500">
-                  Manage merchant pickup requests,
-                  riders and shipment collection.
-                </p>
-              </div>
+              <p className="mt-0.5 text-sm text-gray-500">
+                Manage merchant pickup requests,
+                riders and shipment collection.
+              </p>
             </div>
           </div>
 
@@ -619,8 +744,6 @@ export default function AdminPickupsPage() {
           </button>
         </div>
 
-        {/* Error */}
-
         {error && (
           <div className="flex items-start gap-3 rounded-xl border border-red-200 bg-red-50 p-4 text-red-800">
             <AlertCircle className="mt-0.5 h-5 w-5 shrink-0" />
@@ -640,8 +763,6 @@ export default function AdminPickupsPage() {
             </button>
           </div>
         )}
-
-        {/* Summary */}
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
           <SummaryCard
@@ -676,8 +797,6 @@ export default function AdminPickupsPage() {
             value={summary.completed}
           />
         </div>
-
-        {/* Filters */}
 
         <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
           <form
@@ -715,33 +834,18 @@ export default function AdminPickupsPage() {
                 All statuses
               </option>
 
-              <option value="requested">
-                Requested
-              </option>
-
-              <option value="assigned">
-                Assigned
-              </option>
-
-              <option value="started">
-                Started
-              </option>
-
-              <option value="arrived">
-                Arrived
-              </option>
-
-              <option value="completed">
-                Completed
-              </option>
-
-              <option value="failed">
-                Failed
-              </option>
-
-              <option value="cancelled">
-                Cancelled
-              </option>
+              {Object.entries(
+                STATUS_META
+              ).map(
+                ([value, meta]) => (
+                  <option
+                    key={value}
+                    value={value}
+                  >
+                    {meta.label}
+                  </option>
+                )
+              )}
             </select>
 
             <button
@@ -753,8 +857,6 @@ export default function AdminPickupsPage() {
             </button>
           </form>
         </div>
-
-        {/* Table */}
 
         <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
           <div className="overflow-x-auto">
@@ -820,8 +922,6 @@ export default function AdminPickupsPage() {
             </table>
           </div>
 
-          {/* Pagination */}
-
           {!loading &&
             pickups.length > 0 && (
               <div className="flex flex-col gap-3 border-t border-gray-200 px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
@@ -841,35 +941,35 @@ export default function AdminPickupsPage() {
                   <button
                     type="button"
                     disabled={
-                      !canPrevious
+                      currentPage <= 1
                     }
-                    onClick={() => {
-                      const next =
-                        currentPage - 1;
-
-                      setPage(next);
-                    }}
+                    onClick={() =>
+                      setPage(
+                        currentPage - 1
+                      )
+                    }
                     className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-gray-200 bg-white text-gray-600 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40"
                   >
                     <ChevronLeft className="h-4 w-4" />
                   </button>
 
                   <span className="px-2 text-sm font-medium text-gray-700">
-                    Page {currentPage} of{" "}
+                    Page{" "}
+                    {currentPage} of{" "}
                     {lastPage}
                   </span>
 
                   <button
                     type="button"
                     disabled={
-                      !canNext
+                      currentPage >=
+                      lastPage
                     }
-                    onClick={() => {
-                      const next =
-                        currentPage + 1;
-
-                      setPage(next);
-                    }}
+                    onClick={() =>
+                      setPage(
+                        currentPage + 1
+                      )
+                    }
                     className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-gray-200 bg-white text-gray-600 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40"
                   >
                     <ChevronRight className="h-4 w-4" />
@@ -879,8 +979,6 @@ export default function AdminPickupsPage() {
             )}
         </div>
       </div>
-
-      {/* Details */}
 
       {selectedPickup && (
         <PickupDetailsDrawer
@@ -908,8 +1006,6 @@ export default function AdminPickupsPage() {
         />
       )}
 
-      {/* Assign */}
-
       {showAssignModal && (
         <AssignRiderModal
           riders={riders}
@@ -931,8 +1027,6 @@ export default function AdminPickupsPage() {
           }
         />
       )}
-
-      {/* Fail */}
 
       {showFailModal && (
         <FailPickupModal
@@ -966,10 +1060,8 @@ function SummaryCard({
 }) {
   return (
     <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
-      <div className="flex items-center justify-between">
-        <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-gray-100 text-gray-700">
-          {icon}
-        </div>
+      <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-gray-100 text-gray-700">
+        {icon}
       </div>
 
       <p className="mt-4 text-sm font-medium text-gray-500">
@@ -1017,24 +1109,11 @@ function PickupRow({
   pickup,
   onView,
 }) {
-  const merchant =
-    pickup.merchant;
-
   const location =
-    pickup.pickupLocation;
+    getPickupLocation(pickup);
 
   const rider =
-    pickup.assignedStaff;
-
-  const shipments =
-    pickup.active_shipments ??
-    pickup.shipments ??
-    [];
-
-  const shipmentCount =
-    pickup.parcel_quantity ??
-    shipments.length ??
-    0;
+    getAssignedStaff(pickup);
 
   return (
     <tr className="transition hover:bg-gray-50/80">
@@ -1048,9 +1127,7 @@ function PickupRow({
           <p className="mt-1 text-xs text-gray-500">
             Ref:{" "}
             <span className="font-medium text-gray-700">
-              {
-                pickup.store_reference
-              }
+              {pickup.store_reference}
             </span>
           </p>
         )}
@@ -1058,15 +1135,14 @@ function PickupRow({
 
       <td className="px-5 py-4 align-top">
         <p className="font-medium text-gray-900">
-          {merchant?.business_name ||
-            merchant?.name ||
-            pickup.pickup_name ||
-            "—"}
+          {getMerchantName(pickup)}
         </p>
 
-        {merchant?.email && (
+        {(pickup.merchant?.email ||
+          pickup.pickup_email) && (
           <p className="mt-1 text-xs text-gray-500">
-            {merchant.email}
+            {pickup.merchant?.email ||
+              pickup.pickup_email}
           </p>
         )}
       </td>
@@ -1082,8 +1158,8 @@ function PickupRow({
                 "—"}
             </p>
 
-            {(pickup.pickup_city ||
-              pickup.pickup_area) && (
+            {(pickup.pickup_area ||
+              pickup.pickup_city) && (
               <p className="mt-1 text-xs text-gray-500">
                 {[
                   pickup.pickup_area,
@@ -1133,7 +1209,9 @@ function PickupRow({
           <Package className="h-4 w-4 text-gray-400" />
 
           <span className="text-sm font-semibold text-gray-700">
-            {shipmentCount}
+            {getShipmentCount(
+              pickup
+            )}
           </span>
         </div>
       </td>
@@ -1170,7 +1248,7 @@ function PickupRow({
 
 /*
 |--------------------------------------------------------------------------
-| Status Badge
+| Status
 |--------------------------------------------------------------------------
 */
 
@@ -1269,23 +1347,21 @@ function PickupDetailsDrawer({
   onFail,
 }) {
   const status =
-    String(
-      pickup.status || ""
-    ).toLowerCase();
+    normalizeStatus(
+      pickup.status
+    );
 
   const shipments =
-    pickup.active_shipments ??
-    pickup.shipments ??
-    [];
+    getShipments(pickup);
 
   const rider =
-    pickup.assignedStaff;
+    getAssignedStaff(pickup);
+
+  const location =
+    getPickupLocation(pickup);
 
   const merchant =
     pickup.merchant;
-
-  const location =
-    pickup.pickupLocation;
 
   const busy =
     Boolean(actionLoading);
@@ -1298,18 +1374,16 @@ function PickupDetailsDrawer({
       />
 
       <aside className="absolute right-0 top-0 flex h-full w-full max-w-2xl flex-col bg-white shadow-2xl">
-        {/* Header */}
-
         <div className="flex items-start justify-between border-b border-gray-200 px-6 py-5">
           <div>
-            <div className="flex items-center gap-3">
+            <div className="flex flex-wrap items-center gap-3">
               <h2 className="text-lg font-bold text-gray-900">
                 {pickup.request_number ||
                   `Pickup #${pickup.id}`}
               </h2>
 
               <StatusBadge
-                status={pickup.status}
+                status={status}
               />
             </div>
 
@@ -1317,9 +1391,7 @@ function PickupDetailsDrawer({
               <p className="mt-1 text-sm text-gray-500">
                 Store reference:{" "}
                 <span className="font-medium text-gray-700">
-                  {
-                    pickup.store_reference
-                  }
+                  {pickup.store_reference}
                 </span>
               </p>
             )}
@@ -1334,8 +1406,6 @@ function PickupDetailsDrawer({
           </button>
         </div>
 
-        {/* Body */}
-
         <div className="flex-1 overflow-y-auto">
           {loading ? (
             <div className="flex h-full items-center justify-center">
@@ -1343,8 +1413,6 @@ function PickupDetailsDrawer({
             </div>
           ) : (
             <div className="space-y-6 p-6">
-
-              {/* Pickup contact */}
 
               <section>
                 <SectionTitle>
@@ -1372,7 +1440,8 @@ function PickupDetailsDrawer({
                     <DetailItem
                       label="Email"
                       value={
-                        pickup.pickup_email
+                        pickup.pickup_email ||
+                        merchant?.email
                       }
                     />
 
@@ -1416,8 +1485,6 @@ function PickupDetailsDrawer({
                 </div>
               </section>
 
-              {/* Routing */}
-
               <section>
                 <SectionTitle>
                   Pickup Routing
@@ -1460,6 +1527,7 @@ function PickupDetailsDrawer({
                     label="Origin Sub Branch"
                     value={
                       pickup.subBranch?.name ||
+                      pickup.sub_branch?.name ||
                       (pickup.sub_branch_id
                         ? `Sub branch #${pickup.sub_branch_id}`
                         : "—")
@@ -1467,8 +1535,6 @@ function PickupDetailsDrawer({
                   />
                 </div>
               </section>
-
-              {/* Rider */}
 
               <section>
                 <div className="flex items-center justify-between">
@@ -1530,8 +1596,6 @@ function PickupDetailsDrawer({
                 </div>
               </section>
 
-              {/* Shipments */}
-
               <section>
                 <div className="flex items-center justify-between">
                   <SectionTitle>
@@ -1551,7 +1615,7 @@ function PickupDetailsDrawer({
                   ) : (
                     <div className="divide-y divide-gray-100">
                       {shipments.map(
-                        (item) => {
+                        (item, index) => {
                           const shipment =
                             item?.shipment ||
                             item;
@@ -1559,8 +1623,9 @@ function PickupDetailsDrawer({
                           return (
                             <div
                               key={
-                                item.id ??
-                                shipment.id
+                                item?.id ??
+                                shipment?.id ??
+                                index
                               }
                               className="flex items-center justify-between gap-4 p-4"
                             >
@@ -1571,24 +1636,22 @@ function PickupDetailsDrawer({
 
                                 <div className="min-w-0">
                                   <p className="truncate text-sm font-semibold text-gray-900">
-                                    {shipment.tracking_number ||
-                                      shipment.awb ||
-                                      `Shipment #${shipment.id}`}
+                                    {shipment?.tracking_number ||
+                                      shipment?.awb ||
+                                      `Shipment #${shipment?.id ?? "—"}`}
                                   </p>
 
                                   <p className="mt-1 text-xs text-gray-500">
-                                    {
-                                      shipment.status
-                                    }
+                                    {shipment?.status ||
+                                      item?.status ||
+                                      "—"}
                                   </p>
                                 </div>
                               </div>
 
-                              {item.remarks && (
+                              {item?.remarks && (
                                 <p className="max-w-[180px] text-right text-xs text-gray-500">
-                                  {
-                                    item.remarks
-                                  }
+                                  {item.remarks}
                                 </p>
                               )}
                             </div>
@@ -1599,8 +1662,6 @@ function PickupDetailsDrawer({
                   )}
                 </div>
               </section>
-
-              {/* Timeline */}
 
               <section>
                 <SectionTitle>
@@ -1623,8 +1684,9 @@ function PickupDetailsDrawer({
                   />
 
                   <TimelineItem
-                    label="Accepted / Started"
+                    label="Started"
                     value={
+                      pickup.started_at ||
                       pickup.accepted_at
                     }
                   />
@@ -1668,8 +1730,6 @@ function PickupDetailsDrawer({
                 </div>
               </section>
 
-              {/* Remarks */}
-
               {(pickup.remarks ||
                 pickup.failed_reason) && (
                 <section>
@@ -1680,9 +1740,7 @@ function PickupDetailsDrawer({
                   <div className="space-y-3">
                     {pickup.remarks && (
                       <div className="rounded-xl bg-gray-50 p-4 text-sm text-gray-700">
-                        {
-                          pickup.remarks
-                        }
+                        {pickup.remarks}
                       </div>
                     )}
 
@@ -1706,8 +1764,6 @@ function PickupDetailsDrawer({
           )}
         </div>
 
-        {/* Actions */}
-
         <div className="border-t border-gray-200 bg-white p-4">
           <PickupActions
             status={status}
@@ -1729,7 +1785,7 @@ function PickupDetailsDrawer({
 
 /*
 |--------------------------------------------------------------------------
-| Pickup Actions
+| Actions
 |--------------------------------------------------------------------------
 */
 
@@ -1744,11 +1800,9 @@ function PickupActions({
   onFail,
 }) {
   if (
-    [
-      STATUS.COMPLETED,
-      STATUS.FAILED,
-      STATUS.CANCELLED,
-    ].includes(status)
+    CLOSED_STATUSES.includes(
+      status
+    )
   ) {
     return (
       <div className="rounded-lg bg-gray-50 px-4 py-3 text-center text-sm font-medium text-gray-500">
@@ -1771,44 +1825,42 @@ function PickupActions({
           className="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-4 py-2.5 text-sm font-semibold text-gray-700 transition hover:bg-gray-50 disabled:opacity-50"
         >
           <UserCheck className="h-4 w-4" />
-          Assign / Reassign
+          {status === STATUS.REQUESTED
+            ? "Assign Rider"
+            : "Reassign Rider"}
         </button>
       )}
 
       {status === STATUS.ASSIGNED && (
-        <button
-          type="button"
+        <ActionButton
+          loading={
+            actionLoading ===
+            "start"
+          }
           onClick={onStart}
           disabled={busy}
-          className="inline-flex items-center gap-2 rounded-lg bg-gray-900 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-gray-800 disabled:opacity-50"
-        >
-          {actionLoading ===
-          "start" ? (
-            <RefreshCw className="h-4 w-4 animate-spin" />
-          ) : (
+          icon={
             <ArrowRight className="h-4 w-4" />
-          )}
-
+          }
+        >
           Start Pickup
-        </button>
+        </ActionButton>
       )}
 
       {status === STATUS.STARTED && (
-        <button
-          type="button"
+        <ActionButton
+          loading={
+            actionLoading ===
+            "arrive"
+          }
           onClick={onArrive}
           disabled={busy}
-          className="inline-flex items-center gap-2 rounded-lg bg-gray-900 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-gray-800 disabled:opacity-50"
-        >
-          {actionLoading ===
-          "arrive" ? (
-            <RefreshCw className="h-4 w-4 animate-spin" />
-          ) : (
+          icon={
             <MapPin className="h-4 w-4" />
-          )}
-
+          }
+        >
           Mark Arrived
-        </button>
+        </ActionButton>
       )}
 
       {status === STATUS.ARRIVED && (
@@ -1829,12 +1881,9 @@ function PickupActions({
         </button>
       )}
 
-      {[
-        STATUS.REQUESTED,
-        STATUS.ASSIGNED,
-        STATUS.STARTED,
-        STATUS.ARRIVED,
-      ].includes(status) && (
+      {ACTIVE_STATUSES.includes(
+        status
+      ) && (
         <button
           type="button"
           onClick={onFail}
@@ -1849,9 +1898,34 @@ function PickupActions({
   );
 }
 
+function ActionButton({
+  loading,
+  onClick,
+  disabled,
+  icon,
+  children,
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      className="inline-flex items-center gap-2 rounded-lg bg-gray-900 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-gray-800 disabled:opacity-50"
+    >
+      {loading ? (
+        <RefreshCw className="h-4 w-4 animate-spin" />
+      ) : (
+        icon
+      )}
+
+      {children}
+    </button>
+  );
+}
+
 /*
 |--------------------------------------------------------------------------
-| Assign Rider Modal
+| Assign Modal
 |--------------------------------------------------------------------------
 */
 
@@ -1891,19 +1965,21 @@ function AssignRiderModal({
                 : "Select rider"}
             </option>
 
-            {riders.map((rider) => (
-              <option
-                key={rider.id}
-                value={rider.id}
-              >
-                {rider.name ||
-                  rider.full_name ||
-                  `Rider #${rider.id}`}
-                {rider.phone
-                  ? ` — ${rider.phone}`
-                  : ""}
-              </option>
-            ))}
+            {riders.map(
+              (rider) => (
+                <option
+                  key={rider.id}
+                  value={rider.id}
+                >
+                  {rider.name ||
+                    rider.full_name ||
+                    `Rider #${rider.id}`}
+                  {rider.phone
+                    ? ` — ${rider.phone}`
+                    : ""}
+                </option>
+              )
+            )}
           </select>
         </div>
 
@@ -1926,7 +2002,7 @@ function AssignRiderModal({
             className="inline-flex items-center gap-2 rounded-lg bg-gray-900 px-4 py-2.5 text-sm font-semibold text-white hover:bg-gray-800 disabled:opacity-50"
           >
             {actionLoading ===
-            "assign" && (
+              "assign" && (
               <RefreshCw className="h-4 w-4 animate-spin" />
             )}
 
@@ -1981,7 +2057,8 @@ function FailPickupModal({
           <strong>
             awaiting pickup
           </strong>{" "}
-          according to your backend service.
+          according to the backend pickup
+          service.
         </div>
 
         <div className="flex justify-end gap-2 border-t border-gray-100 pt-4">
@@ -2096,7 +2173,7 @@ function RouteBox({
       </p>
 
       <p className="mt-1 text-sm font-semibold text-gray-800">
-        {value}
+        {value || "—"}
       </p>
     </div>
   );
@@ -2128,7 +2205,8 @@ function TimelineItem({
   label,
   value,
 }) {
-  const exists = Boolean(value);
+  const exists =
+    Boolean(value);
 
   return (
     <div className="flex items-center gap-3">

@@ -2,6 +2,7 @@
 
 import {
   useEffect,
+  useMemo,
   useState,
 } from "react";
 
@@ -24,8 +25,12 @@ import {
 
 import {
   ArrowLeftOutlined,
+  CheckCircleOutlined,
+  EnvironmentOutlined,
+  PlayCircleOutlined,
   ReloadOutlined,
   UserSwitchOutlined,
+  CloseCircleOutlined,
 } from "@ant-design/icons";
 
 import {
@@ -34,26 +39,85 @@ import {
 } from "next/navigation";
 
 import {
-  assignPickup,
-  failPickup,
   getPickup,
-  receivePickupShipment,
-} from "@/services/pickupService";
-
-import {
-  getBranchStaff,
-} from "@/services/staffService";
+  getPickupRiders,
+  assignPickup,
+  startPickup,
+  arrivePickup,
+  completePickup,
+  failPickup,
+} from "@/services/adminPickupService";
 
 const {
   Title,
   Text,
 } = Typography;
 
-const ASSIGNABLE_STATUSES = [
-  "requested",
-  "pending",
-  "assigned",
+/*
+|--------------------------------------------------------------------------
+| Status
+|--------------------------------------------------------------------------
+*/
+
+const STATUS = {
+  REQUESTED: "requested",
+  ASSIGNED: "assigned",
+  STARTED: "started",
+  ARRIVED: "arrived",
+  COMPLETED: "completed",
+  FAILED: "failed",
+  CANCELLED: "cancelled",
+};
+
+const CLOSED_STATUSES = [
+  STATUS.COMPLETED,
+  STATUS.FAILED,
+  STATUS.CANCELLED,
 ];
+
+/*
+|--------------------------------------------------------------------------
+| Helpers
+|--------------------------------------------------------------------------
+*/
+
+function normalizeStatus(status) {
+  return String(status || "")
+    .trim()
+    .toLowerCase();
+}
+
+function statusTag(status) {
+  const normalized =
+    normalizeStatus(status);
+
+  if (!normalized) {
+    return <Tag>-</Tag>;
+  }
+
+  const colors = {
+    requested: "gold",
+    assigned: "blue",
+    started: "geekblue",
+    arrived: "purple",
+    completed: "green",
+    failed: "red",
+    cancelled: "default",
+  };
+
+  return (
+    <Tag
+      color={
+        colors[normalized] ||
+        "default"
+      }
+    >
+      {normalized
+        .replaceAll("_", " ")
+        .toUpperCase()}
+    </Tag>
+  );
+}
 
 function branchLabel(branch) {
   if (!branch) {
@@ -64,25 +128,13 @@ function branchLabel(branch) {
     return branch;
   }
 
-  return [
-    branch.name,
-    branch.area,
-  ]
-    .filter(Boolean)
-    .join(", ") || "-";
-}
-
-function statusTag(status) {
-  if (!status) {
-    return "-";
-  }
-
   return (
-    <Tag>
-      {String(status)
-        .replaceAll("_", " ")
-        .toUpperCase()}
-    </Tag>
+    [
+      branch.name,
+      branch.area,
+    ]
+      .filter(Boolean)
+      .join(", ") || "-"
   );
 }
 
@@ -116,40 +168,103 @@ function getStaffId(staff) {
   );
 }
 
-export default function PickupDetailPage() {
-  const params = useParams();
-  const router = useRouter();
+function formatDate(value) {
+  if (!value) {
+    return "-";
+  }
 
-  const pickupId = params?.id;
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return String(value);
+  }
+
+  return new Intl.DateTimeFormat(
+    "en-NP",
+    {
+      dateStyle: "medium",
+      timeStyle: "short",
+    }
+  ).format(date);
+}
+
+function getShipment(record) {
+  return (
+    record?.shipment ||
+    record ||
+    null
+  );
+}
+
+function getShipmentId(record) {
+  return (
+    record?.shipment_id ??
+    record?.shipment?.id ??
+    record?.id ??
+    null
+  );
+}
+
+/*
+|--------------------------------------------------------------------------
+| Page
+|--------------------------------------------------------------------------
+*/
+
+export default function PickupDetailPage() {
+  const params =
+    useParams();
+
+  const router =
+    useRouter();
+
+  const pickupId =
+    params?.id;
 
   const [pickup, setPickup] =
     useState(null);
 
-  const [staff, setStaff] =
+  const [riders, setRiders] =
     useState([]);
 
   const [loading, setLoading] =
     useState(true);
 
-  const [staffLoading, setStaffLoading] =
+  const [ridersLoading, setRidersLoading] =
     useState(false);
 
   const [actionLoading, setActionLoading] =
-    useState(false);
+    useState("");
 
   const [assignModalOpen, setAssignModalOpen] =
     useState(false);
 
-  const [selectedStaffId, setSelectedStaffId] =
+  const [selectedRider, setSelectedRider] =
     useState(undefined);
 
-  async function loadPickup() {
+  const [failModalOpen, setFailModalOpen] =
+    useState(false);
+
+  const [failReason, setFailReason] =
+    useState("");
+
+  /*
+  |--------------------------------------------------------------------------
+  | Load pickup
+  |--------------------------------------------------------------------------
+  */
+
+  async function loadPickup({
+    silent = false,
+  } = {}) {
     if (!pickupId) {
       return;
     }
 
     try {
-      setLoading(true);
+      if (!silent) {
+        setLoading(true);
+      }
 
       const result =
         await getPickup(
@@ -158,67 +273,83 @@ export default function PickupDetailPage() {
 
       setPickup(result);
     } catch (error) {
+      console.error(
+        "Could not load pickup:",
+        error
+      );
+
       message.error(
-        error?.response?.data?.message ||
+        error?.message ||
           "Could not load pickup."
       );
 
-      setPickup(null);
+      if (!silent) {
+        setPickup(null);
+      }
     } finally {
-      setLoading(false);
-    }
-  }
-
-  async function loadStaff() {
-    try {
-      setStaffLoading(true);
-
-      /*
-       * This endpoint should return staff/riders
-       * belonging to the authenticated manager's
-       * authorized branch.
-       */
-      const result =
-        await getBranchStaff();
-
-      setStaff(
-        Array.isArray(result)
-          ? result
-          : result?.list ?? []
-      );
-    } catch (error) {
-      message.error(
-        error?.response?.data?.message ||
-          "Could not load branch staff."
-      );
-    } finally {
-      setStaffLoading(false);
+      if (!silent) {
+        setLoading(false);
+      }
     }
   }
 
   useEffect(() => {
-    if (!pickupId) {
-      return;
-    }
-
     loadPickup();
   }, [pickupId]);
 
+  /*
+  |--------------------------------------------------------------------------
+  | Riders
+  |--------------------------------------------------------------------------
+  */
+
+  async function loadRiders() {
+    try {
+      setRidersLoading(true);
+
+      const result =
+        await getPickupRiders();
+
+      setRiders(
+        Array.isArray(result)
+          ? result
+          : []
+      );
+    } catch (error) {
+      message.error(
+        error?.message ||
+          "Could not load riders."
+      );
+    } finally {
+      setRidersLoading(false);
+    }
+  }
+
+  /*
+  |--------------------------------------------------------------------------
+  | Assignment
+  |--------------------------------------------------------------------------
+  */
+
   async function openAssignModal() {
-    setSelectedStaffId(
+    const assigned =
+      pickup?.assignedStaff ||
+      pickup?.assigned_staff ||
+      null;
+
+    setSelectedRider(
       getStaffId(
-        pickup?.assignedStaff ||
-          pickup?.assigned_staff
+        assigned
       ) ?? undefined
     );
 
     setAssignModalOpen(true);
 
-    await loadStaff();
+    await loadRiders();
   }
 
   async function handleAssign() {
-    if (!selectedStaffId) {
+    if (!selectedRider) {
       message.warning(
         "Please select a staff member."
       );
@@ -226,15 +357,28 @@ export default function PickupDetailPage() {
       return;
     }
 
+    const requestNumber =
+      pickup?.request_number;
+
+    if (!requestNumber) {
+      message.error(
+        "Pickup request number is missing."
+      );
+
+      return;
+    }
+
     try {
-      setActionLoading(true);
+      setActionLoading(
+        "assign"
+      );
 
       await assignPickup(
-        pickup.id,
+        requestNumber,
         {
           staff_id:
             Number(
-              selectedStaffId
+              selectedRider
             ),
         }
       );
@@ -243,28 +387,135 @@ export default function PickupDetailPage() {
         "Pickup assigned successfully."
       );
 
-      setAssignModalOpen(false);
+      setAssignModalOpen(
+        false
+      );
 
-      await loadPickup();
+      await loadPickup({
+        silent: true,
+      });
     } catch (error) {
       message.error(
-        error?.response?.data?.message ||
+        error?.message ||
           "Could not assign pickup."
       );
     } finally {
-      setActionLoading(false);
+      setActionLoading("");
     }
   }
 
-  async function handleFail() {
+  /*
+  |--------------------------------------------------------------------------
+  | Lifecycle action
+  |--------------------------------------------------------------------------
+  */
+
+  async function handleAction(
+    action
+  ) {
+    const requestNumber =
+      pickup?.request_number;
+
+    if (!requestNumber) {
+      message.error(
+        "Pickup request number is missing."
+      );
+
+      return;
+    }
+
     try {
-      setActionLoading(true);
+      setActionLoading(action);
+
+      switch (action) {
+        case "start":
+          await startPickup(
+            requestNumber
+          );
+          break;
+
+        case "arrive":
+          await arrivePickup(
+            requestNumber
+          );
+          break;
+
+        case "complete":
+          await completePickup(
+            requestNumber
+          );
+          break;
+
+        default:
+          throw new Error(
+            "Unsupported pickup action."
+          );
+      }
+
+      const messages = {
+        start:
+          "Pickup started successfully.",
+        arrive:
+          "Pickup marked as arrived.",
+        complete:
+          "Pickup completed successfully.",
+      };
+
+      message.success(
+        messages[action]
+      );
+
+      await loadPickup({
+        silent: true,
+      });
+    } catch (error) {
+      message.error(
+        error?.message ||
+          `Could not ${action} pickup.`
+      );
+    } finally {
+      setActionLoading("");
+    }
+  }
+
+  /*
+  |--------------------------------------------------------------------------
+  | Fail
+  |--------------------------------------------------------------------------
+  */
+
+  async function handleFail() {
+    const reason =
+      failReason.trim();
+
+    if (!reason) {
+      message.warning(
+        "Please provide a failure reason."
+      );
+
+      return;
+    }
+
+    const requestNumber =
+      pickup?.request_number;
+
+    if (!requestNumber) {
+      message.error(
+        "Pickup request number is missing."
+      );
+
+      return;
+    }
+
+    try {
+      setActionLoading(
+        "fail"
+      );
 
       await failPickup(
-        pickup.id,
+        requestNumber,
         {
-          reason:
-            "Failed from branch operations.",
+          reason,
         }
       );
 
@@ -272,48 +523,215 @@ export default function PickupDetailPage() {
         "Pickup marked as failed."
       );
 
-      await loadPickup();
+      setFailReason("");
+      setFailModalOpen(false);
+
+      await loadPickup({
+        silent: true,
+      });
     } catch (error) {
       message.error(
-        error?.response?.data?.message ||
+        error?.message ||
           "Could not fail pickup."
       );
     } finally {
-      setActionLoading(false);
+      setActionLoading("");
     }
   }
 
-  async function handleReceiveShipment(
-    shipmentId
-  ) {
-    try {
-      setActionLoading(true);
+  /*
+  |--------------------------------------------------------------------------
+  | Derived values
+  |--------------------------------------------------------------------------
+  */
 
-      await receivePickupShipment(
-        pickup.id,
-        shipmentId
-      );
+  const status =
+    normalizeStatus(
+      pickup?.status
+    );
 
-      message.success(
-        "Shipment received at origin branch."
-      );
+  const assignedStaff =
+    pickup?.assignedStaff ??
+    pickup?.assigned_staff ??
+    null;
 
-      await loadPickup();
-    } catch (error) {
-      message.error(
-        error?.response?.data?.message ||
-          "Could not receive shipment."
-      );
-    } finally {
-      setActionLoading(false);
-    }
-  }
+  const shipments =
+    pickup?.active_shipments ??
+    pickup?.shipments ??
+    [];
+
+  const canAssign =
+    [
+      STATUS.REQUESTED,
+      STATUS.ASSIGNED,
+      STATUS.STARTED,
+    ].includes(status);
+
+  const isClosed =
+    CLOSED_STATUSES.includes(
+      status
+    );
+
+  const canStart =
+    status ===
+    STATUS.ASSIGNED;
+
+  const canArrive =
+    status ===
+    STATUS.STARTED;
+
+  const canComplete =
+    status ===
+    STATUS.ARRIVED;
+
+  const canFail =
+    [
+      STATUS.REQUESTED,
+      STATUS.ASSIGNED,
+      STATUS.STARTED,
+      STATUS.ARRIVED,
+    ].includes(status);
+
+  const merchantName =
+    pickup?.merchant
+      ?.business_name ||
+    pickup?.merchant?.name ||
+    pickup?.merchant_name ||
+    "-";
+
+  const pickupLocation =
+    pickup?.pickupLocation ||
+    pickup?.pickup_location ||
+    null;
+
+  /*
+  |--------------------------------------------------------------------------
+  | Shipment columns
+  |--------------------------------------------------------------------------
+  */
+
+  const shipmentColumns =
+    useMemo(
+      () => [
+        {
+          title:
+            "Tracking Number",
+          key:
+            "tracking_number",
+          render: (_, record) => {
+            const shipment =
+              getShipment(
+                record
+              );
+
+            return (
+              shipment?.tracking_number ||
+              shipment?.awb ||
+              "-"
+            );
+          },
+        },
+
+        {
+          title:
+            "Merchant Order",
+          key:
+            "merchant_order_id",
+          render: (_, record) => {
+            const shipment =
+              getShipment(
+                record
+              );
+
+            return (
+              shipment?.merchant_order_id ||
+              "-"
+            );
+          },
+        },
+
+        {
+          title: "Receiver",
+          key: "receiver",
+          render: (_, record) => {
+            const shipment =
+              getShipment(
+                record
+              );
+
+            return (
+              shipment?.receiver_name ||
+              shipment?.receiver?.name ||
+              record?.receiver_name ||
+              "-"
+            );
+          },
+        },
+
+        {
+          title:
+            "Shipment Status",
+          key: "status",
+          render: (_, record) => {
+            const shipment =
+              getShipment(
+                record
+              );
+
+            return statusTag(
+              shipment?.status ||
+                record?.status
+            );
+          },
+        },
+
+        {
+          title: "Action",
+          key: "action",
+          render: (_, record) => {
+            const shipment =
+              getShipment(
+                record
+              );
+
+            const shipmentId =
+              getShipmentId(
+                record
+              );
+
+            if (!shipmentId) {
+              return "-";
+            }
+
+            return (
+              <Button
+                onClick={() =>
+                  router.push(
+                    `/admin/shipments/${shipmentId}`
+                  )
+                }
+              >
+                Shipment
+              </Button>
+            );
+          },
+        },
+      ],
+      [router]
+    );
+
+  /*
+  |--------------------------------------------------------------------------
+  | Loading
+  |--------------------------------------------------------------------------
+  */
 
   if (loading) {
     return (
       <Card>
         <Space>
           <Spin />
+
           <Text>
             Loading pickup...
           </Text>
@@ -321,6 +739,12 @@ export default function PickupDetailPage() {
       </Card>
     );
   }
+
+  /*
+  |--------------------------------------------------------------------------
+  | Not found
+  |--------------------------------------------------------------------------
+  */
 
   if (!pickup) {
     return (
@@ -352,18 +776,11 @@ export default function PickupDetailPage() {
     );
   }
 
-  const shipments =
-    pickup.shipments ?? [];
-
-  const assignedStaff =
-    pickup.assignedStaff ??
-    pickup.assigned_staff ??
-    null;
-
-  const canAssign =
-    ASSIGNABLE_STATUSES.includes(
-      pickup.status
-    );
+  /*
+  |--------------------------------------------------------------------------
+  | Render
+  |--------------------------------------------------------------------------
+  */
 
   return (
     <Space
@@ -373,13 +790,17 @@ export default function PickupDetailPage() {
         width: "100%",
       }}
     >
+
       {/* Header */}
 
       <Card>
         <Row
           justify="space-between"
           align="middle"
-          gutter={[16, 16]}
+          gutter={[
+            16,
+            16,
+          ]}
         >
           <Col>
             <Space>
@@ -414,17 +835,19 @@ export default function PickupDetailPage() {
 
           <Col>
             <Space wrap>
-              {statusTag(
-                pickup.status
-              )}
+              {statusTag(status)}
 
               <Button
                 icon={
                   <ReloadOutlined />
                 }
-                loading={loading}
-                onClick={
-                  loadPickup
+                loading={
+                  loading
+                }
+                onClick={() =>
+                  loadPickup({
+                    silent: true,
+                  })
                 }
               >
                 Refresh
@@ -434,9 +857,14 @@ export default function PickupDetailPage() {
         </Row>
       </Card>
 
-      {/* Main information */}
+      {/* Pickup Information */}
 
-      <Row gutter={[16, 16]}>
+      <Row
+        gutter={[
+          16,
+          16,
+        ]}
+      >
         <Col
           xs={24}
           lg={12}
@@ -453,9 +881,7 @@ export default function PickupDetailPage() {
               </Descriptions.Item>
 
               <Descriptions.Item label="Merchant">
-                {pickup.merchant?.name ||
-                  pickup.merchant_name ||
-                  "-"}
+                {merchantName}
               </Descriptions.Item>
 
               <Descriptions.Item label="Pickup Name">
@@ -468,19 +894,44 @@ export default function PickupDetailPage() {
                   "-"}
               </Descriptions.Item>
 
-              <Descriptions.Item label="Pickup Location">
-                {pickup.pickupLocation?.name ||
-                  pickup.pickup_location?.name ||
+              <Descriptions.Item label="Pickup Email">
+                {pickup.pickup_email ||
+                  pickup.merchant?.email ||
                   "-"}
               </Descriptions.Item>
 
-              <Descriptions.Item label="Branch">
+              <Descriptions.Item label="Pickup Location">
+                {pickupLocation?.name ||
+                  "-"}
+              </Descriptions.Item>
+
+              <Descriptions.Item label="Pickup Address">
+                {pickup.pickup_address ||
+                  pickupLocation?.address ||
+                  "-"}
+              </Descriptions.Item>
+
+              <Descriptions.Item label="Pickup Branch">
+                {branchLabel(
+                  pickup.pickupBranch ||
+                    pickup.pickup_branch
+                )}
+              </Descriptions.Item>
+
+              <Descriptions.Item label="Pickup Sub Branch">
+                {branchLabel(
+                  pickup.pickupSubBranch ||
+                    pickup.pickup_sub_branch
+                )}
+              </Descriptions.Item>
+
+              <Descriptions.Item label="Origin Branch">
                 {branchLabel(
                   pickup.branch
                 )}
               </Descriptions.Item>
 
-              <Descriptions.Item label="Sub Branch">
+              <Descriptions.Item label="Origin Sub Branch">
                 {branchLabel(
                   pickup.subBranch ||
                     pickup.sub_branch
@@ -488,14 +939,31 @@ export default function PickupDetailPage() {
               </Descriptions.Item>
 
               <Descriptions.Item label="Preferred Pickup">
-                {pickup.preferred_pickup_at ||
-                  "-"}
+                {formatDate(
+                  pickup.preferred_pickup_at
+                )}
+              </Descriptions.Item>
+
+              <Descriptions.Item label="Requested At">
+                {formatDate(
+                  pickup.requested_at
+                )}
               </Descriptions.Item>
 
               <Descriptions.Item label="Remarks">
                 {pickup.remarks ||
                   "-"}
               </Descriptions.Item>
+
+              {pickup.failed_reason && (
+                <Descriptions.Item label="Failure Reason">
+                  <Text type="danger">
+                    {
+                      pickup.failed_reason
+                    }
+                  </Text>
+                </Descriptions.Item>
+              )}
             </Descriptions>
           </Card>
         </Col>
@@ -520,9 +988,7 @@ export default function PickupDetailPage() {
                 size="small"
               >
                 <Descriptions.Item label="Status">
-                  {statusTag(
-                    pickup.status
-                  )}
+                  {statusTag(status)}
                 </Descriptions.Item>
 
                 <Descriptions.Item label="Assigned Staff / Rider">
@@ -536,14 +1002,44 @@ export default function PickupDetailPage() {
                     assignedStaff
                   ) ?? "-"}
                 </Descriptions.Item>
+
+                <Descriptions.Item label="Assigned At">
+                  {formatDate(
+                    pickup.assigned_at
+                  )}
+                </Descriptions.Item>
+
+                <Descriptions.Item label="Started At">
+                  {formatDate(
+                    pickup.started_at ||
+                      pickup.accepted_at
+                  )}
+                </Descriptions.Item>
+
+                <Descriptions.Item label="Arrived At">
+                  {formatDate(
+                    pickup.arrived_at
+                  )}
+                </Descriptions.Item>
+
+                <Descriptions.Item label="Completed At">
+                  {formatDate(
+                    pickup.completed_at
+                  )}
+                </Descriptions.Item>
               </Descriptions>
 
               <Space wrap>
-                {canAssign ? (
+
+                {canAssign && (
                   <Button
                     type="primary"
                     icon={
                       <UserSwitchOutlined />
+                    }
+                    loading={
+                      actionLoading ===
+                      "assign"
                     }
                     onClick={
                       openAssignModal
@@ -553,33 +1049,101 @@ export default function PickupDetailPage() {
                       ? "Reassign Pickup"
                       : "Assign Pickup"}
                   </Button>
-                ) : null}
+                )}
 
-                {pickup.status !==
-                  "completed" &&
-                pickup.status !==
-                  "failed" &&
-                pickup.status !==
-                  "cancelled" ? (
+                {canStart && (
+                  <Button
+                    type="primary"
+                    icon={
+                      <PlayCircleOutlined />
+                    }
+                    loading={
+                      actionLoading ===
+                      "start"
+                    }
+                    onClick={() =>
+                      handleAction(
+                        "start"
+                      )
+                    }
+                  >
+                    Start Pickup
+                  </Button>
+                )}
+
+                {canArrive && (
+                  <Button
+                    type="primary"
+                    icon={
+                      <EnvironmentOutlined />
+                    }
+                    loading={
+                      actionLoading ===
+                      "arrive"
+                    }
+                    onClick={() =>
+                      handleAction(
+                        "arrive"
+                      )
+                    }
+                  >
+                    Mark Arrived
+                  </Button>
+                )}
+
+                {canComplete && (
+                  <Button
+                    type="primary"
+                    icon={
+                      <CheckCircleOutlined />
+                    }
+                    loading={
+                      actionLoading ===
+                      "complete"
+                    }
+                    onClick={() =>
+                      handleAction(
+                        "complete"
+                      )
+                    }
+                  >
+                    Complete Pickup
+                  </Button>
+                )}
+
+                {canFail && (
                   <Button
                     danger
-                    loading={
-                      actionLoading
+                    icon={
+                      <CloseCircleOutlined />
                     }
-                    onClick={
-                      handleFail
+                    loading={
+                      actionLoading ===
+                      "fail"
+                    }
+                    onClick={() =>
+                      setFailModalOpen(
+                        true
+                      )
                     }
                   >
                     Fail Pickup
                   </Button>
-                ) : null}
+                )}
+
+                {isClosed && (
+                  <Text type="secondary">
+                    This pickup request is
+                    closed.
+                  </Text>
+                )}
               </Space>
             </Space>
           </Card>
         </Col>
       </Row>
 
-      {/* Assignment modal */}
+      {/* Assignment Modal */}
 
       <Modal
         title={
@@ -591,7 +1155,8 @@ export default function PickupDetailPage() {
           assignModalOpen
         }
         confirmLoading={
-          actionLoading
+          actionLoading ===
+          "assign"
         }
         onCancel={() =>
           setAssignModalOpen(
@@ -602,6 +1167,7 @@ export default function PickupDetailPage() {
           handleAssign
         }
         okText="Assign Pickup"
+        destroyOnClose
       >
         <Space
           direction="vertical"
@@ -611,28 +1177,29 @@ export default function PickupDetailPage() {
           }}
         >
           <Text>
-            Select the staff member or rider
-            who will perform this pickup.
+            Select the staff member or
+            rider who will perform this
+            pickup.
           </Text>
 
           <Select
             showSearch
             allowClear
             loading={
-              staffLoading
+              ridersLoading
             }
             style={{
               width: "100%",
             }}
             placeholder="Select staff / rider"
             value={
-              selectedStaffId
+              selectedRider
             }
             onChange={
-              setSelectedStaffId
+              setSelectedRider
             }
             optionFilterProp="label"
-            options={staff.map(
+            options={riders.map(
               (member) => ({
                 value:
                   member.id ??
@@ -648,6 +1215,71 @@ export default function PickupDetailPage() {
         </Space>
       </Modal>
 
+      {/* Failure Modal */}
+
+      <Modal
+        title="Fail Pickup"
+        open={
+          failModalOpen
+        }
+        confirmLoading={
+          actionLoading ===
+          "fail"
+        }
+        onCancel={() => {
+          if (
+            actionLoading !==
+            "fail"
+          ) {
+            setFailModalOpen(
+              false
+            );
+          }
+        }}
+        onOk={
+          handleFail
+        }
+        okText="Fail Pickup"
+        okButtonProps={{
+          danger: true,
+          disabled:
+            !failReason.trim(),
+        }}
+        destroyOnClose
+      >
+        <Space
+          direction="vertical"
+          size={12}
+          style={{
+            width: "100%",
+          }}
+        >
+          <Text>
+            Enter the reason why this
+            pickup cannot be completed.
+          </Text>
+
+          <textarea
+            value={failReason}
+            onChange={(event) =>
+              setFailReason(
+                event.target.value
+              )
+            }
+            rows={5}
+            placeholder="Enter failure reason..."
+            style={{
+              width: "100%",
+              resize: "vertical",
+              padding: 10,
+              border:
+                "1px solid #d9d9d9",
+              borderRadius: 6,
+            }}
+          />
+        </Space>
+      </Modal>
+
       {/* Shipments */}
 
       <Card title="Shipments in Pickup">
@@ -655,7 +1287,8 @@ export default function PickupDetailPage() {
           <Table
             rowKey={(record) =>
               record.id ??
-              record.shipment_id
+              record.shipment_id ??
+              record.shipment?.id
             }
             dataSource={
               shipments
@@ -664,140 +1297,9 @@ export default function PickupDetailPage() {
             scroll={{
               x: 1000,
             }}
-            columns={[
-              {
-                title:
-                  "Tracking Number",
-
-                key:
-                  "tracking_number",
-
-                render: (
-                  _,
-                  record
-                ) =>
-                  record.shipment
-                    ?.tracking_number ||
-                  record.tracking_number ||
-                  "-",
-              },
-
-              {
-                title:
-                  "Merchant Order",
-
-                key:
-                  "merchant_order_id",
-
-                render: (
-                  _,
-                  record
-                ) =>
-                  record.shipment
-                    ?.merchant_order_id ||
-                  record.merchant_order_id ||
-                  "-",
-              },
-
-              {
-                title:
-                  "Receiver",
-
-                key:
-                  "receiver",
-
-                render: (
-                  _,
-                  record
-                ) =>
-                  record.shipment
-                    ?.receiver_name ||
-                  record.receiver_name ||
-                  "-",
-              },
-
-              {
-                title:
-                  "Shipment Status",
-
-                key:
-                  "status",
-
-                render: (
-                  _,
-                  record
-                ) =>
-                  statusTag(
-                    record.shipment
-                      ?.status ||
-                      record.status
-                  ),
-              },
-
-              {
-                title:
-                  "Action",
-
-                key:
-                  "action",
-
-                render: (
-                  _,
-                  record
-                ) => {
-                  const shipmentId =
-                    record.shipment_id ??
-                    record.shipment?.id;
-
-                  if (!shipmentId) {
-                    return "-";
-                  }
-
-                  const shipmentStatus =
-                    record.shipment
-                      ?.status ||
-                    record.status;
-
-                  const canReceive =
-                    shipmentStatus ===
-                      "picked_up" ||
-                    shipmentStatus ===
-                      "pickup_completed" ||
-                    shipmentStatus ===
-                      "collected";
-
-                  return (
-                    <Space>
-                      <Button
-                        onClick={() =>
-                          router.push(
-                            `/admin/shipments/${shipmentId}`
-                          )
-                        }
-                      >
-                        Shipment
-                      </Button>
-
-                      {canReceive ? (
-                        <Button
-                          type="primary"
-                          loading={
-                            actionLoading
-                          }
-                          onClick={() =>
-                            handleReceiveShipment(
-                              shipmentId
-                            )
-                          }
-                        >
-                          Receive
-                        </Button>
-                      ) : null}
-                    </Space>
-                  );
-                },
-              },
-            ]}
+            columns={
+              shipmentColumns
+            }
           />
         ) : (
           <Empty

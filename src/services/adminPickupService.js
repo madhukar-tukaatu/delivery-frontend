@@ -1,99 +1,206 @@
-import api from "@/lib/api";
+import api from "@/services/api";
 
 /*
 |--------------------------------------------------------------------------
-| Response helpers
+| Helpers
 |--------------------------------------------------------------------------
 */
 
-function unwrap(response) {
-  const body = response?.data ?? {};
-
-  return body?.data ?? body;
-}
-
-/*
-|--------------------------------------------------------------------------
-| Pickup list normalization
-|--------------------------------------------------------------------------
-*/
-
-function normalizeList(response) {
-  const body = response?.data ?? {};
-
-  const data = body?.data ?? body;
+function unwrapResponse(response) {
+  const payload = response?.data ?? response;
 
   /*
-   * Laravel paginator:
+   * Laravel responses may be:
+   *
+   * {
+   *   success: true,
+   *   data: {...}
+   * }
+   *
+   * or:
    *
    * {
    *   data: {
-   *     data: [],
-   *     current_page: 1,
-   *     last_page: 1,
-   *     per_page: 15,
-   *     total: 10
+   *     data: {...}
    *   }
    * }
    */
 
-  if (Array.isArray(data)) {
+  if (
+    payload &&
+    typeof payload === "object" &&
+    "data" in payload
+  ) {
+    return payload.data;
+  }
+
+  return payload;
+}
+
+function normalizeListResponse(response) {
+  const payload = response?.data ?? response;
+
+  if (!payload) {
     return {
-      items: data,
-      meta: body?.meta ?? null,
+      items: [],
+      meta: null,
+    };
+  }
+
+  /*
+   * Laravel pagination:
+   *
+   * {
+   *   data: [...],
+   *   meta: {...}
+   * }
+   */
+
+  if (Array.isArray(payload)) {
+    return {
+      items: payload,
+      meta: null,
+    };
+  }
+
+  if (Array.isArray(payload.data)) {
+    return {
+      items: payload.data,
+      meta: payload.meta ?? null,
+    };
+  }
+
+  if (Array.isArray(payload.items)) {
+    return {
+      items: payload.items,
+      meta: payload.meta ?? null,
     };
   }
 
   return {
-    items:
-      data?.items ||
-      data?.data ||
-      data?.results ||
-      [],
-    meta:
-      data?.meta ||
-      body?.meta ||
-      null,
+    items: [],
+    meta: payload.meta ?? null,
   };
+}
+
+function normalizePickup(payload) {
+  if (!payload) {
+    return null;
+  }
+
+  /*
+   * Support:
+   *
+   * { data: pickup }
+   * { pickup: pickup }
+   * pickup
+   */
+
+  if (
+    payload.data &&
+    typeof payload.data === "object" &&
+    !Array.isArray(payload.data)
+  ) {
+    payload = payload.data;
+  }
+
+  if (
+    payload.pickup &&
+    typeof payload.pickup === "object"
+  ) {
+    payload = payload.pickup;
+  }
+
+  return payload;
+}
+
+function getErrorMessage(error, fallback) {
+  return (
+    error?.response?.data?.message ||
+    error?.response?.data?.error ||
+    error?.message ||
+    fallback
+  );
 }
 
 /*
 |--------------------------------------------------------------------------
-| Pickups
+| Pickup list
 |--------------------------------------------------------------------------
 */
 
-export async function getPickups(
-  params = {}
-) {
-  const response =
-    await api.get(
-      "/admin/pickups",
+export async function getPickups({
+  page = 1,
+  per_page = 15,
+  search = "",
+  status = "",
+} = {}) {
+  try {
+    const params = {
+      page,
+      per_page,
+    };
+
+    if (search?.trim()) {
+      params.search = search.trim();
+    }
+
+    if (status && status !== "all") {
+      params.status = status;
+    }
+
+    const response = await api.get(
+      "/api/v1/admin/pickups",
       {
         params,
       }
     );
 
-  return normalizeList(response);
+    return normalizeListResponse(response);
+  } catch (error) {
+    throw new Error(
+      getErrorMessage(
+        error,
+        "Unable to load pickup requests."
+      )
+    );
+  }
 }
 
-export async function getPickup(
-  requestNumber
-) {
+/*
+|--------------------------------------------------------------------------
+| Single pickup
+|--------------------------------------------------------------------------
+|
+| requestNumber should normally be the backend pickup request number.
+|
+*/
+
+export async function getPickup(requestNumber) {
   if (!requestNumber) {
     throw new Error(
       "Pickup request number is required."
     );
   }
 
-  const response =
-    await api.get(
-      `/admin/pickups/${encodeURIComponent(
+  try {
+    const response = await api.get(
+      `/api/v1/admin/pickups/${encodeURIComponent(
         requestNumber
       )}`
     );
 
-  return unwrap(response);
+    return normalizePickup(
+      unwrapResponse(response)
+    );
+  } catch (error) {
+    throw new Error(
+      getErrorMessage(
+        error,
+        "Unable to load pickup details."
+      )
+    );
+  }
 }
 
 /*
@@ -103,32 +210,39 @@ export async function getPickup(
 */
 
 export async function getPickupRiders() {
-  const response =
-    await api.get(
-      "/admin/users",
-      {
-        params: {
-          role: "rider",
-          status: "active",
-        },
-      }
+  try {
+    const response = await api.get(
+      "/api/v1/admin/pickups/riders"
     );
 
-  const data =
-    response?.data?.data ??
-    response?.data ??
-    [];
+    const payload =
+      unwrapResponse(response);
 
-  if (Array.isArray(data)) {
-    return data;
+    if (Array.isArray(payload)) {
+      return payload;
+    }
+
+    if (Array.isArray(payload?.items)) {
+      return payload.items;
+    }
+
+    if (Array.isArray(payload?.list)) {
+      return payload.list;
+    }
+
+    if (Array.isArray(payload?.riders)) {
+      return payload.riders;
+    }
+
+    return [];
+  } catch (error) {
+    throw new Error(
+      getErrorMessage(
+        error,
+        "Unable to load riders."
+      )
+    );
   }
-
-  return (
-    data?.data ||
-    data?.items ||
-    data?.results ||
-    []
-  );
 }
 
 /*
@@ -139,7 +253,7 @@ export async function getPickupRiders() {
 
 export async function assignPickup(
   requestNumber,
-  payload
+  body
 ) {
   if (!requestNumber) {
     throw new Error(
@@ -147,15 +261,35 @@ export async function assignPickup(
     );
   }
 
-  const response =
-    await api.post(
-      `/admin/pickups/${encodeURIComponent(
+  if (!body?.staff_id) {
+    throw new Error(
+      "Staff ID is required."
+    );
+  }
+
+  try {
+    const response = await api.post(
+      `/api/v1/admin/pickups/${encodeURIComponent(
         requestNumber
       )}/assign`,
-      payload
+      {
+        staff_id: Number(
+          body.staff_id
+        ),
+      }
     );
 
-  return unwrap(response);
+    return normalizePickup(
+      unwrapResponse(response)
+    );
+  } catch (error) {
+    throw new Error(
+      getErrorMessage(
+        error,
+        "Unable to assign pickup."
+      )
+    );
+  }
 }
 
 /*
@@ -173,14 +307,24 @@ export async function startPickup(
     );
   }
 
-  const response =
-    await api.post(
-      `/admin/pickups/${encodeURIComponent(
+  try {
+    const response = await api.post(
+      `/api/v1/admin/pickups/${encodeURIComponent(
         requestNumber
       )}/start`
     );
 
-  return unwrap(response);
+    return normalizePickup(
+      unwrapResponse(response)
+    );
+  } catch (error) {
+    throw new Error(
+      getErrorMessage(
+        error,
+        "Unable to start pickup."
+      )
+    );
+  }
 }
 
 /*
@@ -198,14 +342,24 @@ export async function arrivePickup(
     );
   }
 
-  const response =
-    await api.post(
-      `/admin/pickups/${encodeURIComponent(
+  try {
+    const response = await api.post(
+      `/api/v1/admin/pickups/${encodeURIComponent(
         requestNumber
       )}/arrive`
     );
 
-  return unwrap(response);
+    return normalizePickup(
+      unwrapResponse(response)
+    );
+  } catch (error) {
+    throw new Error(
+      getErrorMessage(
+        error,
+        "Unable to mark pickup as arrived."
+      )
+    );
+  }
 }
 
 /*
@@ -223,14 +377,24 @@ export async function completePickup(
     );
   }
 
-  const response =
-    await api.post(
-      `/admin/pickups/${encodeURIComponent(
+  try {
+    const response = await api.post(
+      `/api/v1/admin/pickups/${encodeURIComponent(
         requestNumber
       )}/complete`
     );
 
-  return unwrap(response);
+    return normalizePickup(
+      unwrapResponse(response)
+    );
+  } catch (error) {
+    throw new Error(
+      getErrorMessage(
+        error,
+        "Unable to complete pickup."
+      )
+    );
+  }
 }
 
 /*
@@ -241,7 +405,7 @@ export async function completePickup(
 
 export async function failPickup(
   requestNumber,
-  payload
+  body
 ) {
   if (!requestNumber) {
     throw new Error(
@@ -249,13 +413,42 @@ export async function failPickup(
     );
   }
 
-  const response =
-    await api.post(
-      `/admin/pickups/${encodeURIComponent(
+  if (!body?.reason?.trim()) {
+    throw new Error(
+      "Failure reason is required."
+    );
+  }
+
+  try {
+    const response = await api.post(
+      `/api/v1/admin/pickups/${encodeURIComponent(
         requestNumber
       )}/fail`,
-      payload
+      {
+        reason: body.reason.trim(),
+      }
     );
 
-  return unwrap(response);
+    return normalizePickup(
+      unwrapResponse(response)
+    );
+  } catch (error) {
+    throw new Error(
+      getErrorMessage(
+        error,
+        "Unable to fail pickup."
+      )
+    );
+  }
 }
+
+/*
+|--------------------------------------------------------------------------
+| Export helpers
+|--------------------------------------------------------------------------
+*/
+
+export {
+  normalizePickup,
+  normalizeListResponse,
+};
