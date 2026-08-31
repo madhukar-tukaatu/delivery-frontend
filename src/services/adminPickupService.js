@@ -150,7 +150,7 @@ export async function getPickups({
     }
 
     const response = await api.get(
-      "/api/v1/admin/pickups",
+      "/admin/pickups",
       {
         params,
       }
@@ -185,7 +185,7 @@ export async function getPickup(requestNumber) {
 
   try {
     const response = await api.get(
-      `/api/v1/admin/pickups/${encodeURIComponent(
+      `/admin/pickups/${encodeURIComponent(
         requestNumber
       )}`
     );
@@ -212,7 +212,7 @@ export async function getPickup(requestNumber) {
 export async function getPickupRiders() {
   try {
     const response = await api.get(
-      "/api/v1/admin/pickups/riders"
+      "/admin/pickups/riders"
     );
 
     const payload =
@@ -269,7 +269,7 @@ export async function assignPickup(
 
   try {
     const response = await api.post(
-      `/api/v1/admin/pickups/${encodeURIComponent(
+      `/admin/pickups/${encodeURIComponent(
         requestNumber
       )}/assign`,
       {
@@ -309,7 +309,7 @@ export async function startPickup(
 
   try {
     const response = await api.post(
-      `/api/v1/admin/pickups/${encodeURIComponent(
+      `/admin/pickups/${encodeURIComponent(
         requestNumber
       )}/start`
     );
@@ -344,7 +344,7 @@ export async function arrivePickup(
 
   try {
     const response = await api.post(
-      `/api/v1/admin/pickups/${encodeURIComponent(
+      `/admin/pickups/${encodeURIComponent(
         requestNumber
       )}/arrive`
     );
@@ -379,7 +379,7 @@ export async function completePickup(
 
   try {
     const response = await api.post(
-      `/api/v1/admin/pickups/${encodeURIComponent(
+      `/admin/pickups/${encodeURIComponent(
         requestNumber
       )}/complete`
     );
@@ -421,7 +421,7 @@ export async function failPickup(
 
   try {
     const response = await api.post(
-      `/api/v1/admin/pickups/${encodeURIComponent(
+      `/admin/pickups/${encodeURIComponent(
         requestNumber
       )}/fail`,
       {
