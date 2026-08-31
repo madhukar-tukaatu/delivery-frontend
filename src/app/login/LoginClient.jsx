@@ -108,16 +108,14 @@ function getRoleRedirect(user) {
 
   // Roles that use the STAFF portal (/staff/*)
   // booking_staff uses the ADMIN portal (they book shipments via admin UI)
-  const staffPortalRoles = new Set([
+   const staffPortalRoles = new Set([
     "pickup_staff",
-    "dispatch_staff",
     "delivery_staff",
+    "dispatch_staff",
     "warehouse_staff",
-    "branch_staff",
-    "support_staff",
-    "accounts_staff",
     "rider",
   ]);
+
 
   const merchantRoles = new Set([
     "merchant",

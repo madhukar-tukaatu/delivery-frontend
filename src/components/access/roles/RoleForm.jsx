@@ -9,8 +9,6 @@ import {
   Divider,
   Input,
   Row,
-  Space,
-  Typography,
   message,
 } from "antd";
 
@@ -27,8 +25,6 @@ import {
   getRolePermissionNames,
 } from "./roleUtils";
 
-const { Text } = Typography;
-
 export default function RoleForm({
   record = null,
   permissionGroups = [],
@@ -41,23 +37,17 @@ export default function RoleForm({
   const [saving, setSaving] =
     useState(false);
 
-  const [selectedPermissions, setSelectedPermissions] =
-    useState([]);
+  const [
+    selectedPermissions,
+    setSelectedPermissions,
+  ] = useState([]);
 
   const isEdit = Boolean(record);
-
-  /*
-  |--------------------------------------------------------------------------
-  | Load record into form
-  |--------------------------------------------------------------------------
-  */
 
   useEffect(() => {
     if (record) {
       const permissions =
-        getRolePermissionNames(
-          record
-        );
+        getRolePermissionNames(record);
 
       form.setFieldsValue({
         name: record.name,
@@ -75,22 +65,10 @@ export default function RoleForm({
 
     form.resetFields();
 
-    form.setFieldsValue({
-      permissions: [],
-    });
-
     setSelectedPermissions([]);
   }, [record, form]);
 
-  /*
-  |--------------------------------------------------------------------------
-  | Submit
-  |--------------------------------------------------------------------------
-  */
-
-  async function handleSubmit(
-    values
-  ) {
+  async function handleSubmit(values) {
     try {
       setSaving(true);
 
@@ -113,9 +91,7 @@ export default function RoleForm({
           "Role updated successfully."
         );
       } else {
-        await createRole(
-          payload
-        );
+        await createRole(payload);
 
         message.success(
           "Role created successfully."
@@ -127,8 +103,7 @@ export default function RoleForm({
       console.error(error);
 
       const errors =
-        error?.response?.data
-          ?.errors;
+        error?.response?.data?.errors;
 
       if (errors) {
         const firstError =
@@ -142,8 +117,7 @@ export default function RoleForm({
         );
       } else {
         message.error(
-          error?.response?.data
-            ?.message ||
+          error?.response?.data?.message ||
             "Failed to save role."
         );
       }
@@ -159,10 +133,7 @@ export default function RoleForm({
       onFinish={handleSubmit}
     >
       <Row gutter={16}>
-        <Col
-          xs={24}
-          md={12}
-        >
+        <Col xs={24} md={12}>
           <Form.Item
             name="name"
             label="Role Key"
@@ -192,20 +163,10 @@ export default function RoleForm({
           </Form.Item>
         </Col>
 
-        <Col
-          xs={24}
-          md={12}
-        >
+        <Col xs={24} md={12}>
           <Form.Item
             name="label"
             label="Display Label"
-            rules={[
-              {
-                max: 150,
-                message:
-                  "Label cannot exceed 150 characters.",
-              },
-            ]}
           >
             <Input
               placeholder="Branch Manager"
@@ -236,8 +197,11 @@ export default function RoleForm({
         style={{
           marginBottom: 16,
         }}
-        message="Permissions are loaded from the server."
-        description="The frontend does not define which permissions belong to a role. Select the permissions that should be assigned to this role."
+        message="Permissions come from the backend."
+        description={
+          "Permissions are generated and synchronized from Laravel routes. " +
+          "Use this section only to decide which permissions this role receives."
+        }
       />
 
       <PermissionSelector
@@ -256,8 +220,7 @@ export default function RoleForm({
       <div
         style={{
           display: "flex",
-          justifyContent:
-            "flex-end",
+          justifyContent: "flex-end",
           gap: 8,
         }}
       >
