@@ -19,20 +19,20 @@ import {
   XCircle,
 } from "lucide-react";
 
+import {
+  getPickups,
+  getPickup,
+  getPickupRiders,
+  assignPickup,
+  startPickup,
+  arrivePickup,
+  completePickup,
+  failPickup,
+} from "@/services/adminPickupService";
+
 /*
 |--------------------------------------------------------------------------
-| Configuration
-|--------------------------------------------------------------------------
-*/
-
-const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
-
-const PICKUPS_ENDPOINT = "/api/v1/admin/pickups";
-
-/*
-|--------------------------------------------------------------------------
-| Status configuration
+| Status
 |--------------------------------------------------------------------------
 */
 
@@ -49,44 +49,37 @@ const STATUS = {
 const STATUS_META = {
   requested: {
     label: "Requested",
-    className:
-      "bg-amber-50 text-amber-700 ring-amber-200",
+    className: "bg-amber-50 text-amber-700 ring-amber-200",
   },
 
   assigned: {
     label: "Assigned",
-    className:
-      "bg-blue-50 text-blue-700 ring-blue-200",
+    className: "bg-blue-50 text-blue-700 ring-blue-200",
   },
 
   started: {
     label: "Started",
-    className:
-      "bg-indigo-50 text-indigo-700 ring-indigo-200",
+    className: "bg-indigo-50 text-indigo-700 ring-indigo-200",
   },
 
   arrived: {
     label: "Arrived",
-    className:
-      "bg-purple-50 text-purple-700 ring-purple-200",
+    className: "bg-purple-50 text-purple-700 ring-purple-200",
   },
 
   completed: {
     label: "Completed",
-    className:
-      "bg-emerald-50 text-emerald-700 ring-emerald-200",
+    className: "bg-emerald-50 text-emerald-700 ring-emerald-200",
   },
 
   failed: {
     label: "Failed",
-    className:
-      "bg-red-50 text-red-700 ring-red-200",
+    className: "bg-red-50 text-red-700 ring-red-200",
   },
 
   cancelled: {
     label: "Cancelled",
-    className:
-      "bg-gray-100 text-gray-600 ring-gray-200",
+    className: "bg-gray-100 text-gray-600 ring-gray-200",
   },
 };
 
@@ -104,8 +97,7 @@ function getStatusMeta(status) {
       label: normalized
         ? normalized.replaceAll("_", " ")
         : "Unknown",
-      className:
-        "bg-gray-100 text-gray-600 ring-gray-200",
+      className: "bg-gray-100 text-gray-600 ring-gray-200",
     }
   );
 }
@@ -127,22 +119,6 @@ function formatDate(value) {
   }).format(date);
 }
 
-function formatDateOnly(value) {
-  if (!value) {
-    return "—";
-  }
-
-  const date = new Date(value);
-
-  if (Number.isNaN(date.getTime())) {
-    return value;
-  }
-
-  return new Intl.DateTimeFormat("en-NP", {
-    dateStyle: "medium",
-  }).format(date);
-}
-
 function getInitials(name) {
   if (!name) {
     return "R";
@@ -154,161 +130,6 @@ function getInitials(name) {
     .slice(0, 2)
     .map((part) => part.charAt(0).toUpperCase())
     .join("");
-}
-
-function getPickupData(payload) {
-  if (!payload) {
-    return null;
-  }
-
-  /*
-   * Supports:
-   *
-   * {
-   *   success: true,
-   *   data: {...}
-   * }
-   *
-   * and
-   *
-   * {
-   *   success: true,
-   *   data: {
-   *      data: {...}
-   *   }
-   * }
-   */
-
-  let data = payload?.data ?? payload;
-
-  if (
-    data &&
-    typeof data === "object" &&
-    !Array.isArray(data) &&
-    data.data &&
-    typeof data.data === "object"
-  ) {
-    data = data.data;
-  }
-
-  return data;
-}
-
-function getListData(payload) {
-  if (!payload) {
-    return {
-      items: [],
-      meta: null,
-    };
-  }
-
-  let data = payload?.data ?? payload;
-
-  if (
-    data &&
-    typeof data === "object" &&
-    !Array.isArray(data) &&
-    data.data
-  ) {
-    data = data.data;
-  }
-
-  if (Array.isArray(data)) {
-    return {
-      items: data,
-      meta: payload?.meta ?? null,
-    };
-  }
-
-  return {
-    items:
-      data?.items ||
-      data?.data ||
-      data?.results ||
-      [],
-    meta:
-      data?.meta ||
-      payload?.meta ||
-      null,
-  };
-}
-
-/*
-|--------------------------------------------------------------------------
-| API helper
-|--------------------------------------------------------------------------
-*/
-
-async function apiRequest(
-  endpoint,
-  {
-    method = "GET",
-    body = null,
-    signal,
-  } = {}
-) {
-  const response = await fetch(
-    `${API_BASE_URL}${endpoint}`,
-    {
-      method,
-      credentials: "include",
-      headers: {
-        Accept: "application/json",
-        "Content-Type": "application/json",
-      },
-      body: body
-        ? JSON.stringify(body)
-        : undefined,
-      signal,
-    }
-  );
-
-  let payload = null;
-
-  try {
-    payload = await response.json();
-  } catch {
-    payload = null;
-  }
-
-  if (!response.ok) {
-    const message =
-      payload?.message ||
-      payload?.error ||
-      "Something went wrong.";
-
-    const error = new Error(message);
-
-    error.status = response.status;
-    error.payload = payload;
-
-    throw error;
-  }
-
-  return payload;
-}
-
-/*
-|--------------------------------------------------------------------------
-| Status Badge
-|--------------------------------------------------------------------------
-*/
-
-function StatusBadge({ status }) {
-  const meta = getStatusMeta(status);
-
-  return (
-    <span
-      className={[
-        "inline-flex items-center rounded-full",
-        "px-2.5 py-1 text-xs font-semibold",
-        "ring-1 ring-inset",
-        meta.className,
-      ].join(" ")}
-    >
-      {meta.label}
-    </span>
-  );
 }
 
 /*
@@ -326,39 +147,25 @@ export default function AdminPickupsPage() {
   const [error, setError] = useState("");
 
   const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] =
-    useState("all");
+  const [statusFilter, setStatusFilter] = useState("all");
 
   const [page, setPage] = useState(1);
-  const [perPage] = useState(15);
+  const perPage = 15;
 
-  const [pagination, setPagination] =
-    useState(null);
+  const [pagination, setPagination] = useState(null);
 
-  const [selectedPickup, setSelectedPickup] =
-    useState(null);
+  const [selectedPickup, setSelectedPickup] = useState(null);
+  const [detailsLoading, setDetailsLoading] = useState(false);
 
-  const [detailsLoading, setDetailsLoading] =
-    useState(false);
+  const [actionLoading, setActionLoading] = useState("");
 
-  const [actionLoading, setActionLoading] =
-    useState("");
-
-  const [showAssignModal, setShowAssignModal] =
-    useState(false);
-
+  const [showAssignModal, setShowAssignModal] = useState(false);
   const [riders, setRiders] = useState([]);
-  const [ridersLoading, setRidersLoading] =
-    useState(false);
+  const [ridersLoading, setRidersLoading] = useState(false);
+  const [selectedRider, setSelectedRider] = useState("");
 
-  const [selectedRider, setSelectedRider] =
-    useState("");
-
-  const [showFailModal, setShowFailModal] =
-    useState(false);
-
-  const [failReason, setFailReason] =
-    useState("");
+  const [showFailModal, setShowFailModal] = useState(false);
+  const [failReason, setFailReason] = useState("");
 
   /*
   |--------------------------------------------------------------------------
@@ -380,60 +187,27 @@ export default function AdminPickupsPage() {
           setLoading(true);
         }
 
-        const params = new URLSearchParams();
+        const result = await getPickups({
+          page: requestedPage,
+          per_page: perPage,
+          ...(search.trim()
+            ? {
+                search: search.trim(),
+              }
+            : {}),
+          ...(statusFilter !== "all"
+            ? {
+                status: statusFilter,
+              }
+            : {}),
+        });
 
-        params.set(
-          "page",
-          String(requestedPage)
-        );
+        setPickups(result?.items || []);
 
-        params.set(
-          "per_page",
-          String(perPage)
-        );
-
-        if (search.trim()) {
-          params.set(
-            "search",
-            search.trim()
-          );
-        }
-
-        if (statusFilter !== "all") {
-          params.set(
-            "status",
-            statusFilter
-          );
-        }
-
-        const payload =
-          await apiRequest(
-            `${PICKUPS_ENDPOINT}?${params.toString()}`
-          );
-
-        const result =
-          getListData(payload);
-
-        setPickups(result.items);
-
-        /*
-         * Laravel paginator:
-         *
-         * meta:
-         * {
-         *   current_page,
-         *   last_page,
-         *   per_page,
-         *   total
-         * }
-         */
-
-        setPagination(
-          result.meta || null
-        );
+        setPagination(result?.meta || null);
       } catch (err) {
         console.error(
-          "Failed to load pickups:",
+          "Failed to load pickup requests:",
           err
         );
 
@@ -460,7 +234,7 @@ export default function AdminPickupsPage() {
 
   /*
   |--------------------------------------------------------------------------
-  | Search / filter
+  | Search
   |--------------------------------------------------------------------------
   */
 
@@ -481,13 +255,17 @@ export default function AdminPickupsPage() {
 
   /*
   |--------------------------------------------------------------------------
-  | Open details
+  | Open pickup details
   |--------------------------------------------------------------------------
   */
 
   async function openDetails(pickup) {
+    if (!pickup) {
+      return;
+    }
+
     const requestNumber =
-      pickup?.request_number;
+      pickup.request_number;
 
     if (!requestNumber) {
       setSelectedPickup(pickup);
@@ -496,21 +274,17 @@ export default function AdminPickupsPage() {
 
     try {
       setDetailsLoading(true);
-
-      const payload =
-        await apiRequest(
-          `${PICKUPS_ENDPOINT}/${encodeURIComponent(
-            requestNumber
-          )}`
-        );
+      setError("");
 
       const data =
-        getPickupData(payload);
+        await getPickup(requestNumber);
 
-      setSelectedPickup(data || pickup);
+      setSelectedPickup(
+        data || pickup
+      );
     } catch (err) {
       console.error(
-        "Failed to load pickup:",
+        "Failed to load pickup details:",
         err
       );
 
@@ -534,28 +308,12 @@ export default function AdminPickupsPage() {
   async function loadRiders() {
     try {
       setRidersLoading(true);
-
-      /*
-       * Adjust this endpoint if your admin
-       * rider/staff endpoint is different.
-       */
-
-      const payload =
-        await apiRequest(
-          "/api/v1/admin/users?role=rider&status=active"
-        );
+      setError("");
 
       const data =
-        payload?.data ?? payload;
+        await getPickupRiders();
 
-      const list =
-        Array.isArray(data)
-          ? data
-          : data?.data ||
-            data?.items ||
-            [];
-
-      setRiders(list);
+      setRiders(data || []);
     } catch (err) {
       console.error(
         "Failed to load riders:",
@@ -591,7 +349,7 @@ export default function AdminPickupsPage() {
 
   /*
   |--------------------------------------------------------------------------
-  | Generic action
+  | Pickup action
   |--------------------------------------------------------------------------
   */
 
@@ -618,19 +376,51 @@ export default function AdminPickupsPage() {
       setActionLoading(action);
       setError("");
 
-      const payload =
-        await apiRequest(
-          `${PICKUPS_ENDPOINT}/${encodeURIComponent(
-            requestNumber
-          )}/${action}`,
-          {
-            method: "POST",
-            body,
-          }
-        );
+      let updated = null;
 
-      const updated =
-        getPickupData(payload);
+      switch (action) {
+        case "assign":
+          updated =
+            await assignPickup(
+              requestNumber,
+              body
+            );
+          break;
+
+        case "start":
+          updated =
+            await startPickup(
+              requestNumber
+            );
+          break;
+
+        case "arrive":
+          updated =
+            await arrivePickup(
+              requestNumber
+            );
+          break;
+
+        case "complete":
+          updated =
+            await completePickup(
+              requestNumber
+            );
+          break;
+
+        case "fail":
+          updated =
+            await failPickup(
+              requestNumber,
+              body
+            );
+          break;
+
+        default:
+          throw new Error(
+            `Unsupported pickup action: ${action}`
+          );
+      }
 
       if (updated) {
         setSelectedPickup(updated);
@@ -657,7 +447,7 @@ export default function AdminPickupsPage() {
 
   /*
   |--------------------------------------------------------------------------
-  | Assign
+  | Assign rider
   |--------------------------------------------------------------------------
   */
 
@@ -684,7 +474,7 @@ export default function AdminPickupsPage() {
 
   /*
   |--------------------------------------------------------------------------
-  | Fail
+  | Fail pickup
   |--------------------------------------------------------------------------
   */
 
@@ -713,7 +503,7 @@ export default function AdminPickupsPage() {
 
   /*
   |--------------------------------------------------------------------------
-  | Derived data
+  | Pagination
   |--------------------------------------------------------------------------
   */
 
@@ -740,6 +530,12 @@ export default function AdminPickupsPage() {
   const canNext =
     currentPage < lastPage;
 
+  /*
+  |--------------------------------------------------------------------------
+  | Summary
+  |--------------------------------------------------------------------------
+  */
+
   const summary = useMemo(() => {
     return {
       total: pickups.length,
@@ -752,12 +548,13 @@ export default function AdminPickupsPage() {
 
       assigned: pickups.filter(
         (pickup) =>
-          pickup.status ===
-            STATUS.ASSIGNED ||
-          pickup.status ===
-            STATUS.STARTED ||
-          pickup.status ===
-            STATUS.ARRIVED
+          [
+            STATUS.ASSIGNED,
+            STATUS.STARTED,
+            STATUS.ARRIVED,
+          ].includes(
+            pickup.status
+          )
       ).length,
 
       completed: pickups.filter(
@@ -777,6 +574,7 @@ export default function AdminPickupsPage() {
   return (
     <div className="min-h-screen bg-gray-50 p-4 sm:p-6 lg:p-8">
       <div className="mx-auto max-w-[1600px] space-y-6">
+
         {/* Header */}
 
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
@@ -810,12 +608,11 @@ export default function AdminPickupsPage() {
             className="inline-flex items-center justify-center gap-2 rounded-lg border border-gray-200 bg-white px-4 py-2.5 text-sm font-semibold text-gray-700 shadow-sm transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60"
           >
             <RefreshCw
-              className={[
-                "h-4 w-4",
+              className={
                 refreshing
-                  ? "animate-spin"
-                  : "",
-              ].join(" ")}
+                  ? "h-4 w-4 animate-spin"
+                  : "h-4 w-4"
+              }
             />
 
             Refresh
@@ -844,23 +641,29 @@ export default function AdminPickupsPage() {
           </div>
         )}
 
-        {/* Summary cards */}
+        {/* Summary */}
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
           <SummaryCard
-            icon={<Package className="h-5 w-5" />}
+            icon={
+              <Package className="h-5 w-5" />
+            }
             label="Total"
             value={summary.total}
           />
 
           <SummaryCard
-            icon={<Clock className="h-5 w-5" />}
+            icon={
+              <Clock className="h-5 w-5" />
+            }
             label="Requested"
             value={summary.requested}
           />
 
           <SummaryCard
-            icon={<Truck className="h-5 w-5" />}
+            icon={
+              <Truck className="h-5 w-5" />
+            }
             label="In Progress"
             value={summary.assigned}
           />
@@ -1045,11 +848,6 @@ export default function AdminPickupsPage() {
                         currentPage - 1;
 
                       setPage(next);
-
-                      fetchPickups({
-                        requestedPage:
-                          next,
-                      });
                     }}
                     className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-gray-200 bg-white text-gray-600 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40"
                   >
@@ -1071,11 +869,6 @@ export default function AdminPickupsPage() {
                         currentPage + 1;
 
                       setPage(next);
-
-                      fetchPickups({
-                        requestedPage:
-                          next,
-                      });
                     }}
                     className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-gray-200 bg-white text-gray-600 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40"
                   >
@@ -1087,7 +880,7 @@ export default function AdminPickupsPage() {
         </div>
       </div>
 
-      {/* Details drawer */}
+      {/* Details */}
 
       {selectedPickup && (
         <PickupDetailsDrawer
@@ -1115,7 +908,7 @@ export default function AdminPickupsPage() {
         />
       )}
 
-      {/* Assign modal */}
+      {/* Assign */}
 
       {showAssignModal && (
         <AssignRiderModal
@@ -1139,7 +932,7 @@ export default function AdminPickupsPage() {
         />
       )}
 
-      {/* Failure modal */}
+      {/* Fail */}
 
       {showFailModal && (
         <FailPickupModal
@@ -1246,23 +1039,21 @@ function PickupRow({
   return (
     <tr className="transition hover:bg-gray-50/80">
       <td className="px-5 py-4 align-top">
-        <div>
-          <p className="font-semibold text-gray-900">
-            {pickup.request_number ||
-              `#${pickup.id}`}
-          </p>
+        <p className="font-semibold text-gray-900">
+          {pickup.request_number ||
+            `#${pickup.id}`}
+        </p>
 
-          {pickup.store_reference && (
-            <p className="mt-1 text-xs text-gray-500">
-              Ref:{" "}
-              <span className="font-medium text-gray-700">
-                {
-                  pickup.store_reference
-                }
-              </span>
-            </p>
-          )}
-        </div>
+        {pickup.store_reference && (
+          <p className="mt-1 text-xs text-gray-500">
+            Ref:{" "}
+            <span className="font-medium text-gray-700">
+              {
+                pickup.store_reference
+              }
+            </span>
+          </p>
+        )}
       </td>
 
       <td className="px-5 py-4 align-top">
@@ -1379,7 +1170,31 @@ function PickupRow({
 
 /*
 |--------------------------------------------------------------------------
-| Loading rows
+| Status Badge
+|--------------------------------------------------------------------------
+*/
+
+function StatusBadge({ status }) {
+  const meta =
+    getStatusMeta(status);
+
+  return (
+    <span
+      className={[
+        "inline-flex items-center rounded-full",
+        "px-2.5 py-1 text-xs font-semibold",
+        "ring-1 ring-inset",
+        meta.className,
+      ].join(" ")}
+    >
+      {meta.label}
+    </span>
+  );
+}
+
+/*
+|--------------------------------------------------------------------------
+| Loading
 |--------------------------------------------------------------------------
 */
 
@@ -1406,7 +1221,7 @@ function LoadingRows() {
 
 /*
 |--------------------------------------------------------------------------
-| Empty state
+| Empty
 |--------------------------------------------------------------------------
 */
 
@@ -1483,7 +1298,7 @@ function PickupDetailsDrawer({
       />
 
       <aside className="absolute right-0 top-0 flex h-full w-full max-w-2xl flex-col bg-white shadow-2xl">
-        {/* Drawer header */}
+        {/* Header */}
 
         <div className="flex items-start justify-between border-b border-gray-200 px-6 py-5">
           <div>
@@ -1519,7 +1334,7 @@ function PickupDetailsDrawer({
           </button>
         </div>
 
-        {/* Drawer body */}
+        {/* Body */}
 
         <div className="flex-1 overflow-y-auto">
           {loading ? (
@@ -1528,6 +1343,7 @@ function PickupDetailsDrawer({
             </div>
           ) : (
             <div className="space-y-6 p-6">
+
               {/* Pickup contact */}
 
               <section>
@@ -1579,6 +1395,7 @@ function PickupDetailsDrawer({
 
                         <p className="mt-1 text-sm text-gray-700">
                           {pickup.pickup_address ||
+                            location?.address ||
                             "—"}
                         </p>
 
@@ -1589,12 +1406,8 @@ function PickupDetailsDrawer({
                               pickup.pickup_area,
                               pickup.pickup_city,
                             ]
-                              .filter(
-                                Boolean
-                              )
-                              .join(
-                                ", "
-                              )}
+                              .filter(Boolean)
+                              .join(", ")}
                           </p>
                         )}
                       </div>
@@ -1603,7 +1416,7 @@ function PickupDetailsDrawer({
                 </div>
               </section>
 
-              {/* Branch */}
+              {/* Routing */}
 
               <section>
                 <SectionTitle>
@@ -1614,26 +1427,22 @@ function PickupDetailsDrawer({
                   <RouteBox
                     label="Pickup Branch"
                     value={
-                      pickup.pickupBranch
-                        ?.name ||
-                      pickup.pickup_branch
-                        ?.name ||
-                      pickup.pickup_branch_id
+                      pickup.pickupBranch?.name ||
+                      pickup.pickup_branch?.name ||
+                      (pickup.pickup_branch_id
                         ? `Branch #${pickup.pickup_branch_id}`
-                        : "—"
+                        : "—")
                     }
                   />
 
                   <RouteBox
                     label="Pickup Sub Branch"
                     value={
-                      pickup.pickupSubBranch
-                        ?.name ||
-                      pickup.pickup_sub_branch
-                        ?.name ||
-                      pickup.pickup_sub_branch_id
+                      pickup.pickupSubBranch?.name ||
+                      pickup.pickup_sub_branch?.name ||
+                      (pickup.pickup_sub_branch_id
                         ? `Sub branch #${pickup.pickup_sub_branch_id}`
-                        : "—"
+                        : "—")
                     }
                   />
 
@@ -1641,9 +1450,9 @@ function PickupDetailsDrawer({
                     label="Origin Branch"
                     value={
                       pickup.branch?.name ||
-                      pickup.branch_id
+                      (pickup.branch_id
                         ? `Branch #${pickup.branch_id}`
-                        : "—"
+                        : "—")
                     }
                   />
 
@@ -1651,9 +1460,9 @@ function PickupDetailsDrawer({
                     label="Origin Sub Branch"
                     value={
                       pickup.subBranch?.name ||
-                      pickup.sub_branch_id
+                      (pickup.sub_branch_id
                         ? `Sub branch #${pickup.sub_branch_id}`
-                        : "—"
+                        : "—")
                     }
                   />
                 </div>
@@ -1707,7 +1516,6 @@ function PickupDetailsDrawer({
                         {rider.phone && (
                           <p className="mt-1 flex items-center gap-1 text-sm text-gray-500">
                             <Phone className="h-3.5 w-3.5" />
-
                             {rider.phone}
                           </p>
                         )}
@@ -1736,8 +1544,7 @@ function PickupDetailsDrawer({
                 </div>
 
                 <div className="overflow-hidden rounded-xl border border-gray-200">
-                  {shipments.length ===
-                  0 ? (
+                  {shipments.length === 0 ? (
                     <div className="p-6 text-center text-sm text-gray-500">
                       No shipments attached.
                     </div>
@@ -1922,7 +1729,7 @@ function PickupDetailsDrawer({
 
 /*
 |--------------------------------------------------------------------------
-| Pickup actions
+| Pickup Actions
 |--------------------------------------------------------------------------
 */
 
@@ -1964,13 +1771,11 @@ function PickupActions({
           className="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-4 py-2.5 text-sm font-semibold text-gray-700 transition hover:bg-gray-50 disabled:opacity-50"
         >
           <UserCheck className="h-4 w-4" />
-
           Assign / Reassign
         </button>
       )}
 
-      {status ===
-        STATUS.ASSIGNED && (
+      {status === STATUS.ASSIGNED && (
         <button
           type="button"
           onClick={onStart}
@@ -1988,8 +1793,7 @@ function PickupActions({
         </button>
       )}
 
-      {status ===
-        STATUS.STARTED && (
+      {status === STATUS.STARTED && (
         <button
           type="button"
           onClick={onArrive}
@@ -2007,8 +1811,7 @@ function PickupActions({
         </button>
       )}
 
-      {status ===
-        STATUS.ARRIVED && (
+      {status === STATUS.ARRIVED && (
         <button
           type="button"
           onClick={onComplete}
@@ -2039,7 +1842,6 @@ function PickupActions({
           className="inline-flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-4 py-2.5 text-sm font-semibold text-red-700 transition hover:bg-red-100 disabled:opacity-50"
         >
           <XCircle className="h-4 w-4" />
-
           Fail Pickup
         </button>
       )}
@@ -2049,7 +1851,7 @@ function PickupActions({
 
 /*
 |--------------------------------------------------------------------------
-| Assign rider modal
+| Assign Rider Modal
 |--------------------------------------------------------------------------
 */
 
@@ -2138,7 +1940,7 @@ function AssignRiderModal({
 
 /*
 |--------------------------------------------------------------------------
-| Fail modal
+| Fail Modal
 |--------------------------------------------------------------------------
 */
 
@@ -2256,7 +2058,7 @@ function Modal({
 
 /*
 |--------------------------------------------------------------------------
-| Detail item
+| Detail Item
 |--------------------------------------------------------------------------
 */
 
@@ -2279,7 +2081,7 @@ function DetailItem({
 
 /*
 |--------------------------------------------------------------------------
-| Route box
+| Route Box
 |--------------------------------------------------------------------------
 */
 
@@ -2302,7 +2104,7 @@ function RouteBox({
 
 /*
 |--------------------------------------------------------------------------
-| Section title
+| Section Title
 |--------------------------------------------------------------------------
 */
 
