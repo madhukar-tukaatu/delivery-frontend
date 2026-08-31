@@ -45,6 +45,28 @@ const STATUS_OPTIONS = [
   "cancelled",
 ];
 
+function formatStatus(value) {
+  if (!value) {
+    return "-";
+  }
+
+  return String(value)
+    .replaceAll("_", " ")
+    .toUpperCase();
+}
+
+function statusTag(status) {
+  if (!status) {
+    return "-";
+  }
+
+  return (
+    <Tag>
+      {formatStatus(status)}
+    </Tag>
+  );
+}
+
 function branchLabel(branch) {
   if (!branch) {
     return "-";
@@ -62,17 +84,21 @@ function branchLabel(branch) {
     .join(", ") || "-";
 }
 
-function statusTag(status) {
-  if (!status) {
+function staffLabel(staff) {
+  if (!staff) {
     return "-";
   }
 
+  if (typeof staff === "string") {
+    return staff;
+  }
+
   return (
-    <Tag>
-      {String(status)
-        .replaceAll("_", " ")
-        .toUpperCase()}
-    </Tag>
+    staff.name ||
+    staff.full_name ||
+    staff.username ||
+    staff.email ||
+    "-"
   );
 }
 
@@ -96,41 +122,43 @@ export default function PickupsPage() {
     useState({
       search: "",
       status: undefined,
-      branch_id: undefined,
     });
 
   async function load(
     page = 1,
-    pageSize = 20
+    pageSize = 20,
+    overrideFilters = null
   ) {
     try {
       setLoading(true);
+
+      const activeFilters =
+        overrideFilters ?? filters;
 
       const params = {
         page,
         per_page: pageSize,
       };
 
-      if (filters.search?.trim()) {
+      if (
+        activeFilters.search?.trim()
+      ) {
         params.search =
-          filters.search.trim();
+          activeFilters.search.trim();
       }
 
-      if (filters.status) {
+      if (activeFilters.status) {
         params.status =
-          filters.status;
+          activeFilters.status;
       }
 
       /*
-       * Super admin can use this.
+       * DO NOT send an arbitrary branch_id
+       * from a branch manager.
        *
-       * Branch users must still be
-       * restricted by backend.
+       * Backend branch.scope middleware/controller
+       * decides which pickups are visible.
        */
-      if (filters.branch_id) {
-        params.branch_id =
-          filters.branch_id;
-      }
 
       const result =
         await getPickups(params);
@@ -152,7 +180,7 @@ export default function PickupsPage() {
     } catch (error) {
       message.error(
         error?.response?.data?.message ||
-        "Could not load pickups."
+          "Could not load pickups."
       );
     } finally {
       setLoading(false);
@@ -160,7 +188,7 @@ export default function PickupsPage() {
   }
 
   useEffect(() => {
-    load();
+    load(1, 20);
 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -175,19 +203,26 @@ export default function PickupsPage() {
     }));
   }
 
+  function search() {
+    load(
+      1,
+      pagination.pageSize
+    );
+  }
+
   function resetFilters() {
-    setFilters({
+    const reset = {
       search: "",
       status: undefined,
-      branch_id: undefined,
-    });
+    };
 
-    setTimeout(() => {
-      load(
-        1,
-        pagination.pageSize
-      );
-    }, 0);
+    setFilters(reset);
+
+    load(
+      1,
+      pagination.pageSize,
+      reset
+    );
   }
 
   const columns = [
@@ -210,7 +245,8 @@ export default function PickupsPage() {
             )
           }
         >
-          {value || `#${record.id}`}
+          {value ||
+            `#${record.id}`}
         </Button>
       ),
     },
@@ -220,6 +256,7 @@ export default function PickupsPage() {
       key: "merchant",
       render: (_, record) =>
         record.merchant?.name ||
+        record.merchant_name ||
         "-",
     },
 
@@ -233,6 +270,7 @@ export default function PickupsPage() {
         >
           <Text strong>
             {record.pickup_name ||
+              record.pickupLocation?.name ||
               "-"}
           </Text>
 
@@ -261,7 +299,7 @@ export default function PickupsPage() {
           <Text type="secondary">
             {branchLabel(
               record.subBranch ||
-              record.sub_branch
+                record.sub_branch
             )}
           </Text>
         </Space>
@@ -278,13 +316,19 @@ export default function PickupsPage() {
     },
 
     {
-      title: "Assigned",
+      title: "Assigned To",
       key: "assigned",
       render: (_, record) =>
-        record.assignedStaff?.name ||
-        record.assigned_staff?.name ||
-        record.assigned_to ||
-        "-",
+        staffLabel(
+          record.assignedStaff ||
+            record.assigned_staff
+        ) !== "-"
+          ? staffLabel(
+              record.assignedStaff ||
+                record.assigned_staff
+            )
+          : record.assigned_to ||
+            "-",
     },
 
     {
@@ -296,7 +340,8 @@ export default function PickupsPage() {
             record.shipments
           )
             ? record.shipments.length
-            : record.shipment_count ?? 0;
+            : record.shipment_count ??
+              0;
 
         return count;
       },
@@ -312,9 +357,12 @@ export default function PickupsPage() {
     {
       title: "Actions",
       key: "actions",
+      fixed: "right",
       render: (_, record) => (
         <Button
-          icon={<EyeOutlined />}
+          icon={
+            <EyeOutlined />
+          }
           onClick={() =>
             router.push(
               `/admin/pickups/${record.id}`
@@ -352,7 +400,8 @@ export default function PickupsPage() {
             </Title>
 
             <Text type="secondary">
-              Branch pickup requests
+              Manage pickup requests
+              for your branch
             </Text>
           </Col>
 
@@ -387,19 +436,16 @@ export default function PickupsPage() {
                 <SearchOutlined />
               }
               placeholder="Request number / pickup name / phone"
-              value={filters.search}
+              value={
+                filters.search
+              }
               onChange={(event) =>
                 updateFilter(
                   "search",
                   event.target.value
                 )
               }
-              onPressEnter={() =>
-                load(
-                  1,
-                  pagination.pageSize
-                )
-              }
+              onPressEnter={search}
             />
           </Col>
 
@@ -413,7 +459,9 @@ export default function PickupsPage() {
                 width: "100%",
               }}
               placeholder="Status"
-              value={filters.status}
+              value={
+                filters.status
+              }
               onChange={(value) =>
                 updateFilter(
                   "status",
@@ -424,12 +472,9 @@ export default function PickupsPage() {
                 (value) => ({
                   value,
                   label:
-                    value
-                      .replaceAll(
-                        "_",
-                        " "
-                      )
-                      .toUpperCase(),
+                    formatStatus(
+                      value
+                    ),
                 })
               )}
             />
@@ -442,12 +487,7 @@ export default function PickupsPage() {
             <Button
               type="primary"
               block
-              onClick={() =>
-                load(
-                  1,
-                  pagination.pageSize
-                )
-              }
+              onClick={search}
             >
               Search
             </Button>
