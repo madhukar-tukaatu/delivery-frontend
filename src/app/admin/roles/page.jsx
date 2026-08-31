@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  useCallback,
   useEffect,
   useState,
 } from "react";
@@ -10,6 +11,7 @@ import {
   Button,
   Card,
   Space,
+  Tag,
   Typography,
   message,
 } from "antd";
@@ -43,6 +45,12 @@ const {
   Text,
 } = Typography;
 
+/*
+|--------------------------------------------------------------------------
+| Roles & Permissions Page
+|--------------------------------------------------------------------------
+*/
+
 export default function RolesPage() {
   const [
     permissionGroups,
@@ -70,90 +78,148 @@ export default function RolesPage() {
   |--------------------------------------------------------------------------
   */
 
-  useEffect(() => {
-    loadPermissions();
-  }, []);
+  const loadPermissions = useCallback(
+    async () => {
+      try {
+        setLoadingPermissions(true);
 
-  async function loadPermissions() {
-    try {
-      setLoadingPermissions(
-        true
-      );
+        const data =
+          await getPermissions();
 
-      const data =
-        await getPermissions();
+        const normalized =
+          normalizePermissionGroups(
+            data
+          );
 
-      setPermissionGroups(
-        normalizePermissionGroups(
-          data
-        )
-      );
-    } catch (error) {
-      console.error(
-        error
-      );
+        setPermissionGroups(
+          Array.isArray(normalized)
+            ? normalized
+            : []
+        );
+      } catch (error) {
+        console.error(
+          "Failed to load permissions:",
+          error
+        );
 
-      message.error(
-        "Failed to load permissions."
-      );
+        setPermissionGroups([]);
 
-      setPermissionGroups(
-        []
-      );
-    } finally {
-      setLoadingPermissions(
-        false
-      );
-    }
-  }
+        message.error(
+          error?.response?.data?.message ||
+            error?.message ||
+            "Failed to load permissions."
+        );
+      } finally {
+        setLoadingPermissions(false);
+      }
+    },
+    []
+  );
 
   /*
   |--------------------------------------------------------------------------
-  | Sync access
+  | Initial load
   |--------------------------------------------------------------------------
   */
 
-  async function handleSyncAccess() {
-    try {
-      setSyncing(true);
+  useEffect(() => {
+    loadPermissions();
+  }, [loadPermissions]);
 
-      await syncPermissions();
+  /*
+  |--------------------------------------------------------------------------
+  | Sync access permissions
+  |--------------------------------------------------------------------------
+  */
 
-      message.success(
-        "Access permissions synchronized successfully."
-      );
-
-      await loadPermissions();
-
-      setRefresh(
-        (value) =>
-          value + 1
-      );
-    } catch (error) {
-      console.error(
-        error
-      );
-
-      const output =
-        error?.response?.data
-          ?.output;
-
-      message.error(
-        error?.response?.data
-          ?.message ||
-          "Access synchronization failed."
-      );
-
-      if (output) {
-        console.error(
-          "Sync output:",
-          output
-        );
+  const handleSyncAccess =
+    useCallback(async () => {
+      if (syncing) {
+        return;
       }
-    } finally {
-      setSyncing(false);
-    }
-  }
+
+      try {
+        setSyncing(true);
+
+        const response =
+          await syncPermissions();
+
+        console.log(
+          "Access synchronization response:",
+          response
+        );
+
+        message.success(
+          "Access permissions synchronized successfully."
+        );
+
+        /*
+         * Reload permission catalog after
+         * Laravel route permissions are synced.
+         */
+        await loadPermissions();
+
+        /*
+         * Reload roles table because
+         * role permission relationships may
+         * have changed after synchronization.
+         */
+        setRefresh(
+          (value) => value + 1
+        );
+      } catch (error) {
+        console.error(
+          "Access synchronization failed:",
+          error
+        );
+
+        const responseData =
+          error?.response?.data;
+
+        const output =
+          responseData?.output;
+
+        if (output) {
+          console.error(
+            "Access sync output:",
+            output
+          );
+        }
+
+        message.error(
+          responseData?.message ||
+            error?.message ||
+            "Access synchronization failed."
+        );
+      } finally {
+        setSyncing(false);
+      }
+    }, [
+      loadPermissions,
+      syncing,
+    ]);
+
+  /*
+  |--------------------------------------------------------------------------
+  | Refresh roles table after CRUD
+  |--------------------------------------------------------------------------
+  */
+
+  const handleSuccess =
+    useCallback(() => {
+      setRefresh(
+        (value) => value + 1
+      );
+
+      /*
+       * Permission changes made through
+       * role CRUD should also refresh the
+       * permission-related UI.
+       */
+      loadPermissions();
+    }, [
+      loadPermissions,
+    ]);
 
   /*
   |--------------------------------------------------------------------------
@@ -169,14 +235,14 @@ export default function RolesPage() {
 
       key: "name",
 
-      render: (
-        value
-      ) => (
+      width: 180,
+
+      render: (value) => (
         <Text
           strong
           code
         >
-          {value}
+          {value || "—"}
         </Text>
       ),
     },
@@ -188,28 +254,27 @@ export default function RolesPage() {
 
       key: "label",
 
+      width: 180,
+
       render: (
         value,
         record
       ) =>
         value ||
         prettifyLabel(
-          record.name
+          record?.name
         ),
     },
 
     {
-      title:
-        "Description",
+      title: "Description",
 
       dataIndex:
         "description",
 
       key: "description",
 
-      render: (
-        value
-      ) =>
+      render: (value) =>
         value || (
           <Text type="secondary">
             No description
@@ -218,10 +283,11 @@ export default function RolesPage() {
     },
 
     {
-      title:
-        "Permissions",
+      title: "Permissions",
 
       key: "permissions",
+
+      width: 300,
 
       render: (
         _,
@@ -229,8 +295,11 @@ export default function RolesPage() {
       ) => (
         <RolePermissions
           permissions={
-            record.permissions ||
-            []
+            Array.isArray(
+              record?.permissions
+            )
+              ? record.permissions
+              : []
           }
           limit={5}
         />
@@ -244,15 +313,18 @@ export default function RolesPage() {
 
       width: 80,
 
+      align: "center",
+
       render: (
         _,
         record
       ) => {
         const count =
-          record
-            .permissions
-            ?.length ||
-          0;
+          Array.isArray(
+            record?.permissions
+          )
+            ? record.permissions.length
+            : 0;
 
         return (
           <Text strong>
@@ -267,12 +339,14 @@ export default function RolesPage() {
 
       key: "type",
 
+      width: 110,
+
       render: (
         _,
         record
       ) => {
         if (
-          record.name ===
+          record?.name ===
           "super_admin"
         ) {
           return (
@@ -283,7 +357,7 @@ export default function RolesPage() {
         }
 
         if (
-          record.is_system
+          record?.is_system
         ) {
           return (
             <Tag color="orange">
@@ -303,19 +377,6 @@ export default function RolesPage() {
 
   /*
   |--------------------------------------------------------------------------
-  | Refresh table
-  |--------------------------------------------------------------------------
-  */
-
-  function handleSuccess() {
-    setRefresh(
-      (value) =>
-        value + 1
-    );
-  }
-
-  /*
-  |--------------------------------------------------------------------------
   | Page
   |--------------------------------------------------------------------------
   */
@@ -324,11 +385,14 @@ export default function RolesPage() {
     <div
       style={{
         display: "flex",
-        flexDirection:
-          "column",
+        flexDirection: "column",
         gap: 20,
       }}
     >
+      {/* --------------------------------------------------------------- */}
+      {/* Header                                                          */}
+      {/* --------------------------------------------------------------- */}
+
       <Card>
         <Space
           style={{
@@ -338,10 +402,13 @@ export default function RolesPage() {
           }}
           wrap
         >
-          <Space>
+          <Space
+            align="start"
+          >
             <SafetyOutlined
               style={{
                 fontSize: 22,
+                marginTop: 4,
               }}
             />
 
@@ -356,10 +423,9 @@ export default function RolesPage() {
               </Typography.Title>
 
               <Text type="secondary">
-                Manage roles and
-                synchronize
-                permissions from
-                Laravel routes.
+                Manage administrator roles,
+                permissions and access
+                control.
               </Text>
             </div>
           </Space>
@@ -378,20 +444,38 @@ export default function RolesPage() {
         </Space>
       </Card>
 
+      {/* --------------------------------------------------------------- */}
+      {/* Synchronization information                                     */}
+      {/* --------------------------------------------------------------- */}
+
       <Alert
         type="info"
         showIcon
         message="Access synchronization"
-        description="Sync Access runs the Laravel access:sync-routes command through app:sync-access. After synchronization, the permission catalog is reloaded automatically."
+        description={
+          <>
+            Sync Access synchronizes
+            permissions from the Laravel
+            application routes through
+            <Text code>
+              app:sync-access
+            </Text>
+            . The permission catalog and
+            roles table are reloaded after
+            synchronization.
+          </>
+        }
       />
+
+      {/* --------------------------------------------------------------- */}
+      {/* Roles                                                           */}
+      {/* --------------------------------------------------------------- */}
 
       <SimpleTablePageWithCRUD
         title="Roles"
         endpoint="/admin/roles"
         columns={columns}
-        reloadKey={
-          refresh
-        }
+        reloadKey={refresh}
         modalForm={
           <RoleForm
             permissionGroups={
@@ -406,6 +490,10 @@ export default function RolesPage() {
           />
         }
       />
+
+      {/* --------------------------------------------------------------- */}
+      {/* Permission Catalog                                              */}
+      {/* --------------------------------------------------------------- */}
 
       <PermissionCatalog
         groups={
