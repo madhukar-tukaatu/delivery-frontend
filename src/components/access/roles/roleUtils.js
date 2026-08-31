@@ -5,7 +5,9 @@
  *      ↓
  * Branches Sub Offices
  */
-export function prettifyLabel(value = "") {
+export function prettifyLabel(
+  value = ""
+) {
   return String(value)
     .replaceAll("-", "_")
     .replaceAll("_", " ")
@@ -24,15 +26,23 @@ export function prettifyLabel(value = "") {
 export function prettifyPermission(
   permission = ""
 ) {
-  const parts = String(permission).split(".");
+  const parts =
+    String(permission).split(
+      "."
+    );
 
   if (parts.length === 1) {
-    return prettifyLabel(permission);
+    return prettifyLabel(
+      permission
+    );
   }
 
-  const action = parts.pop();
+  const action =
+    parts.pop();
 
-  return `${prettifyLabel(action)} ${prettifyLabel(
+  return `${prettifyLabel(
+    action
+  )} ${prettifyLabel(
     parts.join(" ")
   )}`;
 }
@@ -43,11 +53,15 @@ export function prettifyPermission(
 export function getPermissionColor(
   permission = ""
 ) {
-  if (permission.endsWith(".view")) {
+  if (
+    permission.endsWith(".view")
+  ) {
     return "blue";
   }
 
-  if (permission.endsWith(".create")) {
+  if (
+    permission.endsWith(".create")
+  ) {
     return "green";
   }
 
@@ -58,23 +72,33 @@ export function getPermissionColor(
     return "orange";
   }
 
-  if (permission.endsWith(".delete")) {
+  if (
+    permission.endsWith(".delete")
+  ) {
     return "red";
   }
 
-  if (permission.endsWith(".approve")) {
+  if (
+    permission.endsWith(".approve")
+  ) {
     return "purple";
   }
 
-  if (permission.endsWith(".reject")) {
+  if (
+    permission.endsWith(".reject")
+  ) {
     return "magenta";
   }
 
-  if (permission.endsWith(".status")) {
+  if (
+    permission.endsWith(".status")
+  ) {
     return "cyan";
   }
 
-  if (permission.endsWith(".manage")) {
+  if (
+    permission.endsWith(".manage")
+  ) {
     return "volcano";
   }
 
@@ -82,15 +106,23 @@ export function getPermissionColor(
 }
 
 /**
- * Normalize a permission object/string.
+ * Normalize one permission.
  */
 export function normalizePermission(
   permission
 ) {
-  if (typeof permission === "string") {
+  if (
+    typeof permission ===
+    "string"
+  ) {
     return {
       name: permission,
-      label: prettifyPermission(permission),
+
+      label:
+        prettifyPermission(
+          permission
+        ),
+
       description: "",
     };
   }
@@ -101,27 +133,42 @@ export function normalizePermission(
 
   return {
     id: permission.id,
+
     name: permission.name,
+
+    group:
+      permission.group || null,
+
     label:
       permission.label ||
-      prettifyPermission(permission.name),
+      prettifyPermission(
+        permission.name
+      ),
+
     description:
-      permission.description || "",
+      permission.description ||
+      "",
   };
 }
 
 /**
- * Normalize permission collection.
+ * Normalize permissions.
  */
 export function normalizePermissions(
   permissions = []
 ) {
-  if (!Array.isArray(permissions)) {
+  if (
+    !Array.isArray(
+      permissions
+    )
+  ) {
     return [];
   }
 
   return permissions
-    .map(normalizePermission)
+    .map(
+      normalizePermission
+    )
     .filter(
       (permission) =>
         permission?.name
@@ -129,23 +176,8 @@ export function normalizePermissions(
 }
 
 /**
- * Normalize grouped permission API response.
- *
- * Supports:
- *
- * [
- *   {
- *      group_key: "branches",
- *      group_label: "Branches",
- *      permissions: [...]
- *   }
- * ]
- *
- * and also:
- *
- * {
- *    branches: [...]
- * }
+ * Normalize grouped permission
+ * API response.
  */
 export function normalizePermissionGroups(
   raw
@@ -154,37 +186,44 @@ export function normalizePermissionGroups(
     return [];
   }
 
-  if (Array.isArray(raw)) {
+  if (
+    Array.isArray(raw)
+  ) {
     return raw
-      .map((group) => ({
-        key:
+      .map((group) => {
+        const key =
           group.group_key ||
           group.key ||
           group.group ||
-          "general",
+          "general";
 
-        label:
-          group.group_label ||
-          group.label ||
-          prettifyLabel(
-            group.group_key ||
-              group.key ||
-              group.group ||
-              "general"
-          ),
+        return {
+          key,
 
-        permissions:
-          normalizePermissions(
-            group.permissions || []
-          ),
-      }))
+          label:
+            group.group_label ||
+            group.label ||
+            prettifyLabel(
+              key
+            ),
+
+          permissions:
+            normalizePermissions(
+              group.permissions ||
+                []
+            ),
+        };
+      })
       .filter(
         (group) =>
-          group.permissions.length > 0
+          group.permissions
+            .length > 0
       );
   }
 
-  return Object.entries(raw)
+  return Object.entries(
+    raw
+  )
     .map(
       ([key, permissions]) => ({
         key:
@@ -197,31 +236,38 @@ export function normalizePermissionGroups(
 
         permissions:
           normalizePermissions(
-            permissions || []
+            permissions ||
+              []
           ),
       })
     )
     .filter(
       (group) =>
-        group.permissions.length > 0
+        group.permissions
+          .length > 0
     );
 }
 
 /**
- * Extract permission names from role.
+ * Extract permission names
+ * from a role.
  */
 export function getRolePermissionNames(
   role
 ) {
-  if (!role?.permissions) {
+  if (
+    !role?.permissions
+  ) {
     return [];
   }
 
   return role.permissions
-    .map((permission) =>
-      typeof permission === "string"
-        ? permission
-        : permission?.name
+    .map(
+      (permission) =>
+        typeof permission ===
+        "string"
+          ? permission
+          : permission?.name
     )
     .filter(Boolean);
 }

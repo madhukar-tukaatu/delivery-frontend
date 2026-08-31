@@ -17,15 +17,18 @@ export default function RolePermissions({
 }) {
   const normalized =
     permissions
-      .map((permission) =>
-        typeof permission ===
-        "string"
-          ? permission
-          : permission?.name
+      .map(
+        (permission) =>
+          typeof permission ===
+          "string"
+            ? permission
+            : permission?.name
       )
       .filter(Boolean);
 
-  if (!normalized.length) {
+  if (
+    !normalized.length
+  ) {
     return (
       <Tag>
         No permissions
@@ -35,35 +38,44 @@ export default function RolePermissions({
 
   return (
     <Space
-      size={[4, 4]}
+      size={[
+        4,
+        4,
+      ]}
       wrap
     >
       {normalized
         .slice(0, limit)
-        .map((permission) => (
-          <Tooltip
-            key={permission}
-            title={prettifyPermission(
-              permission
-            )}
-          >
-            <Tag
-              color={getPermissionColor(
+        .map(
+          (permission) => (
+            <Tooltip
+              key={
+                permission
+              }
+              title={prettifyPermission(
                 permission
               )}
-              style={{
-                margin: 0,
-              }}
             >
-              {permission}
-            </Tag>
-          </Tooltip>
-        ))}
+              <Tag
+                color={getPermissionColor(
+                  permission
+                )}
+                style={{
+                  margin: 0,
+                }}
+              >
+                {permission}
+              </Tag>
+            </Tooltip>
+          )
+        )}
 
       {normalized.length >
         limit && (
         <Tag>
-          +{normalized.length - limit}{" "}
+          +
+          {normalized.length -
+            limit}{" "}
           more
         </Tag>
       )}
