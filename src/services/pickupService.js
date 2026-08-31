@@ -1,272 +1,209 @@
 import api from "@/lib/api";
 
-/**
- * --------------------------------------------------------------------------
- * Admin / Branch Manager
- * --------------------------------------------------------------------------
- */
-
-/**
- * Get pickup requests.
- *
- * Backend applies branch scope.
- *
- * Super admin:
- *   - can see all authorized pickups
- *   - may optionally filter by branch_id
- *
- * Branch manager / branch staff:
- *   - backend restricts results to their branch scope
- */
-export async function getPickups(params = {}) {
-  const response = await api.get("/admin/pickups", {
-    params: {
-      per_page: 20,
-      ...params,
-    },
-  });
-
-  return normalizePickupListResponse(response, params);
+function unwrap(response) {
+  return response?.data?.data ?? response?.data ?? null;
 }
 
 /**
- * Get one pickup request.
+ * Normalize pickup list.
  */
-export async function getPickup(id) {
-  const response = await api.get(`/admin/pickups/${id}`);
-
-  return response.data?.data ?? response.data;
-}
-
-/**
- * Assign pickup to a staff/rider.
- *
- * Expected payload:
- *
- * {
- *   staff_id: 123
- * }
- *
- * The backend should verify that the staff member
- * belongs to the manager's authorized branch.
- */
-export async function assignPickup(id, payload) {
-  const response = await api.post(
-    `/admin/pickups/${id}/assign`,
-    payload
-  );
-
-  return response.data?.data ?? response.data;
-}
-
-/**
- * Fail pickup.
- */
-export async function failPickup(id, payload) {
-  const response = await api.post(
-    `/admin/pickups/${id}/fail`,
-    payload
-  );
-
-  return response.data?.data ?? response.data;
-}
-
-/**
- * Receive a shipment into the origin branch
- * after pickup collection.
- */
-export async function receivePickupShipment(
-  pickupId,
-  shipmentId,
-  payload = {}
+function normalizePickupList(
+  response,
+  params = {}
 ) {
-  const response = await api.post(
-    `/admin/pickups/${pickupId}/shipments/${shipmentId}/receive`,
-    payload
-  );
+  const payload = unwrap(response);
 
-  return response.data?.data ?? response.data;
-}
-
-/**
- * --------------------------------------------------------------------------
- * Staff / Rider
- * --------------------------------------------------------------------------
- */
-
-/**
- * Get pickup jobs assigned to the authenticated staff/rider.
- */
-export async function staffGetPickups(params = {}) {
-  const response = await api.get("/staff/pickups", {
-    params,
-  });
-
-  const payload =
-    response.data?.data ??
-    response.data;
-
-  /*
-   * Supports Laravel pagination as well as
-   * a plain array response.
-   */
   if (Array.isArray(payload)) {
-    return payload;
+    return {
+      list: payload,
+      currentPage: Number(
+        params.page ?? 1
+      ),
+      pageSize: Number(
+        params.per_page ?? 20
+      ),
+      total: payload.length,
+    };
   }
 
-  if (Array.isArray(payload?.data)) {
-    return payload.data;
+  return {
+    list: Array.isArray(payload?.data)
+      ? payload.data
+      : [],
+    currentPage: Number(
+      payload?.current_page ??
+      params.page ??
+      1
+    ),
+    pageSize: Number(
+      payload?.per_page ??
+      params.per_page ??
+      20
+    ),
+    total: Number(
+      payload?.total ?? 0
+    ),
+  };
+}
+
+/**
+ * Get pickups visible to the authenticated
+ * branch manager.
+ *
+ * Backend MUST apply branch scope.
+ *
+ * GET /admin/pickups
+ */
+export async function getPickups(
+  params = {}
+) {
+  const response = await api.get(
+    "/admin/pickups",
+    {
+      params: {
+        per_page: 20,
+        ...params,
+      },
+    }
+  );
+
+  return normalizePickupList(
+    response,
+    params
+  );
+}
+
+/**
+ * Get one pickup.
+ *
+ * GET /admin/pickups/{id}
+ */
+export async function getPickup(id) {
+  if (!id) {
+    throw new Error("Pickup ID is required.");
+  }
+
+  const response = await api.get(
+    `/admin/pickups/${id}`
+  );
+
+  return unwrap(response);
+}
+
+/**
+ * Get staff that can be assigned to this pickup.
+ *
+ * Backend MUST return only staff belonging
+ * to the authenticated manager's branch.
+ *
+ * GET /admin/pickups/{id}/assignable-staff
+ */
+export async function getPickupAssignableStaff(
+  id
+) {
+  if (!id) {
+    throw new Error("Pickup ID is required.");
+  }
+
+  const response = await api.get(
+    `/admin/pickups/${id}/assignable-staff`
+  );
+
+  const data = unwrap(response);
+
+  if (Array.isArray(data)) {
+    return data;
+  }
+
+  if (Array.isArray(data?.data)) {
+    return data.data;
   }
 
   return [];
 }
 
 /**
- * Staff accepts an assigned pickup.
+ * Assign pickup to branch staff.
  *
- * POST /staff/pickups/{pickup}/start
+ * POST /admin/pickups/{id}/assign
  *
- * Depending on your backend workflow, this can represent
- * the transition from assigned -> started.
+ * Payload:
+ *
+ * {
+ *   staff_id: 123
+ * }
  */
-export async function staffAcceptPickup(id, payload = {}) {
+export async function assignPickup(
+  id,
+  staffId
+) {
+  if (!id) {
+    throw new Error("Pickup ID is required.");
+  }
+
+  if (!staffId) {
+    throw new Error("Staff ID is required.");
+  }
+
   const response = await api.post(
-    `/staff/pickups/${id}/start`,
-    payload
+    `/admin/pickups/${id}/assign`,
+    {
+      staff_id: staffId,
+    }
   );
 
-  return response.data?.data ?? response.data;
+  return unwrap(response);
 }
 
 /**
- * Staff marks a pickup as arrived.
+ * Fail/cancel pickup from admin/branch manager side.
+ *
+ * POST /admin/pickups/{id}/fail
  */
-export async function staffArrivePickup(id, payload = {}) {
+export async function failPickup(
+  id,
+  reason
+) {
+  if (!id) {
+    throw new Error("Pickup ID is required.");
+  }
+
   const response = await api.post(
-    `/staff/pickups/${id}/arrive`,
-    payload
+    `/admin/pickups/${id}/fail`,
+    {
+      reason,
+    }
   );
 
-  return response.data?.data ?? response.data;
+  return unwrap(response);
 }
 
 /**
- * Staff collects one shipment.
+ * Receive shipment at origin branch after pickup.
+ *
+ * POST /admin/pickups/{pickup}/shipments/{shipment}/receive
  */
-export async function staffCollectShipment(
+export async function receivePickupShipment(
   pickupId,
   shipmentId,
   payload = {}
 ) {
+  if (!pickupId) {
+    throw new Error(
+      "Pickup ID is required."
+    );
+  }
+
+  if (!shipmentId) {
+    throw new Error(
+      "Shipment ID is required."
+    );
+  }
+
   const response = await api.post(
-    `/staff/pickups/${pickupId}/shipments/${shipmentId}/collect`,
+    `/admin/pickups/${pickupId}/shipments/${shipmentId}/receive`,
     payload
   );
 
-  return response.data?.data ?? response.data;
-}
-
-/**
- * Staff completes the pickup.
- */
-export async function staffCompletePickup(
-  id,
-  payload = {}
-) {
-  const response = await api.post(
-    `/staff/pickups/${id}/complete`,
-    payload
-  );
-
-  return response.data?.data ?? response.data;
-}
-
-/**
- * Staff fails the pickup.
- */
-export async function staffFailPickup(
-  id,
-  payload
-) {
-  const response = await api.post(
-    `/staff/pickups/${id}/fail`,
-    payload
-  );
-
-  return response.data?.data ?? response.data;
-}
-
-/**
- * Staff receives a shipment into the branch.
- *
- * Usually this is performed by branch receiving staff
- * rather than the pickup rider, but the API supports
- * the route defined by the backend.
- */
-export async function staffReceivePickupShipment(
-  pickupId,
-  shipmentId,
-  payload = {}
-) {
-  const response = await api.post(
-    `/staff/pickups/${pickupId}/shipments/${shipmentId}/receive`,
-    payload
-  );
-
-  return response.data?.data ?? response.data;
-}
-
-/**
- * --------------------------------------------------------------------------
- * Helpers
- * --------------------------------------------------------------------------
- */
-
-function normalizePickupListResponse(
-  response,
-  params = {}
-) {
-  const payload =
-    response?.data?.data ??
-    response?.data ??
-    response;
-
-  /*
-   * Laravel paginator:
-   *
-   * {
-   *   data: [...],
-   *   current_page: 1,
-   *   per_page: 20,
-   *   total: 100
-   * }
-   */
-
-  const list = Array.isArray(payload)
-    ? payload
-    : payload?.data ?? [];
-
-  return {
-    list: Array.isArray(list)
-      ? list
-      : [],
-
-    currentPage: Number(
-      payload?.current_page ??
-        params.page ??
-        1
-    ),
-
-    pageSize: Number(
-      payload?.per_page ??
-        params.per_page ??
-        20
-    ),
-
-    total: Number(
-      payload?.total ??
-        list.length ??
-        0
-    ),
-  };
+  return unwrap(response);
 }
