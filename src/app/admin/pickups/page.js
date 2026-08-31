@@ -93,7 +93,7 @@ export default function StaffPickupsPage() {
 
       message.error(
         error?.response?.data?.message ||
-          "Could not load pickups."
+          "Couldnt load pickups."
       );
     } finally {
       setLoading(false);
