@@ -37,6 +37,15 @@ export async function deleteRole(id) {
 
   return response.data?.data || null;
 }
+export async function toggleRole(id) {
+  if (!id) {
+    throw new Error("Role ID is required.");
+  }
+
+  const response = await api.post(`/admin/roles/${id}/toggle`);
+
+  return unwrap(response);
+}
 
 /*
 |--------------------------------------------------------------------------

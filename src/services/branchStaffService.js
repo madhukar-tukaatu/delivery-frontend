@@ -1,54 +1,65 @@
 import api from "@/lib/api";
 
 /**
- * Safely unwrap Laravel ApiResponse payloads.
+ * Safely unwrap Laravel ApiResponse.
  */
 function unwrap(response) {
-  return response?.data?.data ?? response?.data ?? null;
+  return (
+    response?.data?.data ??
+    response?.data ??
+    null
+  );
 }
 
 /**
- * Normalize paginated Laravel responses.
- *
- * Supports:
- *
- * {
- *   data: {
- *     current_page: 1,
- *     data: [],
- *     total: 10,
- *     per_page: 20
- *   }
- * }
- *
- * and simple arrays.
+ * Normalize Laravel pagination.
  */
 function normalizeList(response, params = {}) {
   const payload = unwrap(response);
 
+  /*
+   * Simple array response
+   */
   if (Array.isArray(payload)) {
     return {
       list: payload,
-      currentPage: Number(params.page ?? 1),
-      pageSize: Number(params.per_page ?? 20),
+      currentPage: Number(
+        params.page ?? 1
+      ),
+      pageSize: Number(
+        params.per_page ?? 20
+      ),
       total: payload.length,
     };
   }
 
+  /*
+   * Laravel paginator:
+   *
+   * {
+   *   current_page: 1,
+   *   data: [],
+   *   per_page: 20,
+   *   total: 100
+   * }
+   */
   return {
     list: Array.isArray(payload?.data)
       ? payload.data
       : [],
+
     currentPage: Number(
       payload?.current_page ??
       params.page ??
       1
     ),
+
     pageSize: Number(
       payload?.per_page ??
       params.per_page ??
       20
     ),
+
     total: Number(
       payload?.total ??
       0
@@ -57,25 +68,41 @@ function normalizeList(response, params = {}) {
 }
 
 /**
- * Get staff belonging to the authenticated
- * branch manager's branch.
- *
- * IMPORTANT:
- * The backend must determine the branch.
- *
- * Frontend must NOT send branch_id.
+ * ============================================================
+ * STAFF
+ * ============================================================
+ */
+
+/**
+ * Get staff.
  *
  * GET /admin/staff
+ *
+ * IMPORTANT:
+ *
+ * Do NOT send branch_id from the frontend
+ * for a branch manager.
+ *
+ * Backend branch.scope middleware/controller
+ * must determine the branch.
  */
-export async function getBranchStaff(params = {}) {
-  const response = await api.get("/admin/staff", {
-    params: {
-      per_page: 20,
-      ...params,
-    },
-  });
+export async function getBranchStaff(
+  params = {}
+) {
+  const response = await api.get(
+    "/admin/staff",
+    {
+      params: {
+        per_page: 20,
+        ...params,
+      },
+    }
+  );
 
-  return normalizeList(response, params);
+  return normalizeList(
+    response,
+    params
+  );
 }
 
 /**
@@ -83,9 +110,13 @@ export async function getBranchStaff(params = {}) {
  *
  * GET /admin/staff/{id}
  */
-export async function getBranchStaffMember(id) {
+export async function getBranchStaffMember(
+  id
+) {
   if (!id) {
-    throw new Error("Staff ID is required.");
+    throw new Error(
+      "Staff ID is required."
+    );
   }
 
   const response = await api.get(
@@ -96,17 +127,25 @@ export async function getBranchStaffMember(id) {
 }
 
 /**
- * Create a staff member.
- *
- * IMPORTANT:
- * Do not send branch_id from the branch-manager frontend.
- *
- * Backend should automatically assign the authenticated
- * branch manager's branch.
+ * Create staff.
  *
  * POST /admin/staff
+ *
+ * IMPORTANT:
+ *
+ * Do not send branch_id for branch managers.
+ *
+ * Backend should determine:
+ *
+ * authenticated user
+ *        ↓
+ * authenticated branch
+ *        ↓
+ * new staff branch
  */
-export async function createBranchStaff(payload) {
+export async function createBranchStaff(
+  payload
+) {
   const response = await api.post(
     "/admin/staff",
     payload
@@ -116,7 +155,7 @@ export async function createBranchStaff(payload) {
 }
 
 /**
- * Update a staff member.
+ * Update staff.
  *
  * PUT /admin/staff/{id}
  */
@@ -125,7 +164,9 @@ export async function updateBranchStaff(
   payload
 ) {
   if (!id) {
-    throw new Error("Staff ID is required.");
+    throw new Error(
+      "Staff ID is required."
+    );
   }
 
   const response = await api.put(
@@ -137,13 +178,17 @@ export async function updateBranchStaff(
 }
 
 /**
- * Delete/deactivate a staff member.
+ * Delete/deactivate staff.
  *
  * DELETE /admin/staff/{id}
  */
-export async function deleteBranchStaff(id) {
+export async function deleteBranchStaff(
+  id
+) {
   if (!id) {
-    throw new Error("Staff ID is required.");
+    throw new Error(
+      "Staff ID is required."
+    );
   }
 
   const response = await api.delete(
@@ -154,13 +199,17 @@ export async function deleteBranchStaff(id) {
 }
 
 /**
- * Enable/disable staff account.
+ * Toggle staff active status.
  *
  * POST /admin/staff/{id}/toggle
  */
-export async function toggleBranchStaff(id) {
+export async function toggleBranchStaff(
+  id
+) {
   if (!id) {
-    throw new Error("Staff ID is required.");
+    throw new Error(
+      "Staff ID is required."
+    );
   }
 
   const response = await api.post(
@@ -171,26 +220,99 @@ export async function toggleBranchStaff(id) {
 }
 
 /**
- * Get roles that can be used for branch staff.
+ * ============================================================
+ * ROLES
+ * ============================================================
  *
- * GET /admin/staff/roles
+ * IMPORTANT:
  *
- * Example roles:
+ * Roles are NOT staff-specific.
  *
- * - pickup_staff
- * - delivery_staff
- * - rider
+ * Your application already has:
+ *
+ * GET /admin/roles
+ *
+ * Therefore:
+ *
+ * DO NOT call:
+ *
+ * /admin/staff/roles
+ *
+ * ============================================================
  */
-export async function getBranchStaffRoles() {
+
+/**
+ * Get available roles.
+ *
+ * GET /admin/roles
+ *
+ * The backend should return only roles the
+ * authenticated user is allowed to manage/assign.
+ */
+export async function getStaffRoles(
+  params = {}
+) {
   const response = await api.get(
-    "/admin/staff/roles"
+    "/admin/roles",
+    {
+      params,
+    }
   );
 
-  const data = unwrap(response);
+  const payload = unwrap(response);
 
-  return Array.isArray(data)
-    ? data
-    : Array.isArray(data?.data)
-      ? data.data
-      : [];
+  /*
+   * Laravel paginator
+   */
+  if (
+    payload &&
+    Array.isArray(payload.data)
+  ) {
+    return payload.data;
+  }
+
+  /*
+   * Simple array
+   */
+  if (Array.isArray(payload)) {
+    return payload;
+  }
+
+  return [];
+}
+
+/**
+ * Backward-compatible name.
+ *
+ * If existing components call:
+ *
+ * getBranchStaffRoles()
+ *
+ * they will still work.
+ */
+export async function getBranchStaffRoles(
+  params = {}
+) {
+  return getStaffRoles(params);
+}
+
+/**
+ * Get role by ID.
+ *
+ * GET /admin/roles/{id}
+ */
+export async function getStaffRole(
+  id
+) {
+  if (!id) {
+    throw new Error(
+      "Role ID is required."
+    );
+  }
+
+  const response = await api.get(
+    `/admin/roles/${id}`
+  );
+
+  return unwrap(response);
 }

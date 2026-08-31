@@ -1,18 +1,19 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import React, {
+  useEffect,
+  useState,
+} from "react";
 
 import {
   Button,
   Card,
   Descriptions,
-  Drawer,
   Empty,
   Modal,
   Space,
   Table,
   Tag,
-  Typography,
   message,
 } from "antd";
 
@@ -24,301 +25,143 @@ import {
 
 import {
   staffAcceptPickup,
+  staffStartPickup,
   staffArrivePickup,
   staffCompletePickup,
   staffGetPickups,
-  staffStartPickup,
 } from "@/services/deliveryOperationsApi";
 
-const { Text } = Typography;
-
-function getStatusColor(status) {
-  switch (String(status || "").toLowerCase()) {
-    case "assigned":
-      return "blue";
-
-    case "accepted":
-      return "cyan";
-
-    case "started":
-    case "in_progress":
-      return "processing";
-
-    case "arrived":
-      return "gold";
-
-    case "completed":
-    case "picked_up":
-      return "green";
-
-    case "failed":
-    case "cancelled":
-      return "red";
-
-    default:
-      return "default";
-  }
+function getStatus(record) {
+  return String(
+    record?.status ?? ""
+  ).toLowerCase();
 }
 
-function formatStatus(status) {
-  if (!status) {
-    return "-";
-  }
+function getCustomerName(record) {
+  return (
+    record?.customer_name ||
+    record?.receiver_name ||
+    record?.customer?.name ||
+    "-"
+  );
+}
 
-  return String(status)
-    .replaceAll("_", " ")
-    .replace(/\b\w/g, (letter) =>
-      letter.toUpperCase()
-    );
+function getCustomerPhone(record) {
+  return (
+    record?.customer_phone ||
+    record?.receiver_phone ||
+    record?.customer?.phone ||
+    "-"
+  );
 }
 
 export default function StaffPickupsPage() {
-  const [rows, setRows] = useState([]);
+  const [rows, setRows] =
+    useState([]);
 
   const [loading, setLoading] =
     useState(false);
 
+  const [actionLoading, setActionLoading] =
+    useState(null);
+
   const [selectedPickup, setSelectedPickup] =
     useState(null);
 
-  const [detailsOpen, setDetailsOpen] =
-    useState(false);
-
-  const [actionLoading, setActionLoading] =
-    useState(false);
-
-  const load = useCallback(
-    async () => {
-      try {
-        setLoading(true);
-
-        const data =
-          await staffGetPickups();
-
-        setRows(
-          Array.isArray(data)
-            ? data
-            : []
-        );
-      } catch (error) {
-        console.error(error);
-
-        message.error(
-          error?.response?.data?.message ||
-          "Could not load pickups."
-        );
-      } finally {
-        setLoading(false);
-      }
-    },
-    []
-  );
-
-  useEffect(() => {
-    load();
-  }, [load]);
-
-  async function run(
-    action,
-    successMessage
-  ) {
+  const load = async () => {
     try {
-      setActionLoading(true);
+      setLoading(true);
 
-      await action();
+      const data =
+        await staffGetPickups();
 
-      message.success(
-        successMessage ||
-        "Pickup updated successfully."
+      setRows(
+        Array.isArray(data)
+          ? data
+          : []
       );
-
-      await load();
-
-      setDetailsOpen(false);
-      setSelectedPickup(null);
     } catch (error) {
       console.error(error);
 
       message.error(
         error?.response?.data?.message ||
-        "Action failed."
+          "Could not load pickups."
       );
     } finally {
-      setActionLoading(false);
+      setLoading(false);
     }
-  }
+  };
 
-  function openDetails(record) {
-    setSelectedPickup(record);
-    setDetailsOpen(true);
-  }
+  useEffect(() => {
+    load();
+  }, []);
 
-  function confirmComplete(record) {
-    Modal.confirm({
-      title: "Complete pickup?",
-      content:
-        "Confirm that the shipment(s) have been collected from the merchant.",
-      okText: "Complete Pickup",
-      okButtonProps: {
-        type: "primary",
-      },
-      onOk: () =>
-        run(
-          () =>
-            staffCompletePickup(
-              record.id,
-              {
-                note:
-                  "Pickup completed by staff.",
-              }
-            ),
-          "Pickup completed successfully."
-        ),
-    });
-  }
+  const run = async (
+    id,
+    action
+  ) => {
+    try {
+      setActionLoading(id);
 
-  function renderActions(record) {
-    const status =
-      String(
-        record.status || ""
-      ).toLowerCase();
+      await action();
 
-    if (
-      status === "assigned"
-    ) {
-      return (
-        <Button
-          type="primary"
-          icon={
-            <CheckCircleOutlined />
-          }
-          loading={actionLoading}
-          onClick={() =>
-            run(
-              () =>
-                staffAcceptPickup(
-                  record.id
-                ),
-              "Pickup accepted."
-            )
-          }
-        >
-          Accept
-        </Button>
+      message.success(
+        "Pickup updated successfully."
       );
-    }
 
-    if (
-      status === "accepted"
-    ) {
-      return (
-        <Button
-          type="primary"
-          icon={
-            <PlayCircleOutlined />
-          }
-          loading={actionLoading}
-          onClick={() =>
-            run(
-              () =>
-                staffStartPickup(
-                  record.id
-                ),
-              "Pickup started."
-            )
-          }
-        >
-          Start
-        </Button>
+      await load();
+    } catch (error) {
+      console.error(error);
+
+      message.error(
+        error?.response?.data?.message ||
+          "Pickup action failed."
       );
+    } finally {
+      setActionLoading(null);
     }
-
-    if (
-      status === "started" ||
-      status === "in_progress"
-    ) {
-      return (
-        <Button
-          type="primary"
-          icon={
-            <EnvironmentOutlined />
-          }
-          loading={actionLoading}
-          onClick={() =>
-            run(
-              () =>
-                staffArrivePickup(
-                  record.id
-                ),
-              "Arrival recorded."
-            )
-          }
-        >
-          Arrived
-        </Button>
-      );
-    }
-
-    if (
-      status === "arrived"
-    ) {
-      return (
-        <Button
-          type="primary"
-          icon={
-            <CheckCircleOutlined />
-          }
-          loading={actionLoading}
-          onClick={() =>
-            confirmComplete(record)
-          }
-        >
-          Complete
-        </Button>
-      );
-    }
-
-    return null;
-  }
+  };
 
   const columns = [
     {
       title: "Tracking",
-      dataIndex: "tracking_number",
-      key: "tracking_number",
-      render: (value, record) =>
-        value ||
-        record.shipment?.tracking_number ||
-        "-",
-    },
-
-    {
-      title: "Merchant",
-      dataIndex: "merchant_name",
-      key: "merchant_name",
-      render: (value, record) =>
-        value ||
-        record.merchant?.name ||
-        "-",
+      dataIndex:
+        "tracking_number",
+      key: "tracking",
     },
 
     {
       title: "Customer",
-      dataIndex: "customer_name",
-      key: "customer_name",
-      render: (value, record) =>
-        value ||
-        record.shipment?.customer_name ||
-        "-",
+      key: "customer",
+      render: (_, record) => (
+        <div>
+          <div>
+            {getCustomerName(
+              record
+            )}
+          </div>
+
+          <div
+            style={{
+              color: "#888",
+            }}
+          >
+            {getCustomerPhone(
+              record
+            )}
+          </div>
+        </div>
+      ),
     },
 
     {
-      title: "Phone",
-      dataIndex: "customer_phone",
-      key: "customer_phone",
-      render: (value, record) =>
-        value ||
-        record.shipment?.customer_phone ||
+      title: "Pickup Location",
+      key: "location",
+      render: (_, record) =>
+        record?.pickup_location
+          ?.name ||
+        record?.merchant?.name ||
+        record?.pickup_address ||
         "-",
     },
 
@@ -326,33 +169,127 @@ export default function StaffPickupsPage() {
       title: "Status",
       dataIndex: "status",
       key: "status",
-      render: (value) => (
-        <Tag
-          color={getStatusColor(
-            value
-          )}
-        >
-          {formatStatus(value)}
+      render: (status) => (
+        <Tag>
+          {status}
         </Tag>
       ),
     },
 
     {
-      title: "Action",
-      key: "action",
-      render: (_, record) => (
-        <Space>
-          <Button
-            onClick={() =>
-              openDetails(record)
-            }
-          >
-            View
-          </Button>
+      title: "Actions",
+      key: "actions",
+      render: (_, record) => {
+        const status =
+          getStatus(record);
 
-          {renderActions(record)}
-        </Space>
-      ),
+        const busy =
+          actionLoading ===
+          record.id;
+
+        return (
+          <Space wrap>
+            {status ===
+              "assigned" && (
+              <Button
+                type="primary"
+                icon={
+                  <CheckCircleOutlined />
+                }
+                loading={busy}
+                onClick={() =>
+                  run(
+                    record.id,
+                    () =>
+                      staffAcceptPickup(
+                        record.id
+                      )
+                  )
+                }
+              >
+                Accept
+              </Button>
+            )}
+
+            {status ===
+              "accepted" && (
+              <Button
+                type="primary"
+                icon={
+                  <PlayCircleOutlined />
+                }
+                loading={busy}
+                onClick={() =>
+                  run(
+                    record.id,
+                    () =>
+                      staffStartPickup(
+                        record.id
+                      )
+                  )
+                }
+              >
+                Start
+              </Button>
+            )}
+
+            {status ===
+              "started" && (
+              <Button
+                type="primary"
+                icon={
+                  <EnvironmentOutlined />
+                }
+                loading={busy}
+                onClick={() =>
+                  run(
+                    record.id,
+                    () =>
+                      staffArrivePickup(
+                        record.id
+                      )
+                  )
+                }
+              >
+                Arrived
+              </Button>
+            )}
+
+            {status ===
+              "arrived" && (
+              <Button
+                type="primary"
+                loading={busy}
+                onClick={() =>
+                  run(
+                    record.id,
+                    () =>
+                      staffCompletePickup(
+                        record.id,
+                        {
+                          note:
+                            "Pickup completed.",
+                        }
+                      )
+                  )
+                }
+              >
+                Complete
+              </Button>
+            )}
+
+            <Button
+              onClick={() =>
+                setSelectedPickup(
+                  record
+                )
+              }
+            >
+              View
+            </Button>
+          </Space>
+        );
+      },
     },
   ];
 
@@ -369,114 +306,76 @@ export default function StaffPickupsPage() {
           </Button>
         }
       >
-        {rows.length || loading ? (
+        {!rows.length &&
+        !loading ? (
+          <Empty
+            description="No pickup jobs assigned to you."
+          />
+        ) : (
           <Table
             rowKey="id"
             loading={loading}
             dataSource={rows}
             columns={columns}
-            pagination={{
-              pageSize: 20,
-            }}
-            scroll={{
-              x: 1000,
-            }}
-          />
-        ) : (
-          <Empty
-            description="No pickup jobs assigned to you."
           />
         )}
       </Card>
 
-      <Drawer
+      <Modal
         title="Pickup Details"
-        open={detailsOpen}
-        width={600}
-        onClose={() => {
-          setDetailsOpen(false);
-          setSelectedPickup(null);
-        }}
+        open={
+          Boolean(
+            selectedPickup
+          )
+        }
+        onCancel={() =>
+          setSelectedPickup(
+            null
+          )
+        }
+        footer={null}
       >
-        {selectedPickup ? (
-          <>
-            <Descriptions
-              bordered
-              column={1}
-            >
-              <Descriptions.Item label="Tracking">
-                {selectedPickup.tracking_number ||
-                  selectedPickup.shipment
-                    ?.tracking_number ||
-                  "-"}
-              </Descriptions.Item>
+        {selectedPickup && (
+          <Descriptions
+            bordered
+            column={1}
+          >
+            <Descriptions.Item label="Tracking">
+              {
+                selectedPickup.tracking_number
+              }
+            </Descriptions.Item>
 
-              <Descriptions.Item label="Merchant">
-                {selectedPickup.merchant_name ||
-                  selectedPickup.merchant
-                    ?.name ||
-                  "-"}
-              </Descriptions.Item>
+            <Descriptions.Item label="Customer">
+              {getCustomerName(
+                selectedPickup
+              )}
+            </Descriptions.Item>
 
-              <Descriptions.Item label="Customer">
-                {selectedPickup.customer_name ||
-                  selectedPickup.shipment
-                    ?.customer_name ||
-                  "-"}
-              </Descriptions.Item>
+            <Descriptions.Item label="Phone">
+              {getCustomerPhone(
+                selectedPickup
+              )}
+            </Descriptions.Item>
 
-              <Descriptions.Item label="Phone">
-                {selectedPickup.customer_phone ||
-                  selectedPickup.shipment
-                    ?.customer_phone ||
-                  "-"}
-              </Descriptions.Item>
+            <Descriptions.Item label="Status">
+              <Tag>
+                {
+                  selectedPickup.status
+                }
+              </Tag>
+            </Descriptions.Item>
 
-              <Descriptions.Item label="Address">
-                {selectedPickup.pickup_address ||
-                  selectedPickup.address ||
-                  selectedPickup.merchant
-                    ?.address ||
-                  "-"}
-              </Descriptions.Item>
-
-              <Descriptions.Item label="Status">
-                <Tag
-                  color={getStatusColor(
-                    selectedPickup.status
-                  )}
-                >
-                  {formatStatus(
-                    selectedPickup.status
-                  )}
-                </Tag>
-              </Descriptions.Item>
-            </Descriptions>
-
-            <div
-              style={{
-                marginTop: 24,
-              }}
-            >
-              <Text strong>
-                Pickup Actions
-              </Text>
-
-              <div
-                style={{
-                  marginTop: 12,
-                }}
-              >
-                {renderActions(
-                  selectedPickup
-                )}
-              </div>
-            </div>
-          </>
-        ) : (
-          <Empty />
+            <Descriptions.Item label="Address">
+              {
+                selectedPickup.pickup_address ||
+                selectedPickup.address ||
+                "-"
+              }
+            </Descriptions.Item>
+          </Descriptions>
         )}
-      </Drawer>
+      </Modal>
     </>
   );
 }

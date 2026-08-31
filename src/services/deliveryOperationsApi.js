@@ -1,7 +1,14 @@
 import api from "@/lib/api";
 
+/**
+ * Safely unwrap Laravel ApiResponse.
+ */
 function unwrap(response) {
-  return response?.data?.data ?? response?.data ?? null;
+  return (
+    response?.data?.data ??
+    response?.data ??
+    null
+  );
 }
 
 /* ============================================================
@@ -42,6 +49,12 @@ export async function merchantCreateShipment(
 export async function merchantGetShipment(
   id
 ) {
+  if (!id) {
+    throw new Error(
+      "Shipment ID is required."
+    );
+  }
+
   const response = await api.get(
     `/merchant/shipments/${id}`
   );
@@ -52,15 +65,11 @@ export async function merchantGetShipment(
 export async function getMerchantShipment(
   id
 ) {
-  const response = await api.get(
-    `/merchant/shipments/${id}`
-  );
-
-  return unwrap(response);
+  return merchantGetShipment(id);
 }
 
 /* ============================================================
- * ADMIN / SHIPMENT
+ * ADMIN / SHIPMENTS
  * ============================================================
  */
 
@@ -89,6 +98,12 @@ export async function adminCreateShipment(
 export async function adminGetShipment(
   id
 ) {
+  if (!id) {
+    throw new Error(
+      "Shipment ID is required."
+    );
+  }
+
   const response = await api.get(
     `/admin/shipments/${id}`
   );
@@ -96,14 +111,6 @@ export async function adminGetShipment(
   return unwrap(response);
 }
 
-/**
- * Assign shipment pickup.
- *
- * Keep this only if your backend has a shipment-level
- * pickup assignment endpoint.
- *
- * POST /admin/shipments/{shipment}/assign-pickup
- */
 export async function adminAssignPickup(
   shipmentId,
   staffId
@@ -134,6 +141,12 @@ export async function adminReceiveOrigin(
   shipmentId,
   note = ""
 ) {
+  if (!shipmentId) {
+    throw new Error(
+      "Shipment ID is required."
+    );
+  }
+
   const response = await api.post(
     `/admin/shipments/${shipmentId}/receive-origin`,
     {
@@ -203,17 +216,195 @@ export async function adminAssignDelivery(
 }
 
 /* ============================================================
- * STAFF - PICKUPS
+ * ADMIN / PICKUPS
+ *
+ * Branch Manager
  * ============================================================
  */
 
 /**
- * Get pickups assigned to authenticated staff.
+ * Get pickup requests visible to the
+ * authenticated branch manager.
+ *
+ * Backend applies branch.scope.
+ *
+ * GET /admin/pickups
+ */
+export async function adminGetPickups(
+  params = {}
+) {
+  const response = await api.get(
+    "/admin/pickups",
+    {
+      params: {
+        per_page: 20,
+        ...params,
+      },
+    }
+  );
+
+  const payload = unwrap(response);
+
+  if (Array.isArray(payload)) {
+    return {
+      list: payload,
+      currentPage: Number(
+        params.page ?? 1
+      ),
+      pageSize: Number(
+        params.per_page ?? 20
+      ),
+      total: payload.length,
+    };
+  }
+
+  return {
+    list: Array.isArray(
+      payload?.data
+    )
+      ? payload.data
+      : [],
+
+    currentPage: Number(
+      payload?.current_page ??
+        params.page ??
+        1
+    ),
+
+    pageSize: Number(
+      payload?.per_page ??
+        params.per_page ??
+        20
+    ),
+
+    total: Number(
+      payload?.total ?? 0
+    ),
+  };
+}
+
+/**
+ * Get one pickup.
+ *
+ * GET /admin/pickups/{id}
+ */
+export async function adminGetPickup(
+  id
+) {
+  if (!id) {
+    throw new Error(
+      "Pickup ID is required."
+    );
+  }
+
+  const response = await api.get(
+    `/admin/pickups/${id}`
+  );
+
+  return unwrap(response);
+}
+
+/**
+ * Get staff assignable to this pickup.
+ *
+ * GET /admin/pickups/{id}/assignable-staff
+ */
+export async function getPickupAssignableStaff(
+  id
+) {
+  if (!id) {
+    throw new Error(
+      "Pickup ID is required."
+    );
+  }
+
+  const response = await api.get(
+    `/admin/pickups/${id}/assignable-staff`
+  );
+
+  const payload = unwrap(response);
+
+  if (Array.isArray(payload)) {
+    return payload;
+  }
+
+  if (
+    Array.isArray(
+      payload?.data
+    )
+  ) {
+    return payload.data;
+  }
+
+  return [];
+}
+
+/**
+ * Assign pickup to branch staff.
+ *
+ * POST /admin/pickups/{id}/assign
+ */
+export async function assignPickup(
+  pickupId,
+  staffId
+) {
+  if (!pickupId) {
+    throw new Error(
+      "Pickup ID is required."
+    );
+  }
+
+  if (!staffId) {
+    throw new Error(
+      "Staff ID is required."
+    );
+  }
+
+  const response = await api.post(
+    `/admin/pickups/${pickupId}/assign`,
+    {
+      staff_id: staffId,
+    }
+  );
+
+  return unwrap(response);
+}
+
+/**
+ * Fail pickup.
+ *
+ * POST /admin/pickups/{id}/fail
+ */
+export async function adminFailPickup(
+  id,
+  reason
+) {
+  if (!id) {
+    throw new Error(
+      "Pickup ID is required."
+    );
+  }
+
+  const response = await api.post(
+    `/admin/pickups/${id}/fail`,
+    {
+      reason,
+    }
+  );
+
+  return unwrap(response);
+}
+
+/* ============================================================
+ * STAFF / PICKUPS
+ * ============================================================
+ */
+
+/**
+ * Get pickups assigned to the
+ * authenticated staff member.
  *
  * GET /staff/pickups
- *
- * Backend MUST automatically identify the authenticated
- * staff member.
  */
 export async function staffGetPickups(
   params = {}
@@ -234,7 +425,11 @@ export async function staffGetPickups(
     return payload;
   }
 
-  if (Array.isArray(payload?.data)) {
+  if (
+    Array.isArray(
+      payload?.data
+    )
+  ) {
     return payload.data;
   }
 
@@ -286,7 +481,7 @@ export async function staffStartPickup(
 }
 
 /**
- * Arrive at merchant pickup location.
+ * Arrive at merchant.
  *
  * POST /staff/pickups/{id}/arrive
  */
@@ -309,7 +504,7 @@ export async function staffArrivePickup(
 }
 
 /**
- * Mark pickup shipment as collected.
+ * Collect shipment.
  *
  * POST
  * /staff/pickups/{pickup}/shipments/{shipment}/collect
@@ -363,13 +558,7 @@ export async function staffCompletePickup(
 }
 
 /**
- * Backward-compatible alias.
- *
- * If your existing staff page still calls:
- *
- * staffPickedUp(id, note)
- *
- * this will continue to work.
+ * Backward-compatible function.
  */
 export async function staffPickedUp(
   id,
@@ -384,15 +573,10 @@ export async function staffPickedUp(
 }
 
 /* ============================================================
- * STAFF - DELIVERIES
+ * STAFF / DELIVERIES
  * ============================================================
  */
 
-/**
- * Get deliveries assigned to authenticated staff.
- *
- * GET /staff/deliveries
- */
 export async function staffGetDeliveries(
   params = {}
 ) {
@@ -412,18 +596,17 @@ export async function staffGetDeliveries(
     return payload;
   }
 
-  if (Array.isArray(payload?.data)) {
+  if (
+    Array.isArray(
+      payload?.data
+    )
+  ) {
     return payload.data;
   }
 
   return [];
 }
 
-/**
- * Accept delivery.
- *
- * POST /staff/deliveries/{id}/accept
- */
 export async function staffAcceptDelivery(
   id
 ) {
@@ -434,11 +617,6 @@ export async function staffAcceptDelivery(
   return unwrap(response);
 }
 
-/**
- * Mark shipment out for delivery.
- *
- * POST /staff/deliveries/{id}/out-for-delivery
- */
 export async function staffOutForDelivery(
   id
 ) {
@@ -449,11 +627,6 @@ export async function staffOutForDelivery(
   return unwrap(response);
 }
 
-/**
- * Mark shipment delivered.
- *
- * POST /staff/deliveries/{id}/delivered
- */
 export async function staffMarkDelivered(
   id,
   payload = {}
@@ -466,11 +639,6 @@ export async function staffMarkDelivered(
   return unwrap(response);
 }
 
-/**
- * Mark delivery failed.
- *
- * POST /staff/deliveries/{id}/failed
- */
 export async function staffMarkFailed(
   id,
   reason
