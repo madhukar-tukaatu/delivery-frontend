@@ -76,14 +76,22 @@ export async function getPickupAssignableStaff(id) {
 
   const response = await api.get(`/admin/pickups/${id}/assignable-staff`);
 
-  const data = unwrap(response);
+  const payload = unwrap(response);
 
-  if (Array.isArray(data)) {
-    return data;
+  if (Array.isArray(payload?.staff)) {
+    return payload.staff;
   }
 
-  if (Array.isArray(data?.data)) {
-    return data.data;
+  if (Array.isArray(payload?.data?.staff)) {
+    return payload.data.staff;
+  }
+
+  /*
+   * Fallback if API directly returns array.
+   */
+
+  if (Array.isArray(payload)) {
+    return payload;
   }
 
   return [];
