@@ -7,42 +7,23 @@ function unwrap(response) {
 /**
  * Normalize pickup list.
  */
-function normalizePickupList(
-  response,
-  params = {}
-) {
+function normalizePickupList(response, params = {}) {
   const payload = unwrap(response);
 
   if (Array.isArray(payload)) {
     return {
       list: payload,
-      currentPage: Number(
-        params.page ?? 1
-      ),
-      pageSize: Number(
-        params.per_page ?? 20
-      ),
+      currentPage: Number(params.page ?? 1),
+      pageSize: Number(params.per_page ?? 20),
       total: payload.length,
     };
   }
 
   return {
-    list: Array.isArray(payload?.data)
-      ? payload.data
-      : [],
-    currentPage: Number(
-      payload?.current_page ??
-      params.page ??
-      1
-    ),
-    pageSize: Number(
-      payload?.per_page ??
-      params.per_page ??
-      20
-    ),
-    total: Number(
-      payload?.total ?? 0
-    ),
+    list: Array.isArray(payload?.data) ? payload.data : [],
+    currentPage: Number(payload?.current_page ?? params.page ?? 1),
+    pageSize: Number(payload?.per_page ?? params.per_page ?? 20),
+    total: Number(payload?.total ?? 0),
   };
 }
 
@@ -54,23 +35,15 @@ function normalizePickupList(
  *
  * GET /admin/pickups
  */
-export async function getPickups(
-  params = {}
-) {
-  const response = await api.get(
-    "/admin/pickups",
-    {
-      params: {
-        per_page: 20,
-        ...params,
-      },
-    }
-  );
+export async function getPickups(params = {}) {
+  const response = await api.get("/admin/pickups", {
+    params: {
+      per_page: 20,
+      ...params,
+    },
+  });
 
-  return normalizePickupList(
-    response,
-    params
-  );
+  return normalizePickupList(response, params);
 }
 
 /**
@@ -83,9 +56,7 @@ export async function getPickup(id) {
     throw new Error("Pickup ID is required.");
   }
 
-  const response = await api.get(
-    `/admin/pickups/${id}`
-  );
+  const response = await api.get(`/admin/pickups/${id}`);
 
   return unwrap(response);
 }
@@ -98,16 +69,12 @@ export async function getPickup(id) {
  *
  * GET /admin/pickups/{id}/assignable-staff
  */
-export async function getPickupAssignableStaff(
-  id
-) {
+export async function getPickupAssignableStaff(id) {
   if (!id) {
     throw new Error("Pickup ID is required.");
   }
 
-  const response = await api.get(
-    `/admin/pickups/${id}/assignable-staff`
-  );
+  const response = await api.get(`/admin/pickups/${id}/assignable-staff`);
 
   const data = unwrap(response);
 
@@ -133,10 +100,7 @@ export async function getPickupAssignableStaff(
  *   staff_id: 123
  * }
  */
-export async function assignPickup(
-  id,
-  staffId
-) {
+export async function assignPickup(id, staffId) {
   if (!id) {
     throw new Error("Pickup ID is required.");
   }
@@ -145,12 +109,9 @@ export async function assignPickup(
     throw new Error("Staff ID is required.");
   }
 
-  const response = await api.post(
-    `/admin/pickups/${id}/assign`,
-    {
-      staff_id: staffId,
-    }
-  );
+  const response = await api.post(`/admin/pickups/${id}/assign`, {
+    staff_id: staffId,
+  });
 
   return unwrap(response);
 }
@@ -160,20 +121,14 @@ export async function assignPickup(
  *
  * POST /admin/pickups/{id}/fail
  */
-export async function failPickup(
-  id,
-  reason
-) {
+export async function failPickup(id, reason) {
   if (!id) {
     throw new Error("Pickup ID is required.");
   }
 
-  const response = await api.post(
-    `/admin/pickups/${id}/fail`,
-    {
-      reason,
-    }
-  );
+  const response = await api.post(`/admin/pickups/${id}/fail`, {
+    reason,
+  });
 
   return unwrap(response);
 }
@@ -186,24 +141,41 @@ export async function failPickup(
 export async function receivePickupShipment(
   pickupId,
   shipmentId,
-  payload = {}
+  payload = {},
 ) {
   if (!pickupId) {
-    throw new Error(
-      "Pickup ID is required."
-    );
+    throw new Error("Pickup ID is required.");
   }
 
   if (!shipmentId) {
-    throw new Error(
-      "Shipment ID is required."
-    );
+    throw new Error("Shipment ID is required.");
   }
 
   const response = await api.post(
     `/admin/pickups/${pickupId}/shipments/${shipmentId}/receive`,
-    payload
+    payload,
   );
+
+  return unwrap(response);
+}
+
+export async function transferPickup(id, staffId, reason) {
+  if (!id) {
+    throw new Error("Pickup ID is required.");
+  }
+
+  if (!staffId) {
+    throw new Error("Staff ID is required.");
+  }
+
+  if (!reason?.trim()) {
+    throw new Error("Transfer reason is required.");
+  }
+
+  const response = await api.post(`/admin/pickups/${id}/transfer`, {
+    staff_id: staffId,
+    reason: reason.trim(),
+  });
 
   return unwrap(response);
 }
