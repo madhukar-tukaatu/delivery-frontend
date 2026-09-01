@@ -25,12 +25,13 @@ import {
 } from "@ant-design/icons";
 
 import {
-  createBranchStaff,
-  deleteBranchStaff,
   getBranchStaff,
   getBranchStaffMember,
-  toggleBranchStaff,
+  createBranchStaff,
   updateBranchStaff,
+  deleteBranchStaff,
+  toggleBranchStaff,
+  getBranchStaffRoles,
   normalizeStaffRoles,
 } from "@/services/branchStaffService";
 
