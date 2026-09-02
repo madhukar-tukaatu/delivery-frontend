@@ -274,7 +274,7 @@ export async function createBranchRouteRate(payload = {}) {
      */
     express_enabled: normalizeBoolean(payload.express_enabled, true),
 
-    same_day_enabled: normalizeBoolean(payload.same_day_enabled, true),
+    same_day_enabled: normalizeBoolean(payload.same_day_enabled, false),
   };
 
   /*
@@ -353,7 +353,7 @@ export async function updateBranchRouteRate(id, payload = {}) {
      */
     express_enabled: normalizeBoolean(payload.express_enabled, true),
 
-    same_day_enabled: normalizeBoolean(payload.same_day_enabled, true),
+    same_day_enabled: normalizeBoolean(payload.same_day_enabled, false),
   };
 
   Object.keys(requestPayload).forEach((key) => {
@@ -487,7 +487,7 @@ export async function createReverseBranchRouteRate(routeRate, overrides = {}) {
 
   const sameDayEnabled = normalizeBoolean(
     overrides.same_day_enabled ?? routeRate?.same_day_enabled,
-    true,
+    false,
   );
 
   const requestPayload = {
