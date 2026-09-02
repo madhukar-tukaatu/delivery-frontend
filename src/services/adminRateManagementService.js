@@ -1,4 +1,3 @@
-
 import api from "@/lib/api";
 
 /*
@@ -12,7 +11,7 @@ import api from "@/lib/api";
 |
 | Therefore we ONLY use:
 |
-|   /admin/rate/...
+|   /admin/...
 |
 |--------------------------------------------------------------------------
 */
@@ -23,10 +22,22 @@ const ENDPOINTS = Object.freeze({
   branches: `${ADMIN_PREFIX}/branches`,
   serviceTypes: `${ADMIN_PREFIX}/service-types`,
 
+  /*
+   * Commercial branch-to-branch pricing.
+   */
   branchRouteRates: `${ADMIN_PREFIX}/branch-route-rates`,
 
+  /*
+   * Kept for backward compatibility.
+   *
+   * Your current operational routing architecture should prefer
+   * branch-transfer-routes.
+   */
   transferLanes: `${ADMIN_PREFIX}/branch-transfer-lanes`,
 
+  /*
+   * Operational transfer routes.
+   */
   transferRoutes: `${ADMIN_PREFIX}/rate/branch-transfer-routes`,
 
   pricingQuotes: `${ADMIN_PREFIX}/pricing-quotes`,
@@ -39,7 +50,7 @@ const ENDPOINTS = Object.freeze({
 */
 
 function unwrapData(response) {
-  return response?.data?.data ?? response?.data ?? null;
+  return response?.data?.data ?? response?.data ?? response ?? null;
 }
 
 function unwrapList(response) {
@@ -55,37 +66,43 @@ function unwrapList(response) {
     };
   }
 
-  return (
-    payload ?? {
-      data: [],
-      current_page: 1,
-      per_page: 0,
-      total: 0,
-      last_page: 1,
-    }
-  );
+  if (payload && typeof payload === "object") {
+    return {
+      data: Array.isArray(payload.data) ? payload.data : [],
+      current_page: payload.current_page ?? 1,
+      per_page:
+        payload.per_page ??
+        (Array.isArray(payload.data) ? payload.data.length : 0),
+      total:
+        payload.total ??
+        (Array.isArray(payload.data) ? payload.data.length : 0),
+      last_page: payload.last_page ?? 1,
+      ...payload,
+    };
+  }
+
+  return {
+    data: [],
+    current_page: 1,
+    per_page: 0,
+    total: 0,
+    last_page: 1,
+  };
 }
 
 function resolveId(value, nestedKey = null) {
-  if (value === null || value === undefined) {
+  if (value === null || value === undefined || value === "") {
     return null;
   }
 
-  if (
-    typeof value === "number" ||
-    typeof value === "string"
-  ) {
+  if (typeof value === "number" || typeof value === "string") {
     const id = Number(value);
 
     return Number.isFinite(id) ? id : null;
   }
 
   if (typeof value === "object") {
-    const possibleValue =
-      value.id ??
-      (nestedKey
-        ? value[nestedKey]?.id
-        : null);
+    const possibleValue = value.id ?? (nestedKey ? value[nestedKey]?.id : null);
 
     const id = Number(possibleValue);
 
@@ -95,13 +112,36 @@ function resolveId(value, nestedKey = null) {
   return null;
 }
 
-function normalizeBoolean(value) {
-  return Boolean(
-    value === true ||
-      value === 1 ||
-      value === "1" ||
-      value === "true"
-  );
+function normalizeBoolean(value, fallback = false) {
+  if (value === undefined || value === null) {
+    return fallback;
+  }
+
+  if (value === true || value === 1 || value === "1" || value === "true") {
+    return true;
+  }
+
+  if (value === false || value === 0 || value === "0" || value === "false") {
+    return false;
+  }
+
+  return Boolean(value);
+}
+
+function numberOrFallback(value, fallback = 0) {
+  const number = Number(value);
+
+  return Number.isFinite(number) ? number : fallback;
+}
+
+function stringOrNull(value) {
+  if (value === null || value === undefined) {
+    return null;
+  }
+
+  const valueString = String(value).trim();
+
+  return valueString || null;
 }
 
 /*
@@ -113,16 +153,16 @@ function normalizeBoolean(value) {
 export async function getRateBranches(params = {}) {
   const response = await api.get(
     `${ENDPOINTS.branchRouteRates}/coverage-locations`,
-    { params }
+    {
+      params,
+    },
   );
 
   return response.data;
 }
 
 export async function getRateBranch(id) {
-  const response = await api.get(
-    `${ENDPOINTS.branches}/${id}`
-  );
+  const response = await api.get(`${ENDPOINTS.branches}/${id}`);
 
   return unwrapData(response);
 }
@@ -133,19 +173,14 @@ export async function getRateBranch(id) {
 |--------------------------------------------------------------------------
 */
 
-export async function getRateServiceTypes(
-  params = {}
-) {
-  const response = await api.get(
-    ENDPOINTS.serviceTypes,
-    {
-      params: {
-        status: "active",
-        per_page: 100,
-        ...params,
-      },
-    }
-  );
+export async function getRateServiceTypes(params = {}) {
+  const response = await api.get(ENDPOINTS.serviceTypes, {
+    params: {
+      status: "active",
+      per_page: 100,
+      ...params,
+    },
+  });
 
   return response.data;
 }
@@ -154,254 +189,514 @@ export async function getRateServiceTypes(
 |--------------------------------------------------------------------------
 | Branch route rates
 |--------------------------------------------------------------------------
+|
+| This is the COMMERCIAL pricing layer.
+|
+| Branch transfer routes are operational.
+|
+|--------------------------------------------------------------------------
 */
 
-export async function getBranchRouteRates(
-  params = {}
-) {
-  const response = await api.get(
-    ENDPOINTS.branchRouteRates,
-    {
-      params,
-    }
-  );
+export async function getBranchRouteRates(params = {}) {
+  const response = await api.get(ENDPOINTS.branchRouteRates, {
+    params,
+  });
 
   return response.data;
 }
 
 export async function getBranchRouteRateMatrix() {
   const response = await api.get(`${ENDPOINTS.branchRouteRates}/matrix`);
+
   return response.data;
 }
 
 export async function getBranchRouteRate(id) {
-  const response = await api.get(
-    `${ENDPOINTS.branchRouteRates}/${id}`
-  );
+  const response = await api.get(`${ENDPOINTS.branchRouteRates}/${id}`);
 
   return unwrapData(response);
 }
 
-export async function createBranchRouteRate(
-  payload
-) {
-  const response = await api.post(
-    ENDPOINTS.branchRouteRates,
-    payload
-  );
+/*
+|--------------------------------------------------------------------------
+| Create branch route rate
+|--------------------------------------------------------------------------
+|
+| Explicitly preserve:
+|
+| - base_rate
+| - is_active
+| - express_enabled
+| - same_day_enabled
+|
+|--------------------------------------------------------------------------
+*/
+
+export async function createBranchRouteRate(payload = {}) {
+  const requestPayload = {
+    /*
+     * Prefer coverage locations because branch pricing operates
+     * on the pricing coverage layer.
+     */
+    pickup_coverage_location_id:
+      payload.pickup_coverage_location_id !== undefined
+        ? Number(payload.pickup_coverage_location_id)
+        : undefined,
+
+    delivery_coverage_location_id:
+      payload.delivery_coverage_location_id !== undefined
+        ? Number(payload.delivery_coverage_location_id)
+        : undefined,
+
+    /*
+     * Keep branch IDs as compatibility fallback.
+     */
+    pickup_branch_id:
+      payload.pickup_branch_id !== undefined
+        ? Number(payload.pickup_branch_id)
+        : undefined,
+
+    delivery_branch_id:
+      payload.delivery_branch_id !== undefined
+        ? Number(payload.delivery_branch_id)
+        : undefined,
+
+    base_rate: numberOrFallback(payload.base_rate, 0),
+
+    is_active: normalizeBoolean(payload.is_active, true),
+
+    /*
+     * IMPORTANT:
+     *
+     * Do not omit these fields.
+     *
+     * The inline edit page depends on them.
+     */
+    express_enabled: normalizeBoolean(payload.express_enabled, true),
+
+    same_day_enabled: normalizeBoolean(payload.same_day_enabled, true),
+  };
+
+  /*
+   * Remove undefined properties so Axios does not send
+   * misleading undefined values.
+   */
+  Object.keys(requestPayload).forEach((key) => {
+    if (requestPayload[key] === undefined) {
+      delete requestPayload[key];
+    }
+  });
+
+  const response = await api.post(ENDPOINTS.branchRouteRates, requestPayload);
 
   return unwrapData(response);
 }
 
-export async function updateBranchRouteRate(
-  id,
-  payload
-) {
+/*
+|--------------------------------------------------------------------------
+| Update branch route rate
+|--------------------------------------------------------------------------
+|
+| IMPORTANT:
+|
+| The service explicitly sends the toggle values.
+|
+| This is necessary for:
+|
+|   express_enabled
+|   same_day_enabled
+|
+| to be persisted by the backend.
+|
+|--------------------------------------------------------------------------
+*/
+
+export async function updateBranchRouteRate(id, payload = {}) {
+  if (!id) {
+    throw new Error("Branch route rate ID is required.");
+  }
+
+  const requestPayload = {
+    pickup_coverage_location_id:
+      payload.pickup_coverage_location_id !== undefined
+        ? Number(payload.pickup_coverage_location_id)
+        : undefined,
+
+    delivery_coverage_location_id:
+      payload.delivery_coverage_location_id !== undefined
+        ? Number(payload.delivery_coverage_location_id)
+        : undefined,
+
+    pickup_branch_id:
+      payload.pickup_branch_id !== undefined
+        ? Number(payload.pickup_branch_id)
+        : undefined,
+
+    delivery_branch_id:
+      payload.delivery_branch_id !== undefined
+        ? Number(payload.delivery_branch_id)
+        : undefined,
+
+    base_rate: numberOrFallback(payload.base_rate, 0),
+
+    is_active: normalizeBoolean(payload.is_active, true),
+
+    /*
+     * Explicit boolean values.
+     *
+     * Never use:
+     *
+     *   Boolean(undefined)
+     *
+     * here because that could unexpectedly disable
+     * a service.
+     */
+    express_enabled: normalizeBoolean(payload.express_enabled, true),
+
+    same_day_enabled: normalizeBoolean(payload.same_day_enabled, true),
+  };
+
+  Object.keys(requestPayload).forEach((key) => {
+    if (requestPayload[key] === undefined) {
+      delete requestPayload[key];
+    }
+  });
+
   const response = await api.put(
     `${ENDPOINTS.branchRouteRates}/${id}`,
-    payload
+    requestPayload,
   );
 
   return unwrapData(response);
 }
 
-export async function updateBranchRouteRateStatus(
-  id,
-  isActive
-) {
+/*
+|--------------------------------------------------------------------------
+| Branch route rate active status
+|--------------------------------------------------------------------------
+*/
+
+export async function updateBranchRouteRateStatus(id, isActive) {
+  if (!id) {
+    throw new Error("Branch route rate ID is required.");
+  }
+
+  const active = normalizeBoolean(isActive, false);
+
   const response = await api.patch(
     `${ENDPOINTS.branchRouteRates}/${id}/status`,
     {
-      is_active: normalizeBoolean(isActive),
-    }
+      is_active: active,
+    },
   );
 
   return unwrapData(response);
 }
 
+/*
+|--------------------------------------------------------------------------
+| Delete branch route rate
+|--------------------------------------------------------------------------
+*/
+
 export async function deleteBranchRouteRate(id) {
-  const response = await api.delete(
-    `${ENDPOINTS.branchRouteRates}/${id}`
-  );
+  const response = await api.delete(`${ENDPOINTS.branchRouteRates}/${id}`);
 
   return response.data;
 }
 
-export async function createReverseBranchRouteRate(
-  routeRate,
-  overrides = {}
-) {
+/*
+|--------------------------------------------------------------------------
+| Reverse branch route rate
+|--------------------------------------------------------------------------
+|
+| Example:
+|
+| KTM -> Kavre
+|
+| becomes:
+|
+| Kavre -> KTM
+|
+| The ORIGINAL price is preserved.
+|
+| Express / Same Day settings are also preserved.
+|
+|--------------------------------------------------------------------------
+*/
+
+export async function createReverseBranchRouteRate(routeRate, overrides = {}) {
+  if (!routeRate) {
+    throw new Error("Branch route rate is required.");
+  }
+
+  /*
+   * Prefer coverage-location IDs.
+   *
+   * Branch pricing is based on coverage locations.
+   */
+  const pickupCoverageLocationId = resolveId(
+    routeRate?.pickup_coverage_location_id,
+  );
+
+  const deliveryCoverageLocationId = resolveId(
+    routeRate?.delivery_coverage_location_id,
+  );
+
+  /*
+   * Fallback to branch IDs when coverage IDs
+   * are not available.
+   */
   const pickupBranchId = resolveId(
-    routeRate?.pickup_branch_id ??
-      routeRate?.pickup_branch
+    routeRate?.pickup_branch_id ?? routeRate?.pickup_branch,
   );
 
   const deliveryBranchId = resolveId(
-    routeRate?.delivery_branch_id ??
-      routeRate?.delivery_branch
+    routeRate?.delivery_branch_id ?? routeRate?.delivery_branch,
   );
 
-  if (!pickupBranchId || !deliveryBranchId) {
+  const reversePickupId = deliveryCoverageLocationId ?? deliveryBranchId;
+
+  const reverseDeliveryId = pickupCoverageLocationId ?? pickupBranchId;
+
+  if (!reversePickupId || !reverseDeliveryId) {
     throw new Error(
-      "Pickup and delivery branch IDs are required to create the reverse rate."
+      "Pickup and delivery branch/coverage IDs are required to create the reverse rate.",
     );
   }
 
-  return createBranchRouteRate({
-    pickup_branch_id: deliveryBranchId,
-    delivery_branch_id: pickupBranchId,
+  /*
+   * Preserve original values first.
+   *
+   * Explicit overrides win.
+   */
+  const baseRate = numberOrFallback(
+    overrides.base_rate ?? routeRate?.base_rate,
+    0,
+  );
 
-    base_rate: Number(
-      overrides.base_rate ??
-        routeRate?.base_rate ??
-        0
+  const isActive = normalizeBoolean(
+    overrides.is_active ?? routeRate?.is_active,
+    true,
+  );
+
+  const expressEnabled = normalizeBoolean(
+    overrides.express_enabled ?? routeRate?.express_enabled,
+    true,
+  );
+
+  const sameDayEnabled = normalizeBoolean(
+    overrides.same_day_enabled ?? routeRate?.same_day_enabled,
+    true,
+  );
+
+  const requestPayload = {
+    /*
+     * Reverse direction.
+     */
+    pickup_coverage_location_id: reversePickupId,
+
+    delivery_coverage_location_id: reverseDeliveryId,
+
+    /*
+     * Branch IDs are included as well when available.
+     * This makes the request compatible with backends
+     * that still expect branch IDs.
+     */
+    ...(deliveryBranchId
+      ? {
+          pickup_branch_id: deliveryBranchId,
+        }
+      : {}),
+
+    ...(pickupBranchId
+      ? {
+          delivery_branch_id: pickupBranchId,
+        }
+      : {}),
+
+    /*
+     * Preserve commercial values.
+     */
+    base_rate: baseRate,
+
+    is_active: isActive,
+
+    express_enabled: expressEnabled,
+
+    same_day_enabled: sameDayEnabled,
+
+    /*
+     * Explicit overrides are applied LAST,
+     * but undefined values are ignored.
+     */
+    ...Object.fromEntries(
+      Object.entries(overrides).filter(([, value]) => value !== undefined),
     ),
+  };
 
-    is_active:
-      overrides.is_active ??
-      routeRate?.is_active ??
-      true,
+  /*
+   * Re-assert critical values after overrides.
+   *
+   * This protects against accidental null/undefined
+   * values from a caller.
+   */
+  requestPayload.base_rate =
+    overrides.base_rate !== undefined
+      ? numberOrFallback(overrides.base_rate, baseRate)
+      : baseRate;
 
-    ...overrides,
-  });
+  requestPayload.is_active =
+    overrides.is_active !== undefined
+      ? normalizeBoolean(overrides.is_active, isActive)
+      : isActive;
+
+  requestPayload.express_enabled =
+    overrides.express_enabled !== undefined
+      ? normalizeBoolean(overrides.express_enabled, expressEnabled)
+      : expressEnabled;
+
+  requestPayload.same_day_enabled =
+    overrides.same_day_enabled !== undefined
+      ? normalizeBoolean(overrides.same_day_enabled, sameDayEnabled)
+      : sameDayEnabled;
+
+  return createBranchRouteRate(requestPayload);
 }
 
 /*
 |--------------------------------------------------------------------------
 | Direct transfer lanes
 |--------------------------------------------------------------------------
+|
+| Legacy compatibility.
+|
+| The preferred operational model is now:
+|
+|   BranchTransferRoute
+|
+|--------------------------------------------------------------------------
 */
 
-export async function getBranchTransferLanes(
-  params = {}
-) {
-  const response = await api.get(
-    ENDPOINTS.transferLanes,
-    {
-      params,
-    }
-  );
+export async function getBranchTransferLanes(params = {}) {
+  const response = await api.get(ENDPOINTS.transferLanes, {
+    params,
+  });
 
   return response.data;
 }
 
 export async function getBranchTransferLane(id) {
-  const response = await api.get(
-    `${ENDPOINTS.transferLanes}/${id}`
-  );
+  const response = await api.get(`${ENDPOINTS.transferLanes}/${id}`);
 
   return unwrapData(response);
 }
 
-export async function createBranchTransferLane(
-  payload
-) {
-  const response = await api.post(
-    ENDPOINTS.transferLanes,
-    payload
-  );
+export async function createBranchTransferLane(payload = {}) {
+  const requestPayload = {
+    from_branch_id: Number(payload.from_branch_id),
+
+    to_branch_id: Number(payload.to_branch_id),
+
+    service_type: payload.service_type || "standard",
+
+    transport_mode: payload.transport_mode || "road",
+
+    distance_km: numberOrFallback(payload.distance_km, 0),
+
+    estimated_hours: numberOrFallback(payload.estimated_hours, 1),
+
+    priority: numberOrFallback(payload.priority, 100),
+
+    is_bidirectional: normalizeBoolean(payload.is_bidirectional, false),
+
+    is_active: normalizeBoolean(payload.is_active, true),
+  };
+
+  const response = await api.post(ENDPOINTS.transferLanes, requestPayload);
 
   return unwrapData(response);
 }
 
-export async function updateBranchTransferLane(
-  id,
-  payload
-) {
+export async function updateBranchTransferLane(id, payload = {}) {
+  const requestPayload = {
+    from_branch_id: Number(payload.from_branch_id),
+
+    to_branch_id: Number(payload.to_branch_id),
+
+    service_type: payload.service_type || "standard",
+
+    transport_mode: payload.transport_mode || "road",
+
+    distance_km: numberOrFallback(payload.distance_km, 0),
+
+    estimated_hours: numberOrFallback(payload.estimated_hours, 1),
+
+    priority: numberOrFallback(payload.priority, 100),
+
+    is_bidirectional: normalizeBoolean(payload.is_bidirectional, false),
+
+    is_active: normalizeBoolean(payload.is_active, true),
+  };
+
   const response = await api.put(
     `${ENDPOINTS.transferLanes}/${id}`,
-    payload
+    requestPayload,
   );
 
   return unwrapData(response);
 }
 
-export async function updateBranchTransferLaneStatus(
-  id,
-  isActive
-) {
-  const response = await api.patch(
-    `${ENDPOINTS.transferLanes}/${id}/status`,
-    {
-      is_active: normalizeBoolean(isActive),
-    }
-  );
+export async function updateBranchTransferLaneStatus(id, isActive) {
+  const response = await api.patch(`${ENDPOINTS.transferLanes}/${id}/status`, {
+    is_active: normalizeBoolean(isActive, false),
+  });
 
   return unwrapData(response);
 }
 
 export async function deleteBranchTransferLane(id) {
-  const response = await api.delete(
-    `${ENDPOINTS.transferLanes}/${id}`
-  );
+  const response = await api.delete(`${ENDPOINTS.transferLanes}/${id}`);
 
   return response.data;
 }
 
-export async function createReverseBranchTransferLane(
-  lane,
-  overrides = {}
-) {
-  const fromBranchId = resolveId(
-    lane?.from_branch_id ??
-      lane?.from_branch
-  );
+export async function createReverseBranchTransferLane(lane, overrides = {}) {
+  const fromBranchId = resolveId(lane?.from_branch_id ?? lane?.from_branch);
 
-  const toBranchId = resolveId(
-    lane?.to_branch_id ??
-      lane?.to_branch
-  );
+  const toBranchId = resolveId(lane?.to_branch_id ?? lane?.to_branch);
 
   if (!fromBranchId || !toBranchId) {
     throw new Error(
-      "From and to branch IDs are required to create the reverse lane."
+      "From and to branch IDs are required to create the reverse lane.",
     );
   }
 
-  return createBranchTransferLane({
+  const requestPayload = {
     from_branch_id: toBranchId,
 
     to_branch_id: fromBranchId,
 
-    service_type:
-      overrides.service_type ??
-      lane?.service_type ??
-      "standard",
+    service_type: lane?.service_type ?? "standard",
 
-    transport_mode:
-      overrides.transport_mode ??
-      lane?.transport_mode ??
-      "road",
+    transport_mode: lane?.transport_mode ?? "road",
 
-    distance_km: Number(
-      overrides.distance_km ??
-        lane?.distance_km ??
-        0
+    distance_km: numberOrFallback(lane?.distance_km, 0),
+
+    estimated_hours: numberOrFallback(lane?.estimated_hours, 1),
+
+    priority: numberOrFallback(lane?.priority, 100),
+
+    is_bidirectional: false,
+
+    is_active: normalizeBoolean(lane?.is_active, true),
+
+    ...Object.fromEntries(
+      Object.entries(overrides).filter(([, value]) => value !== undefined),
     ),
+  };
 
-    estimated_hours: Number(
-      overrides.estimated_hours ??
-        lane?.estimated_hours ??
-        1
-    ),
-
-    priority: Number(
-      overrides.priority ??
-        lane?.priority ??
-        100
-    ),
-
-    is_bidirectional:
-      overrides.is_bidirectional ??
-      false,
-
-    is_active:
-      overrides.is_active ??
-      lane?.is_active ??
-      true,
-
-    ...overrides,
-  });
+  return createBranchTransferLane(requestPayload);
 }
 
 /*
@@ -410,23 +705,16 @@ export async function createReverseBranchTransferLane(
 |--------------------------------------------------------------------------
 */
 
-export async function getBranchTransferRoutes(
-  params = {}
-) {
-  const response = await api.get(
-    ENDPOINTS.transferRoutes,
-    {
-      params,
-    }
-  );
+export async function getBranchTransferRoutes(params = {}) {
+  const response = await api.get(ENDPOINTS.transferRoutes, {
+    params,
+  });
 
   return response.data;
 }
 
 export async function getBranchTransferRoute(id) {
-  const response = await api.get(
-    `${ENDPOINTS.transferRoutes}/${id}`
-  );
+  const response = await api.get(`${ENDPOINTS.transferRoutes}/${id}`);
 
   return unwrapData(response);
 }
@@ -436,42 +724,31 @@ export async function getBranchTransferRoute(id) {
 | Route preview
 |--------------------------------------------------------------------------
 |
-| IMPORTANT:
+| Always include:
 |
-| Always include route_type.
+|   route_type: "transfer"
 |
 |--------------------------------------------------------------------------
 */
 
-export async function previewBranchTransferRoute(
-  payload
-) {
+export async function previewBranchTransferRoute(payload = {}) {
   const requestPayload = {
     route_type: "transfer",
 
-    origin_branch_id: Number(
-      payload.origin_branch_id
-    ),
+    origin_branch_id: Number(payload.origin_branch_id),
 
-    destination_branch_id: Number(
-      payload.destination_branch_id
-    ),
+    destination_branch_id: Number(payload.destination_branch_id),
 
-    transit_branch_ids: Array.isArray(
-      payload.transit_branch_ids
-    )
-      ? payload.transit_branch_ids
-          .map(Number)
-          .filter(Number.isFinite)
+    transit_branch_ids: Array.isArray(payload.transit_branch_ids)
+      ? payload.transit_branch_ids.map(Number).filter(Number.isFinite)
       : [],
 
-    service_type:
-      payload.service_type || "standard",
+    service_type: payload.service_type || "standard",
   };
 
   const response = await api.post(
     `${ENDPOINTS.transferRoutes}/preview`,
-    requestPayload
+    requestPayload,
   );
 
   return unwrapData(response);
@@ -479,308 +756,269 @@ export async function previewBranchTransferRoute(
 
 /*
 |--------------------------------------------------------------------------
-| CREATE TRANSFER ROUTE
+| Create transfer route
 |--------------------------------------------------------------------------
 */
 
-export async function createBranchTransferRoute(
-  payload
-) {
+export async function createBranchTransferRoute(payload = {}) {
   const requestPayload = {
     route_type: "transfer",
 
-    route_code:
-      payload.route_code?.trim(),
+    route_code: stringOrNull(payload.route_code),
 
-    name:
-      payload.name?.trim(),
+    name: stringOrNull(payload.name),
 
-    origin_branch_id: Number(
-      payload.origin_branch_id
-    ),
+    origin_branch_id: Number(payload.origin_branch_id),
 
-    destination_branch_id: Number(
-      payload.destination_branch_id
-    ),
+    destination_branch_id: Number(payload.destination_branch_id),
 
-    transit_branch_ids: Array.isArray(
-      payload.transit_branch_ids
-    )
-      ? payload.transit_branch_ids
-          .map(Number)
-          .filter(Number.isFinite)
+    transit_branch_ids: Array.isArray(payload.transit_branch_ids)
+      ? payload.transit_branch_ids.map(Number).filter(Number.isFinite)
       : [],
 
-    service_type:
-      payload.service_type || "standard",
+    service_type: payload.service_type || "standard",
 
-    base_rate: Number(
-      payload.base_rate ?? 0
-    ),
+    base_rate: numberOrFallback(payload.base_rate, 0),
 
-    currency:
-      payload.currency || "NPR",
+    currency: payload.currency || "NPR",
 
-    priority: Number(
-      payload.priority ?? 100
-    ),
+    priority: numberOrFallback(payload.priority, 100),
 
-    is_default:
-      payload.is_default !== false,
+    is_default: normalizeBoolean(payload.is_default, true),
 
-    is_active:
-      payload.is_active !== false,
+    is_active: normalizeBoolean(payload.is_active, true),
 
-    notes:
-      payload.notes?.trim() || null,
+    notes: stringOrNull(payload.notes),
   };
 
-  const response = await api.post(
-    ENDPOINTS.transferRoutes,
-    requestPayload
-  );
+  const response = await api.post(ENDPOINTS.transferRoutes, requestPayload);
 
   return unwrapData(response);
 }
 
 /*
 |--------------------------------------------------------------------------
-| UPDATE TRANSFER ROUTE
+| Update transfer route
 |--------------------------------------------------------------------------
 */
 
-export async function updateBranchTransferRoute(
-  id,
-  payload
-) {
+export async function updateBranchTransferRoute(id, payload = {}) {
   const requestPayload = {
     route_type: "transfer",
 
-    route_code:
-      payload.route_code?.trim(),
+    route_code: stringOrNull(payload.route_code),
 
-    name:
-      payload.name?.trim(),
+    name: stringOrNull(payload.name),
 
-    origin_branch_id: Number(
-      payload.origin_branch_id
-    ),
+    origin_branch_id: Number(payload.origin_branch_id),
 
-    destination_branch_id: Number(
-      payload.destination_branch_id
-    ),
+    destination_branch_id: Number(payload.destination_branch_id),
 
-    transit_branch_ids: Array.isArray(
-      payload.transit_branch_ids
-    )
-      ? payload.transit_branch_ids
-          .map(Number)
-          .filter(Number.isFinite)
+    transit_branch_ids: Array.isArray(payload.transit_branch_ids)
+      ? payload.transit_branch_ids.map(Number).filter(Number.isFinite)
       : [],
 
-    service_type:
-      payload.service_type || "standard",
+    service_type: payload.service_type || "standard",
 
-    base_rate: Number(
-      payload.base_rate ?? 0
-    ),
+    base_rate: numberOrFallback(payload.base_rate, 0),
 
-    currency:
-      payload.currency || "NPR",
+    currency: payload.currency || "NPR",
 
-    priority: Number(
-      payload.priority ?? 100
-    ),
+    priority: numberOrFallback(payload.priority, 100),
 
-    is_default:
-      payload.is_default !== false,
+    is_default: normalizeBoolean(payload.is_default, true),
 
-    is_active:
-      payload.is_active !== false,
+    is_active: normalizeBoolean(payload.is_active, true),
 
-    notes:
-      payload.notes?.trim() || null,
+    notes: stringOrNull(payload.notes),
   };
 
   const response = await api.put(
     `${ENDPOINTS.transferRoutes}/${id}`,
-    requestPayload
+    requestPayload,
   );
 
   return unwrapData(response);
 }
 
-export async function updateBranchTransferRouteStatus(
-  id,
-  isActive
-) {
-  const response = await api.patch(
-    `${ENDPOINTS.transferRoutes}/${id}/status`,
-    {
-      is_active:
-        normalizeBoolean(isActive),
-    }
-  );
+/*
+|--------------------------------------------------------------------------
+| Transfer route active status
+|--------------------------------------------------------------------------
+*/
+
+export async function updateBranchTransferRouteStatus(id, isActive) {
+  const response = await api.patch(`${ENDPOINTS.transferRoutes}/${id}/status`, {
+    is_active: normalizeBoolean(isActive, false),
+  });
 
   return unwrapData(response);
 }
+
+/*
+|--------------------------------------------------------------------------
+| Delete transfer route
+|--------------------------------------------------------------------------
+*/
 
 export async function deleteBranchTransferRoute(id) {
-  const response = await api.delete(
-    `${ENDPOINTS.transferRoutes}/${id}`
-  );
+  const response = await api.delete(`${ENDPOINTS.transferRoutes}/${id}`);
 
   return response.data;
 }
 
 /*
 |--------------------------------------------------------------------------
-| Reverse complete transfer route
+| Build reverse complete transfer route
 |--------------------------------------------------------------------------
 */
 
-export function buildReverseTransferRoutePayload(
-  route,
-  overrides = {}
-) {
+export function buildReverseTransferRoutePayload(route, overrides = {}) {
   const originBranchId = resolveId(
-    route?.origin_branch_id ??
-      route?.origin_branch
+    route?.origin_branch_id ?? route?.origin_branch,
   );
 
-  const destinationBranchId =
-    resolveId(
-      route?.destination_branch_id ??
-        route?.destination_branch
-    );
+  const destinationBranchId = resolveId(
+    route?.destination_branch_id ?? route?.destination_branch,
+  );
 
-  if (
-    !originBranchId ||
-    !destinationBranchId
-  ) {
+  if (!originBranchId || !destinationBranchId) {
     throw new Error(
-      "Origin and destination branches are required to create the reverse route."
+      "Origin and destination branches are required to create the reverse route.",
     );
   }
 
-  const transitBranchIds =
-    Array.isArray(
-      route?.transit_branch_ids
-    )
-      ? route.transit_branch_ids
-          .map(Number)
-          .filter(Number.isFinite)
-      : Array.isArray(
-          route?.transit_branches
-        )
+  /*
+   * Resolve transit branches.
+   */
+  const transitBranchIds = Array.isArray(route?.transit_branch_ids)
+    ? route.transit_branch_ids.map(Number).filter(Number.isFinite)
+    : Array.isArray(route?.transit_branches)
       ? route.transit_branches
-          .map((branch) =>
-            resolveId(branch)
-          )
+          .map((branch) => resolveId(branch))
           .filter(Boolean)
       : [];
 
-  const reverseTransitBranchIds = [
-    ...transitBranchIds,
-  ].reverse();
+  /*
+   * Reverse the operational path.
+   *
+   * Example:
+   *
+   * KTM -> Mugling -> Chitwan -> Pokhara
+   *
+   * becomes:
+   *
+   * Pokhara -> Chitwan -> Mugling -> KTM
+   */
+  const reverseTransitBranchIds = [...transitBranchIds].reverse();
 
-  const originalCode = String(
-    route?.route_code ?? ""
-  ).trim();
+  const originalCode = String(route?.route_code ?? "").trim();
 
-  const generatedCode =
-    overrides.route_code ??
-    (originalCode
-      ? `${originalCode}-REV`
-      : `ROUTE-${destinationBranchId}-${originBranchId}`);
+  const generatedCode = originalCode
+    ? `${originalCode}-REV`
+    : `ROUTE-${destinationBranchId}-${originBranchId}`;
 
   const originName =
-    route?.origin_branch?.name ??
-    route?.origin_branch_name ??
-    "Origin";
+    route?.origin_branch?.name ?? route?.origin_branch_name ?? "Origin";
 
   const destinationName =
     route?.destination_branch?.name ??
     route?.destination_branch_name ??
     "Destination";
 
-  return {
+  const basePayload = {
     route_type: "transfer",
 
     route_code: generatedCode,
 
-    name:
-      overrides.name ??
-      `${destinationName} to ${originName}`,
+    name: `${destinationName} to ${originName}`,
 
-    origin_branch_id:
-      destinationBranchId,
+    origin_branch_id: destinationBranchId,
 
-    destination_branch_id:
-      originBranchId,
+    destination_branch_id: originBranchId,
 
-    transit_branch_ids:
-      reverseTransitBranchIds,
+    transit_branch_ids: reverseTransitBranchIds,
 
-    service_type:
-      overrides.service_type ??
-      route?.service_type ??
-      "standard",
+    service_type: route?.service_type ?? "standard",
 
-    base_rate: Number(
-      overrides.base_rate ??
-        route?.base_rate ??
-        0
+    base_rate: numberOrFallback(route?.base_rate, 0),
+
+    currency: route?.currency ?? "NPR",
+
+    priority: numberOrFallback(route?.priority, 100),
+
+    is_default: normalizeBoolean(route?.is_default, true),
+
+    is_active: normalizeBoolean(route?.is_active, true),
+
+    notes: route?.route_code
+      ? `Reverse of ${route.route_code}`
+      : "Reverse transfer route",
+  };
+
+  /*
+   * Apply only defined overrides.
+   */
+  return {
+    ...basePayload,
+
+    ...Object.fromEntries(
+      Object.entries(overrides).filter(([, value]) => value !== undefined),
     ),
 
-    currency:
-      overrides.currency ??
-      route?.currency ??
-      "NPR",
-
-    priority: Number(
-      overrides.priority ??
-        route?.priority ??
-        100
+    /*
+     * Keep required numeric/boolean fields valid
+     * even if overrides contain string values.
+     */
+    origin_branch_id: Number(
+      overrides.origin_branch_id ?? basePayload.origin_branch_id,
     ),
 
-    is_default:
-      overrides.is_default ??
-      route?.is_default ??
-      true,
+    destination_branch_id: Number(
+      overrides.destination_branch_id ?? basePayload.destination_branch_id,
+    ),
 
-    is_active:
-      overrides.is_active ??
-      route?.is_active ??
-      true,
+    transit_branch_ids: Array.isArray(overrides.transit_branch_ids)
+      ? overrides.transit_branch_ids.map(Number).filter(Number.isFinite)
+      : basePayload.transit_branch_ids,
 
-    notes:
-      overrides.notes ??
-      (route?.route_code
-        ? `Reverse of ${route.route_code}`
-        : "Reverse transfer route"),
+    base_rate: numberOrFallback(
+      overrides.base_rate ?? basePayload.base_rate,
+      basePayload.base_rate,
+    ),
 
-    ...overrides,
+    priority: numberOrFallback(
+      overrides.priority ?? basePayload.priority,
+      basePayload.priority,
+    ),
+
+    is_default: normalizeBoolean(
+      overrides.is_default ?? basePayload.is_default,
+      basePayload.is_default,
+    ),
+
+    is_active: normalizeBoolean(
+      overrides.is_active ?? basePayload.is_active,
+      basePayload.is_active,
+    ),
   };
 }
 
-export async function createReverseBranchTransferRoute(
-  route,
-  overrides = {}
-) {
-  const payload =
-    buildReverseTransferRoutePayload(
-      route,
-      overrides
-    );
+/*
+|--------------------------------------------------------------------------
+| Create reverse complete transfer route
+|--------------------------------------------------------------------------
+*/
 
-  await previewBranchTransferRoute(
-    payload
-  );
+export async function createReverseBranchTransferRoute(route, overrides = {}) {
+  const payload = buildReverseTransferRoutePayload(route, overrides);
 
-  return createBranchTransferRoute(
-    payload
-  );
+  /*
+   * Validate the route before creating it.
+   */
+  await previewBranchTransferRoute(payload);
+
+  return createBranchTransferRoute(payload);
 }
 
 /*
@@ -789,23 +1027,16 @@ export async function createReverseBranchTransferRoute(
 |--------------------------------------------------------------------------
 */
 
-export async function getPricingQuotes(
-  params = {}
-) {
-  const response = await api.get(
-    ENDPOINTS.pricingQuotes,
-    {
-      params,
-    }
-  );
+export async function getPricingQuotes(params = {}) {
+  const response = await api.get(ENDPOINTS.pricingQuotes, {
+    params,
+  });
 
   return response.data;
 }
 
 export async function getPricingQuote(id) {
-  const response = await api.get(
-    `${ENDPOINTS.pricingQuotes}/${id}`
-  );
+  const response = await api.get(`${ENDPOINTS.pricingQuotes}/${id}`);
 
   return unwrapData(response);
 }
@@ -816,38 +1047,30 @@ export async function getPricingQuote(id) {
 |--------------------------------------------------------------------------
 */
 
-export const listBranchRouteRates =
-  getBranchRouteRates;
+export const listBranchRouteRates = getBranchRouteRates;
 
-export const listTransferLanes =
-  getBranchTransferLanes;
+export const listTransferLanes = getBranchTransferLanes;
 
-export const listTransferRoutes =
-  getBranchTransferRoutes;
+export const listTransferRoutes = getBranchTransferRoutes;
 
-export const createTransferLane =
-  createBranchTransferLane;
+export const createTransferLane = createBranchTransferLane;
 
-export const updateTransferLane =
-  updateBranchTransferLane;
+export const updateTransferLane = updateBranchTransferLane;
 
-export const deleteTransferLane =
-  deleteBranchTransferLane;
+export const deleteTransferLane = deleteBranchTransferLane;
 
-export const createTransferRoute =
-  createBranchTransferRoute;
+export const createTransferRoute = createBranchTransferRoute;
 
-export const updateTransferRoute =
-  updateBranchTransferRoute;
+export const updateTransferRoute = updateBranchTransferRoute;
 
-export const deleteTransferRoute =
-  deleteBranchTransferRoute;
+export const deleteTransferRoute = deleteBranchTransferRoute;
 
-export const previewTransferRoute =
-  previewBranchTransferRoute;
+export const previewTransferRoute = previewBranchTransferRoute;
 
-export {
-  ENDPOINTS,
-  unwrapData,
-  unwrapList,
-};
+/*
+|--------------------------------------------------------------------------
+| Named exports
+|--------------------------------------------------------------------------
+*/
+
+export { ENDPOINTS, unwrapData, unwrapList, resolveId, normalizeBoolean };
