@@ -1,7 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import React, {
+import {
   useCallback,
   useEffect,
   useMemo,
@@ -9,84 +9,86 @@ import React, {
 } from "react";
 
 import {
-  Alert,
+  Badge,
   Button,
   Card,
   Col,
+  Descriptions,
   Empty,
   Input,
   InputNumber,
-  List,
-  message,
   Pagination,
+  Popconfirm,
   Row,
   Space,
-  Spin,
   Statistic,
   Switch,
+  Tabs,
   Tag,
   Tooltip,
   Typography,
+  message,
 } from "antd";
 
 import {
   CheckCircleOutlined,
-  CloseCircleOutlined,
+  CloseOutlined,
   DeleteOutlined,
   EditOutlined,
   EnvironmentOutlined,
   PlusOutlined,
   ReloadOutlined,
+  SaveOutlined,
   SwapOutlined,
+  WarningOutlined,
 } from "@ant-design/icons";
 
 import {
   createBranchRouteRate,
-  createReverseBranchRouteRate,
   deleteBranchRouteRate,
   getBranchRouteRateMatrix,
   updateBranchRouteRate,
   updateBranchRouteRateStatus,
 } from "@/services/adminRateManagementService";
 
-import {
-  getPricingSettings,
-} from "@/services/adminPricingConfigurationService";
+import { getPricingSettings } from "@/services/adminPricingConfigurationService";
 
 import {
   apiErrorMessage,
-  branchLabel,
   formatDate,
   formatMoney,
   normalizeBranch,
   normalizeBranchRate,
-} from "@/utils/rate-management-page-utils";
+} from "@/lib/rate-management-page-utils";
 
-const { Text, Title } = Typography;
+const { Title, Text } = Typography;
 
 /*
 |--------------------------------------------------------------------------
-| Map
+| Route Map
 |--------------------------------------------------------------------------
 */
 
 const RouteMapS = dynamic(
-  () => import("@/components/admin/rates/RouteMapS"),
+  () => import("@/components/rate-admin/RouteMapS"),
   {
     ssr: false,
     loading: () => (
       <div
         style={{
-          height: 420,
+          height: 280,
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
+          background: "#f5f7fa",
+          borderRadius: 8,
+          color: "#8c8c8c",
         }}
       >
-        <Spin />
+        Loading map...
       </div>
     ),
-  }
+  },
 );
 
 /*
@@ -102,31 +104,22 @@ const BRANCH_PAGE_SIZE = 10;
 | Boolean helpers
 |--------------------------------------------------------------------------
 |
-| API may return:
+| API can return:
 |
-|   true
-|   false
-|   1
-|   0
-|   "1"
-|   "0"
-|   "true"
-|   "false"
+| true
+| false
+| 1
+| 0
+| "1"
+| "0"
+| "true"
+| "false"
 |
+| Always normalize these before rendering.
 |--------------------------------------------------------------------------
 */
 
-function toStatusBoolean(
-  value,
-  fallback = false
-) {
-  if (
-    value === undefined ||
-    value === null
-  ) {
-    return fallback;
-  }
-
+function toBoolean(value, fallback = false) {
   if (
     value === true ||
     value === 1 ||
@@ -140,9 +133,11 @@ function toStatusBoolean(
     value === false ||
     value === 0 ||
     value === "0" ||
-    value === "false"
+    value === "false" ||
+    value === null ||
+    value === undefined
   ) {
-    return false;
+    return fallback;
   }
 
   return Boolean(value);
@@ -150,3786 +145,2982 @@ function toStatusBoolean(
 
 /*
 |--------------------------------------------------------------------------
-| Number helper
+| Extract API payload
+|--------------------------------------------------------------------------
+|
+| Supports:
+|
+| { data: {...} }
+| { data: { data: {...} } }
+| {...}
 |--------------------------------------------------------------------------
 */
 
-function toSafeNumber(
-  value,
-  fallback = 0
-) {
-  const number = Number(value);
+function unwrapResponsePayload(response) {
+  if (!response) {
+    return null;
+  }
 
-  return Number.isFinite(number)
-    ? number
-    : fallback;
-}
-
-/*
-|--------------------------------------------------------------------------
-| Response helpers
-|--------------------------------------------------------------------------
-*/
-
-function unwrapResponseData(response) {
   if (
-    response?.data?.data !== undefined
+    response?.data?.data !== undefined &&
+    response?.data?.data !== null
   ) {
     return response.data.data;
   }
 
   if (
-    response?.data !== undefined
+    response?.data !== undefined &&
+    response?.data !== null
   ) {
     return response.data;
   }
 
-  return response ?? null;
-}
-
-function extractRateFromResponse(
-  response
-) {
-  const payload =
-    unwrapResponseData(response);
-
-  if (
-    payload?.rate &&
-    typeof payload.rate === "object"
-  ) {
-    return payload.rate;
-  }
-
-  if (
-    payload?.branch_route_rate &&
-    typeof payload.branch_route_rate ===
-      "object"
-  ) {
-    return payload.branch_route_rate;
-  }
-
-  if (
-    payload?.data &&
-    typeof payload.data === "object" &&
-    !Array.isArray(payload.data)
-  ) {
-    return payload.data;
-  }
-
-  return payload;
+  return response;
 }
 
 /*
 |--------------------------------------------------------------------------
-| Rate normalization
+| Normalize rate for UI
 |--------------------------------------------------------------------------
 |
-| This is intentionally separate from normalizeBranchRate().
+| IMPORTANT:
+| normalizeBranchRate() is not trusted to normalize the API's
+| numeric boolean values.
 |
-| normalizeBranchRate() is useful for the general page, but the edit
-| response must preserve the exact server values for:
+| The API returns:
 |
-|   express_enabled
-|   same_day_enabled
+| express_enabled: 0
+| same_day_enabled: 1
+| is_active: 1
 |
+| We explicitly convert all of them here.
 |--------------------------------------------------------------------------
 */
 
-function normalizePageRate(
-  response,
-  fallback = {}
-) {
-  const raw =
-    extractRateFromResponse(response) ??
-    {};
+function normalizeRateForUI(rate, fallback = {}) {
+  const raw = unwrapResponsePayload(rate) || {};
 
   const merged = {
     ...fallback,
     ...raw,
   };
 
-  let normalized = {};
-
-  try {
-    normalized =
-      normalizeBranchRate(merged) ?? {};
-  } catch {
-    normalized = {};
-  }
+  const normalized = normalizeBranchRate(merged);
 
   return {
-    ...fallback,
-    ...raw,
+    ...merged,
     ...normalized,
 
     id:
       raw.id ??
       fallback.id ??
-      normalized.id,
+      normalized?.id ??
+      null,
 
-    pickup_coverage_location_id:
+    pickup_coverage_location_id: Number(
       raw.pickup_coverage_location_id ??
-      fallback.pickup_coverage_location_id ??
-      normalized.pickup_coverage_location_id,
-
-    delivery_coverage_location_id:
-      raw.delivery_coverage_location_id ??
-      fallback.delivery_coverage_location_id ??
-      normalized.delivery_coverage_location_id,
-
-    pickup_branch_id:
-      raw.pickup_branch_id ??
-      fallback.pickup_branch_id ??
-      normalized.pickup_branch_id,
-
-    delivery_branch_id:
-      raw.delivery_branch_id ??
-      fallback.delivery_branch_id ??
-      normalized.delivery_branch_id,
-
-    base_rate:
-      raw.base_rate ??
-      fallback.base_rate ??
-      normalized.base_rate ??
-      0,
-
-    /*
-     * Server response always wins.
-     *
-     * 0 must remain false.
-     */
-    is_active: toStatusBoolean(
-      raw.is_active,
-      toStatusBoolean(
-        fallback.is_active,
-        true
-      )
+        fallback.pickup_coverage_location_id ??
+        normalized?.pickup_coverage_location_id ??
+        0,
     ),
 
-    express_enabled:
-      toStatusBoolean(
-        raw.express_enabled,
-        toStatusBoolean(
-          fallback.express_enabled,
-          true
-        )
-      ),
+    delivery_coverage_location_id: Number(
+      raw.delivery_coverage_location_id ??
+        fallback.delivery_coverage_location_id ??
+        normalized?.delivery_coverage_location_id ??
+        0,
+    ),
 
-    same_day_enabled:
-      toStatusBoolean(
-        raw.same_day_enabled,
-        toStatusBoolean(
-          fallback.same_day_enabled,
-          true
-        )
-      ),
+    pickup_branch_id: Number(
+      raw.pickup_branch_id ??
+        fallback.pickup_branch_id ??
+        normalized?.pickup_branch_id ??
+        raw.pickup_coverage_location_id ??
+        fallback.pickup_coverage_location_id ??
+        0,
+    ),
+
+    delivery_branch_id: Number(
+      raw.delivery_branch_id ??
+        fallback.delivery_branch_id ??
+        normalized?.delivery_branch_id ??
+        raw.delivery_coverage_location_id ??
+        fallback.delivery_coverage_location_id ??
+        0,
+    ),
+
+    base_rate: Number(
+      raw.base_rate ??
+        fallback.base_rate ??
+        normalized?.base_rate ??
+        0,
+    ),
+
+    is_active: toBoolean(
+      raw.is_active ??
+        fallback.is_active ??
+        normalized?.is_active,
+      true,
+    ),
+
+    express_enabled: toBoolean(
+      raw.express_enabled ??
+        fallback.express_enabled ??
+        normalized?.express_enabled,
+      false,
+    ),
+
+    same_day_enabled: toBoolean(
+      raw.same_day_enabled ??
+        fallback.same_day_enabled ??
+        normalized?.same_day_enabled,
+      false,
+    ),
   };
 }
 
 /*
 |--------------------------------------------------------------------------
-| Rate key
+| Empty inline form
 |--------------------------------------------------------------------------
 */
 
-function getRateKey(rate) {
-  if (!rate) {
-    return null;
-  }
-
-  const pickup =
-    rate.pickup_coverage_location_id ??
-    rate.pickup_branch_id;
-
-  const delivery =
-    rate.delivery_coverage_location_id ??
-    rate.delivery_branch_id;
-
-  if (
-    pickup === undefined ||
-    pickup === null ||
-    delivery === undefined ||
-    delivery === null
-  ) {
-    return null;
-  }
-
-  return `${Number(pickup)}:${Number(
-    delivery
-  )}`;
+function emptyForm() {
+  return {
+    base_rate: 0,
+    is_active: true,
+    express_enabled: true,
+    same_day_enabled: true,
+  };
 }
 
 /*
 |--------------------------------------------------------------------------
-| Branch ID
+| Status Tag
 |--------------------------------------------------------------------------
 */
 
-function getBranchId(
-  branch
-) {
-  if (
-    branch === null ||
-    branch === undefined
-  ) {
-    return null;
-  }
+function StatusTag({ active }) {
+  const isActive = toBoolean(active);
 
-  if (
-    typeof branch === "number" ||
-    typeof branch === "string"
-  ) {
-    const id = Number(branch);
-
-    return Number.isFinite(id)
-      ? id
-      : null;
-  }
-
-  const id = Number(
-    branch.id ??
-      branch.branch_id ??
-      branch.coverage_location_id
+  return (
+    <Tag
+      icon={isActive ? <CheckCircleOutlined /> : null}
+      color={isActive ? "success" : "default"}
+      style={{
+        marginInlineEnd: 0,
+        borderRadius: 6,
+      }}
+    >
+      {isActive ? "Active" : "Inactive"}
+    </Tag>
   );
-
-  return Number.isFinite(id)
-    ? id
-    : null;
 }
 
 /*
 |--------------------------------------------------------------------------
-| Inline form defaults
+| Feature Tag
+|--------------------------------------------------------------------------
+|
+| Only render when enabled.
+|
+| Disabled Express / Same Day is intentionally NOT displayed.
 |--------------------------------------------------------------------------
 */
 
-const DEFAULT_INLINE_FORM = {
-  base_rate: 0,
-  is_active: true,
-  express_enabled: true,
-  same_day_enabled: true,
-};
+function ExpressTag({ enabled }) {
+  if (!toBoolean(enabled)) {
+    return null;
+  }
+
+  return (
+    <Tag
+      color="orange"
+      style={{
+        margin: 0,
+        fontSize: 10,
+      }}
+    >
+      Express
+    </Tag>
+  );
+}
+
+function SameDayTag({ enabled }) {
+  if (!toBoolean(enabled)) {
+    return null;
+  }
+
+  return (
+    <Tag
+      color="magenta"
+      style={{
+        margin: 0,
+        fontSize: 10,
+      }}
+    >
+      Same Day
+    </Tag>
+  );
+}
 
 /*
 |--------------------------------------------------------------------------
-| Main page
+| Main Page
 |--------------------------------------------------------------------------
 */
 
 export default function BranchPricingPage() {
-  /*
-   * Matrix data.
-   */
-  const [locations, setLocations] =
-    useState([]);
+  const [locations, setLocations] = useState([]);
+  const [rateMap, setRateMap] = useState({});
 
-  const [rateMap, setRateMap] =
-    useState({});
+  const [selectedPickupId, setSelectedPickupId] =
+    useState(null);
 
-  /*
-   * Selected branch.
-   */
-  const [
-    selectedPickupId,
-    setSelectedPickupId,
-  ] = useState(null);
+  const [selectedRoute, setSelectedRoute] =
+    useState(null);
 
-  const [
-    selectedRoute,
-    setSelectedRoute,
-  ] = useState(null);
+  const [activePricingSettings, setActivePricingSettings] =
+    useState(null);
 
-  /*
-   * Pricing configuration.
-   */
-  const [
-    activePricingSettings,
-    setActivePricingSettings,
-  ] = useState(null);
+  const [loading, setLoading] = useState(false);
+
+  const [search, setSearch] = useState("");
+  const [destTab, setDestTab] = useState("all");
+
+  const [branchSearch, setBranchSearch] =
+    useState("");
+
+  const [branchTab, setBranchTab] =
+    useState("all");
+
+  const [branchPage, setBranchPage] =
+    useState(1);
 
   /*
-   * Loading.
-   */
-  const [
-    loading,
-    setLoading,
-  ] = useState(true);
+  |--------------------------------------------------------------------------
+  | Inline editing
+  |--------------------------------------------------------------------------
+  */
 
-  const [
-    saving,
-    setSaving,
-  ] = useState(false);
+  const [inlineAdd, setInlineAdd] =
+    useState(null);
 
-  /*
-   * Search.
-   */
-  const [
-    search,
-    setSearch,
-  ] = useState("");
+  const [inlineEdit, setInlineEdit] =
+    useState(null);
 
-  const [
-    branchSearch,
-    setBranchSearch,
-  ] = useState("");
+  const [inlineForm, setInlineForm] =
+    useState(emptyForm());
+
+  const [inlineSaving, setInlineSaving] =
+    useState(false);
 
   /*
-   * Destination tab.
-   */
-  const [
-    destTab,
-    setDestTab,
-  ] = useState("all");
-
-  /*
-   * Branch tab.
-   */
-  const [
-    branchTab,
-    setBranchTab,
-  ] = useState("all");
-
-  const [
-    branchPage,
-    setBranchPage,
-  ] = useState(1);
-
-  /*
-   * Inline add/edit.
-   */
-  const [
-    inlineAdd,
-    setInlineAdd,
-  ] = useState(false);
-
-  const [
-    inlineEdit,
-    setInlineEdit,
-  ] = useState(null);
-
-  const [
-    inlineForm,
-    setInlineForm,
-  ] = useState({
-    ...DEFAULT_INLINE_FORM,
-  });
-
-  const [
-    inlineSaving,
-    setInlineSaving,
-  ] = useState(false);
-
-  /*
-   * Deleting.
-   */
-  const [
-    deletingId,
-    setDeletingId,
-  ] = useState(null);
-
-  /*
-   * Active toggle.
-   */
-  const [
-    statusSavingId,
-    setStatusSavingId,
-  ] = useState(null);
-
-  /*
-   * Reverse creation.
-   */
-  const [
-    reverseSavingId,
-    setReverseSavingId,
-  ] = useState(null);
-
-  /*
-   * Message instance.
-   */
-  const [
-    messageApi,
-    contextHolder,
-  ] = message.useMessage();
-
-  /*
-   |--------------------------------------------------------------------------
-   | Load matrix
-   |--------------------------------------------------------------------------
-   */
+  |--------------------------------------------------------------------------
+  | LOAD MATRIX
+  |--------------------------------------------------------------------------
+  */
 
   const loadMatrix = useCallback(
-    async ({
-      preserveSelection = true,
-    } = {}) => {
+    async (keepSelection = true) => {
       try {
         setLoading(true);
 
-        const response =
+        const payload =
           await getBranchRouteRateMatrix();
 
-        const payload =
-          unwrapResponseData(response) ??
-          {};
+        const data =
+          unwrapResponsePayload(payload) || {};
 
-        /*
-         * Matrix may be returned in several Laravel formats.
-         */
-        const rawLocations =
-          Array.isArray(
-            payload?.locations
-          )
-            ? payload.locations
-            : Array.isArray(
-                payload?.branches
-              )
-            ? payload.branches
-            : [];
+        const rawLocations = Array.isArray(
+          data?.branches,
+        )
+          ? data.branches
+          : [];
 
         const rawRates =
-          Array.isArray(
-            payload?.rates
-          )
-            ? payload.rates
-            : Array.isArray(
-                payload?.data
-              )
-            ? payload.data
-            : Array.isArray(payload)
-            ? payload
-            : [];
+          data?.rates &&
+          typeof data.rates === "object"
+            ? data.rates
+            : {};
 
         /*
-         * Normalize locations.
+         * Normalize branches.
          */
         const normalizedLocations =
           rawLocations
-            .map((location) => {
-              try {
-                return normalizeBranch(
-                  location
-                );
-              } catch {
-                return location;
-              }
-            })
+            .map((branch) =>
+              normalizeBranch(branch),
+            )
             .filter(Boolean);
 
         /*
-         * Normalize rates.
+         * Normalize every rate.
+         *
+         * This is where API values such as:
+         *
+         * express_enabled: 0
+         *
+         * become:
+         *
+         * express_enabled: false
          */
-        const nextRateMap = {};
+        const normalizedMap = {};
 
-        rawRates.forEach((rawRate) => {
-          const rate =
-            normalizePageRate(
-              rawRate
-            );
+        for (const [key, rate] of Object.entries(
+          rawRates,
+        )) {
+          normalizedMap[key] =
+            normalizeRateForUI(rate);
+        }
 
-          const key =
-            getRateKey(rate);
+        setLocations(normalizedLocations);
+        setRateMap(normalizedMap);
 
-          if (key) {
-            nextRateMap[key] =
-              rate;
+        /*
+         * Preserve selected branch whenever possible.
+         */
+        setSelectedPickupId((current) => {
+          if (
+            keepSelection &&
+            current !== null &&
+            normalizedLocations.some(
+              (branch) =>
+                Number(branch.id) ===
+                Number(current),
+            )
+          ) {
+            return Number(current);
           }
+
+          return normalizedLocations.length > 0
+            ? Number(normalizedLocations[0].id)
+            : null;
         });
 
-        setLocations(
-          normalizedLocations
-        );
-
-        setRateMap(
-          nextRateMap
-        );
-
         /*
-         * Preserve current pickup selection when possible.
+         * Refresh selected route from the new matrix.
          */
-        setSelectedPickupId(
-          (previous) => {
-            if (
-              preserveSelection &&
-              previous !== null &&
-              previous !== undefined
-            ) {
-              const exists =
-                normalizedLocations.some(
-                  (branch) =>
-                    Number(
-                      getBranchId(
-                        branch
-                      )
-                    ) ===
-                    Number(previous)
-                );
+        setSelectedRoute((current) => {
+          if (!current?.id) {
+            return null;
+          }
 
-              if (exists) {
-                return previous;
-              }
-            }
+          const currentId = Number(current.id);
 
-            return (
-              getBranchId(
-                normalizedLocations[0]
-              ) ?? null
+          const freshRoute =
+            Object.values(normalizedMap).find(
+              (rate) =>
+                Number(rate?.id) === currentId,
             );
-          }
-        );
 
-        /*
-         * Refresh currently selected route from the newly loaded map.
-         */
-        setSelectedRoute(
-          (previous) => {
-            if (!previous) {
-              return null;
-            }
-
-            const key =
-              getRateKey(previous);
-
-            return key &&
-              nextRateMap[key]
-              ? nextRateMap[key]
-              : previous;
-          }
-        );
+          return freshRoute || null;
+        });
       } catch (error) {
-        console.error(
-          "Failed to load branch pricing matrix:",
-          error
-        );
-
-        messageApi.error(
+        message.error(
           apiErrorMessage(
             error,
-            "Failed to load branch pricing."
-          )
+            "Could not load branch pricing matrix.",
+          ),
         );
       } finally {
         setLoading(false);
       }
     },
-    [messageApi]
+    [],
   );
 
   /*
-   |--------------------------------------------------------------------------
-   | Load pricing settings
-   |--------------------------------------------------------------------------
-   */
-
-  const loadPricingSettings =
-    useCallback(async () => {
-      try {
-        const response =
-          await getPricingSettings({
-            status: "active",
-            per_page: 100,
-          });
-
-        const payload =
-          unwrapResponseData(
-            response
-          );
-
-        /*
-         * API may return:
-         *
-         * []
-         * { data: [] }
-         * { active: {...} }
-         * {...}
-         */
-        if (
-          Array.isArray(payload)
-        ) {
-          const active =
-            payload.find(
-              (item) =>
-                toStatusBoolean(
-                  item?.is_active,
-                  false
-                )
-            ) ??
-            payload[0] ??
-            null;
-
-          setActivePricingSettings(
-            active
-          );
-
-          return;
-        }
-
-        if (
-          payload?.active &&
-          typeof payload.active ===
-            "object"
-        ) {
-          setActivePricingSettings(
-            payload.active
-          );
-
-          return;
-        }
-
-        if (
-          Array.isArray(
-            payload?.data
-          )
-        ) {
-          const active =
-            payload.data.find(
-              (item) =>
-                toStatusBoolean(
-                  item?.is_active,
-                  false
-                )
-            ) ??
-            payload.data[0] ??
-            null;
-
-          setActivePricingSettings(
-            active
-          );
-
-          return;
-        }
-
-        setActivePricingSettings(
-          payload ?? null
-        );
-      } catch (error) {
-        console.error(
-          "Failed to load pricing settings:",
-          error
-        );
-      }
-    }, []);
-
-  /*
-   |--------------------------------------------------------------------------
-   | Initial load
-   |--------------------------------------------------------------------------
-   */
+  |--------------------------------------------------------------------------
+  | INITIAL LOAD
+  |--------------------------------------------------------------------------
+  */
 
   useEffect(() => {
     loadMatrix();
-    loadPricingSettings();
-  }, [
-    loadMatrix,
-    loadPricingSettings,
-  ]);
+
+    getPricingSettings()
+      .then((response) => {
+        const data =
+          unwrapResponsePayload(response);
+
+        setActivePricingSettings(
+          data?.active ?? null,
+        );
+      })
+      .catch(() => {});
+  }, [loadMatrix]);
 
   /*
-   |--------------------------------------------------------------------------
-   | Current pickup branch
-   |--------------------------------------------------------------------------
-   */
-
-  const selectedPickup = useMemo(() => {
-    if (
-      selectedPickupId === null ||
-      selectedPickupId === undefined
-    ) {
-      return null;
-    }
-
-    return (
-      locations.find(
-        (branch) =>
-          Number(
-            getBranchId(branch)
-          ) ===
-          Number(selectedPickupId)
-      ) ?? null
-    );
-  }, [
-    locations,
-    selectedPickupId,
-  ]);
-
-  /*
-   |--------------------------------------------------------------------------
-   | Destination rates
-   |--------------------------------------------------------------------------
-   */
-
-  const destinationRates =
-    useMemo(() => {
-      if (
-        selectedPickupId ===
-          null ||
-        selectedPickupId ===
-          undefined
-      ) {
-        return [];
-      }
-
-      return locations
-        .filter(
-          (destination) =>
-            Number(
-              getBranchId(
-                destination
-              )
-            ) !==
-            Number(selectedPickupId)
-        )
-        .map((destination) => {
-          const destinationId =
-            getBranchId(
-              destination
-            );
-
-          const key = `${Number(
-            selectedPickupId
-          )}:${Number(destinationId)}`;
-
-          const rate =
-            rateMap[key] ?? null;
-
-          return {
-            destination,
-            rate,
-          };
-        });
-    }, [
-      locations,
-      rateMap,
-      selectedPickupId,
-    ]);
-
-  /*
-   |--------------------------------------------------------------------------
-   | Filter destinations
-   |--------------------------------------------------------------------------
-   */
-
-  const filteredDestinationRates =
-    useMemo(() => {
-      let rows =
-        destinationRates;
-
-      /*
-       * Status tab.
-       */
-      if (
-        destTab === "active"
-      ) {
-        rows = rows.filter(
-          ({ rate }) =>
-            rate &&
-            rate.is_active === true
-        );
-      }
-
-      if (
-        destTab === "inactive"
-      ) {
-        rows = rows.filter(
-          ({ rate }) =>
-            rate &&
-            rate.is_active === false
-        );
-      }
-
-      /*
-       * Search.
-       */
-      const query =
-        String(search ?? "")
-          .trim()
-          .toLowerCase();
-
-      if (query) {
-        rows = rows.filter(
-          ({
-            destination,
-            rate,
-          }) => {
-            const text = [
-              destination?.name,
-              destination?.code,
-              rate?.id,
-            ]
-              .filter(
-                (value) =>
-                  value !==
-                    null &&
-                  value !==
-                    undefined
-              )
-              .join(" ")
-              .toLowerCase();
-
-            return text.includes(
-              query
-            );
-          }
-        );
-      }
-
-      return rows;
-    }, [
-      destinationRates,
-      destTab,
-      search,
-    ]);
-
-  /*
-   |--------------------------------------------------------------------------
-   | Branch list
-   |--------------------------------------------------------------------------
-   */
-
-  const filteredBranches =
-    useMemo(() => {
-      let rows =
-        [...locations];
-
-      if (
-        branchTab === "configured"
-      ) {
-        rows = rows.filter(
-          (branch) => {
-            const branchId =
-              getBranchId(
-                branch
-              );
-
-            return Object.keys(
-              rateMap
-            ).some(
-              (key) =>
-                Number(
-                  key.split(":")[0]
-                ) ===
-                Number(branchId)
-            );
-          }
-        );
-      }
-
-      if (
-        branchTab ===
-        "unconfigured"
-      ) {
-        rows = rows.filter(
-          (branch) => {
-            const branchId =
-              getBranchId(
-                branch
-              );
-
-            return !Object.keys(
-              rateMap
-            ).some(
-              (key) =>
-                Number(
-                  key.split(":")[0]
-                ) ===
-                Number(branchId)
-            );
-          }
-        );
-      }
-
-      const query =
-        String(
-          branchSearch ?? ""
-        )
-          .trim()
-          .toLowerCase();
-
-      if (query) {
-        rows = rows.filter(
-          (branch) => {
-            const text = [
-              branch?.name,
-              branch?.code,
-              branch?.id,
-            ]
-              .filter(
-                (value) =>
-                  value !==
-                    null &&
-                  value !==
-                    undefined
-              )
-              .join(" ")
-              .toLowerCase();
-
-            return text.includes(
-              query
-            );
-          }
-        );
-      }
-
-      return rows;
-    }, [
-      locations,
-      rateMap,
-      branchSearch,
-      branchTab,
-    ]);
-
-  /*
-   |--------------------------------------------------------------------------
-   | Branch pagination
-   |--------------------------------------------------------------------------
-   */
-
-  const paginatedBranches =
-    useMemo(() => {
-      const start =
-        (branchPage - 1) *
-        BRANCH_PAGE_SIZE;
-
-      return filteredBranches.slice(
-        start,
-        start +
-          BRANCH_PAGE_SIZE
-      );
-    }, [
-      filteredBranches,
-      branchPage,
-    ]);
-
-  /*
-   |--------------------------------------------------------------------------
-   | Stats
-   |--------------------------------------------------------------------------
-   */
+  |--------------------------------------------------------------------------
+  | STATS
+  |--------------------------------------------------------------------------
+  */
 
   const stats = useMemo(() => {
-    const rates =
-      Object.values(rateMap);
+    const rates = Object.values(rateMap);
 
-    const active =
-      rates.filter(
-        (rate) =>
-          rate?.is_active === true
-      ).length;
+    const total = rates.length;
 
-    const inactive =
-      rates.filter(
-        (rate) =>
-          rate?.is_active === false
-      ).length;
+    const active = rates.filter((rate) =>
+      toBoolean(rate?.is_active),
+    ).length;
 
-    const express =
-      rates.filter(
-        (rate) =>
-          rate?.express_enabled ===
-          true
-      ).length;
+    const n = locations.length;
 
-    const sameDay =
-      rates.filter(
-        (rate) =>
-          rate?.same_day_enabled ===
-          true
-      ).length;
+    const coverage =
+      n > 0
+        ? Math.round(
+            (total / (n * n)) * 100,
+          )
+        : 0;
 
     return {
-      total: rates.length,
+      total,
       active,
-      inactive,
-      express,
-      sameDay,
+      coverage,
+      locationCount: n,
     };
+  }, [rateMap, locations]);
+
+  /*
+  |--------------------------------------------------------------------------
+  | DESTINATION ROWS
+  |--------------------------------------------------------------------------
+  */
+
+  const destinationRows = useMemo(() => {
+    if (!selectedPickupId) {
+      return [];
+    }
+
+    return locations.map((location) => ({
+      location,
+
+      rate:
+        rateMap[
+          `${Number(selectedPickupId)}:${Number(
+            location.id,
+          )}`
+        ] ?? null,
+    }));
+  }, [
+    selectedPickupId,
+    locations,
+    rateMap,
+  ]);
+
+  /*
+  |--------------------------------------------------------------------------
+  | FILTERED DESTINATIONS
+  |--------------------------------------------------------------------------
+  */
+
+  const filteredDestinations = useMemo(() => {
+    let rows = destinationRows;
+
+    const query = search
+      .trim()
+      .toLowerCase();
+
+    if (query) {
+      rows = rows.filter(
+        ({ location }) =>
+          location.name
+            ?.toLowerCase()
+            .includes(query) ||
+          location.code
+            ?.toLowerCase()
+            .includes(query),
+      );
+    }
+
+    if (destTab === "active") {
+      rows = rows.filter(({ rate }) =>
+        toBoolean(rate?.is_active),
+      );
+    }
+
+    if (destTab === "missing") {
+      rows = rows.filter(
+        ({ rate }) => !rate,
+      );
+    }
+
+    return rows;
+  }, [
+    destinationRows,
+    search,
+    destTab,
+  ]);
+
+  /*
+  |--------------------------------------------------------------------------
+  | BRANCH RATE COUNTS
+  |--------------------------------------------------------------------------
+  |
+  | Instead of repeatedly running Object.keys(rateMap).filter(...)
+  | for every branch, calculate counts once.
+  |--------------------------------------------------------------------------
+  */
+
+  const branchRateCounts = useMemo(() => {
+    const counts = {};
+
+    for (const rate of Object.values(
+      rateMap,
+    )) {
+      const pickupId = Number(
+        rate?.pickup_coverage_location_id ??
+          rate?.pickup_branch_id,
+      );
+
+      if (!pickupId) {
+        continue;
+      }
+
+      counts[pickupId] =
+        (counts[pickupId] || 0) + 1;
+    }
+
+    return counts;
   }, [rateMap]);
 
   /*
-   |--------------------------------------------------------------------------
-   | Selected route nodes
-   |--------------------------------------------------------------------------
-   */
+  |--------------------------------------------------------------------------
+  | FILTERED BRANCHES
+  |--------------------------------------------------------------------------
+  */
 
-  const selectedRouteNodes =
-    useMemo(() => {
-      if (!selectedRoute) {
-        return [];
-      }
+  const filteredBranches = useMemo(() => {
+    let list = locations;
 
-      const pickupId =
-        selectedRoute.pickup_coverage_location_id ??
-        selectedRoute.pickup_branch_id;
+    const query = branchSearch
+      .trim()
+      .toLowerCase();
 
-      const deliveryId =
-        selectedRoute.delivery_coverage_location_id ??
-        selectedRoute.delivery_branch_id;
+    if (query) {
+      list = list.filter(
+        (location) =>
+          location.name
+            ?.toLowerCase()
+            .includes(query) ||
+          location.code
+            ?.toLowerCase()
+            .includes(query),
+      );
+    }
 
-      const pickup =
-        locations.find(
-          (branch) =>
-            Number(
-              getBranchId(branch)
-            ) === Number(pickupId)
-        );
+    if (branchTab === "complete") {
+      list = list.filter((location) => {
+        const count =
+          branchRateCounts[
+            Number(location.id)
+          ] || 0;
 
-      const delivery =
-        locations.find(
-          (branch) =>
-            Number(
-              getBranchId(branch)
-            ) === Number(deliveryId)
-        );
-
-      return [
-        pickup,
-        delivery,
-      ].filter(Boolean);
-    }, [
-      locations,
-      selectedRoute,
-    ]);
-
-  /*
-   |--------------------------------------------------------------------------
-   | Select pickup branch
-   |--------------------------------------------------------------------------
-   */
-
-  const handleSelectPickup =
-    useCallback(
-      (branch) => {
-        const id =
-          getBranchId(branch);
-
-        if (
-          id === null ||
-          id === undefined
-        ) {
-          return;
-        }
-
-        setSelectedPickupId(id);
-        setSelectedRoute(null);
-        setInlineEdit(null);
-        setInlineAdd(false);
-        setBranchPage(1);
-      },
-      []
-    );
-
-  /*
-   |--------------------------------------------------------------------------
-   | Select route
-   |--------------------------------------------------------------------------
-   */
-
-  const handleSelectRoute =
-    useCallback(
-      (rate) => {
-        if (!rate) {
-          return;
-        }
-
-        const normalized =
-          normalizePageRate(
-            rate
-          );
-
-        setSelectedRoute(
-          normalized
-        );
-      },
-      []
-    );
-
-  /*
-   |--------------------------------------------------------------------------
-   | Start inline edit
-   |--------------------------------------------------------------------------
-   */
-
-  const startEdit =
-    useCallback(
-      (rate) => {
-        if (!rate?.id) {
-          messageApi.error(
-            "Invalid pricing record."
-          );
-          return;
-        }
-
-        const normalized =
-          normalizePageRate(
-            rate
-          );
-
-        setInlineAdd(false);
-        setInlineEdit(
-          normalized.id
-        );
-
-        setInlineForm({
-          base_rate:
-            toSafeNumber(
-              normalized.base_rate,
-              0
-            ),
-
-          is_active:
-            toStatusBoolean(
-              normalized.is_active,
-              true
-            ),
-
-          /*
-           * IMPORTANT:
-           *
-           * 0 => false
-           * 1 => true
-           *
-           * Do NOT use:
-           *
-           * Boolean(value)
-           *
-           * when value might be a string.
-           */
-          express_enabled:
-            toStatusBoolean(
-              normalized.express_enabled,
-              true
-            ),
-
-          same_day_enabled:
-            toStatusBoolean(
-              normalized.same_day_enabled,
-              true
-            ),
-        });
-      },
-      [messageApi]
-    );
-
-  /*
-   |--------------------------------------------------------------------------
-   | Cancel inline edit
-   |--------------------------------------------------------------------------
-   */
-
-  const cancelInlineEdit =
-    useCallback(() => {
-      setInlineEdit(null);
-
-      setInlineForm({
-        ...DEFAULT_INLINE_FORM,
+        return count >= locations.length;
       });
-    }, []);
+    }
 
-  /*
-   |--------------------------------------------------------------------------
-   | Start inline add
-   |--------------------------------------------------------------------------
-   */
+    if (branchTab === "missing") {
+      list = list.filter((location) => {
+        const count =
+          branchRateCounts[
+            Number(location.id)
+          ] || 0;
 
-  const startInlineAdd =
-    useCallback(() => {
-      if (
-        selectedPickupId ===
-          null ||
-        selectedPickupId ===
-          undefined
-      ) {
-        messageApi.warning(
-          "Select a pickup branch first."
-        );
-        return;
-      }
-
-      setInlineEdit(null);
-
-      setInlineAdd(true);
-
-      setInlineForm({
-        ...DEFAULT_INLINE_FORM,
+        return count < locations.length;
       });
-    }, [
-      selectedPickupId,
-      messageApi,
-    ]);
+    }
+
+    return list;
+  }, [
+    locations,
+    branchRateCounts,
+    branchSearch,
+    branchTab,
+  ]);
 
   /*
-   |--------------------------------------------------------------------------
-   | Save inline edit
-   |--------------------------------------------------------------------------
-   |
-   | THIS IS THE IMPORTANT FIX.
-   |
-   | The API response:
-   |
-   |   express_enabled: 0
-   |   same_day_enabled: 1
-   |
-   | is converted to:
-   |
-   |   express_enabled: false
-   |   same_day_enabled: true
-   |
-   | and stored in React state.
-   |--------------------------------------------------------------------------
-   */
+  |--------------------------------------------------------------------------
+  | PAGED BRANCHES
+  |--------------------------------------------------------------------------
+  */
 
-  const handleInlineSave =
-    useCallback(
-      async (rate) => {
-        if (!rate?.id) {
-          messageApi.error(
-            "Invalid rate selected."
-          );
-          return;
-        }
+  const pagedBranches = useMemo(() => {
+    const start =
+      (branchPage - 1) *
+      BRANCH_PAGE_SIZE;
 
-        try {
-          setInlineSaving(true);
+    return filteredBranches.slice(
+      start,
+      start + BRANCH_PAGE_SIZE,
+    );
+  }, [
+    filteredBranches,
+    branchPage,
+  ]);
 
-          const pickupCoverageId =
-            rate.pickup_coverage_location_id ??
-            rate.pickup_branch_id;
+  /*
+  |--------------------------------------------------------------------------
+  | SELECTED PICKUP LOCATION
+  |--------------------------------------------------------------------------
+  */
 
-          const deliveryCoverageId =
-            rate.delivery_coverage_location_id ??
-            rate.delivery_branch_id;
+  const selectedPickupLocation =
+    useMemo(
+      () =>
+        locations.find(
+          (location) =>
+            Number(location.id) ===
+            Number(selectedPickupId),
+        ) ?? null,
+      [
+        locations,
+        selectedPickupId,
+      ],
+    );
 
-          const payload = {
+  /*
+  |--------------------------------------------------------------------------
+  | MISSING COUNT
+  |--------------------------------------------------------------------------
+  */
+
+  const missingCount =
+    destinationRows.filter(
+      ({ rate }) => !rate,
+    ).length;
+
+  /*
+  |--------------------------------------------------------------------------
+  | INLINE HELPERS
+  |--------------------------------------------------------------------------
+  */
+
+  const cancelInline = useCallback(() => {
+    setInlineAdd(null);
+    setInlineEdit(null);
+    setInlineForm(emptyForm());
+  }, []);
+
+  const startAdd = useCallback(
+    (locationId) => {
+      setInlineEdit(null);
+      setInlineAdd(Number(locationId));
+
+      setInlineForm(emptyForm());
+    },
+    [],
+  );
+
+  /*
+  |--------------------------------------------------------------------------
+  | PATCH RATE MAP
+  |--------------------------------------------------------------------------
+  |
+  | IMPORTANT:
+  |
+  | Always normalize the response before putting it into React state.
+  |--------------------------------------------------------------------------
+  */
+
+  const patchRateMap = useCallback(
+    (
+      pickupId,
+      deliveryId,
+      rate,
+      fallback = {},
+    ) => {
+      const normalizedPickupId =
+        Number(pickupId);
+
+      const normalizedDeliveryId =
+        Number(deliveryId);
+
+      const key = `${normalizedPickupId}:${normalizedDeliveryId}`;
+
+      const normalized =
+        normalizeRateForUI(
+          rate,
+          {
+            ...fallback,
+
             pickup_coverage_location_id:
-              Number(
-                pickupCoverageId
-              ),
+              normalizedPickupId,
 
             delivery_coverage_location_id:
-              Number(
-                deliveryCoverageId
-              ),
+              normalizedDeliveryId,
+          },
+        );
 
-            base_rate:
-              toSafeNumber(
-                inlineForm.base_rate,
-                toSafeNumber(
-                  rate.base_rate,
-                  0
-                )
-              ),
+      setRateMap((previous) => ({
+        ...previous,
+        [key]: normalized,
+      }));
 
-            is_active:
-              toStatusBoolean(
-                inlineForm.is_active,
-                toStatusBoolean(
-                  rate.is_active,
-                  true
-                )
-              ),
+      setSelectedRoute((previous) => {
+        if (
+          previous &&
+          Number(previous.id) ===
+            Number(normalized.id)
+        ) {
+          return normalized;
+        }
 
-            express_enabled:
-              toStatusBoolean(
-                inlineForm.express_enabled,
-                toStatusBoolean(
-                  rate.express_enabled,
-                  true
-                )
-              ),
+        return previous;
+      });
+    },
+    [],
+  );
 
-            same_day_enabled:
-              toStatusBoolean(
-                inlineForm.same_day_enabled,
-                toStatusBoolean(
-                  rate.same_day_enabled,
-                  true
-                )
-              ),
+  /*
+  |--------------------------------------------------------------------------
+  | REMOVE RATE FROM MAP
+  |--------------------------------------------------------------------------
+  */
+
+  const dropFromRateMap =
+    useCallback(
+      (
+        pickupId,
+        deliveryId,
+        rateId,
+      ) => {
+        const key = `${Number(
+          pickupId,
+        )}:${Number(deliveryId)}`;
+
+        setRateMap((previous) => {
+          const next = {
+            ...previous,
           };
 
-          /*
-           * Send to Laravel.
-           */
-          const response =
-            await updateBranchRouteRate(
-              rate.id,
-              payload
-            );
+          delete next[key];
 
-          /*
-           * Extract actual server object.
-           */
-          const serverRate =
-            extractRateFromResponse(
-              response
-            ) ?? {};
+          return next;
+        });
 
-          /*
-           * Server response is authoritative.
-           *
-           * Example:
-           *
-           * express_enabled: 0
-           * same_day_enabled: 1
-           */
-          const updatedRate =
-            normalizePageRate(
-              {
-                ...rate,
-                ...serverRate,
-              },
-              {
-                ...rate,
+        setSelectedRoute((previous) =>
+          previous &&
+          Number(previous.id) ===
+            Number(rateId)
+            ? null
+            : previous,
+        );
+      },
+      [],
+    );
 
-                /*
-                 * Fallback only if backend does not return a field.
-                 */
-                ...payload,
-              }
-            );
+  /*
+  |--------------------------------------------------------------------------
+  | SAVE NEW RATE
+  |--------------------------------------------------------------------------
+  */
 
-          /*
-           * Force the three values from the actual response
-           * when present.
-           *
-           * This prevents normalizeBranchRate() from accidentally
-           * replacing them.
-           */
-          updatedRate.base_rate =
-            serverRate.base_rate ??
-            payload.base_rate;
+  const saveAdd = async (
+    deliveryLocationId,
+  ) => {
+    if (
+      inlineForm.base_rate ===
+        null ||
+      inlineForm.base_rate ===
+        undefined ||
+      Number.isNaN(
+        Number(inlineForm.base_rate),
+      )
+    ) {
+      message.warning(
+        "Enter a base rate.",
+      );
 
-          updatedRate.is_active =
-            serverRate.is_active !==
-              undefined &&
-            serverRate.is_active !==
-              null
-              ? toStatusBoolean(
-                  serverRate.is_active
-                )
-              : payload.is_active;
+      return;
+    }
 
-          updatedRate.express_enabled =
-            serverRate.express_enabled !==
-              undefined &&
-            serverRate.express_enabled !==
-              null
-              ? toStatusBoolean(
-                  serverRate.express_enabled
-                )
-              : payload.express_enabled;
+    try {
+      setInlineSaving(true);
 
-          updatedRate.same_day_enabled =
-            serverRate.same_day_enabled !==
-              undefined &&
-            serverRate.same_day_enabled !==
-              null
-              ? toStatusBoolean(
-                  serverRate.same_day_enabled
-                )
-              : payload.same_day_enabled;
+      const pickupId =
+        Number(selectedPickupId);
 
-          /*
-           * Keep IDs stable.
-           */
-          updatedRate.pickup_coverage_location_id =
-            serverRate.pickup_coverage_location_id ??
-            rate.pickup_coverage_location_id ??
-            pickupCoverageId;
+      const deliveryId =
+        Number(deliveryLocationId);
 
-          updatedRate.delivery_coverage_location_id =
-            serverRate.delivery_coverage_location_id ??
-            rate.delivery_coverage_location_id ??
-            deliveryCoverageId;
+      const payload = {
+        pickup_coverage_location_id:
+          pickupId,
 
-          updatedRate.id =
-            serverRate.id ??
-            rate.id;
+        delivery_coverage_location_id:
+          deliveryId,
 
-          /*
-           * Update rate map.
-           */
-          const key =
-            getRateKey(
-              updatedRate
-            );
+        base_rate: Number(
+          inlineForm.base_rate,
+        ),
 
-          setRateMap(
-            (previous) => {
-              const next = {
-                ...previous,
-              };
+        is_active: toBoolean(
+          inlineForm.is_active,
+          true,
+        ),
 
-              if (key) {
-                next[key] =
-                  updatedRate;
-              }
+        express_enabled: toBoolean(
+          inlineForm.express_enabled,
+          true,
+        ),
 
-              return next;
-            }
-          );
+        same_day_enabled: toBoolean(
+          inlineForm.same_day_enabled,
+          true,
+        ),
+      };
 
-          /*
-           * IMPORTANT:
-           *
-           * Update selectedRoute too.
-           *
-           * Otherwise the detail panel can still display
-           * stale Express / Same Day values.
-           */
-          setSelectedRoute(
-            (previous) => {
-              if (
-                !previous ||
-                Number(
-                  previous.id
-                ) !==
-                  Number(
-                    updatedRate.id
-                  )
-              ) {
-                return previous;
-              }
+      const result =
+        await createBranchRouteRate(
+          payload,
+        );
 
-              return {
-                ...previous,
-                ...updatedRate,
-              };
-            }
-          );
+      const apiData =
+        unwrapResponsePayload(
+          result,
+        ) || {};
 
-          /*
-           * IMPORTANT:
-           *
-           * Keep inlineForm synchronized with the server response.
-           */
-          setInlineForm({
+      const newRate =
+        normalizeRateForUI(
+          {
+            ...apiData,
+
+            /*
+             * If backend response does not include
+             * these fields, keep the values submitted.
+             */
+            id:
+              apiData?.id ??
+              apiData?.forward_id ??
+              null,
+
+            pickup_coverage_location_id:
+              pickupId,
+
+            delivery_coverage_location_id:
+              deliveryId,
+
             base_rate:
-              toSafeNumber(
-                updatedRate.base_rate,
-                0
-              ),
+              apiData?.base_rate ??
+              payload.base_rate,
 
             is_active:
-              toStatusBoolean(
-                updatedRate.is_active,
-                true
-              ),
+              apiData?.is_active ??
+              payload.is_active,
 
             express_enabled:
-              toStatusBoolean(
-                updatedRate.express_enabled,
-                true
-              ),
+              apiData?.express_enabled ??
+              payload.express_enabled,
 
             same_day_enabled:
-              toStatusBoolean(
-                updatedRate.same_day_enabled,
-                true
-              ),
-          });
+              apiData?.same_day_enabled ??
+              payload.same_day_enabled,
+          },
+          payload,
+        );
 
-          setInlineEdit(null);
+      patchRateMap(
+        pickupId,
+        deliveryId,
+        newRate,
+        payload,
+      );
 
-          messageApi.success(
-            "Branch pricing updated successfully."
-          );
-        } catch (error) {
-          console.error(
-            "Failed to update branch pricing:",
-            error
-          );
+      message.success(
+        "Rate added successfully.",
+      );
 
-          messageApi.error(
-            apiErrorMessage(
-              error,
-              "Failed to update branch pricing."
-            )
-          );
-        } finally {
-          setInlineSaving(false);
-        }
-      },
-      [
-        inlineForm,
-        messageApi,
-      ]
-    );
+      cancelInline();
+    } catch (error) {
+      message.error(
+        apiErrorMessage(
+          error,
+          "Could not save rate.",
+        ),
+      );
+    } finally {
+      setInlineSaving(false);
+    }
+  };
 
   /*
-   |--------------------------------------------------------------------------
-   | Save inline add
-   |--------------------------------------------------------------------------
-   */
+  |--------------------------------------------------------------------------
+  | START EDIT
+  |--------------------------------------------------------------------------
+  |
+  | THIS FIXES THE MAIN SWITCH BUG.
+  |
+  | API:
+  |
+  | express_enabled: 0
+  |
+  | becomes:
+  |
+  | express_enabled: false
+  |--------------------------------------------------------------------------
+  */
 
-  const handleInlineAdd =
-    useCallback(async () => {
-      if (
-        selectedPickupId ===
-          null ||
-        selectedPickupId ===
-          undefined
-      ) {
-        messageApi.error(
-          "Select a pickup branch first."
-        );
-        return;
-      }
+  const startEdit = useCallback(
+    (rate) => {
+      const normalized =
+        normalizeRateForUI(rate);
 
-      const destinationId =
-        inlineForm.delivery_coverage_location_id ??
-        inlineForm.delivery_branch_id;
+      setInlineAdd(null);
+      setInlineEdit(
+        Number(normalized.id),
+      );
 
-      if (!destinationId) {
-        messageApi.error(
-          "Select a destination branch."
-        );
-        return;
-      }
+      setInlineForm({
+        base_rate: Number(
+          normalized.base_rate ?? 0,
+        ),
 
-      try {
-        setInlineSaving(true);
+        is_active: toBoolean(
+          normalized.is_active,
+          true,
+        ),
 
-        const payload = {
-          pickup_coverage_location_id:
-            Number(
-              selectedPickupId
-            ),
+        express_enabled: toBoolean(
+          normalized.express_enabled,
+          false,
+        ),
 
-          delivery_coverage_location_id:
-            Number(destinationId),
-
-          base_rate:
-            toSafeNumber(
-              inlineForm.base_rate,
-              0
-            ),
-
-          is_active:
-            toStatusBoolean(
-              inlineForm.is_active,
-              true
-            ),
-
-          express_enabled:
-            toStatusBoolean(
-              inlineForm.express_enabled,
-              true
-            ),
-
-          same_day_enabled:
-            toStatusBoolean(
-              inlineForm.same_day_enabled,
-              true
-            ),
-        };
-
-        const response =
-          await createBranchRouteRate(
-            payload
-          );
-
-        const serverRate =
-          extractRateFromResponse(
-            response
-          ) ?? {};
-
-        const createdRate =
-          normalizePageRate(
-            {
-              ...payload,
-              ...serverRate,
-            },
-            payload
-          );
-
-        /*
-         * Server values win.
-         */
-        if (
-          serverRate.base_rate !==
-          undefined
-        ) {
-          createdRate.base_rate =
-            serverRate.base_rate;
-        }
-
-        if (
-          serverRate.is_active !==
-          undefined
-        ) {
-          createdRate.is_active =
-            toStatusBoolean(
-              serverRate.is_active
-            );
-        }
-
-        if (
-          serverRate.express_enabled !==
-          undefined
-        ) {
-          createdRate.express_enabled =
-            toStatusBoolean(
-              serverRate.express_enabled
-            );
-        }
-
-        if (
-          serverRate.same_day_enabled !==
-          undefined
-        ) {
-          createdRate.same_day_enabled =
-            toStatusBoolean(
-              serverRate.same_day_enabled
-            );
-        }
-
-        const key =
-          getRateKey(
-            createdRate
-          );
-
-        if (key) {
-          setRateMap(
-            (previous) => ({
-              ...previous,
-              [key]:
-                createdRate,
-            })
-          );
-        }
-
-        setSelectedRoute(
-          createdRate
-        );
-
-        setInlineAdd(false);
-
-        messageApi.success(
-          "Branch pricing created successfully."
-        );
-      } catch (error) {
-        console.error(
-          "Failed to create branch pricing:",
-          error
-        );
-
-        messageApi.error(
-          apiErrorMessage(
-            error,
-            "Failed to create branch pricing."
-          )
-        );
-      } finally {
-        setInlineSaving(false);
-      }
-    }, [
-      inlineForm,
-      selectedPickupId,
-      messageApi,
-    ]);
+        same_day_enabled: toBoolean(
+          normalized.same_day_enabled,
+          false,
+        ),
+      });
+    },
+    [],
+  );
 
   /*
-   |--------------------------------------------------------------------------
-   | Toggle active status
-   |--------------------------------------------------------------------------
-   */
+  |--------------------------------------------------------------------------
+  | SAVE EDIT
+  |--------------------------------------------------------------------------
+  */
 
-  const toggleStatus =
-    useCallback(
-      async (rate) => {
-        if (!rate?.id) {
-          return;
-        }
+  const saveEdit = async (rate) => {
+    if (!rate?.id) {
+      message.error(
+        "Invalid rate selected.",
+      );
 
-        const current =
-          toStatusBoolean(
-            rate.is_active,
-            false
-          );
+      return;
+    }
 
-        const nextStatus =
-          !current;
+    try {
+      setInlineSaving(true);
 
-        try {
-          setStatusSavingId(
-            rate.id
-          );
+      const pickupId =
+        Number(
+          rate.pickup_coverage_location_id ??
+            rate.pickup_branch_id,
+        );
 
-          const response =
-            await updateBranchRouteRateStatus(
+      const deliveryId =
+        Number(
+          rate.delivery_coverage_location_id ??
+            rate.delivery_branch_id,
+        );
+
+      /*
+       * Always send explicit boolean values.
+       */
+      const payload = {
+        pickup_coverage_location_id:
+          pickupId,
+
+        delivery_coverage_location_id:
+          deliveryId,
+
+        base_rate: Number(
+          inlineForm.base_rate ?? 0,
+        ),
+
+        is_active: toBoolean(
+          inlineForm.is_active,
+          true,
+        ),
+
+        express_enabled: toBoolean(
+          inlineForm.express_enabled,
+          false,
+        ),
+
+        same_day_enabled: toBoolean(
+          inlineForm.same_day_enabled,
+          false,
+        ),
+      };
+
+      const response =
+        await updateBranchRouteRate(
+          rate.id,
+          payload,
+        );
+
+      const apiData =
+        unwrapResponsePayload(
+          response,
+        ) || {};
+
+      /*
+       * IMPORTANT:
+       *
+       * API response is the source of truth when
+       * the property exists.
+       *
+       * But if backend returns a partial response,
+       * use the submitted value as fallback.
+       */
+      const updatedRate =
+        normalizeRateForUI(
+          {
+            ...rate,
+            ...apiData,
+
+            id:
+              apiData?.id ??
               rate.id,
-              nextStatus
-            );
 
-          const serverRate =
-            extractRateFromResponse(
-              response
-            );
-
-          const updatedRate =
-            normalizePageRate(
-              serverRate ??
-                {
-                  ...rate,
-                  is_active:
-                    nextStatus,
-                },
-              {
-                ...rate,
-                is_active:
-                  nextStatus,
-              }
-            );
-
-          /*
-           * The status endpoint may return only:
-           *
-           * { is_active: 1 }
-           *
-           * so explicitly preserve the toggled state.
-           */
-          if (
-            serverRate?.is_active ===
-              undefined
-          ) {
-            updatedRate.is_active =
-              nextStatus;
-          }
-
-          const key =
-            getRateKey(
-              updatedRate
-            );
-
-          setRateMap(
-            (previous) => {
-              const next = {
-                ...previous,
-              };
-
-              if (key) {
-                next[key] =
-                  updatedRate;
-              }
-
-              return next;
-            }
-          );
-
-          setSelectedRoute(
-            (previous) => {
-              if (
-                !previous ||
-                Number(
-                  previous.id
-                ) !==
-                  Number(
-                    updatedRate.id
-                  )
-              ) {
-                return previous;
-              }
-
-              return {
-                ...previous,
-                ...updatedRate,
-                is_active:
-                  updatedRate.is_active,
-              };
-            }
-          );
-
-          messageApi.success(
-            nextStatus
-              ? "Branch pricing activated."
-              : "Branch pricing deactivated."
-          );
-        } catch (error) {
-          console.error(
-            "Failed to update pricing status:",
-            error
-          );
-
-          messageApi.error(
-            apiErrorMessage(
-              error,
-              "Failed to update pricing status."
-            )
-          );
-        } finally {
-          setStatusSavingId(
-            null
-          );
-        }
-      },
-      [messageApi]
-    );
-
-  /*
-   |--------------------------------------------------------------------------
-   | Delete rate
-   |--------------------------------------------------------------------------
-   */
-
-  const handleDelete =
-    useCallback(
-      async (rate) => {
-        if (!rate?.id) {
-          return;
-        }
-
-        const confirmed =
-          window.confirm(
-            "Delete this branch pricing?"
-          );
-
-        if (!confirmed) {
-          return;
-        }
-
-        try {
-          setDeletingId(
-            rate.id
-          );
-
-          await deleteBranchRouteRate(
-            rate.id
-          );
-
-          const key =
-            getRateKey(rate);
-
-          setRateMap(
-            (previous) => {
-              const next = {
-                ...previous,
-              };
-
-              if (key) {
-                delete next[key];
-              }
-
-              return next;
-            }
-          );
-
-          setSelectedRoute(
-            (previous) =>
-              previous &&
-              Number(
-                previous.id
-              ) ===
-                Number(rate.id)
-                ? null
-                : previous
-          );
-
-          messageApi.success(
-            "Branch pricing deleted successfully."
-          );
-        } catch (error) {
-          console.error(
-            "Failed to delete branch pricing:",
-            error
-          );
-
-          messageApi.error(
-            apiErrorMessage(
-              error,
-              "Failed to delete branch pricing."
-            )
-          );
-        } finally {
-          setDeletingId(
-            null
-          );
-        }
-      },
-      [messageApi]
-    );
-
-  /*
-   |--------------------------------------------------------------------------
-   | Create reverse rate
-   |--------------------------------------------------------------------------
-   |
-   | Example:
-   |
-   | KTM -> Kavre
-   |
-   | becomes:
-   |
-   | Kavre -> KTM
-   |
-   | Original price is preserved.
-   |--------------------------------------------------------------------------
-   */
-
-  const createReverse =
-    useCallback(
-      async (rate) => {
-        if (!rate) {
-          return;
-        }
-
-        if (!rate.id) {
-          messageApi.error(
-            "Invalid pricing record."
-          );
-          return;
-        }
-
-        try {
-          setReverseSavingId(
-            rate.id
-          );
-
-          /*
-           * Explicitly preserve all commercial values.
-           */
-          const originalBaseRate =
-            toSafeNumber(
-              rate.base_rate,
-              0
-            );
-
-          const originalActive =
-            toStatusBoolean(
-              rate.is_active,
-              true
-            );
-
-          const originalExpress =
-            toStatusBoolean(
-              rate.express_enabled,
-              true
-            );
-
-          const originalSameDay =
-            toStatusBoolean(
-              rate.same_day_enabled,
-              true
-            );
-
-          const response =
-            await createReverseBranchRouteRate(
-              {
-                ...rate,
-
-                /*
-                 * Make sure the reverse helper sees
-                 * the actual pricing IDs.
-                 */
-                pickup_coverage_location_id:
-                  rate.pickup_coverage_location_id ??
-                  rate.pickup_branch_id,
-
-                delivery_coverage_location_id:
-                  rate.delivery_coverage_location_id ??
-                  rate.delivery_branch_id,
-
-                base_rate:
-                  originalBaseRate,
-
-                is_active:
-                  originalActive,
-
-                express_enabled:
-                  originalExpress,
-
-                same_day_enabled:
-                  originalSameDay,
-              },
-              {
-                base_rate:
-                  originalBaseRate,
-
-                is_active:
-                  originalActive,
-
-                express_enabled:
-                  originalExpress,
-
-                same_day_enabled:
-                  originalSameDay,
-              }
-            );
-
-          const serverRate =
-            extractRateFromResponse(
-              response
-            ) ?? {};
-
-          /*
-           * IMPORTANT:
-           *
-           * API response may not contain every field.
-           *
-           * Therefore we explicitly preserve the original
-           * commercial values.
-           */
-          const reversePickupId =
-            rate.delivery_coverage_location_id ??
-            rate.delivery_branch_id;
-
-          const reverseDeliveryId =
-            rate.pickup_coverage_location_id ??
-            rate.pickup_branch_id;
-
-          const reverseRate =
-            normalizePageRate(
-              {
-                ...serverRate,
-
-                /*
-                 * Fallback values.
-                 */
-                pickup_coverage_location_id:
-                  serverRate.pickup_coverage_location_id ??
-                  reversePickupId,
-
-                delivery_coverage_location_id:
-                  serverRate.delivery_coverage_location_id ??
-                  reverseDeliveryId,
-
-                pickup_branch_id:
-                  serverRate.pickup_branch_id ??
-                  reversePickupId,
-
-                delivery_branch_id:
-                  serverRate.delivery_branch_id ??
-                  reverseDeliveryId,
-
-                /*
-                 * DO NOT let an incomplete API response
-                 * remove the price.
-                 */
-                base_rate:
-                  serverRate.base_rate ??
-                  originalBaseRate,
-
-                is_active:
-                  serverRate.is_active ??
-                  originalActive,
-
-                express_enabled:
-                  serverRate.express_enabled ??
-                  originalExpress,
-
-                same_day_enabled:
-                  serverRate.same_day_enabled ??
-                  originalSameDay,
-              }
-            );
-
-          /*
-           * Explicitly reassert values.
-           */
-          reverseRate.base_rate =
-            serverRate.base_rate ??
-            originalBaseRate;
-
-          reverseRate.is_active =
-            serverRate.is_active !==
-              undefined &&
-            serverRate.is_active !==
-              null
-              ? toStatusBoolean(
-                  serverRate.is_active
-                )
-              : originalActive;
-
-          reverseRate.express_enabled =
-            serverRate.express_enabled !==
-              undefined &&
-            serverRate.express_enabled !==
-              null
-              ? toStatusBoolean(
-                  serverRate.express_enabled
-                )
-              : originalExpress;
-
-          reverseRate.same_day_enabled =
-            serverRate.same_day_enabled !==
-              undefined &&
-            serverRate.same_day_enabled !==
-              null
-              ? toStatusBoolean(
-                  serverRate.same_day_enabled
-                )
-              : originalSameDay;
-
-          reverseRate.pickup_coverage_location_id =
-            serverRate.pickup_coverage_location_id ??
-            reversePickupId;
-
-          reverseRate.delivery_coverage_location_id =
-            serverRate.delivery_coverage_location_id ??
-            reverseDeliveryId;
-
-          /*
-           * If backend returns the new ID, use it.
-           */
-          reverseRate.id =
-            serverRate.id ??
-            serverRate.forward_id ??
-            serverRate.branch_route_rate_id ??
-            reverseRate.id;
-
-          const key =
-            getRateKey(
-              reverseRate
-            );
-
-          if (key) {
-            setRateMap(
-              (previous) => ({
-                ...previous,
-                [key]:
-                  reverseRate,
-              })
-            );
-          }
-
-          setSelectedRoute(
-            reverseRate
-          );
-
-          messageApi.success(
-            "Reverse branch pricing created successfully."
-          );
-        } catch (error) {
-          console.error(
-            "Failed to create reverse branch pricing:",
-            error
-          );
-
-          messageApi.error(
-            apiErrorMessage(
-              error,
-              "Failed to create reverse branch pricing."
-            )
-          );
-        } finally {
-          setReverseSavingId(
-            null
-          );
-        }
-      },
-      [messageApi]
-    );
-
-  /*
-   |--------------------------------------------------------------------------
-   | Render inline fields
-   |--------------------------------------------------------------------------
-   */
-
-  const renderInlineForm =
-    useCallback(
-      ({
-        rate = null,
-        isNew = false,
-      } = {}) => {
-        return (
-          <Card
-            size="small"
-            style={{
-              marginTop: 8,
-              background:
-                "#fafafa",
-            }}
-          >
-            <Space
-              direction="vertical"
-              size={12}
-              style={{
-                width: "100%",
-              }}
-            >
-              <Row
-                gutter={[
-                  12,
-                  12,
-                ]}
-              >
-                <Col
-                  xs={24}
-                  sm={12}
-                  md={8}
-                >
-                  <Text
-                    type="secondary"
-                  >
-                    Base Rate
-                  </Text>
-
-                  <InputNumber
-                    style={{
-                      width: "100%",
-                      marginTop: 4,
-                    }}
-                    min={0}
-                    precision={2}
-                    value={
-                      inlineForm.base_rate
-                    }
-                    onChange={(
-                      value
-                    ) =>
-                      setInlineForm(
-                        (
-                          previous
-                        ) => ({
-                          ...previous,
-                          base_rate:
-                            value ??
-                            0,
-                        })
-                      )
-                    }
-                  />
-                </Col>
-
-                <Col
-                  xs={24}
-                  sm={12}
-                  md={8}
-                >
-                  <Text
-                    type="secondary"
-                  >
-                    Active
-                  </Text>
-
-                  <div
-                    style={{
-                      marginTop: 8,
-                    }}
-                  >
-                    <Switch
-                      checked={
-                        inlineForm.is_active ===
-                        true
-                      }
-                      onChange={(
-                        checked
-                      ) =>
-                        setInlineForm(
-                          (
-                            previous
-                          ) => ({
-                            ...previous,
-                            is_active:
-                              checked,
-                          })
-                        )
-                      }
-                      checkedChildren="ON"
-                      unCheckedChildren="OFF"
-                    />
-                  </div>
-                </Col>
-
-                <Col
-                  xs={24}
-                  sm={12}
-                  md={8}
-                >
-                  <Text
-                    type="secondary"
-                  >
-                    Express
-                  </Text>
-
-                  <div
-                    style={{
-                      marginTop: 8,
-                    }}
-                  >
-                    <Switch
-                      /*
-                       * IMPORTANT:
-                       *
-                       * Controlled by inlineForm.
-                       *
-                       * API:
-                       *   0 => false => OFF
-                       *   1 => true  => ON
-                       */
-                      checked={
-                        inlineForm.express_enabled ===
-                        true
-                      }
-                      onChange={(
-                        checked
-                      ) =>
-                        setInlineForm(
-                          (
-                            previous
-                          ) => ({
-                            ...previous,
-                            express_enabled:
-                              checked,
-                          })
-                        )
-                      }
-                      checkedChildren="ON"
-                      unCheckedChildren="OFF"
-                    />
-                  </div>
-                </Col>
-
-                <Col
-                  xs={24}
-                  sm={12}
-                  md={8}
-                >
-                  <Text
-                    type="secondary"
-                  >
-                    Same Day
-                  </Text>
-
-                  <div
-                    style={{
-                      marginTop: 8,
-                    }}
-                  >
-                    <Switch
-                      /*
-                       * IMPORTANT:
-                       *
-                       * Controlled by inlineForm.
-                       */
-                      checked={
-                        inlineForm.same_day_enabled ===
-                        true
-                      }
-                      onChange={(
-                        checked
-                      ) =>
-                        setInlineForm(
-                          (
-                            previous
-                          ) => ({
-                            ...previous,
-                            same_day_enabled:
-                              checked,
-                          })
-                        )
-                      }
-                      checkedChildren="ON"
-                      unCheckedChildren="OFF"
-                    />
-                  </div>
-                </Col>
-              </Row>
-
-              <Space>
-                <Button
-                  type="primary"
-                  size="small"
-                  loading={
-                    inlineSaving
-                  }
-                  onClick={() => {
-                    if (isNew) {
-                      handleInlineAdd();
-                    } else {
-                      handleInlineSave(
-                        rate
-                      );
-                    }
-                  }}
-                >
-                  Save
-                </Button>
-
-                <Button
-                  size="small"
-                  disabled={
-                    inlineSaving
-                  }
-                  onClick={() => {
-                    if (isNew) {
-                      setInlineAdd(
-                        false
-                      );
-                    } else {
-                      cancelInlineEdit();
-                    }
-                  }}
-                >
-                  Cancel
-                </Button>
-              </Space>
-            </Space>
-          </Card>
+            pickup_coverage_location_id:
+              apiData
+                ?.pickup_coverage_location_id ??
+              pickupId,
+
+            delivery_coverage_location_id:
+              apiData
+                ?.delivery_coverage_location_id ??
+              deliveryId,
+
+            base_rate:
+              apiData?.base_rate ??
+              payload.base_rate,
+
+            is_active:
+              apiData?.is_active ??
+              payload.is_active,
+
+            express_enabled:
+              apiData?.express_enabled ??
+              payload.express_enabled,
+
+            same_day_enabled:
+              apiData?.same_day_enabled ??
+              payload.same_day_enabled,
+          },
+          {
+            ...rate,
+            ...payload,
+          },
         );
-      },
-      [
-        inlineForm,
-        inlineSaving,
-        handleInlineAdd,
-        handleInlineSave,
-        cancelInlineEdit,
-      ]
-    );
+
+      /*
+       * Update ONLY this route.
+       * No full matrix reload required.
+       */
+      patchRateMap(
+        pickupId,
+        deliveryId,
+        updatedRate,
+        {
+          ...rate,
+          ...payload,
+        },
+      );
+
+      /*
+       * Explicitly update selected route too.
+       */
+      setSelectedRoute((current) => {
+        if (
+          current &&
+          Number(current.id) ===
+            Number(rate.id)
+        ) {
+          return updatedRate;
+        }
+
+        return current;
+      });
+
+      message.success(
+        "Rate updated successfully.",
+      );
+
+      cancelInline();
+    } catch (error) {
+      message.error(
+        apiErrorMessage(
+          error,
+          "Could not update rate.",
+        ),
+      );
+    } finally {
+      setInlineSaving(false);
+    }
+  };
 
   /*
-   |--------------------------------------------------------------------------
-   | Destination row
-   |--------------------------------------------------------------------------
-   */
+  |--------------------------------------------------------------------------
+  | TOGGLE ACTIVE STATUS
+  |--------------------------------------------------------------------------
+  */
 
-  const renderDestinationRow =
-    useCallback(
-      ({
-        destination,
-        rate,
-      }) => {
-        const destinationId =
-          getBranchId(
-            destination
-          );
+  const toggleStatus = async (rate) => {
+    if (!rate?.id) {
+      return;
+    }
 
-        const isEditing =
-          rate &&
-          Number(
-            inlineEdit
-          ) ===
-            Number(rate.id);
+    const currentStatus = toBoolean(
+      rate.is_active,
+      false,
+    );
 
-        const rateExists =
-          Boolean(rate);
+    const nextStatus =
+      !currentStatus;
 
-        const isActive =
-          rateExists &&
-          rate.is_active === true;
-
-        const expressEnabled =
-          rateExists &&
-          rate.express_enabled ===
-            true;
-
-        const sameDayEnabled =
-          rateExists &&
-          rate.same_day_enabled ===
-            true;
-
-        return (
-          <List.Item
-            key={
-              destinationId
-            }
-            style={{
-              cursor:
-                rateExists
-                  ? "pointer"
-                  : "default",
-            }}
-            onClick={() => {
-              if (
-                rate &&
-                !isEditing
-              ) {
-                handleSelectRoute(
-                  rate
-                );
-              }
-            }}
-            actions={
-              !isEditing &&
-              rate
-                ? [
-                    <Tooltip
-                      title="Edit pricing"
-                      key="edit"
-                    >
-                      <Button
-                        type="text"
-                        icon={
-                          <EditOutlined />
-                        }
-                        onClick={(
-                          event
-                        ) => {
-                          event.stopPropagation();
-                          startEdit(
-                            rate
-                          );
-                        }}
-                      />
-                    </Tooltip>,
-
-                    <Tooltip
-                      title="Create reverse pricing"
-                      key="reverse"
-                    >
-                      <Button
-                        type="text"
-                        icon={
-                          <SwapOutlined />
-                        }
-                        loading={
-                          reverseSavingId ===
-                          rate.id
-                        }
-                        onClick={(
-                          event
-                        ) => {
-                          event.stopPropagation();
-                          createReverse(
-                            rate
-                          );
-                        }}
-                      />
-                    </Tooltip>,
-
-                    <Tooltip
-                      title={
-                        isActive
-                          ? "Deactivate"
-                          : "Activate"
-                      }
-                      key="status"
-                    >
-                      <Switch
-                        size="small"
-                        checked={
-                          isActive
-                        }
-                        loading={
-                          statusSavingId ===
-                          rate.id
-                        }
-                        onChange={() =>
-                          toggleStatus(
-                            rate
-                          )
-                        }
-                      />
-                    </Tooltip>,
-
-                    <Tooltip
-                      title="Delete pricing"
-                      key="delete"
-                    >
-                      <Button
-                        type="text"
-                        danger
-                        icon={
-                          <DeleteOutlined />
-                        }
-                        loading={
-                          deletingId ===
-                          rate.id
-                        }
-                        onClick={(
-                          event
-                        ) => {
-                          event.stopPropagation();
-                          handleDelete(
-                            rate
-                          );
-                        }}
-                      />
-                    </Tooltip>,
-                  ]
-                : []
-            }
-          >
-            <List.Item.Meta
-              avatar={
-                <EnvironmentOutlined
-                  style={{
-                    fontSize: 20,
-                  }}
-                />
-              }
-              title={
-                <Space wrap>
-                  <span>
-                    {branchLabel(
-                      destination
-                    )}
-                  </span>
-
-                  {destination?.code && (
-                    <Tag>
-                      {
-                        destination.code
-                      }
-                    </Tag>
-                  )}
-                </Space>
-              }
-              description={
-                rate ? (
-                  <Space
-                    wrap
-                    size={[
-                      6,
-                      6,
-                    ]}
-                  >
-                    <Tag>
-                      {formatMoney(
-                        rate.base_rate
-                      )}
-                    </Tag>
-
-                    <Tag
-                      icon={
-                        expressEnabled ? (
-                          <CheckCircleOutlined />
-                        ) : (
-                          <CloseCircleOutlined />
-                        )
-                      }
-                    >
-                      Express{" "}
-                      {expressEnabled
-                        ? "ON"
-                        : "OFF"}
-                    </Tag>
-
-                    <Tag
-                      icon={
-                        sameDayEnabled ? (
-                          <CheckCircleOutlined />
-                        ) : (
-                          <CloseCircleOutlined />
-                        )
-                      }
-                    >
-                      Same Day{" "}
-                      {sameDayEnabled
-                        ? "ON"
-                        : "OFF"}
-                    </Tag>
-
-                    <Tag
-                      color={
-                        isActive
-                          ? "success"
-                          : "default"
-                      }
-                    >
-                      {isActive
-                        ? "Active"
-                        : "Inactive"}
-                    </Tag>
-                  </Space>
-                ) : (
-                  <Text type="secondary">
-                    No branch pricing configured
-                  </Text>
-                )
-              }
-            />
-
-            {isEditing &&
-              renderInlineForm({
-                rate,
-                isNew: false,
-              })}
-          </List.Item>
+    try {
+      const response =
+        await updateBranchRouteRateStatus(
+          rate.id,
+          nextStatus,
         );
-      },
-      [
-        inlineEdit,
-        reverseSavingId,
-        statusSavingId,
-        deletingId,
-        handleSelectRoute,
-        startEdit,
-        createReverse,
-        toggleStatus,
-        handleDelete,
-        renderInlineForm,
-      ]
-    );
+
+      const apiData =
+        unwrapResponsePayload(
+          response,
+        ) || {};
+
+      const updatedRate =
+        normalizeRateForUI(
+          {
+            ...rate,
+            ...apiData,
+
+            id:
+              apiData?.id ??
+              rate.id,
+
+            pickup_coverage_location_id:
+              apiData
+                ?.pickup_coverage_location_id ??
+              rate.pickup_coverage_location_id,
+
+            delivery_coverage_location_id:
+              apiData
+                ?.delivery_coverage_location_id ??
+              rate.delivery_coverage_location_id,
+
+            is_active:
+              apiData?.is_active ??
+              nextStatus,
+          },
+          {
+            ...rate,
+            is_active: nextStatus,
+          },
+        );
+
+      patchRateMap(
+        Number(
+          rate.pickup_coverage_location_id,
+        ),
+        Number(
+          rate.delivery_coverage_location_id,
+        ),
+        updatedRate,
+        {
+          ...rate,
+          is_active: nextStatus,
+        },
+      );
+
+      setSelectedRoute((current) => {
+        if (
+          current &&
+          Number(current.id) ===
+            Number(rate.id)
+        ) {
+          return updatedRate;
+        }
+
+        return current;
+      });
+
+      message.success(
+        `Rate ${
+          nextStatus
+            ? "enabled"
+            : "disabled"
+        }.`,
+      );
+    } catch (error) {
+      message.error(
+        apiErrorMessage(
+          error,
+          "Could not update status.",
+        ),
+      );
+    }
+  };
 
   /*
-   |--------------------------------------------------------------------------
-   | Loading state
-   |--------------------------------------------------------------------------
-   */
+  |--------------------------------------------------------------------------
+  | CREATE REVERSE RATE
+  |--------------------------------------------------------------------------
+  |
+  | Reverse route gets the SAME pricing configuration
+  | as the original route.
+  |--------------------------------------------------------------------------
+  */
 
-  if (loading) {
+  const createReverse = async (
+    rate,
+  ) => {
+    if (!rate) {
+      return;
+    }
+
+    try {
+      const pickupId =
+        Number(
+          rate.delivery_coverage_location_id ??
+            rate.delivery_branch_id,
+        );
+
+      const deliveryId =
+        Number(
+          rate.pickup_coverage_location_id ??
+            rate.pickup_branch_id,
+        );
+
+      const payload = {
+        pickup_coverage_location_id:
+          pickupId,
+
+        delivery_coverage_location_id:
+          deliveryId,
+
+        base_rate: Number(
+          rate.base_rate ?? 0,
+        ),
+
+        is_active: toBoolean(
+          rate.is_active,
+          true,
+        ),
+
+        express_enabled: toBoolean(
+          rate.express_enabled,
+          false,
+        ),
+
+        same_day_enabled: toBoolean(
+          rate.same_day_enabled,
+          false,
+        ),
+      };
+
+      const result =
+        await createBranchRouteRate(
+          payload,
+        );
+
+      const apiData =
+        unwrapResponsePayload(
+          result,
+        ) || {};
+
+      /*
+       * IMPORTANT:
+       *
+       * Do NOT spread API response after our
+       * fallback values.
+       *
+       * The API may return incomplete data.
+       */
+      const reverseRate =
+        normalizeRateForUI(
+          {
+            ...apiData,
+
+            id:
+              apiData?.id ??
+              apiData?.forward_id ??
+              null,
+
+            pickup_coverage_location_id:
+              pickupId,
+
+            delivery_coverage_location_id:
+              deliveryId,
+
+            base_rate:
+              apiData?.base_rate ??
+              payload.base_rate,
+
+            is_active:
+              apiData?.is_active ??
+              payload.is_active,
+
+            express_enabled:
+              apiData?.express_enabled ??
+              payload.express_enabled,
+
+            same_day_enabled:
+              apiData?.same_day_enabled ??
+              payload.same_day_enabled,
+          },
+          payload,
+        );
+
+      patchRateMap(
+        pickupId,
+        deliveryId,
+        reverseRate,
+        payload,
+      );
+
+      message.success(
+        "Reverse rate created successfully.",
+      );
+    } catch (error) {
+      message.error(
+        apiErrorMessage(
+          error,
+          "Could not create reverse rate.",
+        ),
+      );
+    }
+  };
+
+  /*
+  |--------------------------------------------------------------------------
+  | DELETE
+  |--------------------------------------------------------------------------
+  */
+
+  const removeRate = async (rate) => {
+    try {
+      await deleteBranchRouteRate(
+        rate.id,
+      );
+
+      dropFromRateMap(
+        Number(
+          rate.pickup_coverage_location_id,
+        ),
+        Number(
+          rate.delivery_coverage_location_id,
+        ),
+        rate.id,
+      );
+
+      message.success(
+        "Rate deleted successfully.",
+      );
+    } catch (error) {
+      message.error(
+        apiErrorMessage(
+          error,
+          "Could not delete rate.",
+        ),
+      );
+    }
+  };
+
+  /*
+  |--------------------------------------------------------------------------
+  | INLINE FORM
+  |--------------------------------------------------------------------------
+  */
+
+  const InlineFormFields = ({
+    onSave,
+    onCancel,
+    saving,
+  }) => (
+    <div
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: 10,
+        flexWrap: "wrap",
+      }}
+    >
+      {/* BASE RATE */}
+      <div>
+        <Text
+          type="secondary"
+          style={{
+            fontSize: 10,
+            display: "block",
+            marginBottom: 3,
+          }}
+        >
+          Base Rate (NPR)
+        </Text>
+
+        <InputNumber
+          min={0}
+          step={10}
+          value={inlineForm.base_rate}
+          onChange={(value) =>
+            setInlineForm((form) => ({
+              ...form,
+              base_rate:
+                value ?? 0,
+            }))
+          }
+          style={{
+            width: 120,
+          }}
+          size="small"
+          autoFocus
+        />
+      </div>
+
+      {/* EXPRESS */}
+      <div>
+        <Text
+          type="secondary"
+          style={{
+            fontSize: 10,
+            display: "block",
+            marginBottom: 3,
+          }}
+        >
+          Express
+        </Text>
+
+        <Switch
+          size="small"
+          checked={toBoolean(
+            inlineForm.express_enabled,
+            false,
+          )}
+          onChange={(checked) =>
+            setInlineForm((form) => ({
+              ...form,
+              express_enabled:
+                Boolean(checked),
+            }))
+          }
+          checkedChildren="On"
+          unCheckedChildren="Off"
+        />
+      </div>
+
+      {/* SAME DAY */}
+      <div>
+        <Text
+          type="secondary"
+          style={{
+            fontSize: 10,
+            display: "block",
+            marginBottom: 3,
+          }}
+        >
+          Same Day
+        </Text>
+
+        <Switch
+          size="small"
+          checked={toBoolean(
+            inlineForm.same_day_enabled,
+            false,
+          )}
+          onChange={(checked) =>
+            setInlineForm((form) => ({
+              ...form,
+              same_day_enabled:
+                Boolean(checked),
+            }))
+          }
+          checkedChildren="On"
+          unCheckedChildren="Off"
+        />
+      </div>
+
+      {/* ACTIVE */}
+      <div>
+        <Text
+          type="secondary"
+          style={{
+            fontSize: 10,
+            display: "block",
+            marginBottom: 3,
+          }}
+        >
+          Active
+        </Text>
+
+        <Switch
+          size="small"
+          checked={toBoolean(
+            inlineForm.is_active,
+            false,
+          )}
+          onChange={(checked) =>
+            setInlineForm((form) => ({
+              ...form,
+              is_active:
+                Boolean(checked),
+            }))
+          }
+          checkedChildren="Yes"
+          unCheckedChildren="No"
+        />
+      </div>
+
+      {/* SAVE/CANCEL */}
+      <Space
+        size={4}
+        style={{
+          marginTop: 14,
+        }}
+      >
+        <Button
+          type="primary"
+          size="small"
+          icon={<SaveOutlined />}
+          loading={saving}
+          onClick={onSave}
+        >
+          Save
+        </Button>
+
+        <Button
+          size="small"
+          icon={<CloseOutlined />}
+          onClick={onCancel}
+          disabled={saving}
+        >
+          Cancel
+        </Button>
+      </Space>
+    </div>
+  );
+
+  /*
+  |--------------------------------------------------------------------------
+  | DESTINATION ROW
+  |--------------------------------------------------------------------------
+  */
+
+  const DestinationRow = ({
+    location,
+    rate,
+  }) => {
+    const locationId =
+      Number(location.id);
+
+    const pickupId =
+      Number(selectedPickupId);
+
+    const isSelf =
+      locationId === pickupId;
+
+    const hasRate =
+      Boolean(rate);
+
+    const normalizedRate =
+      hasRate
+        ? normalizeRateForUI(rate)
+        : null;
+
+    const isSelected =
+      hasRate &&
+      selectedRoute &&
+      Number(selectedRoute.id) ===
+        Number(normalizedRate?.id);
+
+    const isEditing =
+      hasRate &&
+      Number(inlineEdit) ===
+        Number(normalizedRate?.id);
+
+    const isAdding =
+      !hasRate &&
+      Number(inlineAdd) ===
+        locationId;
+
+    const hasReverseRate =
+      hasRate &&
+      Boolean(
+        rateMap[
+          `${locationId}:${pickupId}`
+        ],
+      );
+
+    const active =
+      normalizedRate
+        ? toBoolean(
+            normalizedRate.is_active,
+            false,
+          )
+        : false;
+
     return (
       <div
         style={{
-          minHeight: 500,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
+          marginBottom: 6,
+          borderRadius: 8,
+
+          border: isSelected
+            ? "1px solid #91caff"
+            : isAdding || isEditing
+              ? "1px solid #b7eb8f"
+              : hasRate
+                ? "1px solid #edf0f3"
+                : "1px dashed #ffd666",
+
+          borderLeft: isSelected
+            ? "3px solid #1677ff"
+            : isAdding || isEditing
+              ? "3px solid #52c41a"
+              : hasRate
+                ? "1px solid #edf0f3"
+                : "3px solid #faad14",
+
+          background: isSelected
+            ? "#f0f7ff"
+            : isAdding || isEditing
+              ? "#f6ffed"
+              : hasRate
+                ? "#fff"
+                : "#fffbe6",
+
+          overflow: "hidden",
+
+          transition:
+            "all .15s ease",
         }}
       >
-        <Space
-          direction="vertical"
-          align="center"
-        >
-          <Spin size="large" />
-          <Text type="secondary">
-            Loading branch pricing...
-          </Text>
-        </Space>
-      </div>
-    );
-  }
-
-  /*
-   |--------------------------------------------------------------------------
-   | Page
-   |--------------------------------------------------------------------------
-   */
-
-  return (
-    <>
-      {contextHolder}
-
-      <div
-        style={{
-          padding: 24,
-        }}
-      >
-        <Space
-          direction="vertical"
-          size={24}
+        {/* MAIN ROW */}
+        <div
+          onClick={() => {
+            if (
+              hasRate &&
+              !isEditing
+            ) {
+              setSelectedRoute(
+                normalizedRate,
+              );
+            }
+          }}
           style={{
-            width: "100%",
+            display: "grid",
+
+            gridTemplateColumns:
+              "minmax(140px, 1.2fr) 1fr 80px 80px 80px 170px",
+
+            gap: 10,
+
+            alignItems: "center",
+
+            minHeight: 58,
+
+            padding: "8px 14px",
+
+            cursor:
+              hasRate &&
+              !isEditing
+                ? "pointer"
+                : "default",
           }}
         >
-          {/* ------------------------------------------------------------ */}
-          {/* Header                                                        */}
-          {/* ------------------------------------------------------------ */}
-
-          <Row
-            justify="space-between"
-            align="middle"
-            gutter={[
-              16,
-              16,
-            ]}
+          {/* DESTINATION */}
+          <div
+            style={{
+              minWidth: 0,
+            }}
           >
-            <Col>
-              <Space
-                direction="vertical"
-                size={4}
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 5,
+                flexWrap: "wrap",
+              }}
+            >
+              <Text
+                strong
+                style={{
+                  fontSize: 13,
+                }}
               >
-                <Title
-                  level={2}
+                {location.name}
+              </Text>
+
+              {isSelf && (
+                <Tag
+                  color="blue"
                   style={{
                     margin: 0,
+                    fontSize: 10,
                   }}
                 >
-                  Branch Pricing
-                </Title>
+                  Local
+                </Tag>
+              )}
+            </div>
 
-                <Text type="secondary">
-                  Configure commercial pricing between
-                  branch coverage locations.
+            <Text
+              type="secondary"
+              style={{
+                fontSize: 11,
+              }}
+            >
+              {location.code}
+            </Text>
+          </div>
+
+          {/* BASE RATE */}
+          <div>
+            {hasRate ? (
+              <>
+                <Text
+                  type="secondary"
+                  style={{
+                    fontSize: 10,
+                  }}
+                >
+                  Standard
                 </Text>
-              </Space>
-            </Col>
 
-            <Col>
-              <Space wrap>
-                <Button
-                  icon={
-                    <ReloadOutlined />
-                  }
-                  onClick={() =>
-                    loadMatrix()
-                  }
+                <div
+                  style={{
+                    fontWeight: 600,
+                    fontSize: 13,
+                    marginTop: 1,
+                  }}
                 >
-                  Refresh
-                </Button>
+                  {formatMoney(
+                    normalizedRate.base_rate,
+                  )}
+                </div>
+              </>
+            ) : (
+              <Text
+                type="secondary"
+                style={{
+                  fontSize: 12,
+                }}
+              >
+                —
+              </Text>
+            )}
+          </div>
 
-                <Button
-                  type="primary"
-                  icon={
-                    <PlusOutlined />
+          {/* EXPRESS */}
+          <div>
+            {hasRate &&
+              toBoolean(
+                normalizedRate.express_enabled,
+                false,
+              ) && (
+                <ExpressTag
+                  enabled={
+                    normalizedRate.express_enabled
                   }
-                  onClick={
-                    startInlineAdd
+                />
+              )}
+          </div>
+
+          {/* SAME DAY */}
+          <div>
+            {hasRate &&
+              toBoolean(
+                normalizedRate.same_day_enabled,
+                false,
+              ) && (
+                <SameDayTag
+                  enabled={
+                    normalizedRate.same_day_enabled
                   }
-                >
-                  Add Pricing
-                </Button>
+                />
+              )}
+          </div>
+
+          {/* STATUS */}
+          <div>
+            {hasRate ? (
+              <StatusTag
+                active={active}
+              />
+            ) : (
+              <Tag
+                icon={
+                  <WarningOutlined />
+                }
+                color="warning"
+                style={{
+                  margin: 0,
+                }}
+              >
+                Missing
+              </Tag>
+            )}
+          </div>
+
+          {/* ACTIONS */}
+          <Space
+            size={4}
+            onClick={(event) =>
+              event.stopPropagation()
+            }
+          >
+            {hasRate ? (
+              isEditing ? null : (
+                <>
+                  {/* EDIT */}
+                  <Tooltip title="Edit inline">
+                    <Button
+                      size="small"
+                      icon={
+                        <EditOutlined />
+                      }
+                      onClick={() =>
+                        startEdit(
+                          normalizedRate,
+                        )
+                      }
+                    />
+                  </Tooltip>
+
+                  {/* REVERSE */}
+                  <Tooltip
+                    title={
+                      isSelf
+                        ? "Local route"
+                        : hasReverseRate
+                          ? "Reverse rate already exists"
+                          : "Create reverse rate"
+                    }
+                  >
+                    <Button
+                      size="small"
+                      disabled={
+                        isSelf ||
+                        hasReverseRate
+                      }
+                      icon={
+                        <SwapOutlined />
+                      }
+                      onClick={() =>
+                        createReverse(
+                          normalizedRate,
+                        )
+                      }
+                    />
+                  </Tooltip>
+
+                  {/* ENABLE/DISABLE */}
+                  <Button
+                    size="small"
+                    onClick={() =>
+                      toggleStatus(
+                        normalizedRate,
+                      )
+                    }
+                  >
+                    {active
+                      ? "Disable"
+                      : "Enable"}
+                  </Button>
+
+                  {/* DELETE */}
+                  <Popconfirm
+                    title="Delete this rate?"
+                    description="This cannot be undone."
+                    okText="Delete"
+                    cancelText="Cancel"
+                    okButtonProps={{
+                      danger: true,
+                    }}
+                    onConfirm={() =>
+                      removeRate(
+                        normalizedRate,
+                      )
+                    }
+                  >
+                    <Button
+                      danger
+                      size="small"
+                      icon={
+                        <DeleteOutlined />
+                      }
+                    />
+                  </Popconfirm>
+                </>
+              )
+            ) : isAdding ? null : (
+              <Button
+                type="primary"
+                size="small"
+                icon={
+                  <PlusOutlined />
+                }
+                onClick={() =>
+                  startAdd(locationId)
+                }
+              >
+                Add Rate
+              </Button>
+            )}
+          </Space>
+        </div>
+
+        {/* INLINE EDIT */}
+        {isEditing && (
+          <div
+            style={{
+              padding:
+                "10px 14px 12px",
+              borderTop:
+                "1px solid #d9f7be",
+              background:
+                "#f6ffed",
+            }}
+          >
+            <InlineFormFields
+              onSave={() =>
+                saveEdit(
+                  normalizedRate,
+                )
+              }
+              onCancel={
+                cancelInline
+              }
+              saving={inlineSaving}
+            />
+          </div>
+        )}
+
+        {/* INLINE ADD */}
+        {isAdding && (
+          <div
+            style={{
+              padding:
+                "10px 14px 12px",
+              borderTop:
+                "1px solid #d9f7be",
+              background:
+                "#f6ffed",
+            }}
+          >
+            <InlineFormFields
+              onSave={() =>
+                saveAdd(
+                  locationId,
+                )
+              }
+              onCancel={
+                cancelInline
+              }
+              saving={inlineSaving}
+            />
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  /*
+  |--------------------------------------------------------------------------
+  | SELECTED ROUTE NODES
+  |--------------------------------------------------------------------------
+  */
+
+  const selectedRouteNodes =
+    selectedRoute
+      ? [
+          locations.find(
+            (location) =>
+              Number(location.id) ===
+              Number(
+                selectedRoute.pickup_coverage_location_id,
+              ),
+          ),
+
+          locations.find(
+            (location) =>
+              Number(location.id) ===
+              Number(
+                selectedRoute.delivery_coverage_location_id,
+              ),
+          ),
+        ].filter(Boolean)
+      : [];
+
+  /*
+  |--------------------------------------------------------------------------
+  | SELECTED ROUTE FLAGS
+  |--------------------------------------------------------------------------
+  */
+
+  const selectedRouteNormalized =
+    selectedRoute
+      ? normalizeRateForUI(
+          selectedRoute,
+        )
+      : null;
+
+  const selectedRouteActive =
+    toBoolean(
+      selectedRouteNormalized?.is_active,
+      false,
+    );
+
+  const selectedRouteExpress =
+    toBoolean(
+      selectedRouteNormalized?.express_enabled,
+      false,
+    );
+
+  const selectedRouteSameDay =
+    toBoolean(
+      selectedRouteNormalized?.same_day_enabled,
+      false,
+    );
+
+  /*
+  |--------------------------------------------------------------------------
+  | RENDER
+  |--------------------------------------------------------------------------
+  */
+
+  return (
+    <div
+      style={{
+        width: "100%",
+        padding:
+          "20px 22px 32px",
+        background:
+          "#f5f7fa",
+        minHeight: "100vh",
+      }}
+    >
+      {/* HEADER */}
+      <Card
+        bordered={false}
+        style={{
+          borderRadius: 12,
+          marginBottom: 16,
+        }}
+        styles={{
+          body: {
+            padding:
+              "18px 20px",
+          },
+        }}
+      >
+        <Row
+          justify="space-between"
+          align="middle"
+        >
+          <Col>
+            <Title
+              level={3}
+              style={{
+                margin: 0,
+              }}
+            >
+              Branch Pricing
+            </Title>
+
+            <Text type="secondary">
+              Select a branch to view
+              and manage its delivery
+              rates.
+            </Text>
+          </Col>
+
+          <Col>
+            <Button
+              icon={
+                <ReloadOutlined />
+              }
+              loading={loading}
+              onClick={() =>
+                loadMatrix(true)
+              }
+            >
+              Refresh
+            </Button>
+          </Col>
+        </Row>
+      </Card>
+
+      {/* STATS */}
+      <Row
+        gutter={[12, 12]}
+        style={{
+          marginBottom: 16,
+        }}
+      >
+        {[
+          {
+            title: "Branches",
+            value:
+              stats.locationCount,
+            prefix: (
+              <EnvironmentOutlined />
+            ),
+          },
+
+          {
+            title: "Total Routes",
+            value: stats.total,
+          },
+
+          {
+            title: "Active Routes",
+            value: stats.active,
+            suffix: `/ ${stats.total}`,
+            valueStyle: {
+              color: "#52c41a",
+            },
+          },
+
+          {
+            title:
+              "Matrix Coverage",
+            value:
+              stats.coverage,
+            suffix: "%",
+            valueStyle: {
+              color:
+                stats.coverage ===
+                100
+                  ? "#52c41a"
+                  : "#faad14",
+            },
+          },
+        ].map((stat) => (
+          <Col
+            key={stat.title}
+            xs={24}
+            sm={12}
+            lg={6}
+          >
+            <Card
+              bordered={false}
+              style={{
+                borderRadius: 10,
+              }}
+            >
+              <Statistic
+                {...stat}
+              />
+            </Card>
+          </Col>
+        ))}
+      </Row>
+
+      {/* MAIN */}
+      <Row
+        gutter={[16, 16]}
+        align="top"
+      >
+        {/* LEFT — BRANCH LIST */}
+        <Col
+          xs={24}
+          xl={5}
+        >
+          <Card
+            bordered={false}
+            style={{
+              borderRadius: 12,
+            }}
+            styles={{
+              body: {
+                padding: 0,
+              },
+            }}
+            title={
+              <Space>
+                <EnvironmentOutlined />
+
+                <Text strong>
+                  Branches
+                </Text>
+
+                <Tag color="blue">
+                  {locations.length}
+                </Tag>
               </Space>
-            </Col>
-          </Row>
+            }
+          >
+            {/* SEARCH */}
+            <div
+              style={{
+                padding:
+                  "10px 12px 0",
+              }}
+            >
+              <Input
+                allowClear
+                size="small"
+                placeholder="Search branch..."
+                value={
+                  branchSearch
+                }
+                onChange={(event) => {
+                  setBranchSearch(
+                    event.target
+                      .value,
+                  );
+                  setBranchPage(1);
+                }}
+              />
+            </div>
 
-          {/* ------------------------------------------------------------ */}
-          {/* Pricing settings                                              */}
-          {/* ------------------------------------------------------------ */}
+            {/* TABS */}
+            <Tabs
+              size="small"
+              activeKey={
+                branchTab
+              }
+              onChange={(key) => {
+                setBranchTab(key);
+                setBranchPage(1);
+              }}
+              style={{
+                padding:
+                  "0 12px",
+              }}
+              items={[
+                {
+                  key: "all",
+                  label: `All (${locations.length})`,
+                },
 
-          {activePricingSettings && (
-            <Alert
-              type="info"
-              showIcon
-              message={
+                {
+                  key: "missing",
+                  label: (
+                    <span
+                      style={{
+                        color:
+                          "#faad14",
+                      }}
+                    >
+                      Missing
+                    </span>
+                  ),
+                },
+
+                {
+                  key: "complete",
+                  label: (
+                    <span
+                      style={{
+                        color:
+                          "#52c41a",
+                      }}
+                    >
+                      Complete
+                    </span>
+                  ),
+                },
+              ]}
+            />
+
+            {loading ? (
+              <div
+                style={{
+                  padding: 40,
+                  textAlign:
+                    "center",
+                }}
+              >
+                Loading...
+              </div>
+            ) : !filteredBranches.length ? (
+              <div
+                style={{
+                  padding: 40,
+                }}
+              >
+                <Empty
+                  description="No branches"
+                />
+              </div>
+            ) : (
+              <>
+                <div
+                  style={{
+                    padding:
+                      "0 0 6px",
+                  }}
+                >
+                  {pagedBranches.map(
+                    (location) => {
+                      const locationId =
+                        Number(
+                          location.id,
+                        );
+
+                      const isActive =
+                        locationId ===
+                        Number(
+                          selectedPickupId,
+                        );
+
+                      const ratesCount =
+                        branchRateCounts[
+                          locationId
+                        ] || 0;
+
+                      const missing =
+                        locations.length -
+                        ratesCount;
+
+                      return (
+                        <div
+                          key={
+                            location.id
+                          }
+                          onClick={() => {
+                            setSelectedPickupId(
+                              locationId,
+                            );
+
+                            setSelectedRoute(
+                              null,
+                            );
+
+                            setSearch(
+                              "",
+                            );
+
+                            cancelInline();
+                          }}
+                          style={{
+                            display:
+                              "flex",
+                            alignItems:
+                              "center",
+                            justifyContent:
+                              "space-between",
+                            padding:
+                              "10px 16px",
+                            cursor:
+                              "pointer",
+                            background:
+                              isActive
+                                ? "#e6f4ff"
+                                : "transparent",
+                            borderLeft:
+                              isActive
+                                ? "3px solid #1677ff"
+                                : "3px solid transparent",
+                            transition:
+                              "all .15s",
+                          }}
+                        >
+                          <div>
+                            <Text
+                              strong
+                              style={{
+                                fontSize: 13,
+                              }}
+                            >
+                              {
+                                location.name
+                              }
+                            </Text>
+
+                            <Text
+                              type="secondary"
+                              style={{
+                                display:
+                                  "block",
+                                fontSize: 11,
+                              }}
+                            >
+                              {
+                                location.code
+                              }
+                            </Text>
+                          </div>
+
+                          <div
+                            style={{
+                              textAlign:
+                                "right",
+                            }}
+                          >
+                            <div
+                              style={{
+                                fontSize: 11,
+                                color:
+                                  "#52c41a",
+                              }}
+                            >
+                              {
+                                ratesCount
+                              }{" "}
+                              routes
+                            </div>
+
+                            {missing >
+                              0 && (
+                              <Badge
+                                count={
+                                  missing
+                                }
+                                size="small"
+                                color="#faad14"
+                              />
+                            )}
+                          </div>
+                        </div>
+                      );
+                    },
+                  )}
+                </div>
+
+                {filteredBranches.length >
+                  BRANCH_PAGE_SIZE && (
+                  <div
+                    style={{
+                      padding:
+                        "8px 12px 12px",
+                      textAlign:
+                        "center",
+                      borderTop:
+                        "1px solid #f0f0f0",
+                    }}
+                  >
+                    <Pagination
+                      simple
+                      size="small"
+                      current={
+                        branchPage
+                      }
+                      pageSize={
+                        BRANCH_PAGE_SIZE
+                      }
+                      total={
+                        filteredBranches.length
+                      }
+                      onChange={(page) =>
+                        setBranchPage(
+                          page,
+                        )
+                      }
+                    />
+                  </div>
+                )}
+              </>
+            )}
+          </Card>
+        </Col>
+
+        {/* MIDDLE — DESTINATION RATES */}
+        <Col
+          xs={24}
+          xl={12}
+        >
+          <Card
+            bordered={false}
+            style={{
+              borderRadius: 12,
+            }}
+            styles={{
+              body: {
+                padding: 0,
+              },
+            }}
+            title={
+              selectedPickupLocation ? (
                 <Space wrap>
                   <Text strong>
-                    Active Pricing Configuration
+                    From:{" "}
+                    {
+                      selectedPickupLocation.name
+                    }
                   </Text>
 
-                  {activePricingSettings?.version && (
-                    <Tag>
-                      Version{" "}
-                      {
-                        activePricingSettings.version
-                      }
-                    </Tag>
-                  )}
+                  <Tag color="blue">
+                    {
+                      selectedPickupLocation.code
+                    }
+                  </Tag>
 
-                  {activePricingSettings?.name && (
-                    <Tag>
-                      {
-                        activePricingSettings.name
+                  {missingCount >
+                    0 && (
+                    <Tag
+                      color="warning"
+                      icon={
+                        <WarningOutlined />
                       }
+                    >
+                      {missingCount}{" "}
+                      missing
                     </Tag>
                   )}
                 </Space>
-              }
-              description={
-                activePricingSettings
-                  ?.updated_at
-                  ? `Updated ${formatDate(
-                      activePricingSettings.updated_at
-                    )}`
-                  : undefined
-              }
-            />
-          )}
-
-          {/* ------------------------------------------------------------ */}
-          {/* Statistics                                                    */}
-          {/* ------------------------------------------------------------ */}
-
-          <Row
-            gutter={[
-              16,
-              16,
-            ]}
+              ) : (
+                <Text type="secondary">
+                  Select a branch
+                </Text>
+              )
+            }
           >
-            <Col
-              xs={12}
-              sm={8}
-              lg={4}
-            >
-              <Card>
-                <Statistic
-                  title="Total Rates"
-                  value={
-                    stats.total
-                  }
-                />
-              </Card>
-            </Col>
-
-            <Col
-              xs={12}
-              sm={8}
-              lg={4}
-            >
-              <Card>
-                <Statistic
-                  title="Active"
-                  value={
-                    stats.active
-                  }
-                />
-              </Card>
-            </Col>
-
-            <Col
-              xs={12}
-              sm={8}
-              lg={4}
-            >
-              <Card>
-                <Statistic
-                  title="Inactive"
-                  value={
-                    stats.inactive
-                  }
-                />
-              </Card>
-            </Col>
-
-            <Col
-              xs={12}
-              sm={8}
-              lg={4}
-            >
-              <Card>
-                <Statistic
-                  title="Express"
-                  value={
-                    stats.express
-                  }
-                />
-              </Card>
-            </Col>
-
-            <Col
-              xs={12}
-              sm={8}
-              lg={4}
-            >
-              <Card>
-                <Statistic
-                  title="Same Day"
-                  value={
-                    stats.sameDay
-                  }
-                />
-              </Card>
-            </Col>
-          </Row>
-
-          {/* ------------------------------------------------------------ */}
-          {/* Main content                                                  */}
-          {/* ------------------------------------------------------------ */}
-
-          <Row
-            gutter={[
-              16,
-              16,
-            ]}
-          >
-            {/* ---------------------------------------------------------- */}
-            {/* Branch selector                                             */}
-            {/* ---------------------------------------------------------- */}
-
-            <Col
-              xs={24}
-              lg={7}
-            >
-              <Card
-                title="Pickup Branch"
-                extra={
-                  <Tag>
-                    {
-                      filteredBranches.length
-                    }
-                  </Tag>
-                }
+            {!selectedPickupId ? (
+              <div
+                style={{
+                  padding: 60,
+                }}
               >
-                <Space
-                  direction="vertical"
-                  size={12}
+                <Empty description="Select a branch on the left" />
+              </div>
+            ) : (
+              <>
+                {/* DESTINATION SEARCH */}
+                <div
                   style={{
-                    width: "100%",
+                    padding:
+                      "10px 14px 0",
                   }}
                 >
                   <Input
                     allowClear
-                    prefix={
-                      <EnvironmentOutlined />
-                    }
-                    placeholder="Search branch..."
-                    value={
-                      branchSearch
-                    }
-                    onChange={(event) => {
-                      setBranchSearch(
+                    placeholder="Search destination..."
+                    value={search}
+                    onChange={(event) =>
+                      setSearch(
                         event.target
-                          .value
-                      );
-                      setBranchPage(
-                        1
-                      );
-                    }}
-                  />
-
-                  <Space wrap>
-                    <Button
-                      size="small"
-                      type={
-                        branchTab ===
-                        "all"
-                          ? "primary"
-                          : "default"
-                      }
-                      onClick={() => {
-                        setBranchTab(
-                          "all"
-                        );
-                        setBranchPage(
-                          1
-                        );
-                      }}
-                    >
-                      All
-                    </Button>
-
-                    <Button
-                      size="small"
-                      type={
-                        branchTab ===
-                        "configured"
-                          ? "primary"
-                          : "default"
-                      }
-                      onClick={() => {
-                        setBranchTab(
-                          "configured"
-                        );
-                        setBranchPage(
-                          1
-                        );
-                      }}
-                    >
-                      Configured
-                    </Button>
-
-                    <Button
-                      size="small"
-                      type={
-                        branchTab ===
-                        "unconfigured"
-                          ? "primary"
-                          : "default"
-                      }
-                      onClick={() => {
-                        setBranchTab(
-                          "unconfigured"
-                        );
-                        setBranchPage(
-                          1
-                        );
-                      }}
-                    >
-                      Unconfigured
-                    </Button>
-                  </Space>
-
-                  <List
-                    size="small"
-                    dataSource={
-                      paginatedBranches
-                    }
-                    locale={{
-                      emptyText:
-                        "No branches found.",
-                    }}
-                    renderItem={(
-                      branch
-                    ) => {
-                      const id =
-                        getBranchId(
-                          branch
-                        );
-
-                      const selected =
-                        Number(
-                          id
-                        ) ===
-                        Number(
-                          selectedPickupId
-                        );
-
-                      return (
-                        <List.Item
-                          key={id}
-                          style={{
-                            cursor:
-                              "pointer",
-                            borderRadius:
-                              8,
-                            padding:
-                              "10px 12px",
-                            background:
-                              selected
-                                ? "#f0f5ff"
-                                : undefined,
-                          }}
-                          onClick={() =>
-                            handleSelectPickup(
-                              branch
-                            )
-                          }
-                        >
-                          <List.Item.Meta
-                            avatar={
-                              <EnvironmentOutlined
-                                style={{
-                                  color:
-                                    selected
-                                      ? "#1677ff"
-                                      : undefined,
-                                }}
-                              />
-                            }
-                            title={
-                              <Text
-                                strong={
-                                  selected
-                                }
-                              >
-                                {branchLabel(
-                                  branch
-                                )}
-                              </Text>
-                            }
-                            description={
-                              branch?.code ??
-                              `Branch #${id}`
-                            }
-                          />
-                        </List.Item>
-                      );
-                    }}
-                  />
-
-                  <Pagination
-                    size="small"
-                    current={
-                      branchPage
-                    }
-                    pageSize={
-                      BRANCH_PAGE_SIZE
-                    }
-                    total={
-                      filteredBranches.length
-                    }
-                    showSizeChanger={
-                      false
-                    }
-                    onChange={(
-                      page
-                    ) =>
-                      setBranchPage(
-                        page
+                          .value,
                       )
                     }
-                  />
-                </Space>
-              </Card>
-            </Col>
-
-            {/* ---------------------------------------------------------- */}
-            {/* Destination pricing                                        */}
-            {/* ---------------------------------------------------------- */}
-
-            <Col
-              xs={24}
-              lg={10}
-            >
-              <Card
-                title={
-                  <Space wrap>
-                    <span>
-                      Destination Pricing
-                    </span>
-
-                    {selectedPickup && (
-                      <Tag color="blue">
-                        From{" "}
-                        {branchLabel(
-                          selectedPickup
-                        )}
-                      </Tag>
-                    )}
-                  </Space>
-                }
-                extra={
-                  <Button
                     size="small"
-                    type="link"
-                    onClick={() =>
-                      loadMatrix()
-                    }
-                  >
-                    Refresh
-                  </Button>
-                }
-              >
-                {!selectedPickup ? (
-                  <Empty
-                    description="Select a pickup branch."
                   />
-                ) : (
-                  <Space
-                    direction="vertical"
-                    size={12}
-                    style={{
-                      width: "100%",
-                    }}
-                  >
-                    {/* Destination filters */}
-                    <Row
-                      justify="space-between"
-                      gutter={[
-                        8,
-                        8,
-                      ]}
-                    >
-                      <Col>
-                        <Space wrap>
-                          <Button
-                            size="small"
-                            type={
-                              destTab ===
-                              "all"
-                                ? "primary"
-                                : "default"
-                            }
-                            onClick={() =>
-                              setDestTab(
-                                "all"
-                              )
-                            }
-                          >
-                            All
-                          </Button>
+                </div>
 
-                          <Button
-                            size="small"
-                            type={
-                              destTab ===
-                              "active"
-                                ? "primary"
-                                : "default"
-                            }
-                            onClick={() =>
-                              setDestTab(
-                                "active"
-                              )
-                            }
-                          >
-                            Active
-                          </Button>
+                {/* DESTINATION TABS */}
+                <Tabs
+                  size="small"
+                  activeKey={
+                    destTab
+                  }
+                  onChange={
+                    setDestTab
+                  }
+                  style={{
+                    padding:
+                      "0 14px",
+                  }}
+                  items={[
+                    {
+                      key: "all",
+                      label: `All (${destinationRows.length})`,
+                    },
 
-                          <Button
-                            size="small"
-                            type={
-                              destTab ===
-                              "inactive"
-                                ? "primary"
-                                : "default"
-                            }
-                            onClick={() =>
-                              setDestTab(
-                                "inactive"
-                              )
-                            }
-                          >
-                            Inactive
-                          </Button>
-                        </Space>
-                      </Col>
-
-                      <Col
-                        xs={24}
-                        sm={10}
-                      >
-                        <Input
-                          allowClear
-                          placeholder="Search destination..."
-                          value={
-                            search
-                          }
-                          onChange={(
-                            event
-                          ) =>
-                            setSearch(
-                              event.target
-                                .value
-                            )
-                          }
-                        />
-                      </Col>
-                    </Row>
-
-                    {/* Inline add */}
-                    {inlineAdd && (
-                      <Card
-                        size="small"
-                        title="Add Branch Pricing"
-                      >
-                        <Space
-                          direction="vertical"
-                          size={12}
+                    {
+                      key: "active",
+                      label: (
+                        <span
                           style={{
-                            width:
-                              "100%",
+                            color:
+                              "#52c41a",
                           }}
                         >
-                          <Text type="secondary">
-                            Select the destination branch from the list below, then enter the price.
-                          </Text>
+                          Active (
+                          {
+                            destinationRows.filter(
+                              ({
+                                rate,
+                              }) =>
+                                toBoolean(
+                                  rate?.is_active,
+                                  false,
+                                ),
+                            ).length
+                          }
+                          )
+                        </span>
+                      ),
+                    },
 
-                          <InputNumber
-                            style={{
-                              width:
-                                "100%",
-                            }}
-                            min={0}
-                            precision={2}
-                            placeholder="Base rate"
-                            value={
-                              inlineForm.base_rate
-                            }
-                            onChange={(
-                              value
-                            ) =>
-                              setInlineForm(
-                                (
-                                  previous
-                                ) => ({
-                                  ...previous,
-                                  base_rate:
-                                    value ??
-                                    0,
-                                })
-                              )
-                            }
-                          />
-
-                          <Space
-                            wrap
-                          >
-                            <Space>
-                              <Text>
-                                Active
-                              </Text>
-
-                              <Switch
-                                checked={
-                                  inlineForm.is_active ===
-                                  true
-                                }
-                                onChange={(
-                                  checked
-                                ) =>
-                                  setInlineForm(
-                                    (
-                                      previous
-                                    ) => ({
-                                      ...previous,
-                                      is_active:
-                                        checked,
-                                    })
-                                  )
-                                }
-                              />
-                            </Space>
-
-                            <Space>
-                              <Text>
-                                Express
-                              </Text>
-
-                              <Switch
-                                checked={
-                                  inlineForm.express_enabled ===
-                                  true
-                                }
-                                onChange={(
-                                  checked
-                                ) =>
-                                  setInlineForm(
-                                    (
-                                      previous
-                                    ) => ({
-                                      ...previous,
-                                      express_enabled:
-                                        checked,
-                                    })
-                                  )
-                                }
-                              />
-                            </Space>
-
-                            <Space>
-                              <Text>
-                                Same Day
-                              </Text>
-
-                              <Switch
-                                checked={
-                                  inlineForm.same_day_enabled ===
-                                  true
-                                }
-                                onChange={(
-                                  checked
-                                ) =>
-                                  setInlineForm(
-                                    (
-                                      previous
-                                    ) => ({
-                                      ...previous,
-                                      same_day_enabled:
-                                        checked,
-                                    })
-                                  )
-                                }
-                              />
-                            </Space>
-                          </Space>
-
-                          <Space>
-                            <Button
-                              type="primary"
-                              loading={
-                                inlineSaving
-                              }
-                              onClick={() =>
-                                messageApi.info(
-                                  "To add a new rate, select an unconfigured destination below and use the Add Pricing action."
-                                )
-                              }
-                            >
-                              Save
-                            </Button>
-
-                            <Button
-                              disabled={
-                                inlineSaving
-                              }
-                              onClick={() =>
-                                setInlineAdd(
-                                  false
-                                )
-                              }
-                            >
-                              Cancel
-                            </Button>
-                          </Space>
-                        </Space>
-                      </Card>
-                    )}
-
-                    {/* Destination list */}
-                    {filteredDestinationRates.length ===
-                    0 ? (
-                      <Empty
-                        description={
-                          destTab ===
-                            "active" ||
-                          destTab ===
-                            "inactive"
-                            ? "No pricing records match this filter."
-                            : "No destinations found."
-                        }
-                      />
-                    ) : (
-                      <List
-                        itemLayout="horizontal"
-                        dataSource={
-                          filteredDestinationRates
-                        }
-                        renderItem={
-                          renderDestinationRow
-                        }
-                      />
-                    )}
-                  </Space>
-                )}
-              </Card>
-            </Col>
-
-            {/* ---------------------------------------------------------- */}
-            {/* Details / map                                               */}
-            {/* ---------------------------------------------------------- */}
-
-            <Col
-              xs={24}
-              lg={7}
-            >
-              <Space
-                direction="vertical"
-                size={16}
-                style={{
-                  width: "100%",
-                }}
-              >
-                <Card
-                  title="Pricing Details"
-                >
-                  {!selectedRoute ? (
-                    <Empty
-                      description="Select a pricing route to view details."
-                    />
-                  ) : (
-                    <Space
-                      direction="vertical"
-                      size={14}
-                      style={{
-                        width:
-                          "100%",
-                      }}
-                    >
-                      <div>
-                        <Text type="secondary">
-                          Route
-                        </Text>
-
-                        <div
+                    {
+                      key: "missing",
+                      label: (
+                        <span
                           style={{
-                            marginTop:
-                              4,
+                            color:
+                              "#faad14",
                           }}
                         >
-                          <Text strong>
-                            {branchLabel(
-                              selectedRoute.pickup_branch ??
-                                locations.find(
-                                  (
-                                    branch
-                                  ) =>
-                                    Number(
-                                      getBranchId(
-                                        branch
-                                      )
-                                    ) ===
-                                    Number(
-                                      selectedRoute.pickup_coverage_location_id ??
-                                        selectedRoute.pickup_branch_id
-                                    )
-                                )
-                            )}{" "}
-                            →{" "}
-                            {branchLabel(
-                              selectedRoute.delivery_branch ??
-                                locations.find(
-                                  (
-                                    branch
-                                  ) =>
-                                    Number(
-                                      getBranchId(
-                                        branch
-                                      )
-                                    ) ===
-                                    Number(
-                                      selectedRoute.delivery_coverage_location_id ??
-                                        selectedRoute.delivery_branch_id
-                                    )
-                                )
-                            )}
-                          </Text>
-                        </div>
-                      </div>
+                          Missing (
+                          {
+                            destinationRows.filter(
+                              ({
+                                rate,
+                              }) =>
+                                !rate,
+                            ).length
+                          }
+                          )
+                        </span>
+                      ),
+                    },
+                  ]}
+                />
 
-                      <Row
-                        gutter={[
-                          8,
-                          8,
-                        ]}
-                      >
-                        <Col
-                          span={12}
-                        >
-                          <Card
-                            size="small"
-                          >
-                            <Statistic
-                              title="Base Rate"
-                              value={toSafeNumber(
-                                selectedRoute.base_rate,
-                                0
-                              )}
-                              prefix="NPR "
-                              precision={
-                                2
-                              }
-                            />
-                          </Card>
-                        </Col>
-
-                        <Col
-                          span={12}
-                        >
-                          <Card
-                            size="small"
-                          >
-                            <Statistic
-                              title="Status"
-                              value={
-                                selectedRoute.is_active ===
-                                true
-                                  ? "Active"
-                                  : "Inactive"
-                              }
-                            />
-                          </Card>
-                        </Col>
-                      </Row>
-
-                      <Space
-                        wrap
-                      >
-                        <Tag
-                          color={
-                            selectedRoute.express_enabled ===
-                            true
-                              ? "green"
-                              : "default"
-                          }
-                        >
-                          Express{" "}
-                          {selectedRoute.express_enabled ===
-                          true
-                            ? "ON"
-                            : "OFF"}
-                        </Tag>
-
-                        <Tag
-                          color={
-                            selectedRoute.same_day_enabled ===
-                            true
-                              ? "green"
-                              : "default"
-                          }
-                        >
-                          Same Day{" "}
-                          {selectedRoute.same_day_enabled ===
-                          true
-                            ? "ON"
-                            : "OFF"}
-                        </Tag>
-
-                        <Tag
-                          color={
-                            selectedRoute.is_active ===
-                            true
-                              ? "blue"
-                              : "default"
-                          }
-                        >
-                          {selectedRoute.is_active ===
-                          true
-                            ? "Active"
-                            : "Inactive"}
-                        </Tag>
-                      </Space>
-
-                      {selectedRoute.updated_at && (
-                        <Text type="secondary">
-                          Updated{" "}
-                          {formatDate(
-                            selectedRoute.updated_at
-                          )}
-                        </Text>
-                      )}
-
-                      <Space
-                        wrap
-                      >
-                        <Button
-                          icon={
-                            <EditOutlined />
-                          }
-                          onClick={() =>
-                            startEdit(
-                              selectedRoute
-                            )
-                          }
-                        >
-                          Edit
-                        </Button>
-
-                        <Button
-                          icon={
-                            <SwapOutlined />
-                          }
-                          loading={
-                            reverseSavingId ===
-                            selectedRoute.id
-                          }
-                          onClick={() =>
-                            createReverse(
-                              selectedRoute
-                            )
-                          }
-                        >
-                          Reverse
-                        </Button>
-
-                        <Button
-                          icon={
-                            selectedRoute.is_active ===
-                            true ? (
-                              <CloseCircleOutlined />
-                            ) : (
-                              <CheckCircleOutlined />
-                            )
-                          }
-                          loading={
-                            statusSavingId ===
-                            selectedRoute.id
-                          }
-                          onClick={() =>
-                            toggleStatus(
-                              selectedRoute
-                            )
-                          }
-                        >
-                          {selectedRoute.is_active ===
-                          true
-                            ? "Deactivate"
-                            : "Activate"}
-                        </Button>
-                      </Space>
-                    </Space>
-                  )}
-                </Card>
-
-                <Card
-                  title="Route Map"
-                  bodyStyle={{
-                    padding: 0,
+                {/* ROUTES */}
+                <div
+                  style={{
+                    padding:
+                      "4px 14px 14px",
                   }}
                 >
-                  {selectedRouteNodes.length >=
-                  2 ? (
-                    <div
+                  {filteredDestinations.map(
+                    ({
+                      location,
+                      rate,
+                    }) => (
+                      <DestinationRow
+                        key={
+                          location.id
+                        }
+                        location={
+                          location
+                        }
+                        rate={rate}
+                      />
+                    ),
+                  )}
+                </div>
+              </>
+            )}
+          </Card>
+        </Col>
+
+        {/* RIGHT — ROUTE DETAIL */}
+        <Col
+          xs={24}
+          xl={7}
+          style={{
+            alignSelf:
+              "flex-start",
+          }}
+        >
+          <div
+            style={{
+              position:
+                "sticky",
+              top: 16,
+            }}
+          >
+            <Card
+              bordered={false}
+              style={{
+                borderRadius: 12,
+                overflow:
+                  "hidden",
+              }}
+              styles={{
+                body: {
+                  padding: 0,
+                },
+              }}
+              title={
+                <Space>
+                  <EnvironmentOutlined
+                    style={{
+                      color:
+                        "#1677ff",
+                    }}
+                  />
+
+                  <Text strong>
+                    Route Detail
+                  </Text>
+                </Space>
+              }
+            >
+              {selectedRouteNormalized ? (
+                <>
+                  {/* ROUTE HEADER */}
+                  <div
+                    style={{
+                      padding:
+                        "12px 16px",
+                      background:
+                        "#f7fbff",
+                      borderBottom:
+                        "1px solid #e6f4ff",
+                    }}
+                  >
+                    <Text
+                      type="secondary"
                       style={{
-                        height: 420,
-                        overflow:
-                          "hidden",
-                        borderRadius:
-                          8,
+                        fontSize: 10,
+                        textTransform:
+                          "uppercase",
+                        letterSpacing:
+                          ".08em",
                       }}
                     >
-                      <RouteMapS
-                        nodes={
-                          selectedRouteNodes
-                        }
-                        route={
-                          selectedRoute
-                        }
-                      />
-                    </div>
-                  ) : (
+                      Delivery Route
+                    </Text>
+
                     <div
                       style={{
-                        minHeight: 300,
                         display:
                           "flex",
                         alignItems:
                           "center",
-                        justifyContent:
-                          "center",
+                        gap: 8,
+                        flexWrap:
+                          "wrap",
+                        marginTop: 6,
                       }}
                     >
-                      <Empty
-                        description="Select a configured route to view the map."
-                      />
+                      <Text strong>
+                        {
+                          locations.find(
+                            (location) =>
+                              Number(
+                                location.id,
+                              ) ===
+                              Number(
+                                selectedRouteNormalized.pickup_coverage_location_id,
+                              ),
+                          )?.name
+                        }
+                      </Text>
+
+                      <span
+                        style={{
+                          color:
+                            "#1677ff",
+                          fontSize: 18,
+                        }}
+                      >
+                        →
+                      </span>
+
+                      <Text strong>
+                        {
+                          locations.find(
+                            (location) =>
+                              Number(
+                                location.id,
+                              ) ===
+                              Number(
+                                selectedRouteNormalized.delivery_coverage_location_id,
+                              ),
+                          )?.name
+                        }
+                      </Text>
                     </div>
-                  )}
-                </Card>
-              </Space>
-            </Col>
-          </Row>
-        </Space>
-      </div>
-    </>
+                  </div>
+
+                  {/* MAP */}
+                  <div
+                    style={{
+                      padding: 12,
+                    }}
+                  >
+                    <RouteMapS
+                      nodes={
+                        selectedRouteNodes
+                      }
+                      height={260}
+                      selectedLabel="Route"
+                    />
+                  </div>
+
+                  {/* DETAILS */}
+                  <div
+                    style={{
+                      padding:
+                        "0 12px 14px",
+                    }}
+                  >
+                    <Row
+                      gutter={8}
+                      style={{
+                        marginBottom: 10,
+                      }}
+                    >
+                      {/* BASE RATE */}
+                      <Col span={12}>
+                        <div
+                          style={{
+                            padding: 10,
+                            border:
+                              "1px solid #f0f0f0",
+                            borderRadius: 8,
+                          }}
+                        >
+                          <Text
+                            type="secondary"
+                            style={{
+                              fontSize: 10,
+                              textTransform:
+                                "uppercase",
+                            }}
+                          >
+                            Base Rate
+                          </Text>
+
+                          <div
+                            style={{
+                              marginTop: 3,
+                              fontSize: 15,
+                              fontWeight: 700,
+                            }}
+                          >
+                            {formatMoney(
+                              selectedRouteNormalized.base_rate,
+                            )}
+                          </div>
+                        </div>
+                      </Col>
+
+                      {/* STATUS */}
+                      <Col span={12}>
+                        <div
+                          style={{
+                            padding: 10,
+                            border:
+                              "1px solid #f0f0f0",
+                            borderRadius: 8,
+                          }}
+                        >
+                          <Text
+                            type="secondary"
+                            style={{
+                              fontSize: 10,
+                              textTransform:
+                                "uppercase",
+                            }}
+                          >
+                            Status
+                          </Text>
+
+                          <div
+                            style={{
+                              marginTop: 6,
+                            }}
+                          >
+                            <StatusTag
+                              active={
+                                selectedRouteActive
+                              }
+                            />
+                          </div>
+                        </div>
+                      </Col>
+                    </Row>
+
+                    <Descriptions
+                      column={1}
+                      size="small"
+                    >
+                      {/* EXPRESS */}
+                      <Descriptions.Item label="Express">
+                        {selectedRouteExpress ? (
+                          <Tag color="orange">
+                            Enabled
+                          </Tag>
+                        ) : (
+                          <Tag color="default">
+                            Disabled
+                          </Tag>
+                        )}
+                      </Descriptions.Item>
+
+                      {/* SAME DAY */}
+                      <Descriptions.Item label="Same Day">
+                        {selectedRouteSameDay ? (
+                          <Tag color="magenta">
+                            Enabled
+                          </Tag>
+                        ) : (
+                          <Tag color="default">
+                            Disabled
+                          </Tag>
+                        )}
+                      </Descriptions.Item>
+
+                      <Descriptions.Item label="Updated">
+                        {formatDate(
+                          selectedRouteNormalized.updated_at,
+                        )}
+                      </Descriptions.Item>
+                    </Descriptions>
+
+                    {/* ACTIONS */}
+                    <Space
+                      style={{
+                        marginTop: 10,
+                      }}
+                    >
+                      <Button
+                        icon={
+                          <SwapOutlined />
+                        }
+                        disabled={
+                          Number(
+                            selectedRouteNormalized.pickup_coverage_location_id,
+                          ) ===
+                            Number(
+                              selectedRouteNormalized.delivery_coverage_location_id,
+                            ) ||
+                          Boolean(
+                            rateMap[
+                              `${selectedRouteNormalized.delivery_coverage_location_id}:${selectedRouteNormalized.pickup_coverage_location_id}`
+                            ],
+                          )
+                        }
+                        onClick={() =>
+                          createReverse(
+                            selectedRouteNormalized,
+                          )
+                        }
+                      >
+                        Reverse
+                      </Button>
+
+                      <Button
+                        onClick={() =>
+                          toggleStatus(
+                            selectedRouteNormalized,
+                          )
+                        }
+                      >
+                        {selectedRouteActive
+                          ? "Disable"
+                          : "Enable"}
+                      </Button>
+                    </Space>
+                  </div>
+                </>
+              ) : (
+                <div
+                  style={{
+                    padding: 60,
+                  }}
+                >
+                  <Empty description="Click a route to view details" />
+                </div>
+              )}
+            </Card>
+          </div>
+        </Col>
+      </Row>
+    </div>
   );
 }
