@@ -222,12 +222,13 @@ export async function getBranchRouteRate(id) {
 | Create branch route rate
 |--------------------------------------------------------------------------
 |
-| Explicitly preserve:
+| Fresh-create defaults:
 |
-| - base_rate
-| - is_active
-| - express_enabled
-| - same_day_enabled
+|   is_active       = true
+|   express_enabled = false
+|   same_day_enabled = false
+|
+| Explicit payload values always win.
 |
 |--------------------------------------------------------------------------
 */
@@ -268,12 +269,17 @@ export async function createBranchRouteRate(payload = {}) {
     /*
      * IMPORTANT:
      *
-     * Do not omit these fields.
+     * Fresh branch pricing defaults to Express OFF.
      *
-     * The inline edit page depends on them.
+     * Explicit false remains false.
      */
-    express_enabled: normalizeBoolean(payload.express_enabled, true),
+    express_enabled: normalizeBoolean(payload.express_enabled, false),
 
+    /*
+     * Fresh branch pricing defaults to Same Day OFF.
+     *
+     * Explicit false remains false.
+     */
     same_day_enabled: normalizeBoolean(payload.same_day_enabled, false),
   };
 
@@ -297,16 +303,14 @@ export async function createBranchRouteRate(payload = {}) {
 | Update branch route rate
 |--------------------------------------------------------------------------
 |
-| IMPORTANT:
+| Explicit toggle values are preserved.
 |
-| The service explicitly sends the toggle values.
+| Missing Express/Same Day values default to OFF.
 |
-| This is necessary for:
+| This does NOT change normal edit behavior because:
 |
-|   express_enabled
-|   same_day_enabled
-|
-| to be persisted by the backend.
+|   false -> false
+|   true  -> true
 |
 |--------------------------------------------------------------------------
 */
@@ -344,14 +348,9 @@ export async function updateBranchRouteRate(id, payload = {}) {
     /*
      * Explicit boolean values.
      *
-     * Never use:
-     *
-     *   Boolean(undefined)
-     *
-     * here because that could unexpectedly disable
-     * a service.
+     * false remains false.
      */
-    express_enabled: normalizeBoolean(payload.express_enabled, true),
+    express_enabled: normalizeBoolean(payload.express_enabled, false),
 
     same_day_enabled: normalizeBoolean(payload.same_day_enabled, false),
   };
@@ -432,8 +431,6 @@ export async function createReverseBranchRouteRate(routeRate, overrides = {}) {
 
   /*
    * Prefer coverage-location IDs.
-   *
-   * Branch pricing is based on coverage locations.
    */
   const pickupCoverageLocationId = resolveId(
     routeRate?.pickup_coverage_location_id,
@@ -444,8 +441,7 @@ export async function createReverseBranchRouteRate(routeRate, overrides = {}) {
   );
 
   /*
-   * Fallback to branch IDs when coverage IDs
-   * are not available.
+   * Fallback to branch IDs.
    */
   const pickupBranchId = resolveId(
     routeRate?.pickup_branch_id ?? routeRate?.pickup_branch,
@@ -480,9 +476,18 @@ export async function createReverseBranchRouteRate(routeRate, overrides = {}) {
     true,
   );
 
+  /*
+   * IMPORTANT:
+   *
+   * Reverse creation should preserve the
+   * original route's setting.
+   *
+   * Existing route values are therefore
+   * used before the fallback.
+   */
   const expressEnabled = normalizeBoolean(
     overrides.express_enabled ?? routeRate?.express_enabled,
-    true,
+    false,
   );
 
   const sameDayEnabled = normalizeBoolean(
@@ -500,8 +505,6 @@ export async function createReverseBranchRouteRate(routeRate, overrides = {}) {
 
     /*
      * Branch IDs are included as well when available.
-     * This makes the request compatible with backends
-     * that still expect branch IDs.
      */
     ...(deliveryBranchId
       ? {
@@ -537,9 +540,6 @@ export async function createReverseBranchRouteRate(routeRate, overrides = {}) {
 
   /*
    * Re-assert critical values after overrides.
-   *
-   * This protects against accidental null/undefined
-   * values from a caller.
    */
   requestPayload.base_rate =
     overrides.base_rate !== undefined
@@ -722,12 +722,6 @@ export async function getBranchTransferRoute(id) {
 /*
 |--------------------------------------------------------------------------
 | Route preview
-|--------------------------------------------------------------------------
-|
-| Always include:
-|
-|   route_type: "transfer"
-|
 |--------------------------------------------------------------------------
 */
 
@@ -967,8 +961,7 @@ export function buildReverseTransferRoutePayload(route, overrides = {}) {
     ),
 
     /*
-     * Keep required numeric/boolean fields valid
-     * even if overrides contain string values.
+     * Keep required numeric/boolean fields valid.
      */
     origin_branch_id: Number(
       overrides.origin_branch_id ?? basePayload.origin_branch_id,
