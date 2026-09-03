@@ -35,10 +35,6 @@ import {
   normalizeStaffRoles,
 } from "@/services/branchStaffService";
 
-import {
-  getRoles,
-} from "@/services/accessApi";
-
 import BranchStaffTable from "./BranchStaffTable";
 import BranchStaffForm from "./BranchStaffForm";
 import BranchStaffDetails from "./BranchStaffDetails";
@@ -88,7 +84,7 @@ export default function BranchStaffManagement() {
       try {
         setRolesLoading(true);
 
-        const result = await getRoles();
+        const result = await getBranchStaffRoles();
 
         const normalized =
           Array.isArray(result)

@@ -24,7 +24,7 @@ export async function getBranchStaff(
   params = {}
 ) {
   const response = await api.get(
-    "/v1/admin/staff",
+    "/admin/staff",
     {
       params,
     }
@@ -64,7 +64,7 @@ export async function getBranchStaff(
 
 export async function getBranchStaffRoles() {
   const response = await api.get(
-    "/v1/admin/staff/roles"
+    "/admin/staff/roles"
   );
 
   return unwrapResponse(
@@ -82,7 +82,7 @@ export async function getBranchStaffMember(
   id
 ) {
   const response = await api.get(
-    `/v1/admin/staff/${id}`
+    `/admin/staff/${id}`
   );
 
   return unwrapResponse(
@@ -100,7 +100,7 @@ export async function createBranchStaff(
   payload
 ) {
   const response = await api.post(
-    "/v1/admin/staff",
+    "/admin/staff",
     payload
   );
 
@@ -120,7 +120,7 @@ export async function updateBranchStaff(
   payload
 ) {
   const response = await api.put(
-    `/v1/admin/staff/${id}`,
+    `/admin/staff/${id}`,
     payload
   );
 
@@ -139,7 +139,7 @@ export async function toggleBranchStaff(
   id
 ) {
   const response = await api.patch(
-    `/v1/admin/staff/${id}/toggle`
+    `/admin/staff/${id}/toggle`
   );
 
   return unwrapResponse(
@@ -157,7 +157,7 @@ export async function deleteBranchStaff(
   id
 ) {
   const response = await api.delete(
-    `/v1/admin/staff/${id}`
+    `/admin/staff/${id}`
   );
 
   return unwrapResponse(
