@@ -187,3 +187,39 @@ export async function transferPickup(id, staffId, reason) {
 
   return unwrap(response);
 }
+
+/**
+ * Re-send a pickup lifecycle callback to the store partner.
+ *
+ * POST /admin/pickups/{id}/resend-callback
+ *
+ * Payload:
+ * {
+ *   event: "pickup.rider_assigned" | "pickup.rider_started" |
+ *          "pickup.rider_arrived" | "pickup.completed" |
+ *          "shipment.collected" | "shipment.received_at_origin",
+ *   shipment_id?: number   // required only for shipment.* events
+ * }
+ */
+export async function resendPickupCallback(id, event, shipmentId = null) {
+  if (!id) {
+    throw new Error("Pickup ID is required.");
+  }
+
+  if (!event) {
+    throw new Error("Callback event is required.");
+  }
+
+  const payload = { event };
+
+  if (shipmentId) {
+    payload.shipment_id = shipmentId;
+  }
+
+  const response = await api.post(
+    `/admin/pickups/${id}/resend-callback`,
+    payload,
+  );
+
+  return unwrap(response);
+}

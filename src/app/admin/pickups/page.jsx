@@ -17,6 +17,7 @@ import {
   ChevronLeft,
   ChevronRight,
   X,
+  Send,
 } from "lucide-react";
 
 import {
@@ -26,7 +27,27 @@ import {
   assignPickup,
   transferPickup,
   failPickup,
+  resendPickupCallback,
 } from "@/services/pickupService";
+
+/*
+|--------------------------------------------------------------------------
+| Resendable pickup callback events
+|--------------------------------------------------------------------------
+*/
+
+const RESEND_EVENTS = [
+  { value: "pickup.rider_assigned", label: "Rider assigned", scope: "pickup" },
+  { value: "pickup.rider_started", label: "Rider started", scope: "pickup" },
+  { value: "pickup.rider_arrived", label: "Rider arrived", scope: "pickup" },
+  { value: "pickup.completed", label: "Pickup completed", scope: "pickup" },
+  { value: "shipment.collected", label: "Shipment collected", scope: "shipment" },
+  {
+    value: "shipment.received_at_origin",
+    label: "Shipment received at origin",
+    scope: "shipment",
+  },
+];
 
 /*
 |--------------------------------------------------------------------------
@@ -217,6 +238,12 @@ export default function AdminPickupsPage() {
   const [selectedStaffId, setSelectedStaffId] = useState("");
 
   const [reason, setReason] = useState("");
+
+  const [resendEvent, setResendEvent] = useState("");
+
+  const [resendShipmentId, setResendShipmentId] = useState("");
+
+  const [resendMessage, setResendMessage] = useState("");
 
   /*
   |--------------------------------------------------------------------------
@@ -448,6 +475,57 @@ export default function AdminPickupsPage() {
         err?.response?.data?.message ??
           err?.message ??
           "Unable to cancel pickup.",
+      );
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  /*
+  |--------------------------------------------------------------------------
+  | Resend callback
+  |--------------------------------------------------------------------------
+  */
+
+  const handleResendCallback = async () => {
+    const id = getPickupId(selectedPickup);
+
+    if (!id || !resendEvent) {
+      return;
+    }
+
+    const eventDef = RESEND_EVENTS.find(
+      (item) => item.value === resendEvent,
+    );
+
+    if (eventDef?.scope === "shipment" && !resendShipmentId) {
+      setActionError("Please select a shipment for this event.");
+
+      return;
+    }
+
+    setActionLoading(true);
+    setActionError("");
+    setResendMessage("");
+
+    try {
+      await resendPickupCallback(
+        id,
+        resendEvent,
+        eventDef?.scope === "shipment" ? Number(resendShipmentId) : null,
+      );
+
+      setResendMessage(
+        `Callback "${eventDef?.label ?? resendEvent}" re-queued to the store.`,
+      );
+
+      setResendEvent("");
+      setResendShipmentId("");
+    } catch (err) {
+      setActionError(
+        err?.response?.data?.message ??
+          err?.message ??
+          "Unable to resend callback.",
       );
     } finally {
       setActionLoading(false);
@@ -924,6 +1002,27 @@ export default function AdminPickupsPage() {
                         Cancel pickup
                       </ActionButton>
                     )}
+
+                    <ActionButton
+                      onClick={() => {
+                        setAssignMode("resend");
+
+                        setSelectedStaffId("");
+
+                        setReason("");
+
+                        setResendEvent("");
+
+                        setResendShipmentId("");
+
+                        setResendMessage("");
+
+                        setActionError("");
+                      }}
+                    >
+                      <Send size={15} />
+                      Resend callback
+                    </ActionButton>
                   </div>
 
                   {/* Action form */}
@@ -1080,6 +1179,96 @@ export default function AdminPickupsPage() {
                               {actionLoading
                                 ? "Cancelling..."
                                 : "Confirm cancellation"}
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => setAssignMode(null)}
+                              className="rounded-lg border border-gray-200 px-4 py-2 text-sm"
+                            >
+                              Back
+                            </button>
+                          </div>
+                        </>
+                      )}
+
+                      {assignMode === "resend" && (
+                        <>
+                          <p className="mb-3 text-sm text-gray-600">
+                            Re-send a lifecycle callback to the store partner
+                            using this pickup&apos;s current data. Useful when a
+                            callback previously failed.
+                          </p>
+
+                          {resendMessage && (
+                            <div className="mb-3 rounded-lg border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-700">
+                              {resendMessage}
+                            </div>
+                          )}
+
+                          <label className="mb-2 block text-sm font-medium text-gray-700">
+                            Event
+                          </label>
+
+                          <select
+                            value={resendEvent}
+                            onChange={(event) => {
+                              setResendEvent(event.target.value);
+                              setResendShipmentId("");
+                            }}
+                            disabled={actionLoading}
+                            className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-sm"
+                          >
+                            <option value="">Select event</option>
+
+                            {RESEND_EVENTS.map((item) => (
+                              <option key={item.value} value={item.value}>
+                                {item.label}
+                              </option>
+                            ))}
+                          </select>
+
+                          {RESEND_EVENTS.find(
+                            (item) => item.value === resendEvent,
+                          )?.scope === "shipment" && (
+                            <>
+                              <label className="mb-2 mt-3 block text-sm font-medium text-gray-700">
+                                Shipment
+                              </label>
+
+                              <select
+                                value={resendShipmentId}
+                                onChange={(event) =>
+                                  setResendShipmentId(event.target.value)
+                                }
+                                disabled={actionLoading}
+                                className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-sm"
+                              >
+                                <option value="">Select shipment</option>
+
+                                {getShipments(selectedPickup).map(
+                                  (shipment) => (
+                                    <option
+                                      key={shipment.id}
+                                      value={shipment.id}
+                                    >
+                                      {shipment.tracking_number ??
+                                        `Shipment #${shipment.id}`}
+                                    </option>
+                                  ),
+                                )}
+                              </select>
+                            </>
+                          )}
+
+                          <div className="mt-3 flex gap-2">
+                            <button
+                              type="button"
+                              onClick={handleResendCallback}
+                              disabled={!resendEvent || actionLoading}
+                              className="rounded-lg bg-gray-900 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
+                            >
+                              {actionLoading ? "Sending..." : "Resend callback"}
                             </button>
 
                             <button
