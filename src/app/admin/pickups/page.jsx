@@ -91,7 +91,29 @@ function getShipments(pickup) {
     return [];
   }
 
-  return pickup.shipments.map((item) => item?.shipment ?? item).filter(Boolean);
+  return pickup.shipments
+    .map((item) => {
+      if (!item) {
+        return null;
+      }
+
+      /*
+       * The pickup `shipments` relation is a belongsToMany directly to
+       * Shipment, so each item is already the shipment (tracking_number at
+       * the top level, pivot data under `item.pivot`).
+       *
+       * Older responses nested the shipment under `item.shipment`. Support
+       * both: prefer a nested shipment when present, otherwise use the item
+       * itself. Merge pivot so collection fields stay available.
+       */
+      const shipment = item.shipment ?? item;
+
+      return {
+        ...shipment,
+        pivot: item.pivot ?? shipment.pivot ?? null,
+      };
+    })
+    .filter((shipment) => shipment && (shipment.id || shipment.tracking_number));
 }
 
 function formatDate(value) {
