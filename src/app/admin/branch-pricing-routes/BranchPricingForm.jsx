@@ -27,7 +27,7 @@ import {
   buildServiceTypesPayload,
   extractFormData,
 } from "@/services/branchPricingRouteService";
-import { getAllBranches } from "@/services/branchService";
+import { getBranches } from "@/services/adminBranchService";
 
 const { Text, Title } = Typography;
 
@@ -61,14 +61,13 @@ export default function BranchPricingForm({ pricingData, onSuccess, loading }) {
 
   async function loadBranches() {
     try {
-      const data = await getAllBranches();
-      setBranches(
-        Array.isArray(data)
-          ? data
-          : data?.map
-          ? Array.from(data)
-          : []
-      );
+      const response = await getBranches({ per_page: 1000 });
+      const list = Array.isArray(response)
+        ? response
+        : Array.isArray(response?.data)
+        ? response.data
+        : [];
+      setBranches(list);
     } catch (error) {
       message.error("Could not load branches");
     }
