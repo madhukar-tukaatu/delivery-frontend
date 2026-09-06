@@ -6,9 +6,7 @@ import {
   Avatar,
   Badge,
   Button,
-  Card,
   Col,
-  Descriptions,
   Divider,
   Drawer,
   Empty,
@@ -58,6 +56,8 @@ import {
 
 const { Title, Text } = Typography;
 
+const BRAND = "#027196";
+
 /*
 |--------------------------------------------------------------------------
 | Status configuration
@@ -65,86 +65,19 @@ const { Title, Text } = Typography;
 */
 
 const STATUS_META = {
-  requested: {
-    label: "Requested",
-    color: "blue",
-    hex: "#1677ff",
-    icon: <InboxOutlined />,
-    hint: "Waiting for a rider to be assigned",
-  },
-  assigned: {
-    label: "Assigned",
-    color: "purple",
-    hex: "#722ed1",
-    icon: <UserAddOutlined />,
-    hint: "Rider assigned, awaiting acceptance",
-  },
-  accepted: {
-    label: "Accepted",
-    color: "geekblue",
-    hex: "#2f54eb",
-    icon: <CheckCircleOutlined />,
-    hint: "Rider accepted the pickup",
-  },
-  started: {
-    label: "En Route",
-    color: "cyan",
-    hex: "#13c2c2",
-    icon: <CarOutlined />,
-    hint: "Rider is travelling to the merchant",
-  },
-  arrived: {
-    label: "Arrived",
-    color: "gold",
-    hex: "#faad14",
-    icon: <EnvironmentOutlined />,
-    hint: "Rider has reached the pickup location",
-  },
-  collected: {
-    label: "Collected",
-    color: "green",
-    hex: "#52c41a",
-    icon: <CheckCircleOutlined />,
-    hint: "All shipments collected from merchant",
-  },
-  on_way_to_branch: {
-    label: "On Way to Branch",
-    color: "orange",
-    hex: "#fa8c16",
-    icon: <CarOutlined />,
-    hint: "Rider in transit to origin branch",
-  },
-  completed: {
-    label: "Completed",
-    color: "success",
-    hex: "#389e0d",
-    icon: <CheckCircleOutlined />,
-    hint: "Branch verified all shipments",
-  },
-  failed: {
-    label: "Failed",
-    color: "error",
-    hex: "#cf1322",
-    icon: <ExclamationCircleOutlined />,
-    hint: "Pickup could not be completed",
-  },
-  cancelled: {
-    label: "Cancelled",
-    color: "default",
-    hex: "#8c8c8c",
-    icon: <CloseCircleOutlined />,
-    hint: "Pickup was cancelled",
-  },
+  requested: { label: "Requested", color: "blue", hex: "#1677ff", icon: <InboxOutlined />, hint: "Waiting for a rider to be assigned" },
+  assigned: { label: "Assigned", color: "purple", hex: "#722ed1", icon: <UserAddOutlined />, hint: "Rider assigned, awaiting acceptance" },
+  accepted: { label: "Accepted", color: "geekblue", hex: "#2f54eb", icon: <CheckCircleOutlined />, hint: "Rider accepted the pickup" },
+  started: { label: "En Route", color: "cyan", hex: "#13c2c2", icon: <CarOutlined />, hint: "Rider is travelling to the merchant" },
+  arrived: { label: "Arrived", color: "gold", hex: "#faad14", icon: <EnvironmentOutlined />, hint: "Rider has reached the pickup location" },
+  collected: { label: "Collected", color: "green", hex: "#52c41a", icon: <CheckCircleOutlined />, hint: "All shipments collected from merchant" },
+  on_way_to_branch: { label: "On Way to Branch", color: "orange", hex: "#fa8c16", icon: <CarOutlined />, hint: "Rider in transit to origin branch" },
+  completed: { label: "Completed", color: "success", hex: "#389e0d", icon: <CheckCircleOutlined />, hint: "Branch verified all shipments" },
+  failed: { label: "Failed", color: "error", hex: "#cf1322", icon: <ExclamationCircleOutlined />, hint: "Pickup could not be completed" },
+  cancelled: { label: "Cancelled", color: "default", hex: "#8c8c8c", icon: <CloseCircleOutlined />, hint: "Pickup was cancelled" },
 };
 
-const TAB_STATUSES = [
-  "requested",
-  "assigned",
-  "collected",
-  "on_way_to_branch",
-  "completed",
-  "failed",
-];
+const TAB_STATUSES = ["requested", "assigned", "collected", "on_way_to_branch", "completed", "failed"];
 
 const RESEND_EVENTS = [
   { value: "pickup.rider_assigned", label: "Rider assigned", scope: "pickup" },
@@ -152,11 +85,7 @@ const RESEND_EVENTS = [
   { value: "pickup.rider_arrived", label: "Rider arrived", scope: "pickup" },
   { value: "pickup.completed", label: "Pickup completed", scope: "pickup" },
   { value: "shipment.collected", label: "Shipment collected", scope: "shipment" },
-  {
-    value: "shipment.received_at_origin",
-    label: "Shipment received at origin",
-    scope: "shipment",
-  },
+  { value: "shipment.received_at_origin", label: "Shipment received at origin", scope: "shipment" },
 ];
 
 /*
@@ -167,11 +96,7 @@ const RESEND_EVENTS = [
 
 function metaFor(status) {
   return STATUS_META[String(status ?? "").toLowerCase()] ?? {
-    label: String(status ?? "Unknown"),
-    color: "default",
-    hex: "#8c8c8c",
-    icon: <InboxOutlined />,
-    hint: "",
+    label: String(status ?? "Unknown"), color: "default", hex: "#8c8c8c", icon: <InboxOutlined />, hint: "",
   };
 }
 
@@ -190,30 +115,21 @@ function StatusTag({ status, withIcon = true }) {
 function getPickupId(p) {
   return p?.id ?? p?.pickup_request_id ?? null;
 }
-
 function getRequestNumber(p) {
   return p?.request_number ?? `#${getPickupId(p) ?? "-"}`;
 }
-
 function getMerchantName(p) {
   return p?.merchant?.name ?? p?.merchant?.business_name ?? "Unknown merchant";
 }
-
 function getLocation(p) {
   return p?.pickup_location ?? p?.pickupLocation ?? null;
 }
-
 function getLocationName(p) {
   const loc = getLocation(p);
   return loc?.name ?? p?.pickup_name ?? "Pickup location";
 }
-
 function getRider(p) {
   return p?.assigned_staff ?? p?.assignedStaff ?? null;
-}
-
-function getRiderName(p) {
-  return getRider(p)?.name ?? "Unassigned";
 }
 
 function getShipments(p) {
@@ -237,11 +153,7 @@ function fmtDate(value) {
   const d = new Date(value);
   if (Number.isNaN(d.getTime())) return null;
   return d.toLocaleString("en-NP", {
-    year: "numeric",
-    month: "short",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
+    year: "numeric", month: "short", day: "2-digit", hour: "2-digit", minute: "2-digit",
   });
 }
 
@@ -249,6 +161,52 @@ function initialsOf(name) {
   const parts = String(name ?? "").trim().split(/\s+/).filter(Boolean);
   if (!parts.length) return "?";
   return (parts[0][0] + (parts[1]?.[0] ?? "")).toUpperCase();
+}
+
+/*
+|--------------------------------------------------------------------------
+| Small building blocks
+|--------------------------------------------------------------------------
+*/
+
+function SectionCard({ icon, title, extra, children }) {
+  return (
+    <div
+      style={{
+        border: "1px solid #eef0f2",
+        borderRadius: 14,
+        background: "#fff",
+        overflow: "hidden",
+      }}
+    >
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          padding: "12px 16px",
+          borderBottom: "1px solid #f4f5f6",
+          background: "#fafbfc",
+        }}
+      >
+        <Space size={8} style={{ color: "#4b5563", fontWeight: 600, fontSize: 13 }}>
+          <span style={{ color: BRAND }}>{icon}</span>
+          {title}
+        </Space>
+        {extra}
+      </div>
+      <div style={{ padding: 16 }}>{children}</div>
+    </div>
+  );
+}
+
+function Field({ label, children }) {
+  return (
+    <div style={{ marginBottom: 10 }}>
+      <div style={{ fontSize: 12, color: "#9ca3af", marginBottom: 2 }}>{label}</div>
+      <div style={{ fontSize: 14, color: "#1f2937" }}>{children}</div>
+    </div>
+  );
 }
 
 /*
@@ -272,7 +230,6 @@ export default function AdminPickupsPage() {
   const [detail, setDetail] = useState(null);
   const [detailLoading, setDetailLoading] = useState(false);
 
-  // action state
   const [staff, setStaff] = useState([]);
   const [staffLoading, setStaffLoading] = useState(false);
   const [assignOpen, setAssignOpen] = useState(false);
@@ -286,17 +243,10 @@ export default function AdminPickupsPage() {
   const [cancelForm] = Form.useForm();
   const [resendForm] = Form.useForm();
 
-  /* Debounce search */
   useEffect(() => {
     const t = setTimeout(() => setDebouncedSearch(search.trim()), 400);
     return () => clearTimeout(t);
   }, [search]);
-
-  /*
-  |--------------------------------------------------------------------------
-  | Load list
-  |--------------------------------------------------------------------------
-  */
 
   const load = useCallback(
     async (page = 1, pageSize = 10) => {
@@ -308,7 +258,6 @@ export default function AdminPickupsPage() {
           search: debouncedSearch || undefined,
           status: activeTab || undefined,
         });
-
         setRows(result.list ?? []);
         setPagination({
           current: result.currentPage ?? page,
@@ -330,12 +279,6 @@ export default function AdminPickupsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab, debouncedSearch]);
 
-  /*
-  |--------------------------------------------------------------------------
-  | Load per-status counts (for badges)
-  |--------------------------------------------------------------------------
-  */
-
   const loadCounts = useCallback(async () => {
     try {
       const entries = await Promise.all(
@@ -354,30 +297,21 @@ export default function AdminPickupsPage() {
     loadCounts();
   }, [loadCounts]);
 
-  /*
-  |--------------------------------------------------------------------------
-  | Detail drawer
-  |--------------------------------------------------------------------------
-  */
-
-  const openDetail = useCallback(
-    async (pickup) => {
-      const id = getPickupId(pickup);
-      if (!id) return;
-      setDrawerOpen(true);
-      setDetail(pickup);
-      setDetailLoading(true);
-      try {
-        const fresh = await getPickup(id);
-        if (fresh) setDetail(fresh);
-      } catch (error) {
-        message.error("Could not load pickup details.");
-      } finally {
-        setDetailLoading(false);
-      }
-    },
-    []
-  );
+  const openDetail = useCallback(async (pickup) => {
+    const id = getPickupId(pickup);
+    if (!id) return;
+    setDrawerOpen(true);
+    setDetail(pickup);
+    setDetailLoading(true);
+    try {
+      const fresh = await getPickup(id);
+      if (fresh) setDetail(fresh);
+    } catch (error) {
+      message.error("Could not load pickup details.");
+    } finally {
+      setDetailLoading(false);
+    }
+  }, []);
 
   const refreshDetail = useCallback(async () => {
     if (!detail) return;
@@ -403,12 +337,6 @@ export default function AdminPickupsPage() {
       setStaffLoading(false);
     }
   }, [detail]);
-
-  /*
-  |--------------------------------------------------------------------------
-  | Actions
-  |--------------------------------------------------------------------------
-  */
 
   const afterMutation = useCallback(async () => {
     await Promise.all([refreshDetail(), load(pagination.current, pagination.pageSize), loadCounts()]);
@@ -483,12 +411,6 @@ export default function AdminPickupsPage() {
     message.success("Copied to clipboard.");
   };
 
-  /*
-  |--------------------------------------------------------------------------
-  | Table columns
-  |--------------------------------------------------------------------------
-  */
-
   const columns = useMemo(
     () => [
       {
@@ -510,12 +432,10 @@ export default function AdminPickupsPage() {
         key: "merchant",
         render: (_, r) => (
           <Space>
-            <Avatar size="small" style={{ background: "#f0f5ff", color: "#1677ff" }} icon={<ShopOutlined />} />
+            <Avatar size="small" style={{ background: "#e6f4ff", color: "#1677ff" }} icon={<ShopOutlined />} />
             <Space direction="vertical" size={0}>
               <Text strong>{getMerchantName(r)}</Text>
-              <Text type="secondary" style={{ fontSize: 12 }}>
-                {getLocationName(r)}
-              </Text>
+              <Text type="secondary" style={{ fontSize: 12 }}>{getLocationName(r)}</Text>
             </Space>
           </Space>
         ),
@@ -528,52 +448,30 @@ export default function AdminPickupsPage() {
           if (!rider) return <Text type="secondary">Unassigned</Text>;
           return (
             <Space>
-              <Avatar size="small" style={{ background: "#f6ffed", color: "#52c41a" }}>
-                {initialsOf(rider.name)}
-              </Avatar>
+              <Avatar size="small" style={{ background: "#f6ffed", color: "#52c41a" }}>{initialsOf(rider.name)}</Avatar>
               <Space direction="vertical" size={0}>
                 <Text>{rider.name}</Text>
-                {rider.phone ? (
-                  <Text type="secondary" style={{ fontSize: 12 }}>
-                    {rider.phone}
-                  </Text>
-                ) : null}
+                {rider.phone ? <Text type="secondary" style={{ fontSize: 12 }}>{rider.phone}</Text> : null}
               </Space>
             </Space>
           );
         },
       },
-      {
-        title: "Status",
-        key: "status",
-        render: (_, r) => <StatusTag status={r.status} />,
-      },
+      { title: "Status", key: "status", render: (_, r) => <StatusTag status={r.status} /> },
       {
         title: "Created",
         key: "created",
-        render: (_, r) => (
-          <Text type="secondary" style={{ fontSize: 13 }}>
-            {fmtDate(r.created_at) ?? "-"}
-          </Text>
-        ),
+        render: (_, r) => <Text type="secondary" style={{ fontSize: 13 }}>{fmtDate(r.created_at) ?? "-"}</Text>,
       },
       {
         title: "",
         key: "action",
         width: 48,
-        render: (_, r) => (
-          <Button type="text" icon={<RightOutlined />} onClick={() => openDetail(r)} />
-        ),
+        render: (_, r) => <Button type="text" icon={<RightOutlined />} onClick={() => openDetail(r)} />,
       },
     ],
     [openDetail]
   );
-
-  /*
-  |--------------------------------------------------------------------------
-  | Derived detail values
-  |--------------------------------------------------------------------------
-  */
 
   const detailShipments = getShipments(detail);
   const detailLocation = getLocation(detail);
@@ -589,34 +487,26 @@ export default function AdminPickupsPage() {
   const hasCoords = lat != null && lng != null;
 
   const timeline = [
-    { key: "created_at", label: "Requested", value: detail?.created_at, dot: <InboxOutlined /> },
-    { key: "assigned_at", label: "Rider assigned", value: detail?.assigned_at, dot: <UserAddOutlined /> },
-    { key: "accepted_at", label: "Accepted", value: detail?.accepted_at, dot: <CheckCircleOutlined /> },
-    { key: "started_at", label: "En route", value: detail?.started_at, dot: <CarOutlined /> },
-    { key: "arrived_at", label: "Arrived", value: detail?.arrived_at, dot: <EnvironmentOutlined /> },
-    { key: "collected_at", label: "Collected", value: detail?.collected_at ?? detail?.picked_up_at, dot: <CheckCircleOutlined /> },
-    { key: "in_transit_at", label: "On way to branch", value: detail?.in_transit_at ?? detail?.on_way_at, dot: <CarOutlined /> },
-    { key: "completed_at", label: "Completed at branch", value: detail?.completed_at, dot: <CheckCircleOutlined /> },
+    { label: "Requested", value: detail?.created_at, dot: <InboxOutlined /> },
+    { label: "Rider assigned", value: detail?.assigned_at, dot: <UserAddOutlined /> },
+    { label: "Accepted", value: detail?.accepted_at, dot: <CheckCircleOutlined /> },
+    { label: "En route", value: detail?.started_at, dot: <CarOutlined /> },
+    { label: "Arrived", value: detail?.arrived_at, dot: <EnvironmentOutlined /> },
+    { label: "Collected", value: detail?.collected_at ?? detail?.picked_up_at, dot: <CheckCircleOutlined /> },
+    { label: "On way to branch", value: detail?.in_transit_at ?? detail?.on_way_at, dot: <CarOutlined /> },
+    { label: "Completed at branch", value: detail?.completed_at, dot: <CheckCircleOutlined /> },
   ].filter((t) => t.value);
 
-  /*
-  |--------------------------------------------------------------------------
-  | Render
-  |--------------------------------------------------------------------------
-  */
-
   return (
-    <div style={{ padding: 24 }}>
+    <div style={{ padding: 24, background: "#f7f8fa", minHeight: "100%" }}>
       {/* Header */}
-      <Row justify="space-between" align="middle" style={{ marginBottom: 20 }}>
+      <Row justify="space-between" align="middle" style={{ marginBottom: 20 }} gutter={[12, 12]}>
         <Col>
-          <Title level={3} style={{ margin: 0 }}>
-            Pickups
-          </Title>
+          <Title level={3} style={{ margin: 0 }}>Pickups</Title>
           <Text type="secondary">Monitor the pickup lifecycle across every branch</Text>
         </Col>
         <Col>
-          <Space>
+          <Space wrap>
             <Input
               allowClear
               prefix={<SearchOutlined style={{ color: "#bfbfbf" }} />}
@@ -639,51 +529,43 @@ export default function AdminPickupsPage() {
           const active = activeTab === status;
           return (
             <Col key={status} xs={12} sm={8} lg={4}>
-              <Card
-                hoverable
+              <div
+                role="button"
                 onClick={() => setActiveTab(status)}
-                styles={{ body: { padding: 16 } }}
                 style={{
+                  padding: 16,
                   borderRadius: 14,
                   cursor: "pointer",
-                  borderColor: active ? meta.hex : "#f0f0f0",
-                  boxShadow: active ? `0 6px 18px ${meta.hex}22` : "none",
+                  background: "#fff",
+                  border: `1px solid ${active ? meta.hex : "#eef0f2"}`,
+                  boxShadow: active ? `0 8px 20px ${meta.hex}22` : "0 1px 2px rgba(0,0,0,0.03)",
                   transition: "all .2s",
                 }}
               >
-                <Space direction="vertical" size={4} style={{ width: "100%" }}>
-                  <Space>
-                    <span
-                      style={{
-                        display: "inline-flex",
-                        width: 30,
-                        height: 30,
-                        borderRadius: 8,
-                        alignItems: "center",
-                        justifyContent: "center",
-                        background: `${meta.hex}15`,
-                        color: meta.hex,
-                      }}
-                    >
-                      {meta.icon}
-                    </span>
-                    <Text type="secondary" style={{ fontSize: 13 }}>
-                      {meta.label}
-                    </Text>
-                  </Space>
-                  <Title level={3} style={{ margin: 0, color: active ? meta.hex : undefined }}>
-                    {counts[status] ?? 0}
-                  </Title>
-                </Space>
-              </Card>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+                  <span
+                    style={{
+                      display: "inline-flex", width: 30, height: 30, borderRadius: 9,
+                      alignItems: "center", justifyContent: "center",
+                      background: `${meta.hex}15`, color: meta.hex,
+                    }}
+                  >
+                    {meta.icon}
+                  </span>
+                  <span style={{ fontSize: 13, color: "#6b7280" }}>{meta.label}</span>
+                </div>
+                <div style={{ fontSize: 26, fontWeight: 700, color: active ? meta.hex : "#111827", lineHeight: 1 }}>
+                  {counts[status] ?? 0}
+                </div>
+              </div>
             </Col>
           );
         })}
       </Row>
 
       {/* Tabs + table */}
-      <Card styles={{ body: { padding: 0 } }} style={{ borderRadius: 14, overflow: "hidden" }}>
-        <div style={{ padding: 16, borderBottom: "1px solid #f0f0f0" }}>
+      <div style={{ background: "#fff", borderRadius: 14, border: "1px solid #eef0f2", overflow: "hidden" }}>
+        <div style={{ padding: 16, borderBottom: "1px solid #f4f5f6", overflowX: "auto" }}>
           <Segmented
             value={activeTab}
             onChange={(v) => setActiveTab(v)}
@@ -715,12 +597,7 @@ export default function AdminPickupsPage() {
           dataSource={rows}
           onRow={(r) => ({ onClick: () => openDetail(r), style: { cursor: "pointer" } })}
           locale={{
-            emptyText: (
-              <Empty
-                image={Empty.PRESENTED_IMAGE_SIMPLE}
-                description={`No ${metaFor(activeTab).label.toLowerCase()} pickups`}
-              />
-            ),
+            emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={`No ${metaFor(activeTab).label.toLowerCase()} pickups`} />,
           }}
           pagination={{
             current: pagination.current,
@@ -731,194 +608,142 @@ export default function AdminPickupsPage() {
             onChange: (page, pageSize) => load(page, pageSize),
           }}
         />
-      </Card>
+      </div>
 
       {/* Detail Drawer */}
       <Drawer
         open={drawerOpen}
-        width={560}
+        width={Math.min(520, typeof window !== "undefined" ? window.innerWidth - 40 : 520)}
         onClose={() => setDrawerOpen(false)}
+        maskClosable
+        destroyOnClose
+        styles={{
+          header: { borderBottom: "1px solid #f0f0f0" },
+          body: { padding: 20, background: "#f7f8fa" },
+        }}
         title={
           detail ? (
             <Space direction="vertical" size={2}>
-              <Space>
-                <Text strong style={{ fontSize: 16 }}>
-                  {getRequestNumber(detail)}
-                </Text>
+              <Space size={8}>
+                <Text strong style={{ fontSize: 16 }}>{getRequestNumber(detail)}</Text>
                 <StatusTag status={detail.status} />
               </Space>
-              <Text type="secondary" style={{ fontSize: 12 }}>
-                {metaFor(detail.status).hint}
-              </Text>
+              <Text type="secondary" style={{ fontSize: 12 }}>{metaFor(detail.status).hint}</Text>
             </Space>
-          ) : (
-            "Pickup"
-          )
+          ) : "Pickup"
         }
-        extra={
-          <Button icon={<ReloadOutlined />} loading={detailLoading} onClick={refreshDetail}>
-            Refresh
-          </Button>
-        }
-        styles={{ body: { paddingTop: 8 } }}
+        extra={<Button icon={<ReloadOutlined />} loading={detailLoading} onClick={refreshDetail}>Refresh</Button>}
       >
         {detail ? (
-          <Space direction="vertical" size={20} style={{ width: "100%" }}>
+          <Space direction="vertical" size={16} style={{ width: "100%" }}>
             {/* Action bar */}
             <Space wrap>
               {canAssign && (
-                <Button
-                  type="primary"
-                  icon={<UserAddOutlined />}
-                  onClick={() => {
-                    assignForm.resetFields();
-                    loadStaff();
-                    setAssignOpen(true);
-                  }}
-                >
+                <Button type="primary" icon={<UserAddOutlined />}
+                  onClick={() => { assignForm.resetFields(); loadStaff(); setAssignOpen(true); }}>
                   Assign rider
                 </Button>
               )}
               {canTransfer && (
-                <Button
-                  icon={<SwapOutlined />}
-                  onClick={() => {
-                    transferForm.resetFields();
-                    loadStaff();
-                    setTransferOpen(true);
-                  }}
-                >
+                <Button icon={<SwapOutlined />}
+                  onClick={() => { transferForm.resetFields(); loadStaff(); setTransferOpen(true); }}>
                   Transfer
                 </Button>
               )}
-              <Button
-                icon={<SendOutlined />}
-                onClick={() => {
-                  resendForm.resetFields();
-                  setResendOpen(true);
-                }}
-              >
+              <Button icon={<SendOutlined />}
+                onClick={() => { resendForm.resetFields(); setResendOpen(true); }}>
                 Resend callback
               </Button>
               {canCancel && (
-                <Button
-                  danger
-                  icon={<CloseCircleOutlined />}
-                  onClick={() => {
-                    cancelForm.resetFields();
-                    setCancelOpen(true);
-                  }}
-                >
+                <Button danger icon={<CloseCircleOutlined />}
+                  onClick={() => { cancelForm.resetFields(); setCancelOpen(true); }}>
                   Cancel
                 </Button>
               )}
             </Space>
 
             {/* Merchant + location */}
-            <Card size="small" style={{ borderRadius: 12 }} title={<Space><ShopOutlined /> Merchant & Location</Space>}>
-              <Descriptions column={1} size="small" colon={false}>
-                <Descriptions.Item label={<Text type="secondary">Merchant</Text>}>
-                  <Text strong>{getMerchantName(detail)}</Text>
-                </Descriptions.Item>
-                <Descriptions.Item label={<Text type="secondary">Location</Text>}>
-                  {getLocationName(detail)}
-                </Descriptions.Item>
-                {detailLocation?.address ? (
-                  <Descriptions.Item label={<Text type="secondary">Address</Text>}>
-                    {detailLocation.address}
-                  </Descriptions.Item>
-                ) : null}
-                {(detailLocation?.phone ?? detail?.pickup_phone) ? (
-                  <Descriptions.Item label={<Text type="secondary">Phone</Text>}>
-                    <Space>
-                      <PhoneOutlined />
-                      {detailLocation?.phone ?? detail?.pickup_phone}
-                    </Space>
-                  </Descriptions.Item>
-                ) : null}
-              </Descriptions>
+            <SectionCard icon={<ShopOutlined />} title="Merchant & Location">
+              <Field label="Merchant"><Text strong>{getMerchantName(detail)}</Text></Field>
+              <Field label="Location">{getLocationName(detail)}</Field>
+              {detailLocation?.address ? <Field label="Address">{detailLocation.address}</Field> : null}
+              {(detailLocation?.phone ?? detail?.pickup_phone) ? (
+                <Field label="Phone">
+                  <Space size={6}><PhoneOutlined style={{ color: BRAND }} />{detailLocation?.phone ?? detail?.pickup_phone}</Space>
+                </Field>
+              ) : null}
 
               {hasCoords ? (
                 <>
-                  <Divider style={{ margin: "12px 0" }} />
-                  <Space direction="vertical" size={8} style={{ width: "100%" }}>
-                    <Space>
-                      <EnvironmentOutlined style={{ color: "#1677ff" }} />
-                      <Text copyable={{ text: `${lat}, ${lng}` }}>
-                        {Number(lat).toFixed(6)}, {Number(lng).toFixed(6)}
-                      </Text>
-                    </Space>
-                    <Button
-                      block
-                      icon={<EnvironmentOutlined />}
-                      href={`https://www.google.com/maps/search/?api=1&query=${lat},${lng}`}
-                      target="_blank"
-                    >
-                      Open in Google Maps
-                    </Button>
+                  <Divider style={{ margin: "8px 0 12px" }} />
+                  <Space size={6} style={{ marginBottom: 8 }}>
+                    <EnvironmentOutlined style={{ color: BRAND }} />
+                    <Text copyable={{ text: `${lat}, ${lng}` }} style={{ fontSize: 13 }}>
+                      {Number(lat).toFixed(6)}, {Number(lng).toFixed(6)}
+                    </Text>
+                  </Space>
+                  <div style={{ borderRadius: 10, overflow: "hidden", border: "1px solid #eef0f2" }}>
                     <iframe
                       title="Pickup location"
                       width="100%"
-                      height="180"
-                      style={{ border: 0, borderRadius: 10 }}
+                      height="160"
+                      style={{ border: 0, display: "block" }}
                       loading="lazy"
+                      referrerPolicy="no-referrer-when-downgrade"
                       src={`https://maps.google.com/maps?q=${lat},${lng}&z=15&output=embed`}
                     />
-                  </Space>
+                  </div>
+                  <Button
+                    block
+                    style={{ marginTop: 8 }}
+                    icon={<EnvironmentOutlined />}
+                    href={`https://www.google.com/maps/search/?api=1&query=${lat},${lng}`}
+                    target="_blank"
+                  >
+                    Open in Google Maps
+                  </Button>
                 </>
               ) : null}
-            </Card>
+            </SectionCard>
 
             {/* Rider */}
-            <Card size="small" style={{ borderRadius: 12 }} title={<Space><CarOutlined /> Assigned Rider</Space>}>
+            <SectionCard icon={<CarOutlined />} title="Assigned Rider">
               {detailRider ? (
                 <Space>
-                  <Avatar style={{ background: "#f6ffed", color: "#52c41a" }}>
-                    {initialsOf(detailRider.name)}
-                  </Avatar>
+                  <Avatar style={{ background: "#f6ffed", color: "#52c41a" }}>{initialsOf(detailRider.name)}</Avatar>
                   <Space direction="vertical" size={0}>
                     <Text strong>{detailRider.name}</Text>
-                    {detailRider.phone ? (
-                      <Text type="secondary">
-                        <PhoneOutlined /> {detailRider.phone}
-                      </Text>
-                    ) : null}
+                    {detailRider.phone ? <Text type="secondary"><PhoneOutlined /> {detailRider.phone}</Text> : null}
                   </Space>
                 </Space>
               ) : (
-                <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="No rider assigned yet" />
+                <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="No rider assigned yet" style={{ margin: "8px 0" }} />
               )}
-            </Card>
+            </SectionCard>
 
             {/* Timeline */}
             {timeline.length ? (
-              <Card size="small" style={{ borderRadius: 12 }} title={<Space><ClockCircleOutlined /> Timeline</Space>}>
+              <SectionCard icon={<ClockCircleOutlined />} title="Timeline">
                 <Timeline
+                  style={{ marginTop: 4 }}
                   items={timeline.map((t) => ({
-                    dot: t.dot,
+                    dot: <span style={{ color: BRAND }}>{t.dot}</span>,
                     children: (
                       <Space direction="vertical" size={0}>
-                        <Text strong>{t.label}</Text>
-                        <Text type="secondary" style={{ fontSize: 12 }}>
-                          {fmtDate(t.value)}
-                        </Text>
+                        <Text strong style={{ fontSize: 13 }}>{t.label}</Text>
+                        <Text type="secondary" style={{ fontSize: 12 }}>{fmtDate(t.value)}</Text>
                       </Space>
                     ),
                   }))}
                 />
-              </Card>
+              </SectionCard>
             ) : null}
 
             {/* Shipments */}
-            <Card
-              size="small"
-              style={{ borderRadius: 12 }}
-              title={
-                <Space>
-                  <InboxOutlined /> Shipments
-                  <Badge count={detailShipments.length} showZero style={{ background: "#1677ff" }} />
-                </Space>
-              }
+            <SectionCard
+              icon={<InboxOutlined />}
+              title="Shipments"
+              extra={<Badge count={detailShipments.length} showZero style={{ background: BRAND }} />}
             >
               {detailShipments.length ? (
                 <Space direction="vertical" size={10} style={{ width: "100%" }}>
@@ -926,41 +751,29 @@ export default function AdminPickupsPage() {
                     <div
                       key={s.id ?? s.tracking_number}
                       style={{
-                        border: "1px solid #f0f0f0",
-                        borderRadius: 10,
-                        padding: "10px 12px",
-                        display: "flex",
-                        justifyContent: "space-between",
-                        alignItems: "center",
-                        gap: 8,
+                        border: "1px solid #eef0f2", borderRadius: 10, padding: "10px 12px",
+                        display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8,
                       }}
                     >
                       <Space direction="vertical" size={2}>
                         <Space size={6}>
-                          <Text strong style={{ fontSize: 13 }}>
-                            {s.tracking_number ?? "—"}
-                          </Text>
+                          <Text strong style={{ fontSize: 13 }}>{s.tracking_number ?? "—"}</Text>
                           {s.tracking_number ? (
                             <Tooltip title="Copy tracking">
-                              <CopyOutlined
-                                style={{ color: "#bfbfbf", cursor: "pointer" }}
-                                onClick={() => copyText(s.tracking_number)}
-                              />
+                              <CopyOutlined style={{ color: "#bfbfbf", cursor: "pointer" }} onClick={() => copyText(s.tracking_number)} />
                             </Tooltip>
                           ) : null}
                         </Space>
-                        <Text type="secondary" style={{ fontSize: 12 }}>
-                          Order: {s.merchant_order_id ?? "N/A"}
-                        </Text>
+                        <Text type="secondary" style={{ fontSize: 12 }}>Order: {s.merchant_order_id ?? "N/A"}</Text>
                       </Space>
                       <StatusTag status={s.status} withIcon={false} />
                     </div>
                   ))}
                 </Space>
               ) : (
-                <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="No shipments" />
+                <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="No shipments" style={{ margin: "8px 0" }} />
               )}
-            </Card>
+            </SectionCard>
           </Space>
         ) : (
           <Empty description="Select a pickup" />
@@ -968,48 +781,26 @@ export default function AdminPickupsPage() {
       </Drawer>
 
       {/* Assign modal */}
-      <Modal
-        title="Assign rider"
-        open={assignOpen}
-        onCancel={() => setAssignOpen(false)}
-        onOk={submitAssign}
-        confirmLoading={submitting}
-        okText="Assign"
-      >
+      <Modal title="Assign rider" open={assignOpen} onCancel={() => setAssignOpen(false)} onOk={submitAssign} confirmLoading={submitting} okText="Assign">
         <Form form={assignForm} layout="vertical" style={{ marginTop: 12 }}>
           <Form.Item name="staff_id" label="Rider" rules={[{ required: true, message: "Select a rider" }]}>
             <Select
               loading={staffLoading}
               placeholder="Select a rider"
-              options={staff.map((s) => ({
-                value: s.id,
-                label: `${s.name}${s.phone ? ` · ${s.phone}` : ""}`,
-              }))}
+              options={staff.map((s) => ({ value: s.id, label: `${s.name}${s.phone ? ` · ${s.phone}` : ""}` }))}
             />
           </Form.Item>
         </Form>
       </Modal>
 
       {/* Transfer modal */}
-      <Modal
-        title="Transfer to another rider"
-        open={transferOpen}
-        onCancel={() => setTransferOpen(false)}
-        onOk={submitTransfer}
-        confirmLoading={submitting}
-        okText="Transfer"
-      >
+      <Modal title="Transfer to another rider" open={transferOpen} onCancel={() => setTransferOpen(false)} onOk={submitTransfer} confirmLoading={submitting} okText="Transfer">
         <Form form={transferForm} layout="vertical" style={{ marginTop: 12 }}>
           <Form.Item name="staff_id" label="New rider" rules={[{ required: true, message: "Select a rider" }]}>
             <Select
               loading={staffLoading}
               placeholder="Select a rider"
-              options={staff
-                .filter((s) => Number(s.id) !== Number(detailRider?.id))
-                .map((s) => ({
-                  value: s.id,
-                  label: `${s.name}${s.phone ? ` · ${s.phone}` : ""}`,
-                }))}
+              options={staff.filter((s) => Number(s.id) !== Number(detailRider?.id)).map((s) => ({ value: s.id, label: `${s.name}${s.phone ? ` · ${s.phone}` : ""}` }))}
             />
           </Form.Item>
           <Form.Item name="reason" label="Reason" rules={[{ required: true, message: "Enter a reason" }]}>
@@ -1019,16 +810,7 @@ export default function AdminPickupsPage() {
       </Modal>
 
       {/* Cancel modal */}
-      <Modal
-        title="Cancel pickup"
-        open={cancelOpen}
-        onCancel={() => setCancelOpen(false)}
-        onOk={submitCancel}
-        confirmLoading={submitting}
-        okText="Cancel pickup"
-        okButtonProps={{ danger: true }}
-        cancelText="Keep"
-      >
+      <Modal title="Cancel pickup" open={cancelOpen} onCancel={() => setCancelOpen(false)} onOk={submitCancel} confirmLoading={submitting} okText="Cancel pickup" okButtonProps={{ danger: true }} cancelText="Keep">
         <Form form={cancelForm} layout="vertical" style={{ marginTop: 12 }}>
           <Form.Item name="reason" label="Reason" rules={[{ required: true, message: "Enter a reason" }]}>
             <Input.TextArea rows={4} placeholder="Shipment missing, cutoff passed, service not fulfillable…" />
@@ -1037,14 +819,7 @@ export default function AdminPickupsPage() {
       </Modal>
 
       {/* Resend modal */}
-      <Modal
-        title="Resend callback"
-        open={resendOpen}
-        onCancel={() => setResendOpen(false)}
-        onOk={submitResend}
-        confirmLoading={submitting}
-        okText="Resend"
-      >
+      <Modal title="Resend callback" open={resendOpen} onCancel={() => setResendOpen(false)} onOk={submitResend} confirmLoading={submitting} okText="Resend">
         <Form form={resendForm} layout="vertical" style={{ marginTop: 12 }}>
           <Form.Item name="event" label="Event" rules={[{ required: true, message: "Select an event" }]}>
             <Select
@@ -1061,10 +836,7 @@ export default function AdminPickupsPage() {
                 <Form.Item name="shipment_id" label="Shipment" rules={[{ required: true, message: "Select a shipment" }]}>
                   <Select
                     placeholder="Select a shipment"
-                    options={detailShipments.map((s) => ({
-                      value: s.id,
-                      label: s.tracking_number ?? `#${s.id}`,
-                    }))}
+                    options={detailShipments.map((s) => ({ value: s.id, label: s.tracking_number ?? `#${s.id}` }))}
                   />
                 </Form.Item>
               );

@@ -21,6 +21,7 @@ import {
 } from "antd";
 
 import {
+  CarOutlined,
   CheckCircleOutlined,
   EnvironmentOutlined,
   EyeOutlined,
@@ -33,7 +34,7 @@ import {
   staffStartPickup,
   staffArrivePickup,
   staffCollectPickupShipment,
-  staffCompletePickup,
+  staffStartTransit,
   staffGetPickups,
 } from "@/services/deliveryOperationsApi";
 
@@ -698,27 +699,24 @@ export default function StaffPickupsPage() {
               )}
 
               {status ===
-                "arrived" &&
-                pendingShipmentCount ===
-                  0 && (
+                "collected" && (
                   <Button
                     type="primary"
+                    icon={
+                      <CarOutlined />
+                    }
                     loading={busy}
                     onClick={() =>
                       run(
                         record.id,
                         () =>
-                          staffCompletePickup(
-                            record.id,
-                            {
-                              note:
-                                "Pickup completed.",
-                            }
+                          staffStartTransit(
+                            record.id
                           )
                       )
                     }
                   >
-                    Complete
+                    Start Transit
                   </Button>
                 )}
 
@@ -1209,8 +1207,8 @@ export default function StaffPickupsPage() {
               />
             )}
 
-            {selectedStatus ===
-              "arrived" && (
+            {(selectedStatus === "arrived" ||
+              selectedStatus === "collected") && (
               <div
                 style={{
                   marginTop: 20,
@@ -1220,19 +1218,21 @@ export default function StaffPickupsPage() {
                 }}
               >
                 <Space>
-                  {pendingSelectedShipments.length >
-                    0 && (
+                  {selectedStatus === "arrived" &&
+                    pendingSelectedShipments.length >
+                      0 && (
                     <Text type="warning">
                       Collect all shipments
-                      before completing
-                      this pickup.
+                      before closing the
+                      collection.
                     </Text>
                   )}
 
-                  {pendingSelectedShipments.length ===
-                    0 && (
+                  {selectedStatus ===
+                    "collected" && (
                     <Button
                       type="primary"
+                      icon={<CarOutlined />}
                       loading={
                         actionLoading ===
                         selectedPickup.id
@@ -1241,17 +1241,13 @@ export default function StaffPickupsPage() {
                         run(
                           selectedPickup.id,
                           () =>
-                            staffCompletePickup(
-                              selectedPickup.id,
-                              {
-                                note:
-                                  "Pickup completed.",
-                              }
+                            staffStartTransit(
+                              selectedPickup.id
                             )
                         )
                       }
                     >
-                      Complete Pickup
+                      Close Collection & Start Transit
                     </Button>
                   )}
                 </Space>

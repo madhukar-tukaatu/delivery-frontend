@@ -572,6 +572,87 @@ export async function staffPickedUp(
   );
 }
 
+/**
+ * Fetch a single pickup for the authenticated staff member.
+ *
+ * GET /staff/pickups/{id}
+ */
+export async function staffGetPickup(
+  id
+) {
+  if (!id) {
+    throw new Error(
+      "Pickup ID is required."
+    );
+  }
+
+  const response = await api.get(
+    `/staff/pickups/${id}`
+  );
+
+  return unwrap(response);
+}
+
+/**
+ * Close the collection phase and start transit to the origin branch.
+ *
+ * The rider calls this once every shipment on the pickup has been collected.
+ * Backend requires the pickup to be in the COLLECTED state and transitions it
+ * to ON_WAY_TO_BRANCH. The pickup is NOT completed here — completion happens
+ * when branch staff verify the shipments at the origin branch.
+ *
+ * POST /staff/pickups/{id}/start-transit
+ */
+export async function staffStartTransit(
+  id
+) {
+  if (!id) {
+    throw new Error(
+      "Pickup ID is required."
+    );
+  }
+
+  const response = await api.post(
+    `/staff/pickups/${id}/start-transit`
+  );
+
+  return unwrap(response);
+}
+
+/**
+ * Cancel a pickup from the rider side.
+ *
+ * Used when a shipment is missing at pickup, the cutoff has passed, or the
+ * requested service cannot be fulfilled. A reason is required.
+ *
+ * POST /staff/pickups/{id}/cancel
+ */
+export async function staffCancelPickup(
+  id,
+  reason
+) {
+  if (!id) {
+    throw new Error(
+      "Pickup ID is required."
+    );
+  }
+
+  if (!reason || !String(reason).trim()) {
+    throw new Error(
+      "A cancellation reason is required."
+    );
+  }
+
+  const response = await api.post(
+    `/staff/pickups/${id}/cancel`,
+    {
+      reason: String(reason).trim(),
+    }
+  );
+
+  return unwrap(response);
+}
+
 /* ============================================================
  * STAFF / DELIVERIES
  * ============================================================
