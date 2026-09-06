@@ -3,22 +3,48 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import {
-  Search,
-  RefreshCw,
-  Eye,
-  UserRoundPlus,
-  ArrowRightLeft,
-  XCircle,
-  Package,
-  MapPin,
-  Phone,
-  Store,
-  Clock,
-  ChevronLeft,
-  ChevronRight,
-  X,
-  Send,
-} from "lucide-react";
+  Avatar,
+  Badge,
+  Button,
+  Card,
+  Col,
+  Descriptions,
+  Divider,
+  Drawer,
+  Empty,
+  Form,
+  Input,
+  Modal,
+  Row,
+  Segmented,
+  Select,
+  Space,
+  Table,
+  Tag,
+  Timeline,
+  Tooltip,
+  Typography,
+  message,
+} from "antd";
+
+import {
+  ReloadOutlined,
+  SearchOutlined,
+  UserAddOutlined,
+  SwapOutlined,
+  CloseCircleOutlined,
+  SendOutlined,
+  EnvironmentOutlined,
+  PhoneOutlined,
+  ShopOutlined,
+  InboxOutlined,
+  ClockCircleOutlined,
+  CarOutlined,
+  CheckCircleOutlined,
+  ExclamationCircleOutlined,
+  CopyOutlined,
+  RightOutlined,
+} from "@ant-design/icons";
 
 import {
   getPickups,
@@ -30,11 +56,95 @@ import {
   resendPickupCallback,
 } from "@/services/pickupService";
 
+const { Title, Text } = Typography;
+
 /*
 |--------------------------------------------------------------------------
-| Resendable pickup callback events
+| Status configuration
 |--------------------------------------------------------------------------
 */
+
+const STATUS_META = {
+  requested: {
+    label: "Requested",
+    color: "blue",
+    hex: "#1677ff",
+    icon: <InboxOutlined />,
+    hint: "Waiting for a rider to be assigned",
+  },
+  assigned: {
+    label: "Assigned",
+    color: "purple",
+    hex: "#722ed1",
+    icon: <UserAddOutlined />,
+    hint: "Rider assigned, awaiting acceptance",
+  },
+  accepted: {
+    label: "Accepted",
+    color: "geekblue",
+    hex: "#2f54eb",
+    icon: <CheckCircleOutlined />,
+    hint: "Rider accepted the pickup",
+  },
+  started: {
+    label: "En Route",
+    color: "cyan",
+    hex: "#13c2c2",
+    icon: <CarOutlined />,
+    hint: "Rider is travelling to the merchant",
+  },
+  arrived: {
+    label: "Arrived",
+    color: "gold",
+    hex: "#faad14",
+    icon: <EnvironmentOutlined />,
+    hint: "Rider has reached the pickup location",
+  },
+  collected: {
+    label: "Collected",
+    color: "green",
+    hex: "#52c41a",
+    icon: <CheckCircleOutlined />,
+    hint: "All shipments collected from merchant",
+  },
+  on_way_to_branch: {
+    label: "On Way to Branch",
+    color: "orange",
+    hex: "#fa8c16",
+    icon: <CarOutlined />,
+    hint: "Rider in transit to origin branch",
+  },
+  completed: {
+    label: "Completed",
+    color: "success",
+    hex: "#389e0d",
+    icon: <CheckCircleOutlined />,
+    hint: "Branch verified all shipments",
+  },
+  failed: {
+    label: "Failed",
+    color: "error",
+    hex: "#cf1322",
+    icon: <ExclamationCircleOutlined />,
+    hint: "Pickup could not be completed",
+  },
+  cancelled: {
+    label: "Cancelled",
+    color: "default",
+    hex: "#8c8c8c",
+    icon: <CloseCircleOutlined />,
+    hint: "Pickup was cancelled",
+  },
+};
+
+const TAB_STATUSES = [
+  "requested",
+  "assigned",
+  "collected",
+  "on_way_to_branch",
+  "completed",
+  "failed",
+];
 
 const RESEND_EVENTS = [
   { value: "pickup.rider_assigned", label: "Rider assigned", scope: "pickup" },
@@ -55,217 +165,132 @@ const RESEND_EVENTS = [
 |--------------------------------------------------------------------------
 */
 
-function getPickupId(pickup) {
-  return pickup?.id ?? pickup?.pickup_request_id ?? null;
+function metaFor(status) {
+  return STATUS_META[String(status ?? "").toLowerCase()] ?? {
+    label: String(status ?? "Unknown"),
+    color: "default",
+    hex: "#8c8c8c",
+    icon: <InboxOutlined />,
+    hint: "",
+  };
 }
 
-function getRequestNumber(pickup) {
-  return pickup?.request_number ?? `#${getPickupId(pickup) ?? "-"}`;
-}
-
-function getMerchantName(pickup) {
+function StatusTag({ status, withIcon = true }) {
+  const meta = metaFor(status);
   return (
-    pickup?.merchant?.name ??
-    pickup?.merchant?.business_name ??
-    "Unknown merchant"
+    <Tag color={meta.color} style={{ borderRadius: 999, paddingInline: 10, margin: 0 }}>
+      <Space size={4}>
+        {withIcon ? meta.icon : null}
+        {meta.label}
+      </Space>
+    </Tag>
   );
 }
 
-function getLocationName(pickup) {
-  return (
-    pickup?.pickup_location?.name ??
-    pickup?.pickupLocation?.name ??
-    pickup?.pickup_name ??
-    "Pickup location"
-  );
+function getPickupId(p) {
+  return p?.id ?? p?.pickup_request_id ?? null;
 }
 
-function getRiderName(pickup) {
-  return (
-    pickup?.assigned_staff?.name ?? pickup?.assignedStaff?.name ?? "Unassigned"
-  );
+function getRequestNumber(p) {
+  return p?.request_number ?? `#${getPickupId(p) ?? "-"}`;
 }
 
-function getShipments(pickup) {
-  if (!Array.isArray(pickup?.shipments)) {
-    return [];
-  }
+function getMerchantName(p) {
+  return p?.merchant?.name ?? p?.merchant?.business_name ?? "Unknown merchant";
+}
 
-  return pickup.shipments
+function getLocation(p) {
+  return p?.pickup_location ?? p?.pickupLocation ?? null;
+}
+
+function getLocationName(p) {
+  const loc = getLocation(p);
+  return loc?.name ?? p?.pickup_name ?? "Pickup location";
+}
+
+function getRider(p) {
+  return p?.assigned_staff ?? p?.assignedStaff ?? null;
+}
+
+function getRiderName(p) {
+  return getRider(p)?.name ?? "Unassigned";
+}
+
+function getShipments(p) {
+  if (!Array.isArray(p?.shipments)) return [];
+  return p.shipments
     .map((item) => {
-      if (!item) {
-        return null;
-      }
-
-      /*
-       * The pickup `shipments` relation is a belongsToMany directly to
-       * Shipment, so each item is already the shipment (tracking_number at
-       * the top level, pivot data under `item.pivot`).
-       *
-       * Older responses nested the shipment under `item.shipment`. Support
-       * both: prefer a nested shipment when present, otherwise use the item
-       * itself. Merge pivot so collection fields stay available.
-       */
-      const shipment = item.shipment ?? item;
-
+      if (!item) return null;
+      const s = item.shipment ?? item;
       return {
-        ...shipment,
-        pivot: item.pivot ?? shipment.pivot ?? null,
+        id: s.id ?? item.id ?? null,
+        tracking_number: s.tracking_number ?? item.tracking_number ?? null,
+        merchant_order_id: s.merchant_order_id ?? item.merchant_order_id ?? null,
+        status: s.status ?? item.status ?? "unknown",
       };
     })
-    .filter((shipment) => shipment && (shipment.id || shipment.tracking_number));
+    .filter((s) => s && (s.id || s.tracking_number));
 }
 
-function formatDate(value) {
-  if (!value) {
-    return "-";
-  }
-
-  try {
-    return new Date(value).toLocaleString();
-  } catch {
-    return "-";
-  }
+function fmtDate(value) {
+  if (!value) return null;
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return null;
+  return d.toLocaleString("en-NP", {
+    year: "numeric",
+    month: "short",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 }
 
-function formatStatus(status) {
-  if (!status) {
-    return "Unknown";
-  }
-
-  return status
-    .replaceAll("_", " ")
-    .replace(/\b\w/g, (char) => char.toUpperCase());
+function initialsOf(name) {
+  const parts = String(name ?? "").trim().split(/\s+/).filter(Boolean);
+  if (!parts.length) return "?";
+  return (parts[0][0] + (parts[1]?.[0] ?? "")).toUpperCase();
 }
 
 /*
 |--------------------------------------------------------------------------
-| Status badge
-|--------------------------------------------------------------------------
-*/
-
-function StatusBadge({ status }) {
-  const normalized = String(status ?? "").toLowerCase();
-
-  let classes = "bg-gray-100 text-gray-700";
-
-  if (normalized === "requested") {
-    classes = "bg-blue-100 text-blue-700";
-  }
-
-  if (normalized === "assigned") {
-    classes = "bg-indigo-100 text-indigo-700";
-  }
-
-  if (normalized === "started") {
-    classes = "bg-yellow-100 text-yellow-700";
-  }
-
-  if (normalized === "arrived") {
-    classes = "bg-purple-100 text-purple-700";
-  }
-
-  if (normalized === "completed") {
-    classes = "bg-green-100 text-green-700";
-  }
-
-  if (normalized === "failed") {
-    classes = "bg-red-100 text-red-700";
-  }
-
-  if (normalized === "cancelled") {
-    classes = "bg-red-100 text-red-700";
-  }
-
-  return (
-    <span
-      className={[
-        "inline-flex items-center",
-        "rounded-full px-2.5 py-1",
-        "text-xs font-semibold",
-        classes,
-      ].join(" ")}
-    >
-      {formatStatus(status)}
-    </span>
-  );
-}
-
-/*
-|--------------------------------------------------------------------------
-| Action button
-|--------------------------------------------------------------------------
-*/
-
-function ActionButton({ children, onClick, disabled = false, danger = false }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      disabled={disabled}
-      className={[
-        "inline-flex items-center gap-2",
-        "rounded-lg border px-3 py-2",
-        "text-sm font-medium",
-        "transition",
-        danger
-          ? "border-red-200 text-red-600 hover:bg-red-50"
-          : "border-gray-200 text-gray-700 hover:bg-gray-50",
-        "disabled:cursor-not-allowed",
-        "disabled:opacity-50",
-      ].join(" ")}
-    >
-      {children}
-    </button>
-  );
-}
-
-/*
-|--------------------------------------------------------------------------
-| Page
+| Component
 |--------------------------------------------------------------------------
 */
 
 export default function AdminPickupsPage() {
-  const [pickups, setPickups] = useState([]);
-
-  const [loading, setLoading] = useState(true);
-
-  const [error, setError] = useState("");
-
+  const [activeTab, setActiveTab] = useState("requested");
   const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
 
-  const [status, setStatus] = useState("");
+  const [rows, setRows] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [pagination, setPagination] = useState({ current: 1, pageSize: 10, total: 0 });
 
-  const [page, setPage] = useState(1);
+  const [counts, setCounts] = useState({});
 
-  const [total, setTotal] = useState(0);
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [detail, setDetail] = useState(null);
+  const [detailLoading, setDetailLoading] = useState(false);
 
-  const [pageSize, setPageSize] = useState(20);
-
-  const [selectedPickup, setSelectedPickup] = useState(null);
-
-  const [detailsLoading, setDetailsLoading] = useState(false);
-
+  // action state
   const [staff, setStaff] = useState([]);
-
   const [staffLoading, setStaffLoading] = useState(false);
+  const [assignOpen, setAssignOpen] = useState(false);
+  const [transferOpen, setTransferOpen] = useState(false);
+  const [cancelOpen, setCancelOpen] = useState(false);
+  const [resendOpen, setResendOpen] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
 
-  const [actionLoading, setActionLoading] = useState(false);
+  const [assignForm] = Form.useForm();
+  const [transferForm] = Form.useForm();
+  const [cancelForm] = Form.useForm();
+  const [resendForm] = Form.useForm();
 
-  const [actionError, setActionError] = useState("");
-
-  const [assignMode, setAssignMode] = useState(null);
-
-  const [selectedStaffId, setSelectedStaffId] = useState("");
-
-  const [reason, setReason] = useState("");
-
-  const [resendEvent, setResendEvent] = useState("");
-
-  const [resendShipmentId, setResendShipmentId] = useState("");
-
-  const [resendMessage, setResendMessage] = useState("");
+  /* Debounce search */
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(search.trim()), 400);
+    return () => clearTimeout(t);
+  }, [search]);
 
   /*
   |--------------------------------------------------------------------------
@@ -273,318 +298,306 @@ export default function AdminPickupsPage() {
   |--------------------------------------------------------------------------
   */
 
-  const loadPickups = useCallback(async () => {
-    setLoading(true);
-    setError("");
+  const load = useCallback(
+    async (page = 1, pageSize = 10) => {
+      setLoading(true);
+      try {
+        const result = await getPickups({
+          page,
+          per_page: pageSize,
+          search: debouncedSearch || undefined,
+          status: activeTab || undefined,
+        });
 
-    try {
-      const result = await getPickups({
-        page,
-        per_page: pageSize,
-        search: search.trim() || undefined,
-        status: status || undefined,
-      });
-
-      setPickups(Array.isArray(result?.list) ? result.list : []);
-
-      setTotal(Number(result?.total ?? 0));
-
-      setPageSize(Number(result?.pageSize ?? pageSize));
-    } catch (err) {
-      setError(
-        err?.response?.data?.message ??
-          err?.message ??
-          "Unable to load pickups.",
-      );
-    } finally {
-      setLoading(false);
-    }
-  }, [page, pageSize, search, status]);
-
-  /*
-  |--------------------------------------------------------------------------
-  | Initial/list refresh
-  |--------------------------------------------------------------------------
-  */
+        setRows(result.list ?? []);
+        setPagination({
+          current: result.currentPage ?? page,
+          pageSize: result.pageSize ?? pageSize,
+          total: result.total ?? 0,
+        });
+      } catch (error) {
+        message.error(error?.response?.data?.message || "Could not load pickups.");
+        setRows([]);
+      } finally {
+        setLoading(false);
+      }
+    },
+    [activeTab, debouncedSearch]
+  );
 
   useEffect(() => {
-    const timer = setTimeout(() => {
-      loadPickups();
-    }, 250);
-
-    return () => clearTimeout(timer);
-  }, [loadPickups]);
+    load(1, pagination.pageSize);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, debouncedSearch]);
 
   /*
   |--------------------------------------------------------------------------
-  | Open details
+  | Load per-status counts (for badges)
   |--------------------------------------------------------------------------
   */
 
-  const openDetails = async (pickup) => {
-    const id = getPickupId(pickup);
-
-    if (!id) {
-      return;
-    }
-
-    setDetailsLoading(true);
-    setActionError("");
-
+  const loadCounts = useCallback(async () => {
     try {
-      const result = await getPickup(id);
-
-      setSelectedPickup(result);
-    } catch (err) {
-      setActionError(
-        err?.response?.data?.message ??
-          err?.message ??
-          "Unable to load pickup.",
+      const entries = await Promise.all(
+        TAB_STATUSES.map(async (status) => {
+          const res = await getPickups({ page: 1, per_page: 1, status });
+          return [status, res.total ?? 0];
+        })
       );
+      setCounts(Object.fromEntries(entries));
+    } catch {
+      /* silent */
+    }
+  }, []);
+
+  useEffect(() => {
+    loadCounts();
+  }, [loadCounts]);
+
+  /*
+  |--------------------------------------------------------------------------
+  | Detail drawer
+  |--------------------------------------------------------------------------
+  */
+
+  const openDetail = useCallback(
+    async (pickup) => {
+      const id = getPickupId(pickup);
+      if (!id) return;
+      setDrawerOpen(true);
+      setDetail(pickup);
+      setDetailLoading(true);
+      try {
+        const fresh = await getPickup(id);
+        if (fresh) setDetail(fresh);
+      } catch (error) {
+        message.error("Could not load pickup details.");
+      } finally {
+        setDetailLoading(false);
+      }
+    },
+    []
+  );
+
+  const refreshDetail = useCallback(async () => {
+    if (!detail) return;
+    const id = getPickupId(detail);
+    setDetailLoading(true);
+    try {
+      const fresh = await getPickup(id);
+      if (fresh) setDetail(fresh);
     } finally {
-      setDetailsLoading(false);
+      setDetailLoading(false);
     }
-  };
+  }, [detail]);
 
-  /*
-  |--------------------------------------------------------------------------
-  | Load riders
-  |--------------------------------------------------------------------------
-  */
-
-  const loadStaff = async (pickup) => {
-    const id = getPickupId(pickup);
-
-    if (!id) {
-      return;
-    }
-
+  const loadStaff = useCallback(async () => {
+    if (!detail) return;
     setStaffLoading(true);
-    setActionError("");
-
     try {
-      const result = await getPickupAssignableStaff(id);
-
-      setStaff(Array.isArray(result) ? result : []);
-    } catch (err) {
-      setActionError(
-        err?.response?.data?.message ??
-          err?.message ??
-          "Unable to load riders.",
-      );
+      const list = await getPickupAssignableStaff(getPickupId(detail));
+      setStaff(Array.isArray(list) ? list : []);
+    } catch {
+      setStaff([]);
     } finally {
       setStaffLoading(false);
     }
-  };
+  }, [detail]);
 
   /*
   |--------------------------------------------------------------------------
-  | Assign
+  | Actions
   |--------------------------------------------------------------------------
   */
 
-  const handleAssign = async () => {
-    const id = getPickupId(selectedPickup);
+  const afterMutation = useCallback(async () => {
+    await Promise.all([refreshDetail(), load(pagination.current, pagination.pageSize), loadCounts()]);
+  }, [refreshDetail, load, loadCounts, pagination]);
 
-    if (!id || !selectedStaffId) {
-      return;
-    }
-
-    setActionLoading(true);
-    setActionError("");
-
+  const submitAssign = async () => {
+    const values = await assignForm.validateFields();
+    setSubmitting(true);
     try {
-      await assignPickup(id, Number(selectedStaffId));
-
-      setAssignMode(null);
-      setSelectedStaffId("");
-
-      const updated = await getPickup(id);
-
-      setSelectedPickup(updated);
-
-      await loadPickups();
-    } catch (err) {
-      setActionError(
-        err?.response?.data?.message ??
-          err?.message ??
-          "Unable to assign rider.",
-      );
+      await assignPickup(getPickupId(detail), values.staff_id);
+      message.success("Rider assigned.");
+      setAssignOpen(false);
+      assignForm.resetFields();
+      await afterMutation();
+    } catch (error) {
+      message.error(error?.response?.data?.message || "Failed to assign.");
     } finally {
-      setActionLoading(false);
+      setSubmitting(false);
     }
   };
 
-  /*
-  |--------------------------------------------------------------------------
-  | Transfer
-  |--------------------------------------------------------------------------
-  */
-
-  const handleTransfer = async () => {
-    const id = getPickupId(selectedPickup);
-
-    if (!id || !selectedStaffId) {
-      return;
-    }
-
-    if (!reason.trim()) {
-      setActionError("Please enter a transfer reason.");
-
-      return;
-    }
-
-    setActionLoading(true);
-    setActionError("");
-
+  const submitTransfer = async () => {
+    const values = await transferForm.validateFields();
+    setSubmitting(true);
     try {
-      await transferPickup(id, Number(selectedStaffId), reason);
-
-      setAssignMode(null);
-      setSelectedStaffId("");
-      setReason("");
-
-      const updated = await getPickup(id);
-
-      setSelectedPickup(updated);
-
-      await loadPickups();
-    } catch (err) {
-      setActionError(
-        err?.response?.data?.message ??
-          err?.message ??
-          "Unable to transfer pickup.",
-      );
+      await transferPickup(getPickupId(detail), values.staff_id, values.reason);
+      message.success("Pickup transferred.");
+      setTransferOpen(false);
+      transferForm.resetFields();
+      await afterMutation();
+    } catch (error) {
+      message.error(error?.response?.data?.message || "Failed to transfer.");
     } finally {
-      setActionLoading(false);
+      setSubmitting(false);
     }
   };
 
-  /*
-  |--------------------------------------------------------------------------
-  | Cancel
-  |--------------------------------------------------------------------------
-  */
-
-  const handleCancel = async () => {
-    const id = getPickupId(selectedPickup);
-
-    if (!id) {
-      return;
-    }
-
-    if (!reason.trim()) {
-      setActionError("Please enter a cancellation reason.");
-
-      return;
-    }
-
-    setActionLoading(true);
-    setActionError("");
-
+  const submitCancel = async () => {
+    const values = await cancelForm.validateFields();
+    setSubmitting(true);
     try {
-      await failPickup(id, reason);
-
-      setReason("");
-
-      const updated = await getPickup(id);
-
-      setSelectedPickup(updated);
-
-      await loadPickups();
-    } catch (err) {
-      setActionError(
-        err?.response?.data?.message ??
-          err?.message ??
-          "Unable to cancel pickup.",
-      );
+      await failPickup(getPickupId(detail), values.reason);
+      message.success("Pickup cancelled.");
+      setCancelOpen(false);
+      cancelForm.resetFields();
+      await afterMutation();
+    } catch (error) {
+      message.error(error?.response?.data?.message || "Failed to cancel.");
     } finally {
-      setActionLoading(false);
+      setSubmitting(false);
     }
   };
 
-  /*
-  |--------------------------------------------------------------------------
-  | Resend callback
-  |--------------------------------------------------------------------------
-  */
-
-  const handleResendCallback = async () => {
-    const id = getPickupId(selectedPickup);
-
-    if (!id || !resendEvent) {
-      return;
-    }
-
-    const eventDef = RESEND_EVENTS.find(
-      (item) => item.value === resendEvent,
-    );
-
-    if (eventDef?.scope === "shipment" && !resendShipmentId) {
-      setActionError("Please select a shipment for this event.");
-
-      return;
-    }
-
-    setActionLoading(true);
-    setActionError("");
-    setResendMessage("");
-
+  const submitResend = async () => {
+    const values = await resendForm.validateFields();
+    setSubmitting(true);
     try {
-      await resendPickupCallback(
-        id,
-        resendEvent,
-        eventDef?.scope === "shipment" ? Number(resendShipmentId) : null,
-      );
-
-      setResendMessage(
-        `Callback "${eventDef?.label ?? resendEvent}" re-queued to the store.`,
-      );
-
-      setResendEvent("");
-      setResendShipmentId("");
-    } catch (err) {
-      setActionError(
-        err?.response?.data?.message ??
-          err?.message ??
-          "Unable to resend callback.",
-      );
+      await resendPickupCallback(getPickupId(detail), values.event, values.shipment_id || null);
+      message.success("Callback re-sent.");
+      setResendOpen(false);
+      resendForm.resetFields();
+    } catch (error) {
+      message.error(error?.response?.data?.message || "Failed to resend callback.");
     } finally {
-      setActionLoading(false);
+      setSubmitting(false);
     }
+  };
+
+  const copyText = (value) => {
+    if (!value) return;
+    navigator.clipboard?.writeText(String(value));
+    message.success("Copied to clipboard.");
   };
 
   /*
   |--------------------------------------------------------------------------
-  | Pagination
+  | Table columns
   |--------------------------------------------------------------------------
   */
 
-  const totalPages = Math.max(1, Math.ceil(total / pageSize));
-
-  const canPrevious = page > 1;
-
-  const canNext = page < totalPages;
+  const columns = useMemo(
+    () => [
+      {
+        title: "Request",
+        key: "request",
+        render: (_, r) => (
+          <Space direction="vertical" size={0}>
+            <Button type="link" style={{ padding: 0, height: "auto", fontWeight: 600 }} onClick={() => openDetail(r)}>
+              {getRequestNumber(r)}
+            </Button>
+            <Text type="secondary" style={{ fontSize: 12 }}>
+              {getShipments(r).length} shipment{getShipments(r).length === 1 ? "" : "s"}
+            </Text>
+          </Space>
+        ),
+      },
+      {
+        title: "Merchant",
+        key: "merchant",
+        render: (_, r) => (
+          <Space>
+            <Avatar size="small" style={{ background: "#f0f5ff", color: "#1677ff" }} icon={<ShopOutlined />} />
+            <Space direction="vertical" size={0}>
+              <Text strong>{getMerchantName(r)}</Text>
+              <Text type="secondary" style={{ fontSize: 12 }}>
+                {getLocationName(r)}
+              </Text>
+            </Space>
+          </Space>
+        ),
+      },
+      {
+        title: "Rider",
+        key: "rider",
+        render: (_, r) => {
+          const rider = getRider(r);
+          if (!rider) return <Text type="secondary">Unassigned</Text>;
+          return (
+            <Space>
+              <Avatar size="small" style={{ background: "#f6ffed", color: "#52c41a" }}>
+                {initialsOf(rider.name)}
+              </Avatar>
+              <Space direction="vertical" size={0}>
+                <Text>{rider.name}</Text>
+                {rider.phone ? (
+                  <Text type="secondary" style={{ fontSize: 12 }}>
+                    {rider.phone}
+                  </Text>
+                ) : null}
+              </Space>
+            </Space>
+          );
+        },
+      },
+      {
+        title: "Status",
+        key: "status",
+        render: (_, r) => <StatusTag status={r.status} />,
+      },
+      {
+        title: "Created",
+        key: "created",
+        render: (_, r) => (
+          <Text type="secondary" style={{ fontSize: 13 }}>
+            {fmtDate(r.created_at) ?? "-"}
+          </Text>
+        ),
+      },
+      {
+        title: "",
+        key: "action",
+        width: 48,
+        render: (_, r) => (
+          <Button type="text" icon={<RightOutlined />} onClick={() => openDetail(r)} />
+        ),
+      },
+    ],
+    [openDetail]
+  );
 
   /*
   |--------------------------------------------------------------------------
-  | Stats
+  | Derived detail values
   |--------------------------------------------------------------------------
   */
 
-  const stats = useMemo(() => {
-    return {
-      total: total,
+  const detailShipments = getShipments(detail);
+  const detailLocation = getLocation(detail);
+  const detailRider = getRider(detail);
+  const detailStatus = String(detail?.status ?? "").toLowerCase();
 
-      requested: pickups.filter((item) => item.status === "requested").length,
+  const canAssign = ["requested", "assigned"].includes(detailStatus);
+  const canTransfer = ["requested", "assigned", "accepted", "started", "arrived"].includes(detailStatus);
+  const canCancel = ["requested", "assigned", "accepted", "started", "arrived"].includes(detailStatus);
 
-      assigned: pickups.filter((item) => item.status === "assigned").length,
+  const lat = detailLocation?.latitude ?? detailLocation?.lat ?? detail?.pickup_lat ?? null;
+  const lng = detailLocation?.longitude ?? detailLocation?.lng ?? detail?.pickup_lng ?? null;
+  const hasCoords = lat != null && lng != null;
 
-      started: pickups.filter((item) => item.status === "started").length,
-
-      completed: pickups.filter((item) => item.status === "completed").length,
-    };
-  }, [pickups, total]);
+  const timeline = [
+    { key: "created_at", label: "Requested", value: detail?.created_at, dot: <InboxOutlined /> },
+    { key: "assigned_at", label: "Rider assigned", value: detail?.assigned_at, dot: <UserAddOutlined /> },
+    { key: "accepted_at", label: "Accepted", value: detail?.accepted_at, dot: <CheckCircleOutlined /> },
+    { key: "started_at", label: "En route", value: detail?.started_at, dot: <CarOutlined /> },
+    { key: "arrived_at", label: "Arrived", value: detail?.arrived_at, dot: <EnvironmentOutlined /> },
+    { key: "collected_at", label: "Collected", value: detail?.collected_at ?? detail?.picked_up_at, dot: <CheckCircleOutlined /> },
+    { key: "in_transit_at", label: "On way to branch", value: detail?.in_transit_at ?? detail?.on_way_at, dot: <CarOutlined /> },
+    { key: "completed_at", label: "Completed at branch", value: detail?.completed_at, dot: <CheckCircleOutlined /> },
+  ].filter((t) => t.value);
 
   /*
   |--------------------------------------------------------------------------
@@ -593,881 +606,472 @@ export default function AdminPickupsPage() {
   */
 
   return (
-    <div className="min-h-screen bg-gray-50 p-4 md:p-6">
-      <div className="mx-auto max-w-[1600px]">
-        {/* Header */}
+    <div style={{ padding: 24 }}>
+      {/* Header */}
+      <Row justify="space-between" align="middle" style={{ marginBottom: 20 }}>
+        <Col>
+          <Title level={3} style={{ margin: 0 }}>
+            Pickups
+          </Title>
+          <Text type="secondary">Monitor the pickup lifecycle across every branch</Text>
+        </Col>
+        <Col>
+          <Space>
+            <Input
+              allowClear
+              prefix={<SearchOutlined style={{ color: "#bfbfbf" }} />}
+              placeholder="Search request, merchant, tracking…"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              style={{ width: 280 }}
+            />
+            <Button icon={<ReloadOutlined />} onClick={() => { load(pagination.current, pagination.pageSize); loadCounts(); }}>
+              Refresh
+            </Button>
+          </Space>
+        </Col>
+      </Row>
 
-        <div className="mb-6 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">
-              Pickup Management
-            </h1>
-
-            <p className="mt-1 text-sm text-gray-500">
-              Manage pickup requests, riders, transfers and cancellations.
-            </p>
-          </div>
-
-          <button
-            type="button"
-            onClick={loadPickups}
-            disabled={loading}
-            className="inline-flex items-center justify-center gap-2 rounded-lg bg-gray-900 px-4 py-2.5 text-sm font-semibold text-white hover:bg-gray-800 disabled:opacity-50"
-          >
-            <RefreshCw size={16} className={loading ? "animate-spin" : ""} />
-            Refresh
-          </button>
-        </div>
-
-        {/* Stats */}
-
-        <div className="mb-6 grid grid-cols-2 gap-4 lg:grid-cols-5">
-          <StatCard label="Total" value={stats.total} />
-
-          <StatCard label="Requested" value={stats.requested} />
-
-          <StatCard label="Assigned" value={stats.assigned} />
-
-          <StatCard label="Started" value={stats.started} />
-
-          <StatCard label="Completed" value={stats.completed} />
-        </div>
-
-        {/* Filters */}
-
-        <div className="mb-5 rounded-xl border border-gray-200 bg-white p-4">
-          <div className="grid gap-3 md:grid-cols-[1fr_220px_auto]">
-            <div className="relative">
-              <Search
-                size={18}
-                className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
-              />
-
-              <input
-                value={search}
-                onChange={(event) => {
-                  setPage(1);
-                  setSearch(event.target.value);
+      {/* Stat cards */}
+      <Row gutter={[16, 16]} style={{ marginBottom: 20 }}>
+        {TAB_STATUSES.map((status) => {
+          const meta = metaFor(status);
+          const active = activeTab === status;
+          return (
+            <Col key={status} xs={12} sm={8} lg={4}>
+              <Card
+                hoverable
+                onClick={() => setActiveTab(status)}
+                styles={{ body: { padding: 16 } }}
+                style={{
+                  borderRadius: 14,
+                  cursor: "pointer",
+                  borderColor: active ? meta.hex : "#f0f0f0",
+                  boxShadow: active ? `0 6px 18px ${meta.hex}22` : "none",
+                  transition: "all .2s",
                 }}
-                placeholder="Search request number, store, name or phone..."
-                className="w-full rounded-lg border border-gray-200 bg-white py-2.5 pl-10 pr-3 text-sm outline-none focus:border-gray-400"
-              />
-            </div>
-
-            <select
-              value={status}
-              onChange={(event) => {
-                setPage(1);
-                setStatus(event.target.value);
-              }}
-              className="rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-gray-400"
-            >
-              <option value="">All statuses</option>
-
-              <option value="requested">Requested</option>
-
-              <option value="assigned">Assigned</option>
-
-              <option value="started">Started</option>
-
-              <option value="arrived">Arrived</option>
-
-              <option value="completed">Completed</option>
-
-              <option value="failed">Failed</option>
-            </select>
-
-            <button
-              type="button"
-              onClick={() => {
-                setSearch("");
-                setStatus("");
-                setPage(1);
-              }}
-              className="rounded-lg border border-gray-200 px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50"
-            >
-              Clear
-            </button>
-          </div>
-        </div>
-
-        {/* Error */}
-
-        {error && (
-          <div className="mb-5 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-            {error}
-          </div>
-        )}
-
-        {/* Table */}
-
-        <div className="overflow-hidden rounded-xl border border-gray-200 bg-white">
-          <div className="overflow-x-auto">
-            <table className="min-w-[1100px] w-full">
-              <thead className="border-b border-gray-200 bg-gray-50">
-                <tr>
-                  <TableHead>Pickup</TableHead>
-
-                  <TableHead>Merchant</TableHead>
-
-                  <TableHead>Location</TableHead>
-
-                  <TableHead>Rider</TableHead>
-
-                  <TableHead>Shipments</TableHead>
-
-                  <TableHead>Status</TableHead>
-
-                  <TableHead>Created</TableHead>
-
-                  <TableHead>Actions</TableHead>
-                </tr>
-              </thead>
-
-              <tbody className="divide-y divide-gray-100">
-                {loading ? (
-                  <LoadingRows />
-                ) : pickups.length === 0 ? (
-                  <tr>
-                    <td colSpan={8} className="px-6 py-16 text-center">
-                      <Package
-                        size={38}
-                        className="mx-auto mb-3 text-gray-300"
-                      />
-
-                      <p className="font-medium text-gray-700">
-                        No pickups found
-                      </p>
-
-                      <p className="mt-1 text-sm text-gray-400">
-                        Try changing your search or filters.
-                      </p>
-                    </td>
-                  </tr>
-                ) : (
-                  pickups.map((pickup) => {
-                    const shipments = getShipments(pickup);
-
-                    return (
-                      <tr
-                        key={getPickupId(pickup)}
-                        className="hover:bg-gray-50"
-                      >
-                        <td className="px-4 py-4">
-                          <div className="font-semibold text-gray-900">
-                            {getRequestNumber(pickup)}
-                          </div>
-
-                          <div className="mt-1 text-xs text-gray-400">
-                            ID: {getPickupId(pickup)}
-                          </div>
-                        </td>
-
-                        <td className="px-4 py-4">
-                          <div className="flex items-center gap-2">
-                            <Store size={16} className="text-gray-400" />
-
-                            <span className="text-sm font-medium text-gray-700">
-                              {getMerchantName(pickup)}
-                            </span>
-                          </div>
-                        </td>
-
-                        <td className="px-4 py-4">
-                          <div className="flex max-w-[220px] items-start gap-2">
-                            <MapPin
-                              size={16}
-                              className="mt-0.5 shrink-0 text-gray-400"
-                            />
-
-                            <span className="text-sm text-gray-600">
-                              {getLocationName(pickup)}
-                            </span>
-                          </div>
-                        </td>
-
-                        <td className="px-4 py-4">
-                          <span className="text-sm text-gray-700">
-                            {getRiderName(pickup)}
-                          </span>
-                        </td>
-
-                        <td className="px-4 py-4">
-                          <span className="inline-flex items-center gap-1.5 rounded-full bg-gray-100 px-2.5 py-1 text-xs font-semibold text-gray-700">
-                            <Package size={13} />
-
-                            {shipments.length}
-                          </span>
-                        </td>
-
-                        <td className="px-4 py-4">
-                          <StatusBadge status={pickup.status} />
-                        </td>
-
-                        <td className="px-4 py-4">
-                          <div className="flex items-center gap-1.5 text-xs text-gray-500">
-                            <Clock size={14} />
-
-                            {formatDate(pickup.created_at)}
-                          </div>
-                        </td>
-
-                        <td className="px-4 py-4">
-                          <ActionButton onClick={() => openDetails(pickup)}>
-                            <Eye size={15} />
-                            View
-                          </ActionButton>
-                        </td>
-                      </tr>
-                    );
-                  })
-                )}
-              </tbody>
-            </table>
-          </div>
-
-          {/* Pagination */}
-
-          <div className="flex flex-col gap-3 border-t border-gray-200 px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
-            <p className="text-sm text-gray-500">
-              Page <span className="font-semibold text-gray-700">{page}</span>{" "}
-              of{" "}
-              <span className="font-semibold text-gray-700">{totalPages}</span>
-              {" · "}
-              {total} pickups
-            </p>
-
-            <div className="flex gap-2">
-              <button
-                type="button"
-                disabled={!canPrevious}
-                onClick={() => setPage((value) => Math.max(1, value - 1))}
-                className="inline-flex items-center gap-1 rounded-lg border border-gray-200 px-3 py-2 text-sm font-medium disabled:opacity-40"
               >
-                <ChevronLeft size={16} />
-                Previous
-              </button>
-
-              <button
-                type="button"
-                disabled={!canNext}
-                onClick={() =>
-                  setPage((value) => Math.min(totalPages, value + 1))
-                }
-                className="inline-flex items-center gap-1 rounded-lg border border-gray-200 px-3 py-2 text-sm font-medium disabled:opacity-40"
-              >
-                Next
-                <ChevronRight size={16} />
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Details drawer */}
-
-      {selectedPickup && (
-        <div className="fixed inset-0 z-50">
-          <button
-            type="button"
-            aria-label="Close"
-            onClick={() => setSelectedPickup(null)}
-            className="absolute inset-0 bg-black/40"
-          />
-
-          <aside className="absolute right-0 top-0 h-full w-full max-w-2xl overflow-y-auto bg-white shadow-2xl">
-            {/* Drawer header */}
-
-            <div className="sticky top-0 z-10 flex items-center justify-between border-b border-gray-200 bg-white px-5 py-4">
-              <div>
-                <p className="text-xs font-medium uppercase tracking-wide text-gray-400">
-                  Pickup
-                </p>
-
-                <h2 className="text-lg font-bold text-gray-900">
-                  {getRequestNumber(selectedPickup)}
-                </h2>
-              </div>
-
-              <button
-                type="button"
-                onClick={() => setSelectedPickup(null)}
-                className="rounded-lg p-2 text-gray-400 hover:bg-gray-100 hover:text-gray-700"
-              >
-                <X size={20} />
-              </button>
-            </div>
-
-            {detailsLoading ? (
-              <div className="flex min-h-[400px] items-center justify-center">
-                <RefreshCw size={28} className="animate-spin text-gray-400" />
-              </div>
-            ) : (
-              <div className="space-y-6 p-5">
-                {/* Status */}
-
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-gray-400">Current status</p>
-
-                    <div className="mt-1">
-                      <StatusBadge status={selectedPickup.status} />
-                    </div>
-                  </div>
-
-                  <div className="text-right">
-                    <p className="text-xs text-gray-400">Created</p>
-
-                    <p className="text-sm text-gray-700">
-                      {formatDate(selectedPickup.created_at)}
-                    </p>
-                  </div>
-                </div>
-
-                {/* Pickup information */}
-
-                <section className="rounded-xl border border-gray-200 p-4">
-                  <h3 className="mb-4 font-semibold text-gray-900">
-                    Pickup information
-                  </h3>
-
-                  <div className="grid gap-4 sm:grid-cols-2">
-                    <InfoItem
-                      label="Merchant"
-                      value={getMerchantName(selectedPickup)}
-                      icon={<Store size={16} />}
-                    />
-
-                    <InfoItem
-                      label="Pickup location"
-                      value={getLocationName(selectedPickup)}
-                      icon={<MapPin size={16} />}
-                    />
-
-                    <InfoItem
-                      label="Pickup phone"
-                      value={selectedPickup.pickup_phone ?? "-"}
-                      icon={<Phone size={16} />}
-                    />
-
-                    <InfoItem
-                      label="Rider"
-                      value={getRiderName(selectedPickup)}
-                      icon={<UserRoundPlus size={16} />}
-                    />
-                  </div>
-                </section>
-
-                {/* Management actions */}
-
-                <section className="rounded-xl border border-gray-200 p-4">
-                  <h3 className="mb-4 font-semibold text-gray-900">
-                    Management
-                  </h3>
-
-                  <div className="flex flex-wrap gap-2">
-                    {["requested", "assigned"].includes(
-                      selectedPickup.status,
-                    ) && (
-                      <ActionButton
-                        onClick={async () => {
-                          setAssignMode("assign");
-
-                          setSelectedStaffId("");
-
-                          setReason("");
-
-                          await loadStaff(selectedPickup);
-                        }}
-                      >
-                        <UserRoundPlus size={15} />
-
-                        {selectedPickup.assigned_to
-                          ? "Reassign"
-                          : "Assign rider"}
-                      </ActionButton>
-                    )}
-
-                    {["requested", "assigned", "started"].includes(
-                      selectedPickup.status,
-                    ) && (
-                      <ActionButton
-                        onClick={async () => {
-                          setAssignMode("transfer");
-
-                          setSelectedStaffId("");
-
-                          setReason("");
-
-                          await loadStaff(selectedPickup);
-                        }}
-                      >
-                        <ArrowRightLeft size={15} />
-                        Transfer
-                      </ActionButton>
-                    )}
-
-                    {["requested", "assigned", "started", "arrived"].includes(
-                      selectedPickup.status,
-                    ) && (
-                      <ActionButton
-                        danger
-                        onClick={() => {
-                          setAssignMode("cancel");
-
-                          setSelectedStaffId("");
-
-                          setReason("");
-                        }}
-                      >
-                        <XCircle size={15} />
-                        Cancel pickup
-                      </ActionButton>
-                    )}
-
-                    <ActionButton
-                      onClick={() => {
-                        setAssignMode("resend");
-
-                        setSelectedStaffId("");
-
-                        setReason("");
-
-                        setResendEvent("");
-
-                        setResendShipmentId("");
-
-                        setResendMessage("");
-
-                        setActionError("");
+                <Space direction="vertical" size={4} style={{ width: "100%" }}>
+                  <Space>
+                    <span
+                      style={{
+                        display: "inline-flex",
+                        width: 30,
+                        height: 30,
+                        borderRadius: 8,
+                        alignItems: "center",
+                        justifyContent: "center",
+                        background: `${meta.hex}15`,
+                        color: meta.hex,
                       }}
                     >
-                      <Send size={15} />
-                      Resend callback
-                    </ActionButton>
-                  </div>
-
-                  {/* Action form */}
-
-                  {assignMode && (
-                    <div className="mt-4 rounded-lg bg-gray-50 p-4">
-                      {actionError && (
-                        <div className="mb-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
-                          {actionError}
-                        </div>
-                      )}
-
-                      {assignMode === "assign" && (
-                        <>
-                          <label className="mb-2 block text-sm font-medium text-gray-700">
-                            Select rider
-                          </label>
-
-                          <select
-                            value={selectedStaffId}
-                            onChange={(event) =>
-                              setSelectedStaffId(event.target.value)
-                            }
-                            disabled={staffLoading || actionLoading}
-                            className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-sm"
-                          >
-                            <option value="">
-                              {staffLoading
-                                ? "Loading riders..."
-                                : "Select rider"}
-                            </option>
-
-                            {staff.map((item) => (
-                              <option key={item.id} value={item.id}>
-                                {item.name}
-                                {item.email ? ` — ${item.email}` : ""}
-                              </option>
-                            ))}
-                          </select>
-
-                          <div className="mt-3 flex gap-2">
-                            <button
-                              type="button"
-                              onClick={handleAssign}
-                              disabled={!selectedStaffId || actionLoading}
-                              className="rounded-lg bg-gray-900 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
-                            >
-                              {actionLoading ? "Assigning..." : "Assign rider"}
-                            </button>
-
-                            <button
-                              type="button"
-                              onClick={() => setAssignMode(null)}
-                              className="rounded-lg border border-gray-200 px-4 py-2 text-sm"
-                            >
-                              Cancel
-                            </button>
-                          </div>
-                        </>
-                      )}
-
-                      {assignMode === "transfer" && (
-                        <>
-                          <label className="mb-2 block text-sm font-medium text-gray-700">
-                            Transfer to rider
-                          </label>
-
-                          <select
-                            value={selectedStaffId}
-                            onChange={(event) =>
-                              setSelectedStaffId(event.target.value)
-                            }
-                            disabled={staffLoading || actionLoading}
-                            className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-sm"
-                          >
-                            <option value="">
-                              {staffLoading
-                                ? "Loading riders..."
-                                : "Select new rider"}
-                            </option>
-
-                            {staff
-                              .filter(
-                                (item) =>
-                                  Number(item.id) !==
-                                  Number(selectedPickup.assigned_to),
-                              )
-                              .map((item) => (
-                                <option key={item.id} value={item.id}>
-                                  {item.name}
-
-                                  {item.email ? ` — ${item.email}` : ""}
-                                </option>
-                              ))}
-                          </select>
-
-                          <textarea
-                            value={reason}
-                            onChange={(event) => setReason(event.target.value)}
-                            rows={3}
-                            placeholder="Why is this pickup being transferred?"
-                            className="mt-3 w-full rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-sm"
-                          />
-
-                          <div className="mt-3 flex gap-2">
-                            <button
-                              type="button"
-                              onClick={handleTransfer}
-                              disabled={
-                                !selectedStaffId ||
-                                !reason.trim() ||
-                                actionLoading
-                              }
-                              className="rounded-lg bg-gray-900 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
-                            >
-                              {actionLoading
-                                ? "Transferring..."
-                                : "Transfer pickup"}
-                            </button>
-
-                            <button
-                              type="button"
-                              onClick={() => setAssignMode(null)}
-                              className="rounded-lg border border-gray-200 px-4 py-2 text-sm"
-                            >
-                              Cancel
-                            </button>
-                          </div>
-                        </>
-                      )}
-
-                      {assignMode === "cancel" && (
-                        <>
-                          <p className="mb-3 text-sm text-red-600">
-                            Cancelling this pickup will return eligible
-                            uncollected shipments to awaiting pickup.
-                          </p>
-
-                          <textarea
-                            value={reason}
-                            onChange={(event) => setReason(event.target.value)}
-                            rows={3}
-                            placeholder="Cancellation reason"
-                            className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-sm"
-                          />
-
-                          <div className="mt-3 flex gap-2">
-                            <button
-                              type="button"
-                              onClick={handleCancel}
-                              disabled={!reason.trim() || actionLoading}
-                              className="rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
-                            >
-                              {actionLoading
-                                ? "Cancelling..."
-                                : "Confirm cancellation"}
-                            </button>
-
-                            <button
-                              type="button"
-                              onClick={() => setAssignMode(null)}
-                              className="rounded-lg border border-gray-200 px-4 py-2 text-sm"
-                            >
-                              Back
-                            </button>
-                          </div>
-                        </>
-                      )}
-
-                      {assignMode === "resend" && (
-                        <>
-                          <p className="mb-3 text-sm text-gray-600">
-                            Re-send a lifecycle callback to the store partner
-                            using this pickup&apos;s current data. Useful when a
-                            callback previously failed.
-                          </p>
-
-                          {resendMessage && (
-                            <div className="mb-3 rounded-lg border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-700">
-                              {resendMessage}
-                            </div>
-                          )}
-
-                          <label className="mb-2 block text-sm font-medium text-gray-700">
-                            Event
-                          </label>
-
-                          <select
-                            value={resendEvent}
-                            onChange={(event) => {
-                              setResendEvent(event.target.value);
-                              setResendShipmentId("");
-                            }}
-                            disabled={actionLoading}
-                            className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-sm"
-                          >
-                            <option value="">Select event</option>
-
-                            {RESEND_EVENTS.map((item) => (
-                              <option key={item.value} value={item.value}>
-                                {item.label}
-                              </option>
-                            ))}
-                          </select>
-
-                          {RESEND_EVENTS.find(
-                            (item) => item.value === resendEvent,
-                          )?.scope === "shipment" && (
-                            <>
-                              <label className="mb-2 mt-3 block text-sm font-medium text-gray-700">
-                                Shipment
-                              </label>
-
-                              <select
-                                value={resendShipmentId}
-                                onChange={(event) =>
-                                  setResendShipmentId(event.target.value)
-                                }
-                                disabled={actionLoading}
-                                className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-sm"
-                              >
-                                <option value="">Select shipment</option>
-
-                                {getShipments(selectedPickup).map(
-                                  (shipment) => (
-                                    <option
-                                      key={shipment.id}
-                                      value={shipment.id}
-                                    >
-                                      {shipment.tracking_number ??
-                                        `Shipment #${shipment.id}`}
-                                    </option>
-                                  ),
-                                )}
-                              </select>
-                            </>
-                          )}
-
-                          <div className="mt-3 flex gap-2">
-                            <button
-                              type="button"
-                              onClick={handleResendCallback}
-                              disabled={!resendEvent || actionLoading}
-                              className="rounded-lg bg-gray-900 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
-                            >
-                              {actionLoading ? "Sending..." : "Resend callback"}
-                            </button>
-
-                            <button
-                              type="button"
-                              onClick={() => setAssignMode(null)}
-                              className="rounded-lg border border-gray-200 px-4 py-2 text-sm"
-                            >
-                              Back
-                            </button>
-                          </div>
-                        </>
-                      )}
-                    </div>
-                  )}
-                </section>
-
-                {/* Shipments */}
-
-                <section className="rounded-xl border border-gray-200 p-4">
-                  <div className="mb-4 flex items-center justify-between">
-                    <h3 className="font-semibold text-gray-900">Shipments</h3>
-
-                    <span className="rounded-full bg-gray-100 px-2.5 py-1 text-xs font-semibold text-gray-600">
-                      {getShipments(selectedPickup).length}
+                      {meta.icon}
                     </span>
-                  </div>
+                    <Text type="secondary" style={{ fontSize: 13 }}>
+                      {meta.label}
+                    </Text>
+                  </Space>
+                  <Title level={3} style={{ margin: 0, color: active ? meta.hex : undefined }}>
+                    {counts[status] ?? 0}
+                  </Title>
+                </Space>
+              </Card>
+            </Col>
+          );
+        })}
+      </Row>
 
-                  <div className="space-y-3">
-                    {getShipments(selectedPickup).length === 0 ? (
-                      <p className="py-6 text-center text-sm text-gray-400">
-                        No shipments attached.
-                      </p>
-                    ) : (
-                      getShipments(selectedPickup).map((shipment) => (
-                        <div
-                          key={shipment.id}
-                          className="rounded-lg border border-gray-100 bg-gray-50 p-3"
-                        >
-                          <div className="flex items-start justify-between gap-3">
-                            <div>
-                              <p className="font-semibold text-gray-800">
-                                {shipment.tracking_number ??
-                                  `Shipment #${shipment.id}`}
-                              </p>
-
-                              <p className="mt-1 text-xs text-gray-500">
-                                {shipment.status ?? "Unknown status"}
-                              </p>
-                            </div>
-
-                            <span className="text-xs font-medium text-gray-500">
-                              ID {shipment.id}
-                            </span>
-                          </div>
-                        </div>
-                      ))
-                    )}
-                  </div>
-                </section>
-
-                {/* Timeline */}
-
-                <section className="rounded-xl border border-gray-200 p-4">
-                  <h3 className="mb-4 font-semibold text-gray-900">
-                    Pickup timeline
-                  </h3>
-
-                  <TimelineItem
-                    label="Created"
-                    value={selectedPickup.created_at}
-                  />
-
-                  <TimelineItem
-                    label="Assigned"
-                    value={selectedPickup.assigned_at}
-                  />
-
-                  <TimelineItem
-                    label="Arrived"
-                    value={selectedPickup.arrived_at}
-                  />
-
-                  <TimelineItem
-                    label="Picked up"
-                    value={selectedPickup.picked_up_at}
-                  />
-
-                  <TimelineItem
-                    label="Completed"
-                    value={selectedPickup.completed_at}
-                  />
-
-                  <TimelineItem
-                    label="Failed"
-                    value={selectedPickup.failed_at}
-                  />
-
-                  {selectedPickup.failed_reason && (
-                    <div className="mt-3 rounded-lg bg-red-50 p-3 text-sm text-red-700">
-                      <strong>Failure reason:</strong>{" "}
-                      {selectedPickup.failed_reason}
-                    </div>
-                  )}
-                </section>
-              </div>
-            )}
-          </aside>
+      {/* Tabs + table */}
+      <Card styles={{ body: { padding: 0 } }} style={{ borderRadius: 14, overflow: "hidden" }}>
+        <div style={{ padding: 16, borderBottom: "1px solid #f0f0f0" }}>
+          <Segmented
+            value={activeTab}
+            onChange={(v) => setActiveTab(v)}
+            options={TAB_STATUSES.map((status) => {
+              const meta = metaFor(status);
+              return {
+                value: status,
+                label: (
+                  <Space size={6}>
+                    {meta.icon}
+                    <span>{meta.label}</span>
+                    <Badge
+                      count={counts[status] ?? 0}
+                      showZero
+                      overflowCount={999}
+                      style={{ background: activeTab === status ? meta.hex : "#d9d9d9" }}
+                    />
+                  </Space>
+                ),
+              };
+            })}
+          />
         </div>
-      )}
+
+        <Table
+          rowKey={(r) => getPickupId(r)}
+          loading={loading}
+          columns={columns}
+          dataSource={rows}
+          onRow={(r) => ({ onClick: () => openDetail(r), style: { cursor: "pointer" } })}
+          locale={{
+            emptyText: (
+              <Empty
+                image={Empty.PRESENTED_IMAGE_SIMPLE}
+                description={`No ${metaFor(activeTab).label.toLowerCase()} pickups`}
+              />
+            ),
+          }}
+          pagination={{
+            current: pagination.current,
+            pageSize: pagination.pageSize,
+            total: pagination.total,
+            showSizeChanger: true,
+            showTotal: (t) => `${t} pickup${t === 1 ? "" : "s"}`,
+            onChange: (page, pageSize) => load(page, pageSize),
+          }}
+        />
+      </Card>
+
+      {/* Detail Drawer */}
+      <Drawer
+        open={drawerOpen}
+        width={560}
+        onClose={() => setDrawerOpen(false)}
+        title={
+          detail ? (
+            <Space direction="vertical" size={2}>
+              <Space>
+                <Text strong style={{ fontSize: 16 }}>
+                  {getRequestNumber(detail)}
+                </Text>
+                <StatusTag status={detail.status} />
+              </Space>
+              <Text type="secondary" style={{ fontSize: 12 }}>
+                {metaFor(detail.status).hint}
+              </Text>
+            </Space>
+          ) : (
+            "Pickup"
+          )
+        }
+        extra={
+          <Button icon={<ReloadOutlined />} loading={detailLoading} onClick={refreshDetail}>
+            Refresh
+          </Button>
+        }
+        styles={{ body: { paddingTop: 8 } }}
+      >
+        {detail ? (
+          <Space direction="vertical" size={20} style={{ width: "100%" }}>
+            {/* Action bar */}
+            <Space wrap>
+              {canAssign && (
+                <Button
+                  type="primary"
+                  icon={<UserAddOutlined />}
+                  onClick={() => {
+                    assignForm.resetFields();
+                    loadStaff();
+                    setAssignOpen(true);
+                  }}
+                >
+                  Assign rider
+                </Button>
+              )}
+              {canTransfer && (
+                <Button
+                  icon={<SwapOutlined />}
+                  onClick={() => {
+                    transferForm.resetFields();
+                    loadStaff();
+                    setTransferOpen(true);
+                  }}
+                >
+                  Transfer
+                </Button>
+              )}
+              <Button
+                icon={<SendOutlined />}
+                onClick={() => {
+                  resendForm.resetFields();
+                  setResendOpen(true);
+                }}
+              >
+                Resend callback
+              </Button>
+              {canCancel && (
+                <Button
+                  danger
+                  icon={<CloseCircleOutlined />}
+                  onClick={() => {
+                    cancelForm.resetFields();
+                    setCancelOpen(true);
+                  }}
+                >
+                  Cancel
+                </Button>
+              )}
+            </Space>
+
+            {/* Merchant + location */}
+            <Card size="small" style={{ borderRadius: 12 }} title={<Space><ShopOutlined /> Merchant & Location</Space>}>
+              <Descriptions column={1} size="small" colon={false}>
+                <Descriptions.Item label={<Text type="secondary">Merchant</Text>}>
+                  <Text strong>{getMerchantName(detail)}</Text>
+                </Descriptions.Item>
+                <Descriptions.Item label={<Text type="secondary">Location</Text>}>
+                  {getLocationName(detail)}
+                </Descriptions.Item>
+                {detailLocation?.address ? (
+                  <Descriptions.Item label={<Text type="secondary">Address</Text>}>
+                    {detailLocation.address}
+                  </Descriptions.Item>
+                ) : null}
+                {(detailLocation?.phone ?? detail?.pickup_phone) ? (
+                  <Descriptions.Item label={<Text type="secondary">Phone</Text>}>
+                    <Space>
+                      <PhoneOutlined />
+                      {detailLocation?.phone ?? detail?.pickup_phone}
+                    </Space>
+                  </Descriptions.Item>
+                ) : null}
+              </Descriptions>
+
+              {hasCoords ? (
+                <>
+                  <Divider style={{ margin: "12px 0" }} />
+                  <Space direction="vertical" size={8} style={{ width: "100%" }}>
+                    <Space>
+                      <EnvironmentOutlined style={{ color: "#1677ff" }} />
+                      <Text copyable={{ text: `${lat}, ${lng}` }}>
+                        {Number(lat).toFixed(6)}, {Number(lng).toFixed(6)}
+                      </Text>
+                    </Space>
+                    <Button
+                      block
+                      icon={<EnvironmentOutlined />}
+                      href={`https://www.google.com/maps/search/?api=1&query=${lat},${lng}`}
+                      target="_blank"
+                    >
+                      Open in Google Maps
+                    </Button>
+                    <iframe
+                      title="Pickup location"
+                      width="100%"
+                      height="180"
+                      style={{ border: 0, borderRadius: 10 }}
+                      loading="lazy"
+                      src={`https://maps.google.com/maps?q=${lat},${lng}&z=15&output=embed`}
+                    />
+                  </Space>
+                </>
+              ) : null}
+            </Card>
+
+            {/* Rider */}
+            <Card size="small" style={{ borderRadius: 12 }} title={<Space><CarOutlined /> Assigned Rider</Space>}>
+              {detailRider ? (
+                <Space>
+                  <Avatar style={{ background: "#f6ffed", color: "#52c41a" }}>
+                    {initialsOf(detailRider.name)}
+                  </Avatar>
+                  <Space direction="vertical" size={0}>
+                    <Text strong>{detailRider.name}</Text>
+                    {detailRider.phone ? (
+                      <Text type="secondary">
+                        <PhoneOutlined /> {detailRider.phone}
+                      </Text>
+                    ) : null}
+                  </Space>
+                </Space>
+              ) : (
+                <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="No rider assigned yet" />
+              )}
+            </Card>
+
+            {/* Timeline */}
+            {timeline.length ? (
+              <Card size="small" style={{ borderRadius: 12 }} title={<Space><ClockCircleOutlined /> Timeline</Space>}>
+                <Timeline
+                  items={timeline.map((t) => ({
+                    dot: t.dot,
+                    children: (
+                      <Space direction="vertical" size={0}>
+                        <Text strong>{t.label}</Text>
+                        <Text type="secondary" style={{ fontSize: 12 }}>
+                          {fmtDate(t.value)}
+                        </Text>
+                      </Space>
+                    ),
+                  }))}
+                />
+              </Card>
+            ) : null}
+
+            {/* Shipments */}
+            <Card
+              size="small"
+              style={{ borderRadius: 12 }}
+              title={
+                <Space>
+                  <InboxOutlined /> Shipments
+                  <Badge count={detailShipments.length} showZero style={{ background: "#1677ff" }} />
+                </Space>
+              }
+            >
+              {detailShipments.length ? (
+                <Space direction="vertical" size={10} style={{ width: "100%" }}>
+                  {detailShipments.map((s) => (
+                    <div
+                      key={s.id ?? s.tracking_number}
+                      style={{
+                        border: "1px solid #f0f0f0",
+                        borderRadius: 10,
+                        padding: "10px 12px",
+                        display: "flex",
+                        justifyContent: "space-between",
+                        alignItems: "center",
+                        gap: 8,
+                      }}
+                    >
+                      <Space direction="vertical" size={2}>
+                        <Space size={6}>
+                          <Text strong style={{ fontSize: 13 }}>
+                            {s.tracking_number ?? "—"}
+                          </Text>
+                          {s.tracking_number ? (
+                            <Tooltip title="Copy tracking">
+                              <CopyOutlined
+                                style={{ color: "#bfbfbf", cursor: "pointer" }}
+                                onClick={() => copyText(s.tracking_number)}
+                              />
+                            </Tooltip>
+                          ) : null}
+                        </Space>
+                        <Text type="secondary" style={{ fontSize: 12 }}>
+                          Order: {s.merchant_order_id ?? "N/A"}
+                        </Text>
+                      </Space>
+                      <StatusTag status={s.status} withIcon={false} />
+                    </div>
+                  ))}
+                </Space>
+              ) : (
+                <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="No shipments" />
+              )}
+            </Card>
+          </Space>
+        ) : (
+          <Empty description="Select a pickup" />
+        )}
+      </Drawer>
+
+      {/* Assign modal */}
+      <Modal
+        title="Assign rider"
+        open={assignOpen}
+        onCancel={() => setAssignOpen(false)}
+        onOk={submitAssign}
+        confirmLoading={submitting}
+        okText="Assign"
+      >
+        <Form form={assignForm} layout="vertical" style={{ marginTop: 12 }}>
+          <Form.Item name="staff_id" label="Rider" rules={[{ required: true, message: "Select a rider" }]}>
+            <Select
+              loading={staffLoading}
+              placeholder="Select a rider"
+              options={staff.map((s) => ({
+                value: s.id,
+                label: `${s.name}${s.phone ? ` · ${s.phone}` : ""}`,
+              }))}
+            />
+          </Form.Item>
+        </Form>
+      </Modal>
+
+      {/* Transfer modal */}
+      <Modal
+        title="Transfer to another rider"
+        open={transferOpen}
+        onCancel={() => setTransferOpen(false)}
+        onOk={submitTransfer}
+        confirmLoading={submitting}
+        okText="Transfer"
+      >
+        <Form form={transferForm} layout="vertical" style={{ marginTop: 12 }}>
+          <Form.Item name="staff_id" label="New rider" rules={[{ required: true, message: "Select a rider" }]}>
+            <Select
+              loading={staffLoading}
+              placeholder="Select a rider"
+              options={staff
+                .filter((s) => Number(s.id) !== Number(detailRider?.id))
+                .map((s) => ({
+                  value: s.id,
+                  label: `${s.name}${s.phone ? ` · ${s.phone}` : ""}`,
+                }))}
+            />
+          </Form.Item>
+          <Form.Item name="reason" label="Reason" rules={[{ required: true, message: "Enter a reason" }]}>
+            <Input.TextArea rows={3} placeholder="Why is this pickup being transferred?" />
+          </Form.Item>
+        </Form>
+      </Modal>
+
+      {/* Cancel modal */}
+      <Modal
+        title="Cancel pickup"
+        open={cancelOpen}
+        onCancel={() => setCancelOpen(false)}
+        onOk={submitCancel}
+        confirmLoading={submitting}
+        okText="Cancel pickup"
+        okButtonProps={{ danger: true }}
+        cancelText="Keep"
+      >
+        <Form form={cancelForm} layout="vertical" style={{ marginTop: 12 }}>
+          <Form.Item name="reason" label="Reason" rules={[{ required: true, message: "Enter a reason" }]}>
+            <Input.TextArea rows={4} placeholder="Shipment missing, cutoff passed, service not fulfillable…" />
+          </Form.Item>
+        </Form>
+      </Modal>
+
+      {/* Resend modal */}
+      <Modal
+        title="Resend callback"
+        open={resendOpen}
+        onCancel={() => setResendOpen(false)}
+        onOk={submitResend}
+        confirmLoading={submitting}
+        okText="Resend"
+      >
+        <Form form={resendForm} layout="vertical" style={{ marginTop: 12 }}>
+          <Form.Item name="event" label="Event" rules={[{ required: true, message: "Select an event" }]}>
+            <Select
+              placeholder="Select an event"
+              onChange={() => resendForm.setFieldValue("shipment_id", undefined)}
+              options={RESEND_EVENTS.map((e) => ({ value: e.value, label: e.label }))}
+            />
+          </Form.Item>
+          <Form.Item noStyle shouldUpdate={(prev, cur) => prev.event !== cur.event}>
+            {({ getFieldValue }) => {
+              const ev = RESEND_EVENTS.find((e) => e.value === getFieldValue("event"));
+              if (ev?.scope !== "shipment") return null;
+              return (
+                <Form.Item name="shipment_id" label="Shipment" rules={[{ required: true, message: "Select a shipment" }]}>
+                  <Select
+                    placeholder="Select a shipment"
+                    options={detailShipments.map((s) => ({
+                      value: s.id,
+                      label: s.tracking_number ?? `#${s.id}`,
+                    }))}
+                  />
+                </Form.Item>
+              );
+            }}
+          </Form.Item>
+        </Form>
+      </Modal>
     </div>
   );
-}
-
-/*
-|--------------------------------------------------------------------------
-| Small components
-|--------------------------------------------------------------------------
-*/
-
-function StatCard({ label, value }) {
-  return (
-    <div className="rounded-xl border border-gray-200 bg-white p-4">
-      <p className="text-sm text-gray-500">{label}</p>
-
-      <p className="mt-1 text-2xl font-bold text-gray-900">{value}</p>
-    </div>
-  );
-}
-
-function TableHead({ children }) {
-  return (
-    <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
-      {children}
-    </th>
-  );
-}
-
-function InfoItem({ label, value, icon }) {
-  return (
-    <div>
-      <p className="mb-1 text-xs font-medium uppercase tracking-wide text-gray-400">
-        {label}
-      </p>
-
-      <div className="flex items-start gap-2 text-sm text-gray-700">
-        <span className="mt-0.5 text-gray-400">{icon}</span>
-
-        <span>{value}</span>
-      </div>
-    </div>
-  );
-}
-
-function TimelineItem({ label, value }) {
-  if (!value) {
-    return null;
-  }
-
-  return (
-    <div className="flex gap-3 border-l-2 border-gray-200 pb-4 pl-4 last:pb-0">
-      <div>
-        <p className="text-sm font-medium text-gray-700">{label}</p>
-
-        <p className="mt-0.5 text-xs text-gray-400">{formatDate(value)}</p>
-      </div>
-    </div>
-  );
-}
-
-function LoadingRows() {
-  return Array.from({ length: 6 }).map((_, index) => (
-    <tr key={index}>
-      {Array.from({ length: 8 }).map((_, column) => (
-        <td key={column} className="px-4 py-5">
-          <div className="h-4 animate-pulse rounded bg-gray-100" />
-        </td>
-      ))}
-    </tr>
-  ));
 }
