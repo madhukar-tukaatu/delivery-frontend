@@ -77,7 +77,48 @@ const STATUS_META = {
   cancelled: { label: "Cancelled", color: "default", hex: "#8c8c8c", icon: <CloseCircleOutlined />, hint: "Pickup was cancelled" },
 };
 
-const TAB_STATUSES = ["requested", "assigned", "collected", "on_way_to_branch", "completed", "failed"];
+/*
+|--------------------------------------------------------------------------
+| Tabs
+|--------------------------------------------------------------------------
+|
+| Each tab maps to one status OR a group of statuses (sent to the backend as
+| a comma-separated list). This guarantees EVERY pickup is reachable — the
+| intermediate rider states (accepted / started / arrived) are grouped under
+| "In Progress" so a pickup can never fall through the cracks.
+|
+*/
+
+const TABS = [
+  { key: "all", label: "All", hex: BRAND, icon: <InboxOutlined />, statuses: [] },
+  { key: "requested", label: "Requested", hex: "#1677ff", icon: <InboxOutlined />, statuses: ["requested"] },
+  {
+    key: "in_progress",
+    label: "In Progress",
+    hex: "#722ed1",
+    icon: <UserAddOutlined />,
+    statuses: ["assigned", "accepted", "started", "arrived"],
+  },
+  { key: "collected", label: "Collected", hex: "#52c41a", icon: <CheckCircleOutlined />, statuses: ["collected"] },
+  { key: "on_way_to_branch", label: "On Way", hex: "#fa8c16", icon: <CarOutlined />, statuses: ["on_way_to_branch"] },
+  { key: "completed", label: "Completed", hex: "#389e0d", icon: <CheckCircleOutlined />, statuses: ["completed"] },
+  {
+    key: "failed",
+    label: "Failed",
+    hex: "#cf1322",
+    icon: <ExclamationCircleOutlined />,
+    statuses: ["failed", "cancelled"],
+  },
+];
+
+function tabByKey(key) {
+  return TABS.find((t) => t.key === key) ?? TABS[0];
+}
+
+function statusParam(tabKey) {
+  const tab = tabByKey(tabKey);
+  return tab.statuses.length ? tab.statuses.join(",") : undefined;
+}
 
 const RESEND_EVENTS = [
   { value: "pickup.rider_assigned", label: "Rider assigned", scope: "pickup" },
@@ -216,7 +257,7 @@ function Field({ label, children }) {
 */
 
 export default function AdminPickupsPage() {
-  const [activeTab, setActiveTab] = useState("requested");
+  const [activeTab, setActiveTab] = useState("all");
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
 
@@ -256,7 +297,7 @@ export default function AdminPickupsPage() {
           page,
           per_page: pageSize,
           search: debouncedSearch || undefined,
-          status: activeTab || undefined,
+          status: statusParam(activeTab),
         });
         setRows(result.list ?? []);
         setPagination({
@@ -282,9 +323,13 @@ export default function AdminPickupsPage() {
   const loadCounts = useCallback(async () => {
     try {
       const entries = await Promise.all(
-        TAB_STATUSES.map(async (status) => {
-          const res = await getPickups({ page: 1, per_page: 1, status });
-          return [status, res.total ?? 0];
+        TABS.map(async (tab) => {
+          const res = await getPickups({
+            page: 1,
+            per_page: 1,
+            status: tab.statuses.length ? tab.statuses.join(",") : undefined,
+          });
+          return [tab.key, res.total ?? 0];
         })
       );
       setCounts(Object.fromEntries(entries));
@@ -524,21 +569,20 @@ export default function AdminPickupsPage() {
 
       {/* Stat cards */}
       <Row gutter={[16, 16]} style={{ marginBottom: 20 }}>
-        {TAB_STATUSES.map((status) => {
-          const meta = metaFor(status);
-          const active = activeTab === status;
+        {TABS.map((tab) => {
+          const active = activeTab === tab.key;
           return (
-            <Col key={status} xs={12} sm={8} lg={4}>
+            <Col key={tab.key} xs={12} sm={8} lg={6} xl={3}>
               <div
                 role="button"
-                onClick={() => setActiveTab(status)}
+                onClick={() => setActiveTab(tab.key)}
                 style={{
                   padding: 16,
                   borderRadius: 14,
                   cursor: "pointer",
                   background: "#fff",
-                  border: `1px solid ${active ? meta.hex : "#eef0f2"}`,
-                  boxShadow: active ? `0 8px 20px ${meta.hex}22` : "0 1px 2px rgba(0,0,0,0.03)",
+                  border: `1px solid ${active ? tab.hex : "#eef0f2"}`,
+                  boxShadow: active ? `0 8px 20px ${tab.hex}22` : "0 1px 2px rgba(0,0,0,0.03)",
                   transition: "all .2s",
                 }}
               >
@@ -547,15 +591,15 @@ export default function AdminPickupsPage() {
                     style={{
                       display: "inline-flex", width: 30, height: 30, borderRadius: 9,
                       alignItems: "center", justifyContent: "center",
-                      background: `${meta.hex}15`, color: meta.hex,
+                      background: `${tab.hex}15`, color: tab.hex,
                     }}
                   >
-                    {meta.icon}
+                    {tab.icon}
                   </span>
-                  <span style={{ fontSize: 13, color: "#6b7280" }}>{meta.label}</span>
+                  <span style={{ fontSize: 13, color: "#6b7280" }}>{tab.label}</span>
                 </div>
-                <div style={{ fontSize: 26, fontWeight: 700, color: active ? meta.hex : "#111827", lineHeight: 1 }}>
-                  {counts[status] ?? 0}
+                <div style={{ fontSize: 26, fontWeight: 700, color: active ? tab.hex : "#111827", lineHeight: 1 }}>
+                  {counts[tab.key] ?? 0}
                 </div>
               </div>
             </Col>
@@ -569,24 +613,21 @@ export default function AdminPickupsPage() {
           <Segmented
             value={activeTab}
             onChange={(v) => setActiveTab(v)}
-            options={TAB_STATUSES.map((status) => {
-              const meta = metaFor(status);
-              return {
-                value: status,
-                label: (
-                  <Space size={6}>
-                    {meta.icon}
-                    <span>{meta.label}</span>
-                    <Badge
-                      count={counts[status] ?? 0}
-                      showZero
-                      overflowCount={999}
-                      style={{ background: activeTab === status ? meta.hex : "#d9d9d9" }}
-                    />
-                  </Space>
-                ),
-              };
-            })}
+            options={TABS.map((tab) => ({
+              value: tab.key,
+              label: (
+                <Space size={6}>
+                  {tab.icon}
+                  <span>{tab.label}</span>
+                  <Badge
+                    count={counts[tab.key] ?? 0}
+                    showZero
+                    overflowCount={999}
+                    style={{ background: activeTab === tab.key ? tab.hex : "#d9d9d9" }}
+                  />
+                </Space>
+              ),
+            }))}
           />
         </div>
 
@@ -597,7 +638,7 @@ export default function AdminPickupsPage() {
           dataSource={rows}
           onRow={(r) => ({ onClick: () => openDetail(r), style: { cursor: "pointer" } })}
           locale={{
-            emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={`No ${metaFor(activeTab).label.toLowerCase()} pickups`} />,
+            emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={`No ${tabByKey(activeTab).label.toLowerCase()} pickups`} />,
           }}
           pagination={{
             current: pagination.current,
