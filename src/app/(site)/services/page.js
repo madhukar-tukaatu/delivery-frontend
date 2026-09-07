@@ -5,28 +5,28 @@ export const metadata = { title: "Delivery Services" };
 
 const services = [
   {
-    id: "standard", icon: Package, color: "yellow",
+    id: "standard", icon: Package, color: "blue",
     title: "Standard Delivery", tag: "Everyday shipping",
     text: "Reliable door-to-door delivery across Nepal. The backbone of our network — consistent, trackable and built for volume.",
     points: ["Door-to-door delivery", "Live shipment tracking", "Nationwide coverage", "POD available"],
     cta: "Start shipping",
   },
   {
-    id: "express", icon: Zap, color: "amber",
+    id: "express", icon: Zap, color: "yellow",
     title: "Express Delivery", tag: "Priority movement",
     text: "When speed matters. Express moves your shipment to the front of the queue with priority handling at every stage.",
     points: ["Priority queue handling", "Faster transit times", "Real-time tracking", "Dedicated support"],
     cta: "Get express rates",
   },
   {
-    id: "same-day", icon: Clock3, color: "emerald",
+    id: "same-day", icon: Clock3, color: "teal",
     title: "Same Day Delivery", tag: "Selected locations",
     text: "Same-day service for urgent local shipments. Available in select coverage zones — ideal for time-critical deliveries.",
     points: ["Same-day dispatch", "Scheduled pickup", "Proof of delivery", "Customer SMS alerts"],
     cta: "Check availability",
   },
   {
-    id: "pod", icon: ShieldCheck, color: "purple",
+    id: "pod", icon: ShieldCheck, color: "blue-dark",
     title: "POD & Settlement", tag: "Built for commerce",
     text: "Collect payment on delivery and keep every transaction tied to its shipment. Full settlement visibility for your business.",
     points: ["Payment on delivery", "Transaction records", "Settlement tracking", "Business reporting"],
@@ -35,34 +35,34 @@ const services = [
 ];
 
 const colorMap = {
-  yellow:  { bg: "bg-[#f5c518]/12", text: "text-[#c9a000]",   badge: "bg-[#f5c518]/15 text-[#8a6e00]" },
-  amber:   { bg: "bg-amber-50",     text: "text-amber-600",    badge: "bg-amber-100 text-amber-700" },
-  emerald: { bg: "bg-emerald-50",   text: "text-emerald-600",  badge: "bg-emerald-100 text-emerald-700" },
-  purple:  { bg: "bg-purple-50",    text: "text-purple-600",   badge: "bg-purple-100 text-purple-700" },
+  blue:       { bg: "bg-[#027196]/12",  text: "text-[#027196]",   badge: "bg-[#027196]/15 text-[#01547a]" },
+  yellow:     { bg: "bg-[#f5c518]/12",  text: "text-[#c9a000]",   badge: "bg-[#f5c518]/15 text-[#8a6e00]" },
+  teal:       { bg: "bg-teal-50",       text: "text-teal-600",    badge: "bg-teal-100 text-teal-700" },
+  "blue-dark": { bg: "bg-blue-50",      text: "text-blue-600",    badge: "bg-blue-100 text-blue-700" },
 };
 
 export default function ServicesPage() {
   return (
-    <main>
+    <main className="bg-white">
       {/* Hero */}
-      <section className="relative overflow-hidden bg-[#050d1a] px-6 py-24 text-white lg:px-8 lg:py-36">
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_70%_0%,rgba(245,197,24,0.12),transparent_60%)]" />
-        <div className="absolute inset-0 opacity-[0.04] bg-[linear-gradient(rgba(255,255,255,0.1)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.1)_1px,transparent_1px)] bg-[size:60px_60px]" />
+      <section className="relative overflow-hidden bg-gradient-to-br from-[#01547a] via-[#013f5c] to-[#002d42] px-6 py-24 text-white lg:px-8 lg:py-36">
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_70%_0%,rgba(245,197,24,0.15),transparent_60%)]" />
+        <div className="absolute inset-0 opacity-[0.05] bg-[linear-gradient(rgba(255,255,255,0.1)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.1)_1px,transparent_1px)] bg-[size:60px_60px]" />
         <div className="relative mx-auto max-w-4xl text-center">
-          <div className="inline-flex items-center gap-2 rounded-full border border-[#f5c518]/20 bg-[#f5c518]/8 px-4 py-1.5 text-xs font-bold uppercase tracking-widest text-[#f5c518]">
+          <div className="inline-flex items-center gap-2 rounded-full border border-[#f5c518]/30 bg-[#f5c518]/12 px-4 py-1.5 text-xs font-bold uppercase tracking-widest text-[#f5c518]">
             Our Services
           </div>
           <h1 className="site-display mt-6 text-5xl font-extrabold tracking-tight sm:text-6xl lg:text-7xl">
             One network.<br /><span className="text-[#f5c518]">Every delivery.</span>
           </h1>
-          <p className="mx-auto mt-6 max-w-2xl text-lg leading-8 text-slate-400">
+          <p className="mx-auto mt-6 max-w-2xl text-lg leading-8 text-blue-100">
             From everyday parcels to same-day urgent shipments — choose the service that fits your customer promise and business workflow.
           </p>
           <div className="mt-8 flex flex-wrap justify-center gap-3">
             <Link href="/pricing" className="inline-flex items-center gap-2 rounded-xl bg-[#f5c518] px-6 py-3 text-sm font-bold text-[#0a0a0a] hover:bg-[#ffd740] transition-colors">
               Calculate price <ArrowRight className="h-4 w-4" />
             </Link>
-            <Link href="/contact" className="inline-flex items-center gap-2 rounded-xl border border-white/15 px-6 py-3 text-sm font-bold text-white hover:bg-white/5 transition-colors">
+            <Link href="/contact" className="inline-flex items-center gap-2 rounded-xl border border-white/20 px-6 py-3 text-sm font-bold text-white hover:bg-white/10 transition-colors">
               Talk to our team
             </Link>
           </div>
@@ -70,30 +70,30 @@ export default function ServicesPage() {
       </section>
 
       {/* Services */}
-      <section className="px-6 py-20 lg:px-8 lg:py-28">
+      <section className="px-6 py-20 lg:px-8 lg:py-28 bg-gray-50">
         <div className="mx-auto max-w-6xl space-y-8">
           {services.map((service, i) => {
             const Icon = service.icon;
             const c = colorMap[service.color];
             return (
               <div key={service.id} id={service.id}
-                className="group grid gap-0 overflow-hidden rounded-[2rem] border border-slate-100 bg-white shadow-sm transition-shadow hover:shadow-lg lg:grid-cols-2">
+                className="group grid gap-0 overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm transition-all hover:shadow-lg lg:grid-cols-2">
                 <div className={`p-8 sm:p-10 ${i % 2 ? "lg:order-2" : ""}`}>
                   <span className={`inline-block rounded-full px-3 py-1 text-xs font-bold ${c.badge}`}>{service.tag}</span>
                   <div className={`mt-5 flex h-14 w-14 items-center justify-center rounded-2xl ${c.bg} ${c.text}`}>
                     <Icon className="h-7 w-7" />
                   </div>
-                  <h2 className="site-display mt-5 text-3xl font-extrabold">{service.title}</h2>
-                  <p className="mt-3 leading-7 text-slate-500">{service.text}</p>
-                  <Link href="/contact" className={`mt-6 inline-flex items-center gap-2 text-sm font-bold ${c.text}`}>
+                  <h2 className="site-display mt-5 text-3xl font-extrabold text-gray-900">{service.title}</h2>
+                  <p className="mt-3 leading-7 text-gray-600">{service.text}</p>
+                  <Link href="/contact" className={`mt-6 inline-flex items-center gap-2 text-sm font-bold ${c.text} hover:underline`}>
                     {service.cta} <ArrowRight className="h-4 w-4" />
                   </Link>
                 </div>
-                <div className={`bg-slate-50 p-8 sm:p-10 ${i % 2 ? "lg:order-1" : ""}`}>
-                  <p className="text-xs font-bold uppercase tracking-widest text-slate-400">What's included</p>
+                <div className={`bg-gray-50 p-8 sm:p-10 border-l border-gray-200 ${i % 2 ? "lg:order-1" : ""}`}>
+                  <p className="text-xs font-bold uppercase tracking-widest text-gray-500">What's included</p>
                   <ul className="mt-5 space-y-3">
                     {service.points.map((pt) => (
-                      <li key={pt} className="flex items-center gap-3 text-sm font-semibold text-slate-700">
+                      <li key={pt} className="flex items-center gap-3 text-sm font-semibold text-gray-700">
                         <CheckCircle2 className={`h-5 w-5 shrink-0 ${c.text}`} />
                         {pt}
                       </li>
@@ -107,13 +107,13 @@ export default function ServicesPage() {
       </section>
 
       {/* Stats strip */}
-      <section className="border-y border-slate-100 bg-[#050d1a] px-6 py-14 lg:px-8">
+      <section className="border-y border-gray-200 bg-white px-6 py-14 lg:px-8">
         <div className="mx-auto max-w-5xl">
           <div className="grid gap-8 text-center sm:grid-cols-3">
             {[["10,000+", "Parcels delivered monthly"], ["7 Provinces", "Nationwide coverage"], ["99.2%", "On-time delivery rate"]].map(([stat, label]) => (
               <div key={stat}>
-                <p className="site-display text-4xl font-extrabold text-[#f5c518]">{stat}</p>
-                <p className="mt-2 text-sm font-semibold text-slate-400">{label}</p>
+                <p className="site-display text-4xl font-extrabold text-[#027196]">{stat}</p>
+                <p className="mt-2 text-sm font-semibold text-gray-600">{label}</p>
               </div>
             ))}
           </div>
@@ -121,14 +121,17 @@ export default function ServicesPage() {
       </section>
 
       {/* CTA */}
-      <section className="bg-[#050d1a] px-6 py-20 text-white lg:px-8">
+      <section className="bg-gradient-to-br from-[#01547a] via-[#013f5c] to-[#002d42] px-6 py-20 text-white lg:px-8">
         <div className="mx-auto flex max-w-5xl flex-col items-center gap-6 text-center">
           <Star className="h-8 w-8 text-[#f5c518]" />
           <h2 className="site-display text-4xl font-extrabold">Ready to start shipping?</h2>
-          <p className="max-w-xl text-slate-400">Join hundreds of businesses already using Tukaatu Express to deliver across Nepal.</p>
-          <div className="flex flex-wrap justify-center gap-3">
-            <Link href="/business" className="inline-flex items-center gap-2 rounded-xl border border-white/15 px-7 py-3.5 text-sm font-bold text-white hover:bg-white/5 transition-colors">
-              Business solutions
+          <p className="max-w-xl text-blue-100">Join hundreds of businesses already using Tukaatu Express to deliver across Nepal.</p>
+          <div className="flex flex-wrap justify-center gap-3 pt-4">
+            <Link href="/franchise" className="inline-flex items-center gap-2 rounded-xl bg-[#f5c518] px-7 py-3.5 text-sm font-bold text-[#0a0a0a] hover:bg-[#ffd740] transition-colors">
+              Apply as Partner <ArrowRight className="h-4 w-4" />
+            </Link>
+            <Link href="/contact" className="inline-flex items-center gap-2 rounded-xl border border-white/20 px-7 py-3.5 text-sm font-bold text-white hover:bg-white/10 transition-colors">
+              Enquiry
             </Link>
           </div>
         </div>

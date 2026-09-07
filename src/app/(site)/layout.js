@@ -26,7 +26,7 @@ export const metadata = {
 
 export default function SiteLayout({ children }) {
   return (
-    <div className="min-h-screen bg-white text-slate-950">
+    <div className="min-h-screen bg-white text-gray-900">
       <SiteShell>{children}</SiteShell>
     </div>
   );

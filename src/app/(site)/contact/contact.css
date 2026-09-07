@@ -1,16 +1,22 @@
 .contact-input {
   width: 100%;
   border-radius: 0.75rem;
-  border: 1px solid rgb(226 232 240);
-  background: rgb(248 250 252);
+  border: 1.5px solid #d1d5db;
+  background: #ffffff;
   padding: 0.875rem 1rem;
   font-size: 0.875rem;
   font-weight: 500;
   outline: none;
+  color: #111827;
+  transition: all 0.2s ease;
+}
+
+.contact-input::placeholder {
+  color: #9ca3af;
 }
 
 .contact-input:focus {
-  border-color: rgb(59 130 246);
-  box-shadow: 0 0 0 4px rgb(59 130 246 / 0.1);
-  background: white;
+  border-color: #027196;
+  box-shadow: 0 0 0 4px rgba(2, 113, 150, 0.1);
+  background: #ffffff;
 }

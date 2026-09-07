@@ -45,10 +45,10 @@ export default function SiteHome() {
               <span className={styles.arrow}>→</span>
             </a>
 
-            <a href="/business" className={styles.serviceCard}>
+            <a href="/pricing" className={styles.serviceCard}>
               <span className={styles.serviceIcon}>02</span>
-              <strong>Merchant Platform</strong>
-              <small>Ship, track and settle — all in one place</small>
+              <strong>Pricing & Calculator</strong>
+              <small>Transparent rates and instant quotes</small>
               <span className={styles.arrow}>→</span>
             </a>
 

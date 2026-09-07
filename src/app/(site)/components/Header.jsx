@@ -40,15 +40,13 @@ export default function Header({ transparent = false }) {
       <nav className={`${styles.nav} ${open ? styles.open : ""}`}>
         <Link href="/services" onClick={() => setOpen(false)}>Services</Link>
         <Link href="/pricing" onClick={() => setOpen(false)}>Pricing</Link>
-        <Link href="/business" onClick={() => setOpen(false)}>Business</Link>
-        <Link href="/coverage" onClick={() => setOpen(false)}>Coverage</Link>
         <Link href="/franchise" onClick={() => setOpen(false)}>Franchise</Link>
         <Link href="/about" onClick={() => setOpen(false)}>About</Link>
       </nav>
 
       <div className={styles.actions}>
         <Link href="/login" className={styles.login}>Login</Link>
-        <Link href="/public/merchant-register" className={styles.track}>Join as Partner →</Link>
+        <Link href="/contact" className={styles.track}>Contact →</Link>
       </div>
 
       <button

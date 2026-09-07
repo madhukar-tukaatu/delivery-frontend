@@ -8,17 +8,15 @@ const nav = [
     links: [
       { label: "About us",  href: "/about" },
       { label: "Services",  href: "/services" },
-      { label: "Coverage",  href: "/coverage" },
       { label: "Contact",   href: "/contact" },
     ],
   },
   {
     heading: "Merchants",
     links: [
-      { label: "Join as Partner",   href: "/public/merchant-register" },
-      { label: "Business logistics", href: "/business" },
       { label: "Pricing",            href: "/pricing" },
       { label: "Franchise",          href: "/franchise" },
+      { label: "Enquiry",            href: "/contact" },
     ],
   },
   {
@@ -27,7 +25,6 @@ const nav = [
       { label: "Merchant login",    href: "/login" },
       { label: "Help centre",       href: "/contact" },
       { label: "Contact support",   href: "/contact" },
-      { label: "Report an issue",   href: "/contact" },
     ],
   },
 ];
@@ -47,8 +44,8 @@ export default function Footer() {
             </p>
           </div>
           <div className={styles.ctaActions}>
-            <Link href="/public/merchant-register" className={styles.ctaPrimary}>
-              Join as Store Partner
+            <Link href="/contact" className={styles.ctaPrimary}>
+              Get in Touch
             </Link>
           </div>
         </div>

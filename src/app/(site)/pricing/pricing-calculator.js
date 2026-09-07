@@ -204,6 +204,7 @@ export default function PricingCalculator() {
         parcel_type: parcelType,
         actual_weight_kg: Number(weight),
       };
+      
       if (allDims) {
         payload.parcel_dimensions = {
           length_cm: Number(dims.length),
@@ -211,9 +212,20 @@ export default function PricingCalculator() {
           height_cm: Number(dims.height),
         };
       }
-      setResult(await getDeliveryEstimate(payload));
+
+      console.log("Sending payload:", payload);
+      const result = await getDeliveryEstimate(payload);
+      console.log("Pricing result:", result);
+      setResult(result);
     } catch (err) {
-      setError(err.message || "Unable to calculate delivery price.");
+      console.error("Calculation error:", err);
+      // Extract error message from validation errors if present
+      if (err.response?.data?.errors) {
+        const firstError = Object.values(err.response.data.errors)[0];
+        setError(Array.isArray(firstError) ? firstError[0] : String(err.message));
+      } else {
+        setError(err.message || "Unable to calculate delivery price.");
+      }
     } finally {
       setLoading(false);
     }
@@ -305,6 +317,8 @@ export default function PricingCalculator() {
 
 /* ── Result display ──────────────────────────────────────────────────── */
 function ResultDisplay({ result, loading }) {
+  const [showDetails, setShowDetails] = useState(false);
+
   if (loading) {
     return (
       <div className="result-empty">
@@ -329,51 +343,254 @@ function ResultDisplay({ result, loading }) {
     );
   }
 
-  const breakdown = result.breakdown || {};
-  const rows = Object.entries(BREAKDOWN_LABELS)
-    .map(([k, label]) => [label, breakdown[k]])
-    .filter(([, v]) => v != null && Number(v) !== 0);
-
   return (
     <div className="result-content">
+      {/* Main Price Block */}
       <div className="result-price-block">
         <div>
-          <p className="result-price-label">Estimated Price</p>
+          <p className="result-price-label">Estimated Delivery Price</p>
           <p className="result-price">NPR {Number(result.price || 0).toLocaleString()}</p>
         </div>
         <div className="result-sla-block">
-          <p className="result-price-label">Estimated SLA</p>
+          <p className="result-price-label">Estimated Delivery</p>
           <p className="result-sla">{result.estimated_delivery_label || "—"}</p>
         </div>
       </div>
 
-      <div className="result-weight-row">
-        <span>Chargeable weight</span>
-        <span>
-          {result.chargeable_weight_kg} kg
-          {result.volumetric_applied && <em> (volumetric)</em>}
-        </span>
+      {/* Quick Stats - as a list */}
+      <div className="result-quick-stats">
+        <div className="result-stat">
+          <div className="result-stat-left">
+            <div className="result-stat-label">Chargeable Weight</div>
+          </div>
+          <div className="result-stat-value">{result.chargeable_weight_kg} kg</div>
+        </div>
+
+        <div className="result-stat">
+          <div className="result-stat-left">
+            <div className="result-stat-label">Pickup Branch</div>
+          </div>
+          <div className="result-stat-value">{result.pickup_branch.name}</div>
+        </div>
+
+        <div className="result-stat">
+          <div className="result-stat-left">
+            <div className="result-stat-label">Delivery Branch</div>
+          </div>
+          <div className="result-stat-value">{result.delivery_branch.name}</div>
+        </div>
+
+        <div className="result-stat">
+          <div className="result-stat-left">
+            <div className="result-stat-label">Parcel Type</div>
+          </div>
+          <div className="result-stat-value capitalize">{result.parcel_type.replace('_', ' ')}</div>
+        </div>
       </div>
 
-      {rows.length > 0 && (
-        <div className="result-breakdown">
-          <p className="breakdown-title">Price Breakdown</p>
-          {rows.map(([label, amount]) => (
-            <div key={label} className="breakdown-row">
-              <span>{label}</span>
-              <span>NPR {Number(amount).toLocaleString()}</span>
+      {/* Disclaimer */}
+      <p className="result-disclaimer">
+        💡 Final price may vary based on actual parcel weight at pickup. This is an estimate based on the information provided.
+      </p>
+
+      {/* View Details Button */}
+      <button className="result-details-btn" onClick={() => setShowDetails(true)}>
+        View Full Details
+      </button>
+
+      {/* Details Modal */}
+      {showDetails && (
+        <DetailsModal result={result} onClose={() => setShowDetails(false)} />
+      )}
+    </div>
+  );
+}
+
+/* ── Details Modal ──────────────────────────────────────────────────── */
+function DetailsModal({ result, onClose }) {
+  return (
+    <div className="details-modal-overlay" onClick={(e) => e.target === e.currentTarget && onClose()}>
+      <div className="details-modal">
+        <div className="details-modal-header">
+          <h2 className="details-modal-title">Delivery Estimate Details</h2>
+          <button className="details-modal-close" onClick={onClose}>
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        <div className="details-modal-body">
+          {/* Weight Section */}
+          <div className="details-section">
+            <h3 className="details-section-title">Weight Calculation</h3>
+            
+            <div className="details-row">
+              <div className="details-row-label">
+                <div className="details-row-title">Actual Weight</div>
+                <div className="details-row-subtitle">As provided</div>
+              </div>
+              <div className="details-row-value">{result.actual_weight_kg} kg</div>
             </div>
-          ))}
-          <div className="breakdown-total">
-            <span>Total</span>
-            <span>NPR {Number(result.price || 0).toLocaleString()}</span>
+
+            <div className="details-row">
+              <div className="details-row-label">
+                <div className="details-row-title">Volumetric Weight</div>
+                <div className="details-row-subtitle">Calculated from dimensions</div>
+              </div>
+              <div className="details-row-value">{result.volumetric_weight_kg} kg</div>
+            </div>
+
+            <div className="details-row">
+              <div className="details-row-label">
+                <div className="details-row-title">Chargeable Weight</div>
+                <div className="details-row-subtitle">Higher of actual or volumetric</div>
+              </div>
+              <div className="details-row-value highlight">{result.chargeable_weight_kg} kg</div>
+            </div>
+
+            <div className="details-row">
+              <div className="details-row-label">
+                <div className="details-row-title">Weight Source</div>
+                <div className="details-row-subtitle">Used for charging</div>
+              </div>
+              <div className="details-row-value capitalize">{result.weight_source.replace('_', ' ')}</div>
+            </div>
+          </div>
+
+          {/* Dimensions Section */}
+          {result.dimensions && (result.dimensions.length_cm || result.dimensions.width_cm || result.dimensions.height_cm) && (
+            <div className="details-section">
+              <h3 className="details-section-title">Parcel Dimensions</h3>
+              
+              <div className="details-row">
+                <div className="details-row-label">
+                  <div className="details-row-title">Length</div>
+                  <div className="details-row-subtitle">Packed dimension</div>
+                </div>
+                <div className="details-row-value">{result.dimensions.length_cm} cm</div>
+              </div>
+
+              <div className="details-row">
+                <div className="details-row-label">
+                  <div className="details-row-title">Width</div>
+                  <div className="details-row-subtitle">Packed dimension</div>
+                </div>
+                <div className="details-row-value">{result.dimensions.width_cm} cm</div>
+              </div>
+
+              <div className="details-row">
+                <div className="details-row-label">
+                  <div className="details-row-title">Height</div>
+                  <div className="details-row-subtitle">Packed dimension</div>
+                </div>
+                <div className="details-row-value">{result.dimensions.height_cm} cm</div>
+              </div>
+
+              <div className="details-row">
+                <div className="details-row-label">
+                  <div className="details-row-title">Volumetric Divisor</div>
+                  <div className="details-row-subtitle">Calculation constant</div>
+                </div>
+                <div className="details-row-value">{result.volumetric_divisor}</div>
+              </div>
+            </div>
+          )}
+
+          {/* Pickup Section */}
+          <div className="details-section">
+            <h3 className="details-section-title">📍 Pickup Details</h3>
+            
+            <div className="details-branch-item">
+              <div className="details-branch-header">
+                <div className="details-branch-title">Pickup Branch</div>
+                <div className="details-branch-subtitle">Service branch</div>
+              </div>
+              <div className="details-branch-name">{result.pickup_branch.name}</div>
+            </div>
+
+            <div className="details-branch-item">
+              <div className="details-branch-header">
+                <div className="details-branch-title">Distance from Location</div>
+                <div className="details-branch-subtitle">Branch distance</div>
+              </div>
+              <div className="details-branch-name">{result.pickup_branch.distance_from_pickup_location_km} km</div>
+            </div>
+          </div>
+
+          {/* Delivery Section */}
+          <div className="details-section">
+            <h3 className="details-section-title">🎯 Delivery Details</h3>
+            
+            <div className="details-branch-item">
+              <div className="details-branch-header">
+                <div className="details-branch-title">Delivery Branch</div>
+                <div className="details-branch-subtitle">Service branch</div>
+              </div>
+              <div className="details-branch-name">{result.delivery_branch.name}</div>
+            </div>
+
+            <div className="details-branch-item">
+              <div className="details-branch-header">
+                <div className="details-branch-title">Distance to Location</div>
+                <div className="details-branch-subtitle">Branch distance</div>
+              </div>
+              <div className="details-branch-name">{result.delivery_branch.distance_to_delivery_location_km} km</div>
+            </div>
+          </div>
+
+          {/* Route Section */}
+          {result.route && (
+            <div className="details-section">
+              <h3 className="details-section-title">Route Information</h3>
+              
+              <div className="details-row">
+                <div className="details-row-label">
+                  <div className="details-row-title">Base Rate</div>
+                  <div className="details-row-subtitle">Route minimum</div>
+                </div>
+                <div className="details-row-value">NPR {Number(result.route.base_rate || 0).toLocaleString()}</div>
+              </div>
+
+              <div className="details-row">
+                <div className="details-row-label">
+                  <div className="details-row-title">Total Distance</div>
+                  <div className="details-row-subtitle">Pickup to delivery</div>
+                </div>
+                <div className="details-row-value">{result.route.total_distance_km} km</div>
+              </div>
+
+              <div className="details-row">
+                <div className="details-row-label">
+                  <div className="details-row-title">Parcel Type</div>
+                  <div className="details-row-subtitle">Handling type</div>
+                </div>
+                <div className="details-row-value capitalize">{result.parcel_type.replace('_', ' ')}</div>
+              </div>
+
+              <div className="details-row">
+                <div className="details-row-label">
+                  <div className="details-row-title">Estimated Delivery</div>
+                  <div className="details-row-subtitle">Time estimate</div>
+                </div>
+                <div className="details-row-value">{result.estimated_delivery_label}</div>
+              </div>
+
+              <div className="details-row">
+                <div className="details-row-label">
+                  <div className="details-row-title">Valid Until</div>
+                  <div className="details-row-subtitle">Quote expiry</div>
+                </div>
+                <div className="details-row-value">{new Date(result.valid_until).toLocaleDateString()}</div>
+              </div>
+            </div>
+          )}
+
+          {/* Pricing Summary */}
+          <div className="details-summary-box">
+            <div className="details-summary-label">Total Estimate</div>
+            <div className="details-summary-value">NPR {Number(result.price || 0).toLocaleString()}</div>
           </div>
         </div>
-      )}
-
-      <p className="result-disclaimer">
-        Final price may vary based on actual parcel weight at pickup.
-      </p>
+      </div>
     </div>
   );
 }

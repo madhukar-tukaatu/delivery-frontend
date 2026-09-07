@@ -1,7 +1,7 @@
 .page {
   min-height: 100vh;
-  background: #050a10;
-  color: #ffffff;
+  background: #ffffff;
+  color: #111827;
   overflow: hidden;
 }
 
@@ -12,19 +12,19 @@
   align-items: center;
   overflow: hidden;
   background:
-    radial-gradient(circle at 75% 35%, rgba(245, 197, 24, 0.12), transparent 30%),
-    radial-gradient(circle at 20% 80%, rgba(37, 99, 235, 0.08), transparent 30%),
-    #050a10;
+    radial-gradient(circle at 75% 35%, rgba(245, 197, 24, 0.08), transparent 30%),
+    radial-gradient(circle at 20% 80%, rgba(2, 113, 150, 0.08), transparent 30%),
+    #ffffff;
 }
 
 .intro::before {
   content: "";
   position: absolute;
   inset: 0;
-  opacity: 0.16;
+  opacity: 0.08;
   background-image:
-    linear-gradient(rgba(255,255,255,0.08) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255,255,255,0.08) 1px, transparent 1px);
+    linear-gradient(rgba(2, 113, 150, 0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(2, 113, 150, 0.05) 1px, transparent 1px);
   background-size: 70px 70px;
   mask-image: linear-gradient(to bottom, black, transparent);
 }
@@ -36,7 +36,7 @@
   right: -200px;
   top: 5%;
   border-radius: 50%;
-  background: rgba(245, 197, 24, 0.08);
+  background: rgba(2, 113, 150, 0.06);
   filter: blur(100px);
 }
 
@@ -55,15 +55,15 @@
   font-size: 11px;
   font-weight: 800;
   letter-spacing: 0.24em;
-  color: #f5c518;
+  color: #027196;
 }
 
 .eyebrow span {
   width: 7px;
   height: 7px;
   border-radius: 50%;
-  background: #f5c518;
-  box-shadow: 0 0 18px #f5c518;
+  background: #027196;
+  box-shadow: 0 0 18px rgba(2, 113, 150, 0.4);
 }
 
 .intro h1 {
@@ -73,6 +73,7 @@
   line-height: 0.9;
   letter-spacing: -0.07em;
   font-weight: 700;
+  color: #111827;
 }
 
 .intro h1 strong {
@@ -81,7 +82,7 @@
 
 .introContent > p {
   max-width: 610px;
-  color: #8c9aaa;
+  color: #6b7280;
   font-size: 18px;
   line-height: 1.7;
 }
@@ -107,13 +108,14 @@
   font-weight: 700;
   transition:
     transform 0.3s ease,
-    background 0.3s ease;
+    background 0.3s ease,
+    border-color 0.3s ease;
 }
 
 .primaryButton {
   color: #0a0a0a;
   background: #f5c518;
-  box-shadow: 0 12px 40px rgba(245, 197, 24, 0.25);
+  box-shadow: 0 12px 40px rgba(245, 197, 24, 0.2);
 }
 
 .primaryButton:hover {
@@ -122,14 +124,15 @@
 }
 
 .secondaryButton {
-  border: 1px solid rgba(255,255,255,0.12);
-  color: #d7e1e8;
-  background: rgba(255,255,255,0.035);
+  border: 1.5px solid #027196;
+  color: #027196;
+  background: transparent;
 }
 
 .secondaryButton:hover {
   transform: translateY(-3px);
-  background: rgba(255,255,255,0.08);
+  background: rgba(2, 113, 150, 0.05);
+  border-color: #0284c7;
 }
 
 .introStats {
@@ -146,10 +149,11 @@
 
 .introStats strong {
   font-size: 23px;
+  color: #027196;
 }
 
 .introStats span {
-  color: #697887;
+  color: #9ca3af;
   font-size: 11px;
   text-transform: uppercase;
   letter-spacing: 0.12em;
@@ -164,21 +168,21 @@
   display: flex;
   align-items: center;
   gap: 14px;
-  color: #697887;
+  color: #9ca3af;
   font-size: 10px;
   text-transform: uppercase;
   letter-spacing: 0.18em;
 }
 
 .scrollHint b {
-  color: #f5c518;
+  color: #027196;
   font-size: 17px;
 }
 
 .mouse {
   width: 18px;
   height: 28px;
-  border: 1px solid rgba(255,255,255,0.3);
+  border: 1.5px solid #027196;
   border-radius: 12px;
   position: relative;
 }
@@ -190,7 +194,7 @@
   width: 3px;
   height: 6px;
   border-radius: 5px;
-  background: #f5c518;
+  background: #027196;
   transform: translateX(-50%);
   animation: mouseScroll 1.5s infinite;
 }
@@ -215,17 +219,17 @@
   position: relative;
   min-height: 700px;
   overflow: hidden;
-  background: #024f61;
-  border-top: 1px solid rgba(255,255,255,0.06);
+  background: linear-gradient(135deg, #f9fafb 0%, #f3f4f6 100%);
+  border-top: 1px solid #e5e7eb;
 }
 
 .afterGrid {
   position: absolute;
   inset: 0;
-  opacity: 0.13;
+  opacity: 0.06;
   background-image:
-    linear-gradient(rgba(255,255,255,0.08) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255,255,255,0.08) 1px, transparent 1px);
+    linear-gradient(rgba(2, 113, 150, 0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(2, 113, 150, 0.05) 1px, transparent 1px);
   background-size: 70px 70px;
 }
 
@@ -242,6 +246,7 @@
   font-size: clamp(45px, 6vw, 84px);
   line-height: 0.95;
   letter-spacing: -0.06em;
+  color: #111827;
 }
 
 .afterContent h2 strong {
@@ -250,7 +255,7 @@
 
 .afterContent > p {
   max-width: 650px;
-  color: #7f8d9a;
+  color: #6b7280;
   font-size: 17px;
   line-height: 1.8;
 }
@@ -266,39 +271,44 @@
   position: relative;
   min-height: 160px;
   padding: 20px;
-  border: 1px solid rgba(255,255,255,0.08);
+  border: 1.5px solid #d1d5db;
   border-radius: 22px;
-  background: rgba(255,255,255,0.025);
-  color: white;
+  background: #ffffff;
+  color: #111827;
   text-decoration: none;
   display: flex;
   flex-direction: column;
   transition:
     transform 0.35s ease,
     border-color 0.35s ease,
-    background 0.35s ease;
+    background 0.35s ease,
+    box-shadow 0.35s ease;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
 }
 
 .serviceCard:hover {
   transform: translateY(-8px);
-  border-color: rgba(245, 197, 24, 0.45);
-  background: rgba(245, 197, 24, 0.04);
+  border-color: #f5c518;
+  background: #fffaf0;
+  box-shadow: 0 12px 35px rgba(245, 197, 24, 0.12);
 }
 
 .serviceIcon {
   font-size: 11px;
-  color: #f5c518;
+  color: #027196;
   letter-spacing: 0.15em;
+  font-weight: 700;
 }
 
 .serviceCard strong {
   margin-top: auto;
   font-size: 22px;
+  color: #111827;
 }
 
 .serviceCard small {
   margin-top: 9px;
-  color: #fbfbfb;
+  color: #6b7280;
   line-height: 1.6;
 }
 

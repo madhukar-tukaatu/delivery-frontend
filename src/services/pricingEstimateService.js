@@ -1,14 +1,34 @@
-import { publicApi } from "@/lib/public-api";
-
 export async function getDeliveryEstimate(payload) {
-  const body = await publicApi("/api/v1/public/pricing/estimate", {
-    method: "POST",
-    body: JSON.stringify(payload),
-  });
+  try {
+    const baseUrl = 
+      process.env.NEXT_PUBLIC_API_BASE_URL ||
+      process.env.NEXT_PUBLIC_API_URL ||
+      "https://api.tukaatuexpress.com/api/v1";
 
-  if (!body?.data) {
-    throw new Error("Unable to calculate delivery price.");
+    const response = await fetch(`${baseUrl}/public/pricing/estimate`, {
+      method: "POST",
+      headers: {
+        "Accept": "application/json",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(payload),
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      const error = new Error(data?.message || "Unable to calculate delivery price.");
+      error.response = { status: response.status, data };
+      throw error;
+    }
+
+    if (!data?.data) {
+      throw new Error("Unable to calculate delivery price.");
+    }
+
+    return data.data;
+  } catch (error) {
+    console.error("Pricing estimate error:", error);
+    throw error;
   }
-
-  return body.data;
 }
