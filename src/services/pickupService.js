@@ -47,6 +47,34 @@ export async function getPickups(params = {}) {
 }
 
 /**
+ * Get pickup summary / reports.
+ *
+ * Optional params: date_from, date_to, merchant_id.
+ *
+ * GET /admin/pickups/summary
+ *
+ * Returns:
+ * {
+ *   total,
+ *   by_status: { requested, assigned, ... },
+ *   by_merchant: [ { merchant_id, merchant_name, total, by_status } ],
+ *   filters: { date_from, date_to, merchant_id }
+ * }
+ */
+export async function getPickupSummary(params = {}) {
+  const response = await api.get("/admin/pickups/summary", { params });
+
+  const payload = unwrap(response) ?? {};
+
+  return {
+    total: Number(payload.total ?? 0),
+    byStatus: payload.by_status ?? {},
+    byMerchant: Array.isArray(payload.by_merchant) ? payload.by_merchant : [],
+    filters: payload.filters ?? {},
+  };
+}
+
+/**
  * Get one pickup.
  *
  * GET /admin/pickups/{id}
