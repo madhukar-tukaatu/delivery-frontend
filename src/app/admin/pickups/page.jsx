@@ -57,6 +57,7 @@ import {
   failPickup,
   resendPickupCallback,
   receivePickupShipment,
+  rejectPickupShipment,
 } from "@/services/pickupService";
 
 const { Title, Text } = Typography;
@@ -139,6 +140,43 @@ const STATUS_META = {
     hex: "#8c8c8c",
     icon: <CloseCircleOutlined />,
     hint: "Pickup was cancelled",
+  },
+
+  // Shipment-level statuses (used by the per-shipment status tag).
+  picked_up: {
+    label: "Picked Up",
+    color: "geekblue",
+    hex: "#2f54eb",
+    icon: <InboxOutlined />,
+    hint: "Collected by rider",
+  },
+  received_at_origin_branch: {
+    label: "Received at Branch",
+    color: "purple",
+    hex: "#722ed1",
+    icon: <CheckCircleOutlined />,
+    hint: "Received at origin branch",
+  },
+  sorted_for_delivery: {
+    label: "Sorted · Delivery",
+    color: "green",
+    hex: "#52c41a",
+    icon: <EnvironmentOutlined />,
+    hint: "Sorted for last-mile delivery",
+  },
+  sorted_for_transfer: {
+    label: "Sorted · Transfer",
+    color: "orange",
+    hex: "#fa8c16",
+    icon: <SwapOutlined />,
+    hint: "Sorted for branch-to-branch transfer",
+  },
+  pickup_failed: {
+    label: "Rejected",
+    color: "error",
+    hex: "#cf1322",
+    icon: <CloseCircleOutlined />,
+    hint: "Rejected at branch verification",
   },
 };
 
@@ -457,6 +495,8 @@ export default function AdminPickupsPage() {
   const [transferOpen, setTransferOpen] = useState(false);
   const [cancelOpen, setCancelOpen] = useState(false);
   const [resendOpen, setResendOpen] = useState(false);
+  const [rejectOpen, setRejectOpen] = useState(false);
+  const [rejectTarget, setRejectTarget] = useState(null);
   const [submitting, setSubmitting] = useState(false);
   const [receivingId, setReceivingId] = useState(null);
 
@@ -464,6 +504,7 @@ export default function AdminPickupsPage() {
   const [transferForm] = Form.useForm();
   const [cancelForm] = Form.useForm();
   const [resendForm] = Form.useForm();
+  const [rejectForm] = Form.useForm();
 
   useEffect(() => {
     const t = setTimeout(() => setDebouncedSearch(search.trim()), 400);
@@ -687,6 +728,35 @@ export default function AdminPickupsPage() {
     }
   };
 
+  const openReject = (shipment) => {
+    setRejectTarget(shipment);
+    rejectForm.resetFields();
+    setRejectOpen(true);
+  };
+
+  const submitReject = async () => {
+    const values = await rejectForm.validateFields();
+    if (!detail || !rejectTarget?.id) return;
+    setSubmitting(true);
+    try {
+      await rejectPickupShipment(getPickupId(detail), rejectTarget.id, {
+        reason: values.reason,
+        type: values.type,
+      });
+      message.success("Shipment rejected at origin branch.");
+      setRejectOpen(false);
+      setRejectTarget(null);
+      rejectForm.resetFields();
+      await afterMutation();
+    } catch (error) {
+      message.error(
+        error?.response?.data?.message || "Failed to reject shipment.",
+      );
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   const columns = useMemo(
     () => [
       {
@@ -806,11 +876,30 @@ export default function AdminPickupsPage() {
 
   // Branch validation phase: rider has arrived at branch, staff verifies each shipment.
   const inValidation = detailStatus === "on_way_to_branch";
-  const RECEIVED_STATUSES = ["received_at_origin_branch", "received_at_origin"];
+  // A shipment is "received" once the branch has accepted it — including after it
+  // has been auto-sorted for delivery or transfer.
+  const RECEIVED_STATUSES = [
+    "received_at_origin_branch",
+    "received_at_origin",
+    "sorted_for_delivery",
+    "sorted_for_transfer",
+  ];
+  const REJECTED_STATUSES = ["pickup_failed"];
   const isReceived = (s) =>
     RECEIVED_STATUSES.includes(String(s?.status ?? "").toLowerCase());
+  const isRejected = (s) =>
+    REJECTED_STATUSES.includes(String(s?.status ?? "").toLowerCase());
+  const isResolved = (s) => isReceived(s) || isRejected(s);
+  const sortModeOf = (s) => {
+    const st = String(s?.status ?? "").toLowerCase();
+    if (st === "sorted_for_delivery") return "delivery";
+    if (st === "sorted_for_transfer") return "transfer";
+    return null;
+  };
   const receivedCount = detailShipments.filter(isReceived).length;
-  const pendingCount = detailShipments.length - receivedCount;
+  const rejectedCount = detailShipments.filter(isRejected).length;
+  const resolvedCount = detailShipments.filter(isResolved).length;
+  const pendingCount = detailShipments.length - resolvedCount;
 
   const lat =
     detailLocation?.latitude ??
@@ -1313,8 +1402,8 @@ export default function AdminPickupsPage() {
                 }
                 description={
                   pendingCount === 0
-                    ? "Every shipment has been received. The pickup will complete automatically."
-                    : `Rider is at the branch. Verify each shipment to receive it at origin. ${receivedCount}/${detailShipments.length} received, ${pendingCount} pending.`
+                    ? `Every shipment has been resolved (${receivedCount} received${rejectedCount ? `, ${rejectedCount} rejected` : ""}). The pickup will complete automatically.`
+                    : `Rider is at the branch. Verify each shipment — receive it or reject a discrepancy. ${resolvedCount}/${detailShipments.length} resolved, ${pendingCount} pending.`
                 }
               />
             )}
@@ -1327,7 +1416,7 @@ export default function AdminPickupsPage() {
                 <Space size={6}>
                   {inValidation ? (
                     <Text type="secondary" style={{ fontSize: 12 }}>
-                      {receivedCount}/{detailShipments.length} received
+                      {resolvedCount}/{detailShipments.length} resolved
                     </Text>
                   ) : null}
                   <Badge
@@ -1342,6 +1431,8 @@ export default function AdminPickupsPage() {
                 <Space direction="vertical" size={10} style={{ width: "100%" }}>
                   {detailShipments.map((s) => {
                     const received = isReceived(s);
+                    const rejected = isRejected(s);
+                    const sortMode = sortModeOf(s);
                     return (
                       <div
                         key={s.id ?? s.tracking_number}
@@ -1375,6 +1466,24 @@ export default function AdminPickupsPage() {
                           <Text type="secondary" style={{ fontSize: 12 }}>
                             Order: {s.merchant_order_id ?? "N/A"}
                           </Text>
+                          {sortMode ? (
+                            <Tag
+                              color={
+                                sortMode === "delivery" ? "green" : "orange"
+                              }
+                              style={{ margin: 0, marginTop: 2 }}
+                            >
+                              {sortMode === "delivery" ? (
+                                <>
+                                  <EnvironmentOutlined /> Last-mile delivery
+                                </>
+                              ) : (
+                                <>
+                                  <SwapOutlined /> Transfer
+                                </>
+                              )}
+                            </Tag>
+                          ) : null}
                         </Space>
 
                         <Space size={8}>
@@ -1384,16 +1493,30 @@ export default function AdminPickupsPage() {
                               <Tag color="success" style={{ margin: 0 }}>
                                 <CheckCircleOutlined /> Received
                               </Tag>
+                            ) : rejected ? (
+                              <Tag color="error" style={{ margin: 0 }}>
+                                <CloseCircleOutlined /> Rejected
+                              </Tag>
                             ) : (
-                              <Button
-                                type="primary"
-                                size="small"
-                                icon={<CheckCircleOutlined />}
-                                loading={receivingId === s.id}
-                                onClick={() => handleReceive(s.id)}
-                              >
-                                Receive
-                              </Button>
+                              <Space size={6}>
+                                <Button
+                                  type="primary"
+                                  size="small"
+                                  icon={<CheckCircleOutlined />}
+                                  loading={receivingId === s.id}
+                                  onClick={() => handleReceive(s.id)}
+                                >
+                                  Receive
+                                </Button>
+                                <Button
+                                  danger
+                                  size="small"
+                                  icon={<CloseCircleOutlined />}
+                                  onClick={() => openReject(s)}
+                                >
+                                  Reject
+                                </Button>
+                              </Space>
                             )
                           ) : null}
                         </Space>
@@ -1557,6 +1680,57 @@ export default function AdminPickupsPage() {
                 </Form.Item>
               );
             }}
+          </Form.Item>
+        </Form>
+      </Modal>
+
+      {/* Reject shipment modal */}
+      <Modal
+        title="Reject shipment"
+        open={rejectOpen}
+        onCancel={() => {
+          setRejectOpen(false);
+          setRejectTarget(null);
+        }}
+        onOk={submitReject}
+        confirmLoading={submitting}
+        okText="Reject shipment"
+        okButtonProps={{ danger: true }}
+        cancelText="Cancel"
+      >
+        {rejectTarget ? (
+          <Alert
+            type="warning"
+            showIcon
+            style={{ marginBottom: 12 }}
+            message={`Rejecting ${rejectTarget.tracking_number ?? `#${rejectTarget.id}`}`}
+            description="This parcel will be pulled out of the forward flow and flagged for follow-up. The rest of the pickup can still be received."
+          />
+        ) : null}
+        <Form form={rejectForm} layout="vertical" initialValues={{ type: "missing" }}>
+          <Form.Item
+            name="type"
+            label="Reason type"
+            rules={[{ required: true, message: "Select a reason type" }]}
+          >
+            <Select
+              options={[
+                { value: "missing", label: "Missing / not handed over" },
+                { value: "damaged", label: "Damaged" },
+                { value: "mismatch", label: "Mismatch with manifest" },
+                { value: "other", label: "Other" },
+              ]}
+            />
+          </Form.Item>
+          <Form.Item
+            name="reason"
+            label="Details"
+            rules={[{ required: true, message: "Enter a reason" }]}
+          >
+            <Input.TextArea
+              rows={3}
+              placeholder="Describe the discrepancy (what was expected vs. what arrived)…"
+            />
           </Form.Item>
         </Form>
       </Modal>

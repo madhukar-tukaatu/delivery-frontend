@@ -195,6 +195,45 @@ export async function receivePickupShipment(
   return unwrap(response);
 }
 
+/**
+ * Reject a shipment at the origin branch (verification discrepancy).
+ *
+ * POST /admin/pickups/{pickup}/shipments/{shipment}/reject
+ *
+ * Payload:
+ * {
+ *   reason: string,                                  // required
+ *   type: "missing" | "damaged" | "mismatch" | "other"
+ * }
+ */
+export async function rejectPickupShipment(
+  pickupId,
+  shipmentId,
+  { reason, type = "other" } = {},
+) {
+  if (!pickupId) {
+    throw new Error("Pickup ID is required.");
+  }
+
+  if (!shipmentId) {
+    throw new Error("Shipment ID is required.");
+  }
+
+  if (!reason?.trim()) {
+    throw new Error("Rejection reason is required.");
+  }
+
+  const response = await api.post(
+    `/admin/pickups/${pickupId}/shipments/${shipmentId}/reject`,
+    {
+      reason: reason.trim(),
+      type,
+    },
+  );
+
+  return unwrap(response);
+}
+
 export async function transferPickup(id, staffId, reason) {
   if (!id) {
     throw new Error("Pickup ID is required.");
