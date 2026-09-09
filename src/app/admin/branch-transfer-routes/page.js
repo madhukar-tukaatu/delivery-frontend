@@ -41,6 +41,7 @@ import {
   PlusOutlined,
   ReloadOutlined,
   StarFilled,
+  TagsOutlined,
 } from "@ant-design/icons";
 
 import {
@@ -165,6 +166,26 @@ function codeSegment(branch) {
   );
 }
 
+// Route code from ordered branch path + service, e.g. KTM-BHA-BTW-STANDARD.
+function buildRouteCode(pathBranches, serviceType) {
+  if (!pathBranches || pathBranches.length < 2 || !serviceType) return "";
+  const segments = [
+    ...pathBranches.map(codeSegment),
+    String(serviceType).toUpperCase(),
+  ];
+  return segments.join("-");
+}
+
+// Route name: "Origin to Destination" or "... via Transit1, Transit2".
+function buildRouteName(pathBranches) {
+  if (!pathBranches || pathBranches.length < 2) return "";
+  const origin = pathBranches[0]?.name;
+  const destination = pathBranches[pathBranches.length - 1]?.name;
+  const transits = pathBranches.slice(1, -1).map((b) => b?.name).filter(Boolean);
+  const base = `${origin} to ${destination}`;
+  return transits.length ? `${base} via ${transits.join(", ")}` : base;
+}
+
 export default function BranchTransferRoutesPage() {
   const [form] = Form.useForm();
 
@@ -185,6 +206,9 @@ export default function BranchTransferRoutesPage() {
   const [modalServiceType, setModalServiceType] = useState("standard");
   const [fromBranchId, setFromBranchId] = useState(undefined);
   const [toBranchId, setToBranchId] = useState(undefined);
+  // Track whether the user manually overrode the auto-generated code/name.
+  const [manualCode, setManualCode] = useState(false);
+  const [manualName, setManualName] = useState(false);
 
   const [view, setView] = useState("routes"); // routes | connectivity
   const [connBranchId, setConnBranchId] = useState(undefined);
@@ -341,6 +365,8 @@ export default function BranchTransferRoutesPage() {
     setModalServiceType("standard");
     setFromBranchId(undefined);
     setToBranchId(undefined);
+    setManualCode(false);
+    setManualName(false);
     form.resetFields();
   };
 
@@ -351,6 +377,8 @@ export default function BranchTransferRoutesPage() {
     setModalServiceType("standard");
     setFromBranchId(undefined);
     setToBranchId(undefined);
+    setManualCode(false);
+    setManualName(false);
     form.setFieldsValue({
       route_code: "",
       name: "",
@@ -402,6 +430,9 @@ export default function BranchTransferRoutesPage() {
     const ids = laneIdsFromRoute(row);
     setLaneIds(ids);
     setCheckpoints(Array.isArray(row.checkpoints) ? row.checkpoints : []);
+    // Keep the existing code/name; treat as manual so they aren't overwritten.
+    setManualCode(Boolean(row.route_code));
+    setManualName(Boolean(row.name));
     // Derive From/To from the route endpoints (or its lane chain).
     setFromBranchId(
       row.origin_branch_id ??
@@ -447,6 +478,37 @@ export default function BranchTransferRoutesPage() {
         Number.isFinite(Number(b.longitude)),
     );
   }, [laneIds, normalizedLanes]);
+
+  // Full ordered branch objects (origin + transits + destination) from the chain,
+  // used to auto-generate the route code and name.
+  const pathBranchesForCode = useMemo(() => {
+    const selectedLanes = laneIds
+      .map((id) => normalizedLanes.find((l) => Number(l.id) === Number(id)))
+      .filter(Boolean);
+    if (!selectedLanes.length) return [];
+    const nodes = [selectedLanes[0].from_branch];
+    for (const lane of selectedLanes) nodes.push(lane.to_branch);
+    return nodes.filter(Boolean);
+  }, [laneIds, normalizedLanes]);
+
+  // Live auto-generation of code/name unless the user has manually edited them.
+  useEffect(() => {
+    if (!modalOpen) return;
+    if (manualCode && manualName) return;
+    if (pathBranchesForCode.length < 2) return;
+
+    const patch = {};
+    if (!manualCode) {
+      patch.route_code = buildRouteCode(pathBranchesForCode, modalServiceType);
+    }
+    if (!manualName) {
+      patch.name = buildRouteName(pathBranchesForCode);
+    }
+    if (Object.keys(patch).length) {
+      form.setFieldsValue(patch);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pathBranchesForCode, modalServiceType, modalOpen, manualCode, manualName]);
 
   const saveRoute = async () => {
     try {
@@ -1074,21 +1136,78 @@ export default function BranchTransferRoutesPage() {
             height={360}
           />
 
-          <Divider plain />
+          <Divider orientation="left" plain>
+            <Space size={6}>
+              <TagsOutlined />
+              Code &amp; Name
+            </Space>
+          </Divider>
 
           <Row gutter={16}>
             <Col span={10}>
               <Form.Item
                 name="route_code"
-                label="Route Code"
-                help="Leave blank to auto-generate."
+                label={
+                  <Space size={6}>
+                    Route Code
+                    {!manualCode ? <Tag color="blue">auto</Tag> : null}
+                  </Space>
+                }
+                help="Auto-generated from the path. Edit to override."
               >
-                <Input placeholder="e.g. KTM-BRT-ITA-STANDARD" />
+                <Input
+                  placeholder="e.g. KTM-BRT-ITA-STANDARD"
+                  onChange={() => setManualCode(true)}
+                  addonAfter={
+                    manualCode ? (
+                      <Tooltip title="Reset to auto-generated">
+                        <ReloadOutlined
+                          style={{ cursor: "pointer" }}
+                          onClick={() => {
+                            setManualCode(false);
+                            form.setFieldValue(
+                              "route_code",
+                              buildRouteCode(pathBranchesForCode, modalServiceType),
+                            );
+                          }}
+                        />
+                      </Tooltip>
+                    ) : null
+                  }
+                />
               </Form.Item>
             </Col>
             <Col span={14}>
-              <Form.Item name="name" label="Route Name">
-                <Input placeholder="Leave blank to auto-generate" />
+              <Form.Item
+                name="name"
+                label={
+                  <Space size={6}>
+                    Route Name
+                    {!manualName ? <Tag color="blue">auto</Tag> : null}
+                  </Space>
+                }
+                help="Auto-generated from the path. Edit to override."
+              >
+                <Input
+                  placeholder="e.g. Kathmandu to Itahari via Bardibas"
+                  onChange={() => setManualName(true)}
+                  addonAfter={
+                    manualName ? (
+                      <Tooltip title="Reset to auto-generated">
+                        <ReloadOutlined
+                          style={{ cursor: "pointer" }}
+                          onClick={() => {
+                            setManualName(false);
+                            form.setFieldValue(
+                              "name",
+                              buildRouteName(pathBranchesForCode),
+                            );
+                          }}
+                        />
+                      </Tooltip>
+                    ) : null
+                  }
+                />
               </Form.Item>
             </Col>
           </Row>
