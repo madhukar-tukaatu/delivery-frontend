@@ -77,12 +77,12 @@ const TRANSPORT_MODES = [
     value: "road",
   },
   {
-    label: "Air",
-    value: "air",
+    label: "Flight",
+    value: "flight",
   },
   {
-    label: "Mixed",
-    value: "mixed",
+    label: "Rail",
+    value: "rail",
   },
 ];
 
@@ -152,24 +152,26 @@ export default function BranchTransferLanesPage() {
   }, []);
 
   const loadRows = useCallback(
-    async (page = pagination.current, pageSize = pagination.pageSize) => {
+    async (page = 1, pageSize = pagination.pageSize, overrideFilters = null) => {
       try {
         setLoading(true);
+
+        const active = overrideFilters || filters;
 
         const payload = await getBranchTransferLanes({
           page,
           per_page: pageSize,
 
-          search: filters.search?.trim() || undefined,
+          search: active.search?.trim() || undefined,
 
-          from_branch_id: filters.from_branch_id || undefined,
+          from_branch_id: active.from_branch_id || undefined,
 
-          to_branch_id: filters.to_branch_id || undefined,
+          to_branch_id: active.to_branch_id || undefined,
 
-          service_type: filters.service_type || undefined,
+          service_type: active.service_type || undefined,
 
           is_active:
-            filters.is_active === undefined ? undefined : filters.is_active,
+            active.is_active === undefined ? undefined : active.is_active,
         });
 
         const collection = extractCollection(payload);
@@ -217,10 +219,33 @@ export default function BranchTransferLanesPage() {
     }
   }, [branches.length]);
 
+  // Update a filter and immediately reload with the new value (page reset to 1).
+  const applyFilter = useCallback(
+    (patch) => {
+      setFilters((current) => {
+        const next = { ...current, ...patch };
+        loadRows(1, pagination.pageSize, next);
+        return next;
+      });
+    },
+    [loadRows, pagination.pageSize],
+  );
+
+  const resetFilters = useCallback(() => {
+    const cleared = {
+      search: "",
+      from_branch_id: undefined,
+      to_branch_id: undefined,
+      service_type: undefined,
+      is_active: undefined,
+    };
+    setFilters(cleared);
+    loadRows(1, pagination.pageSize, cleared);
+  }, [loadRows, pagination.pageSize]);
+
   const stats = useMemo(() => {
     const active = rows.filter((row) => row.is_active).length;
-
-    const bidirectional = rows.filter((row) => row.is_bidirectional).length;
+    const inactive = rows.length - active;
 
     const distance = rows.reduce(
       (sum, row) => sum + Number(row.distance_km || 0),
@@ -229,7 +254,7 @@ export default function BranchTransferLanesPage() {
 
     return {
       active,
-      bidirectional,
+      inactive,
       distance,
     };
   }, [rows]);
@@ -245,7 +270,6 @@ export default function BranchTransferLanesPage() {
       distance_km: undefined,
       estimated_hours: 1,
       priority: 100,
-      is_bidirectional: false,
       is_active: true,
       ...prefill,
     });
@@ -273,8 +297,6 @@ export default function BranchTransferLanesPage() {
       estimated_hours: Number(row.estimated_hours || 1),
 
       priority: Number(row.priority || 100),
-
-      is_bidirectional: Boolean(row.is_bidirectional),
 
       is_active: Boolean(row.is_active),
     });
@@ -314,7 +336,6 @@ export default function BranchTransferLanesPage() {
             ? 100
             : Number(values.priority),
 
-        is_bidirectional: Boolean(values.is_bidirectional),
         is_active: Boolean(values.is_active),
       };
 
@@ -436,18 +457,6 @@ export default function BranchTransferLanesPage() {
       width: 90,
 
       render: (value) => `${Number(value || 0)} hrs`,
-    },
-
-    {
-      title: "Direction",
-      dataIndex: "is_bidirectional",
-      width: 130,
-
-      render: (value) => (
-        <Tag color={value ? "purple" : "default"}>
-          {value ? "Bidirectional" : "One-way"}
-        </Tag>
-      ),
     },
 
     {
@@ -591,7 +600,7 @@ export default function BranchTransferLanesPage() {
 
         <Col xs={24} md={6}>
           <Card bordered={false}>
-            <Statistic title="Bidirectional" value={stats.bidirectional} />
+            <Statistic title="Inactive Lanes" value={stats.inactive} />
           </Card>
         </Col>
 
@@ -610,9 +619,9 @@ export default function BranchTransferLanesPage() {
       <Card bordered={false}>
         <Row gutter={[16, 16]}>
           <Col xs={24} lg={6}>
-            <Input
+            <Input.Search
               allowClear
-              placeholder="Search branch or transport"
+              placeholder="Search branch name"
               value={filters.search}
               onChange={(event) =>
                 setFilters((current) => ({
@@ -620,6 +629,7 @@ export default function BranchTransferLanesPage() {
                   search: event.target.value,
                 }))
               }
+              onSearch={(value) => applyFilter({ search: value })}
             />
           </Col>
 
@@ -629,17 +639,10 @@ export default function BranchTransferLanesPage() {
               showSearch
               optionFilterProp="label"
               placeholder="From branch"
-              style={{
-                width: "100%",
-              }}
+              style={{ width: "100%" }}
               options={branchOptions}
               value={filters.from_branch_id}
-              onChange={(value) =>
-                setFilters((current) => ({
-                  ...current,
-                  from_branch_id: value,
-                }))
-              }
+              onChange={(value) => applyFilter({ from_branch_id: value })}
             />
           </Col>
 
@@ -649,17 +652,10 @@ export default function BranchTransferLanesPage() {
               showSearch
               optionFilterProp="label"
               placeholder="To branch"
-              style={{
-                width: "100%",
-              }}
+              style={{ width: "100%" }}
               options={branchOptions}
               value={filters.to_branch_id}
-              onChange={(value) =>
-                setFilters((current) => ({
-                  ...current,
-                  to_branch_id: value,
-                }))
-              }
+              onChange={(value) => applyFilter({ to_branch_id: value })}
             />
           </Col>
 
@@ -667,17 +663,10 @@ export default function BranchTransferLanesPage() {
             <Select
               allowClear
               placeholder="Service"
-              style={{
-                width: "100%",
-              }}
+              style={{ width: "100%" }}
               options={SERVICE_TYPES}
               value={filters.service_type}
-              onChange={(value) =>
-                setFilters((current) => ({
-                  ...current,
-                  service_type: value,
-                }))
-              }
+              onChange={(value) => applyFilter({ service_type: value })}
             />
           </Col>
 
@@ -685,32 +674,19 @@ export default function BranchTransferLanesPage() {
             <Select
               allowClear
               placeholder="Status"
-              style={{
-                width: "100%",
-              }}
+              style={{ width: "100%" }}
               value={filters.is_active}
-              onChange={(value) =>
-                setFilters((current) => ({
-                  ...current,
-                  is_active: value,
-                }))
-              }
+              onChange={(value) => applyFilter({ is_active: value })}
               options={[
-                {
-                  label: "Active",
-                  value: 1,
-                },
-                {
-                  label: "Inactive",
-                  value: 0,
-                },
+                { label: "Active", value: 1 },
+                { label: "Inactive", value: 0 },
               ]}
             />
           </Col>
 
           <Col xs={24} lg={3}>
-            <Button block type="primary" onClick={() => loadRows(1)}>
-              Apply
+            <Button block onClick={resetFilters}>
+              Reset
             </Button>
           </Col>
         </Row>
@@ -813,8 +789,6 @@ export default function BranchTransferLanesPage() {
             estimated_hours: 1,
 
             priority: 100,
-
-            is_bidirectional: false,
 
             is_active: true,
           }}
@@ -933,17 +907,7 @@ export default function BranchTransferLanesPage() {
               </Form.Item>
             </Col>
 
-            <Col span={4}>
-              <Form.Item
-                name="is_bidirectional"
-                label="Bidirectional"
-                valuePropName="checked"
-              >
-                <Switch />
-              </Form.Item>
-            </Col>
-
-            <Col span={4}>
+            <Col span={8}>
               <Form.Item
                 name="is_active"
                 label="Active"
