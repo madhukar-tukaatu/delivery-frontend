@@ -25,15 +25,44 @@ import {
 } from "antd";
 
 import {
+  ApartmentOutlined,
   DeleteOutlined,
   EditOutlined,
+  NodeIndexOutlined,
   PlusOutlined,
   ReloadOutlined,
   SwapOutlined,
 } from "@ant-design/icons";
 
+import { Checkbox, Empty, List, Segmented } from "antd";
+
+import dynamic from "next/dynamic";
+
 import PermissionGate from "@/components/rate-admin/PermissionGate";
 import RouteMap from "@/components/rate-admin/RouteMap";
+import { deriveBranchConnectivity } from "@/services/adminRateManagementService";
+
+const BranchNetworkMap = dynamic(
+  () => import("@/components/rate-admin/BranchNetworkMap"),
+  {
+    ssr: false,
+    loading: () => (
+      <div
+        style={{
+          height: 460,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          background: "#f5f7fa",
+          borderRadius: 12,
+          color: "#8c8c8c",
+        }}
+      >
+        Loading network map...
+      </div>
+    ),
+  },
+);
 
 import {
   createBranchTransferLane,
@@ -106,6 +135,9 @@ export default function BranchTransferLanesPage() {
 
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState(null);
+
+  const [view, setView] = useState("lanes"); // lanes | connectivity
+  const [connBranchId, setConnBranchId] = useState(undefined);
 
   const [filters, setFilters] = useState({
     search: "",
@@ -258,6 +290,16 @@ export default function BranchTransferLanesPage() {
       distance,
     };
   }, [rows]);
+
+  // Branch-centric connectivity: which branches the selected branch links to.
+  const connectivity = useMemo(() => {
+    if (!connBranchId) return null;
+    return deriveBranchConnectivity(connBranchId, rows);
+  }, [connBranchId, rows]);
+
+  const connBranch = connBranchId
+    ? branchesById.get(Number(connBranchId))
+    : null;
 
   const openCreate = (prefill = {}) => {
     setEditing(null);
@@ -562,6 +604,18 @@ export default function BranchTransferLanesPage() {
 
           <Col>
             <Space>
+              <Segmented
+                value={view}
+                onChange={setView}
+                options={[
+                  { label: "Lanes", value: "lanes", icon: <SwapOutlined /> },
+                  {
+                    label: "Connectivity",
+                    value: "connectivity",
+                    icon: <ApartmentOutlined />,
+                  },
+                ]}
+              />
               <Button
                 icon={<ReloadOutlined />}
                 onClick={() =>
@@ -616,6 +670,17 @@ export default function BranchTransferLanesPage() {
         </Col>
       </Row>
 
+      {view === "connectivity" ? (
+        <LaneConnectivityPanel
+          branchOptions={branchOptions}
+          connBranchId={connBranchId}
+          setConnBranchId={setConnBranchId}
+          connectivity={connectivity}
+          connBranch={connBranch}
+          onAddLane={(prefill) => openCreate(prefill)}
+        />
+      ) : (
+        <>
       <Card bordered={false}>
         <Row gutter={[16, 16]}>
           <Col xs={24} lg={6}>
@@ -767,6 +832,8 @@ export default function BranchTransferLanesPage() {
           </Card>
         </Col>
       </Row>
+        </>
+      )}
 
       <Modal
         open={modalOpen}
@@ -920,5 +987,182 @@ export default function BranchTransferLanesPage() {
         </Form>
       </Modal>
     </Space>
+  );
+}
+
+// -------------------- Branch Connectivity Panel --------------------
+
+function LaneConnectivityPanel({
+  branchOptions,
+  connBranchId,
+  setConnBranchId,
+  connectivity,
+  connBranch,
+  onAddLane,
+}) {
+  const [serviceFilter, setServiceFilter] = useState([
+    "standard",
+    "express",
+    "same_day",
+    "flight",
+  ]);
+
+  // All lanes touching this branch (outbound + inbound), for the map.
+  const connectedLanes = useMemo(() => {
+    const out = connectivity?.outbound || [];
+    const inb = connectivity?.inbound || [];
+    const map = new Map();
+    for (const lane of [...out, ...inb]) {
+      map.set(Number(lane.id), lane);
+    }
+    return Array.from(map.values());
+  }, [connectivity]);
+
+  const laneRow = (lane, direction) => {
+    const other = direction === "out" ? lane.to_branch : lane.from_branch;
+    return (
+      <List.Item>
+        <Space direction="vertical" size={0} style={{ width: "100%" }}>
+          <Space size={6}>
+            <Tag color={direction === "out" ? "geekblue" : "cyan"}>
+              {direction === "out" ? "→ to" : "← from"}
+            </Tag>
+            <Text strong>{other?.name || "Branch"}</Text>
+            <Tag color="blue">{lane.service_type}</Tag>
+            {lane.transport_mode ? <Tag>{lane.transport_mode}</Tag> : null}
+            {statusTag(lane.is_active)}
+          </Space>
+          <Text type="secondary" style={{ fontSize: 12 }}>
+            {Number(lane.distance_km || 0)} km · ~
+            {Number(lane.estimated_hours || 0)} hrs · priority {lane.priority}
+          </Text>
+        </Space>
+      </List.Item>
+    );
+  };
+
+  const outbound = connectivity?.outbound || [];
+  const inbound = connectivity?.inbound || [];
+
+  return (
+    <Card bordered={false}>
+      <Space direction="vertical" size={16} style={{ width: "100%" }}>
+        <Row gutter={[16, 16]} align="middle">
+          <Col xs={24} md={10}>
+            <Select
+              showSearch
+              allowClear
+              style={{ width: "100%" }}
+              placeholder="Select a branch (e.g. Kathmandu) to see its connections"
+              optionFilterProp="label"
+              options={branchOptions}
+              value={connBranchId}
+              onChange={setConnBranchId}
+            />
+          </Col>
+          <Col xs={24} md={14}>
+            {connBranch ? (
+              <Space wrap>
+                <Text type="secondary">
+                  <ApartmentOutlined />{" "}
+                  <Text strong>{connBranch.name}</Text> connects to{" "}
+                  {outbound.length} outbound and {inbound.length} inbound branch
+                  {outbound.length + inbound.length === 1 ? "" : "es"}.
+                </Text>
+                {connBranchId ? (
+                  <Button
+                    size="small"
+                    icon={<PlusOutlined />}
+                    onClick={() =>
+                      onAddLane({ from_branch_id: Number(connBranchId) })
+                    }
+                  >
+                    Add lane from here
+                  </Button>
+                ) : null}
+              </Space>
+            ) : (
+              <Text type="secondary">
+                Pick a branch to view every direct lane in and out of it.
+              </Text>
+            )}
+          </Col>
+        </Row>
+
+        {!connBranchId ? (
+          <Empty description="No branch selected" />
+        ) : (
+          <>
+          <Card
+            size="small"
+            title={
+              <Space>
+                <ApartmentOutlined />
+                Network Map — {connBranch?.name}
+              </Space>
+            }
+            extra={
+              <Checkbox.Group
+                value={serviceFilter}
+                onChange={setServiceFilter}
+                options={[
+                  { label: "Standard", value: "standard" },
+                  { label: "Express", value: "express" },
+                  { label: "Same Day", value: "same_day" },
+                  { label: "Flight", value: "flight" },
+                ]}
+              />
+            }
+          >
+            <BranchNetworkMap
+              centerBranch={connBranch}
+              lanes={connectedLanes}
+              activeServices={serviceFilter}
+              height={460}
+            />
+          </Card>
+
+          <Row gutter={[16, 16]}>
+            <Col xs={24} md={12}>
+              <Card
+                size="small"
+                title={
+                  <Space>
+                    <NodeIndexOutlined />
+                    Outbound Lanes ({outbound.length})
+                  </Space>
+                }
+              >
+                <List
+                  size="small"
+                  locale={{ emptyText: "No outbound lanes from this branch" }}
+                  dataSource={outbound}
+                  renderItem={(lane) => laneRow(lane, "out")}
+                />
+              </Card>
+            </Col>
+            <Col xs={24} md={12}>
+              <Card
+                size="small"
+                title={
+                  <Space>
+                    <NodeIndexOutlined />
+                    Inbound Lanes ({inbound.length})
+                  </Space>
+                }
+              >
+                <List
+                  size="small"
+                  locale={{ emptyText: "No inbound lanes to this branch" }}
+                  dataSource={inbound}
+                  renderItem={(lane) => laneRow(lane, "in")}
+                />
+              </Card>
+            </Col>
+          </Row>
+          </>
+        )}
+      </Space>
+    </Card>
   );
 }

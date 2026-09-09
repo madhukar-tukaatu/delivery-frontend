@@ -729,13 +729,9 @@ export async function previewBranchTransferRoute(payload = {}) {
   const requestPayload = {
     route_type: "transfer",
 
-    origin_branch_id: Number(payload.origin_branch_id),
+    lane_ids: normalizeLaneIds(payload.lane_ids),
 
-    destination_branch_id: Number(payload.destination_branch_id),
-
-    transit_branch_ids: Array.isArray(payload.transit_branch_ids)
-      ? payload.transit_branch_ids.map(Number).filter(Number.isFinite)
-      : [],
+    checkpoints: normalizeCheckpoints(payload.checkpoints),
 
     service_type: payload.service_type || "standard",
   };
@@ -750,25 +746,61 @@ export async function previewBranchTransferRoute(payload = {}) {
 
 /*
 |--------------------------------------------------------------------------
-| Create transfer route
+| Route payload builders (ordered lanes + checkpoints model)
+|--------------------------------------------------------------------------
+|
+| A route = an ORDERED list of lane IDs (branch-to-branch connections) plus
+| optional map-picked CHECKPOINTS (road waypoints, not branches). Origin,
+| destination and transit branches are DERIVED from the lanes on the backend.
+|
 |--------------------------------------------------------------------------
 */
 
-export async function createBranchTransferRoute(payload = {}) {
-  const requestPayload = {
+function normalizeLaneIds(laneIds) {
+  return Array.isArray(laneIds)
+    ? laneIds.map(Number).filter(Number.isFinite)
+    : [];
+}
+
+function normalizeCheckpoints(checkpoints) {
+  if (!Array.isArray(checkpoints)) {
+    return [];
+  }
+
+  return checkpoints
+    .map((cp) => ({
+      name: stringOrNull(cp?.name),
+      city: stringOrNull(cp?.city),
+      landmark: stringOrNull(cp?.landmark),
+      latitude:
+        cp?.latitude === "" || cp?.latitude === null || cp?.latitude === undefined
+          ? null
+          : Number(cp.latitude),
+      longitude:
+        cp?.longitude === "" ||
+        cp?.longitude === null ||
+        cp?.longitude === undefined
+          ? null
+          : Number(cp.longitude),
+    }))
+    .filter(
+      (cp) =>
+        cp.name !== null ||
+        (Number.isFinite(cp.latitude) && Number.isFinite(cp.longitude)),
+    );
+}
+
+function buildTransferRoutePayload(payload = {}) {
+  return {
     route_type: "transfer",
 
     route_code: stringOrNull(payload.route_code),
 
     name: stringOrNull(payload.name),
 
-    origin_branch_id: Number(payload.origin_branch_id),
+    lane_ids: normalizeLaneIds(payload.lane_ids),
 
-    destination_branch_id: Number(payload.destination_branch_id),
-
-    transit_branch_ids: Array.isArray(payload.transit_branch_ids)
-      ? payload.transit_branch_ids.map(Number).filter(Number.isFinite)
-      : [],
+    checkpoints: normalizeCheckpoints(payload.checkpoints),
 
     service_type: payload.service_type || "standard",
 
@@ -778,12 +810,54 @@ export async function createBranchTransferRoute(payload = {}) {
 
     priority: numberOrFallback(payload.priority, 100),
 
-    is_default: normalizeBoolean(payload.is_default, true),
+    is_default: normalizeBoolean(payload.is_default, false),
 
     is_active: normalizeBoolean(payload.is_active, true),
 
     notes: stringOrNull(payload.notes),
   };
+}
+
+/*
+|--------------------------------------------------------------------------
+| Branch connectivity helper
+|--------------------------------------------------------------------------
+|
+| Derives, from the full lane list, which branches a given branch connects to
+| directly (outbound + inbound lanes). Used by the connectivity panel to show
+| e.g. "Kathmandu's connected branches".
+|
+|--------------------------------------------------------------------------
+*/
+
+export function deriveBranchConnectivity(branchId, lanes = []) {
+  const id = Number(branchId);
+  const outbound = [];
+  const inbound = [];
+
+  for (const lane of Array.isArray(lanes) ? lanes : []) {
+    const from = Number(lane.from_branch_id ?? lane.fromBranch?.id);
+    const to = Number(lane.to_branch_id ?? lane.toBranch?.id);
+
+    if (from === id) {
+      outbound.push(lane);
+    }
+    if (to === id) {
+      inbound.push(lane);
+    }
+  }
+
+  return { outbound, inbound };
+}
+
+/*
+|--------------------------------------------------------------------------
+| Create transfer route
+|--------------------------------------------------------------------------
+*/
+
+export async function createBranchTransferRoute(payload = {}) {
+  const requestPayload = buildTransferRoutePayload(payload);
 
   const response = await api.post(ENDPOINTS.transferRoutes, requestPayload);
 
@@ -797,35 +871,7 @@ export async function createBranchTransferRoute(payload = {}) {
 */
 
 export async function updateBranchTransferRoute(id, payload = {}) {
-  const requestPayload = {
-    route_type: "transfer",
-
-    route_code: stringOrNull(payload.route_code),
-
-    name: stringOrNull(payload.name),
-
-    origin_branch_id: Number(payload.origin_branch_id),
-
-    destination_branch_id: Number(payload.destination_branch_id),
-
-    transit_branch_ids: Array.isArray(payload.transit_branch_ids)
-      ? payload.transit_branch_ids.map(Number).filter(Number.isFinite)
-      : [],
-
-    service_type: payload.service_type || "standard",
-
-    base_rate: numberOrFallback(payload.base_rate, 0),
-
-    currency: payload.currency || "NPR",
-
-    priority: numberOrFallback(payload.priority, 100),
-
-    is_default: normalizeBoolean(payload.is_default, true),
-
-    is_active: normalizeBoolean(payload.is_active, true),
-
-    notes: stringOrNull(payload.notes),
-  };
+  const requestPayload = buildTransferRoutePayload(payload);
 
   const response = await api.put(
     `${ENDPOINTS.transferRoutes}/${id}`,
