@@ -59,6 +59,7 @@ import {
   retryMerchantCallback,
   updateMerchantApplication,
   requestMerchantDocuments,
+  updateMerchant,
 } from "@/services/adminMerchantApplicationService";
 import { getEcho } from "@/lib/echo";
 
@@ -606,11 +607,14 @@ export default function AdminMerchantApplicationDetailPage() {
     setRetryingCallback,
   ] = useState(false);
 
+  const [billingOpen, setBillingOpen] = useState(false);
+
   const [form] = Form.useForm();
   const [rejectForm] = Form.useForm();
   const [moreInfoForm] = Form.useForm();
   const [editForm] = Form.useForm();
   const [requestDocsForm] = Form.useForm();
+  const [billingForm] = Form.useForm();
 
   const isStoreManager =
     merchant?.application_source ===
@@ -1244,6 +1248,40 @@ export default function AdminMerchantApplicationDetailPage() {
       if (error?.errorFields) return;
       message.error(
         error?.response?.data?.message || "Could not update details.",
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const openBillingModal = () => {
+    billingForm.setFieldsValue({
+      bulk_pickup_discount_threshold:
+        merchant.bulk_pickup_discount_threshold ?? null,
+      bulk_pickup_discount_amount:
+        merchant.bulk_pickup_discount_amount ?? null,
+    });
+    setBillingOpen(true);
+  };
+
+  const submitBilling = async () => {
+    try {
+      const values = await billingForm.validateFields();
+      setLoading(true);
+      await updateMerchant(params.id, {
+        bulk_pickup_discount_threshold:
+          values.bulk_pickup_discount_threshold ?? null,
+        bulk_pickup_discount_amount:
+          values.bulk_pickup_discount_amount ?? null,
+      });
+      message.success("Delivery billing settings updated.");
+      setBillingOpen(false);
+      await load({ silent: true });
+    } catch (error) {
+      if (error?.errorFields) return;
+      message.error(
+        error?.response?.data?.message ||
+          "Could not update delivery billing settings.",
       );
     } finally {
       setLoading(false);
@@ -2218,6 +2256,77 @@ export default function AdminMerchantApplicationDetailPage() {
         </Row>
       </Card>
 
+      {/* Delivery billing / bulk pickup discount */}
+      <Card
+        bordered={false}
+        styles={{ body: { padding: "14px 16px" } }}
+      >
+        <Row justify="space-between" align="middle" style={{ marginBottom: 10 }}>
+          <SectionTitle icon={<BankOutlined />}>
+            Delivery Billing
+          </SectionTitle>
+          <Button
+            size="small"
+            icon={<EditOutlined />}
+            onClick={openBillingModal}
+          >
+            Edit
+          </Button>
+        </Row>
+
+        <Alert
+          type="info"
+          showIcon
+          style={{ marginBottom: 14 }}
+          message="Bulk pickup discount"
+          description="When a single pickup contains at least the threshold number of packets, a flat discount is taken off that pickup's delivery charge. Applied automatically at pickup completion and deducted from this store's settlement."
+        />
+
+        <Row gutter={[16, 0]}>
+          <Col xs={24} md={8}>
+            <Field
+              label="Discount Threshold (packets)"
+              value={
+                merchant.bulk_pickup_discount_threshold
+                  ? `${merchant.bulk_pickup_discount_threshold}+ packets`
+                  : null
+              }
+            />
+          </Col>
+          <Col xs={24} md={8}>
+            <Field
+              label="Discount Amount (per pickup)"
+              value={
+                merchant.bulk_pickup_discount_amount
+                  ? `NPR ${Number(merchant.bulk_pickup_discount_amount).toLocaleString("en-NP")}`
+                  : null
+              }
+            />
+          </Col>
+          <Col xs={24} md={8}>
+            <div style={{ marginBottom: 10 }}>
+              <div style={{ fontSize: 11, color: "#94a3b8", marginBottom: 4 }}>
+                Status
+              </div>
+              <Tag
+                color={
+                  merchant.bulk_pickup_discount_threshold &&
+                  merchant.bulk_pickup_discount_amount
+                    ? "green"
+                    : "default"
+                }
+                style={{ margin: 0 }}
+              >
+                {merchant.bulk_pickup_discount_threshold &&
+                merchant.bulk_pickup_discount_amount
+                  ? "Enabled"
+                  : "Disabled"}
+              </Tag>
+            </div>
+          </Col>
+        </Row>
+      </Card>
+
       <Form
         form={form}
         layout="vertical"
@@ -2670,6 +2779,45 @@ export default function AdminMerchantApplicationDetailPage() {
             <Col xs={24} md={12}>
               <Form.Item name="address" label="Address">
                 <Input />
+              </Form.Item>
+            </Col>
+          </Row>
+        </Form>
+      </Modal>
+
+      <Modal
+        title="Delivery Billing Settings"
+        open={billingOpen}
+        onCancel={() => { setBillingOpen(false); billingForm.resetFields(); }}
+        onOk={submitBilling}
+        confirmLoading={loading}
+        okText="Save Settings"
+        width={520}
+      >
+        <Alert
+          type="info"
+          showIcon
+          style={{ marginBottom: 14 }}
+          message="Leave both blank (or 0) to disable the bulk pickup discount for this store."
+        />
+        <Form form={billingForm} layout="vertical" size="small">
+          <Row gutter={12}>
+            <Col xs={24} md={12}>
+              <Form.Item
+                name="bulk_pickup_discount_threshold"
+                label="Threshold (min packets in a pickup)"
+                rules={[{ type: "number", min: 0, transform: (v) => (v === "" || v == null ? undefined : Number(v)), message: "Enter a valid number." }]}
+              >
+                <Input type="number" min={0} placeholder="e.g. 4" />
+              </Form.Item>
+            </Col>
+            <Col xs={24} md={12}>
+              <Form.Item
+                name="bulk_pickup_discount_amount"
+                label="Discount amount (NPR, per pickup)"
+                rules={[{ type: "number", min: 0, transform: (v) => (v === "" || v == null ? undefined : Number(v)), message: "Enter a valid amount." }]}
+              >
+                <Input type="number" min={0} step="0.01" placeholder="e.g. 50" />
               </Form.Item>
             </Col>
           </Row>

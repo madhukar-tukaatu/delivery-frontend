@@ -295,6 +295,8 @@ const RESEND_EVENTS = [
   { value: "pickup.rider_assigned", label: "Rider assigned", scope: "pickup" },
   { value: "pickup.rider_started", label: "Rider started", scope: "pickup" },
   { value: "pickup.rider_arrived", label: "Rider arrived", scope: "pickup" },
+  { value: "pickup.collected", label: "All shipments collected", scope: "pickup" },
+  { value: "pickup.on_way_to_branch", label: "On way to branch", scope: "pickup" },
   { value: "pickup.completed", label: "Pickup completed", scope: "pickup" },
   {
     value: "shipment.collected",

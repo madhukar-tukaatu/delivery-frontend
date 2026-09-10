@@ -55,6 +55,18 @@ export async function updateMerchantApplication(id, payload) {
   return response.data?.data || response.data;
 }
 
+/**
+ * Update a merchant / store partner's core record.
+ *
+ * Uses PUT /admin/merchants/{id} (MerchantController::update), which accepts
+ * the bulk pickup discount config: bulk_pickup_discount_threshold,
+ * bulk_pickup_discount_amount.
+ */
+export async function updateMerchant(id, payload) {
+  const response = await api.put(`/admin/merchants/${id}`, payload);
+  return response.data?.data || response.data;
+}
+
 export async function requestMerchantDocuments(id, payload) {
   const response = await api.post(`/admin/merchant-applications/${id}/request-documents`, payload);
   return response.data?.data || response.data;

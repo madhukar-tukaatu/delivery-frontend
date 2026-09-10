@@ -25,6 +25,25 @@ export async function getMerchant(id) {
   );
 }
 
+/**
+ * Update a merchant / store partner.
+ *
+ * PUT /admin/merchants/{id}
+ * Accepts (among others): bulk_pickup_discount_threshold,
+ * bulk_pickup_discount_amount.
+ */
+export async function updateMerchant(id, payload) {
+  const response = await api.put(
+    `/admin/merchants/${id}`,
+    payload,
+  );
+
+  return (
+    response.data?.data ??
+    response.data
+  );
+}
+
 function normalizeMerchantResponse(
   response,
   params = {},
