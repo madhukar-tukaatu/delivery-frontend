@@ -468,7 +468,51 @@ export function normalizeTransferRoute(row, branchesById) {
     is_default: toBoolean(row.is_default),
 
     is_active: toBoolean(row.is_active),
+
+    // Road checkpoints (map-picked waypoints). Handle both array and JSON-string
+    // forms so they reliably reflect back onto the map and edit form.
+    checkpoints: normalizeCheckpointList(row.checkpoints),
   };
+}
+
+/**
+ * Normalize checkpoints coming back from the API into an array of
+ * { name, city, landmark, latitude, longitude }. Accepts an array or a
+ * JSON-encoded string (MySQL JSON columns can arrive either way).
+ */
+export function normalizeCheckpointList(raw) {
+  let list = raw;
+
+  if (typeof list === "string") {
+    try {
+      list = JSON.parse(list);
+    } catch {
+      list = [];
+    }
+  }
+
+  if (!Array.isArray(list)) {
+    return [];
+  }
+
+  return list
+    .map((cp) => {
+      if (!cp || typeof cp !== "object") return null;
+      const latitude = nullableNumber(cp.latitude ?? cp.lat);
+      const longitude = nullableNumber(cp.longitude ?? cp.lng ?? cp.lon);
+      const name = cp.name ? String(cp.name) : null;
+      if (name === null && (latitude === null || longitude === null)) {
+        return null;
+      }
+      return {
+        name,
+        city: cp.city ? String(cp.city) : null,
+        landmark: cp.landmark ? String(cp.landmark) : null,
+        latitude,
+        longitude,
+      };
+    })
+    .filter(Boolean);
 }
 
 export function formatMoney(value, currency = "NPR") {
