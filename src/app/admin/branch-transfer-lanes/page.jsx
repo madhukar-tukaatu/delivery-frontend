@@ -1136,8 +1136,6 @@ export default function BranchTransferLanesPage() {
               </Form.Item>
             </Col>
           </Row>
-            </Col>
-          </Row>
         </Form>
       </Modal>
     </Space>
