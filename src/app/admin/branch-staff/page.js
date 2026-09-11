@@ -36,19 +36,6 @@ function UserAvatar({ name }) {
 
 export default function BranchStaffPage() {
   const { can, branchId, branchName, isSuperAdmin, isBranchManager } = usePermissions();
-  
-  // This page is only for branch managers to manage their own staff
-  if (isSuperAdmin || !isBranchManager) {
-    return (
-      <Card style={{ marginTop: 24 }}>
-        <div style={{ textAlign: "center", padding: "40px 20px" }}>
-          <Text type="danger" style={{ fontSize: 16 }}>
-            You don't have permission to access this page. This page is for branch managers only.
-          </Text>
-        </div>
-      </Card>
-    );
-  }
 
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -76,27 +63,54 @@ export default function BranchStaffPage() {
   const load = useCallback(async (page = 1, pageSize = 15) => {
     setLoading(true);
     try {
-      const params = {
-        page, per_page: pageSize,
-        roles: STAFF_ROLES.join(","),
-        ...(search && { search }),
-        ...(roleFilter && { role: roleFilter }),
-      };
-      // Always scope to branch — branch managers see their branch only
-      // Super admin with no branchId still scopes to staff roles only
-      if (branchId) params.branch_id = branchId;
-
-      const res = await api.get("/admin/users", { params });
-      const payload = res.data?.data || res.data;
-      const list = payload?.data || payload || [];
-      setRows(Array.isArray(list) ? list : []);
-      setPagination({ current: payload?.current_page || page, pageSize: payload?.per_page || pageSize, total: payload?.total || list.length });
-    } catch {
-      message.error("Could not load staff.");
+      // For branch managers: use the branch team endpoint
+      // For super admin: use the admin staff endpoint
+      let res;
+      if (branchId && !isSuperAdmin) {
+        // Branch manager mode - use team endpoint
+        res = await api.get(`/admin/branches/${branchId}/team`);
+        const positions = res.data?.data || [];
+        
+        // Transform team positions to user format
+        const list = positions.map(pos => ({
+          id: pos.id,
+          name: pos.user?.name,
+          email: pos.user?.email,
+          phone: pos.user?.phone,
+          role: pos.role,
+          is_active: pos.user?.is_active ?? true,
+          branch_id: branchId,
+          branch: { id: branchId, name: branchName },
+          position_id: pos.id,
+          position_code: pos.position_code,
+        }));
+        
+        setRows(list);
+        setPagination({ current: 1, pageSize: list.length, total: list.length });
+      } else if (isSuperAdmin) {
+        // Super admin mode - use admin staff endpoint with optional filters
+        const params = {
+          page, per_page: pageSize,
+          ...(search && { q: search }),
+          ...(roleFilter && { role: roleFilter }),
+        };
+        res = await api.get("/admin/staff", { params });
+        const payload = res.data?.data || res.data;
+        const list = payload?.data || payload || [];
+        setRows(Array.isArray(list) ? list : []);
+        setPagination({ 
+          current: payload?.current_page || page, 
+          pageSize: payload?.per_page || pageSize, 
+          total: payload?.total || list.length 
+        });
+      }
+    } catch (err) {
+      console.error(err);
+      message.error(err?.response?.data?.message || "Could not load staff.");
     } finally {
       setLoading(false);
     }
-  }, [branchId, search, roleFilter]);
+  }, [branchId, branchName, isSuperAdmin, search, roleFilter]);
 
   useEffect(() => { load(); }, [load]);
 
