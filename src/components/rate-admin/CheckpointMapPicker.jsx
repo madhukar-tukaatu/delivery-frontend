@@ -16,8 +16,11 @@ import "leaflet/dist/leaflet.css";
 const OSRM_URL = "https://router.project-osrm.org/route/v1/driving";
 import {
   Button,
+  Card,
+  Col,
   Empty,
   Input,
+  Row,
   Space,
   Tooltip,
   Typography,
@@ -410,14 +413,12 @@ export default function CheckpointMapPicker({
           description="No checkpoints yet. Click the map to add one."
         />
       ) : (
-        <Space direction="vertical" size={8} style={{ width: "100%" }}>
+        <Space direction="vertical" size={12} style={{ width: "100%" }}>
           {checkpoints.map((cp, index) => (
-            <div
+            <Card
               key={`cp-row-${index}`}
+              size="small"
               style={{
-                border: "1px solid #f0f0f0",
-                borderRadius: 10,
-                padding: 12,
                 background: "#fafafa",
               }}
             >
@@ -425,55 +426,58 @@ export default function CheckpointMapPicker({
                 align="start"
                 style={{ width: "100%", justifyContent: "space-between" }}
               >
-                <Space direction="vertical" size={6} style={{ flex: 1 }}>
-                  <Space wrap>
+                <Space direction="vertical" size={8} style={{ flex: 1 }}>
+                  <div>
                     <span
                       style={{
                         display: "inline-flex",
                         alignItems: "center",
                         justifyContent: "center",
-                        width: 22,
-                        height: 22,
+                        width: 24,
+                        height: 24,
                         borderRadius: "50%",
                         background: "#722ed1",
                         color: "#fff",
                         fontSize: 12,
                         fontWeight: 700,
+                        marginRight: 8,
                       }}
                     >
                       {index + 1}
                     </span>
-                    <Input
-                      size="small"
-                      style={{ width: 180 }}
-                      placeholder="Name (e.g. Mugling)"
-                      value={cp.name ?? ""}
-                      onChange={(e) =>
-                        updateCheckpoint(index, { name: e.target.value })
-                      }
-                    />
-                    <Input
-                      size="small"
-                      style={{ width: 150 }}
-                      placeholder="City (optional)"
-                      value={cp.city ?? ""}
-                      onChange={(e) =>
-                        updateCheckpoint(index, { city: e.target.value })
-                      }
-                    />
-                    <Input
-                      size="small"
-                      style={{ width: 170 }}
-                      placeholder="Landmark (optional)"
-                      value={cp.landmark ?? ""}
-                      onChange={(e) =>
-                        updateCheckpoint(index, { landmark: e.target.value })
-                      }
-                    />
-                  </Space>
-                  <Text type="secondary" style={{ fontSize: 12 }}>
-                    {toNumber(cp.latitude) ?? "?"},{" "}
-                    {toNumber(cp.longitude) ?? "?"}
+                    <Text strong>Checkpoint {index + 1}</Text>
+                  </div>
+                  <Row gutter={12}>
+                    <Col span={8}>
+                      <Input
+                        placeholder="Name (e.g. Mugling)"
+                        value={cp.name ?? ""}
+                        onChange={(e) =>
+                          updateCheckpoint(index, { name: e.target.value })
+                        }
+                      />
+                    </Col>
+                    <Col span={8}>
+                      <Input
+                        placeholder="City (optional)"
+                        value={cp.city ?? ""}
+                        onChange={(e) =>
+                          updateCheckpoint(index, { city: e.target.value })
+                        }
+                      />
+                    </Col>
+                    <Col span={8}>
+                      <Input
+                        placeholder="Landmark (optional)"
+                        value={cp.landmark ?? ""}
+                        onChange={(e) =>
+                          updateCheckpoint(index, { landmark: e.target.value })
+                        }
+                      />
+                    </Col>
+                  </Row>
+                  <Text type="secondary" style={{ fontSize: 11 }}>
+                    Coordinates: {toNumber(cp.latitude) ?? "?"}, {toNumber(cp.longitude) ?? "?"}
                   </Text>
                 </Space>
 

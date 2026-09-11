@@ -33,6 +33,9 @@ import {
   PlusOutlined,
   ReloadOutlined,
   SwapOutlined,
+  PlaneOutlined,
+  RoadOutlined,
+  RailOutlined,
 } from "@ant-design/icons";
 
 import { Checkbox, Empty, List, Segmented } from "antd";
@@ -408,6 +411,14 @@ export default function BranchTransferLanesPage() {
     });
 
     setCheckpoints(Array.isArray(row.checkpoints) ? row.checkpoints : []);
+
+    // Sync form values to modalFormValues for map preview
+    setModalFormValues({
+      from_branch_id: Number(row.from_branch_id),
+      to_branch_id: Number(row.to_branch_id),
+      service_type: row.service_type || "standard",
+      transport_mode: row.transport_mode || "road",
+    });
 
     setModalOpen(true);
   };
@@ -972,31 +983,99 @@ export default function BranchTransferLanesPage() {
               marginBottom: 24,
             }}
           >
-            <Text strong style={{ display: "block", marginBottom: 12 }}>
-              Lane Route Preview - Click map to add checkpoints
-            </Text>
-            {modalPathNodes.length >= 2 ? (
-              <CheckpointMapPicker
-                value={checkpoints}
-                onChange={setCheckpoints}
-                pathNodes={modalPathNodes}
-                height={320}
-              />
-            ) : (
-              <div
-                style={{
-                  height: 320,
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  background: "#f5f5f5",
-                  borderRadius: 8,
-                  color: "#999",
-                }}
-              >
-                Select from and to branches to preview the route and mark checkpoints
-              </div>
-            )}
+            <Space direction="vertical" size={12} style={{ width: "100%" }}>
+              <Space>
+                <Text strong>Lane Route Preview</Text>
+                {modalFormValues.transport_mode && (
+                  <Tag
+                    icon={
+                      modalFormValues.transport_mode === "road" ? (
+                        <RoadOutlined />
+                      ) : modalFormValues.transport_mode === "flight" ? (
+                        <PlaneOutlined />
+                      ) : (
+                        <RailOutlined />
+                      )
+                    }
+                    color={
+                      modalFormValues.transport_mode === "road"
+                        ? "blue"
+                        : modalFormValues.transport_mode === "flight"
+                          ? "cyan"
+                          : "orange"
+                    }
+                  >
+                    {modalFormValues.transport_mode.toUpperCase()}
+                  </Tag>
+                )}
+              </Space>
+
+              {modalPathNodes.length >= 2 ? (
+                modalFormValues.transport_mode === "road" ? (
+                  <CheckpointMapPicker
+                    value={checkpoints}
+                    onChange={setCheckpoints}
+                    pathNodes={modalPathNodes}
+                    height={300}
+                  />
+                ) : (
+                  <div
+                    style={{
+                      height: 300,
+                      display: "flex",
+                      flexDirection: "column",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      background: "#f0f9ff",
+                      borderRadius: 8,
+                      border: "2px dashed #1677ff",
+                    }}
+                  >
+                    {modalFormValues.transport_mode === "flight" ? (
+                      <>
+                        <PlaneOutlined
+                          style={{ fontSize: 48, color: "#1677ff", marginBottom: 16 }}
+                        />
+                        <Text strong style={{ fontSize: 16, marginBottom: 8 }}>
+                          Flight Route
+                        </Text>
+                        <Text type="secondary">
+                          Direct flight from {modalPathNodes[0]?.name} to{" "}
+                          {modalPathNodes[modalPathNodes.length - 1]?.name}
+                        </Text>
+                      </>
+                    ) : (
+                      <>
+                        <RailOutlined
+                          style={{ fontSize: 48, color: "#fa8c16", marginBottom: 16 }}
+                        />
+                        <Text strong style={{ fontSize: 16, marginBottom: 8 }}>
+                          Rail Route
+                        </Text>
+                        <Text type="secondary">
+                          Direct rail from {modalPathNodes[0]?.name} to{" "}
+                          {modalPathNodes[modalPathNodes.length - 1]?.name}
+                        </Text>
+                      </>
+                    )}
+                  </div>
+                )
+              ) : (
+                <div
+                  style={{
+                    height: 300,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    background: "#f5f5f5",
+                    borderRadius: 8,
+                    color: "#999",
+                  }}
+                >
+                  Select from and to branches to preview the route
+                </div>
+              )}
+            </Space>
           </div>
 
           {/* Form Fields */}
