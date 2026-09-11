@@ -7,6 +7,7 @@ import {
   Card,
   Col,
   Descriptions,
+  Divider,
   Form,
   Input,
   InputNumber,
@@ -40,6 +41,7 @@ import dynamic from "next/dynamic";
 
 import PermissionGate from "@/components/rate-admin/PermissionGate";
 import RouteMap from "@/components/rate-admin/RouteMap";
+import CheckpointMapPicker from "@/components/rate-admin/CheckpointMapPicker";
 import { deriveBranchConnectivity } from "@/services/adminRateManagementService";
 
 const BranchNetworkMap = dynamic(
@@ -146,6 +148,8 @@ export default function BranchTransferLanesPage() {
     service_type: undefined,
     is_active: undefined,
   });
+
+  const [checkpoints, setCheckpoints] = useState([]);
 
   const [pagination, setPagination] = useState({
     current: 1,
@@ -341,7 +345,11 @@ export default function BranchTransferLanesPage() {
       priority: Number(row.priority || 100),
 
       is_active: Boolean(row.is_active),
+
+      variant_name: row.variant_name || "",
     });
+
+    setCheckpoints(Array.isArray(row.checkpoints) ? row.checkpoints : []);
 
     setModalOpen(true);
   };
@@ -350,6 +358,7 @@ export default function BranchTransferLanesPage() {
     setModalOpen(false);
     setEditing(null);
     form.resetFields();
+    setCheckpoints([]);
   };
 
   const saveLane = async () => {
@@ -379,6 +388,10 @@ export default function BranchTransferLanesPage() {
             : Number(values.priority),
 
         is_active: Boolean(values.is_active),
+
+        variant_name: values.variant_name?.trim() || null,
+
+        checkpoints: checkpoints,
       };
 
       setSaving(true);
@@ -499,6 +512,25 @@ export default function BranchTransferLanesPage() {
       width: 90,
 
       render: (value) => `${Number(value || 0)} hrs`,
+    },
+
+    {
+      title: "Variant",
+      dataIndex: "variant_name",
+      width: 130,
+
+      render: (value) => value || "—",
+    },
+
+    {
+      title: "Checkpoints",
+      dataIndex: "checkpoints",
+      width: 130,
+
+      render: (value) => {
+        if (!value || value.length === 0) return "—";
+        return `${value.length} checkpoints`;
+      },
     },
 
     {
@@ -982,6 +1014,29 @@ export default function BranchTransferLanesPage() {
               >
                 <Switch />
               </Form.Item>
+            </Col>
+          </Row>
+
+          <Divider>Path Variant</Divider>
+          <Row gutter={16}>
+            <Col span={24}>
+              <Form.Item
+                name="variant_name"
+                label="Variant Name"
+                tooltip="e.g., 'Via Khaireni', 'Via Gorkha', 'Direct'"
+              >
+                <Input placeholder="Enter variant name (optional)" />
+              </Form.Item>
+            </Col>
+          </Row>
+
+          <Divider>Road Checkpoints</Divider>
+          <Row gutter={16}>
+            <Col span={24}>
+              <CheckpointMapPicker
+                checkpoints={checkpoints}
+                onCheckpointsChange={setCheckpoints}
+              />
             </Col>
           </Row>
         </Form>

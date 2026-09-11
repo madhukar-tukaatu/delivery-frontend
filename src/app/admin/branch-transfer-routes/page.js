@@ -202,7 +202,6 @@ export default function BranchTransferRoutesPage() {
 
   // Live builder state inside the modal.
   const [laneIds, setLaneIds] = useState([]);
-  const [checkpoints, setCheckpoints] = useState([]);
   const [modalServiceType, setModalServiceType] = useState("standard");
   const [fromBranchId, setFromBranchId] = useState(undefined);
   const [toBranchId, setToBranchId] = useState(undefined);
@@ -361,7 +360,6 @@ export default function BranchTransferRoutesPage() {
     setModalOpen(false);
     setEditing(null);
     setLaneIds([]);
-    setCheckpoints([]);
     setModalServiceType("standard");
     setFromBranchId(undefined);
     setToBranchId(undefined);
@@ -429,7 +427,6 @@ export default function BranchTransferRoutesPage() {
     setModalServiceType(row.service_type || "standard");
     const ids = laneIdsFromRoute(row);
     setLaneIds(ids);
-    setCheckpoints(Array.isArray(row.checkpoints) ? row.checkpoints : []);
     // Keep the existing code/name; treat as manual so they aren't overwritten.
     setManualCode(Boolean(row.route_code));
     setManualName(Boolean(row.name));
@@ -523,7 +520,6 @@ export default function BranchTransferRoutesPage() {
         route_code: values.route_code?.trim() || null,
         name: values.name?.trim() || null,
         lane_ids: laneIds,
-        checkpoints,
         service_type: values.service_type,
         base_rate: Number(values.base_rate || 0),
         priority: Number(values.priority || 100),
@@ -1023,18 +1019,33 @@ export default function BranchTransferRoutesPage() {
                   </Descriptions.Item>
                 </Descriptions>
 
-                {Array.isArray(selected?.checkpoints) &&
-                selected.checkpoints.length ? (
+                {selected?.lanes && selected.lanes.length > 0 ? (
                   <>
-                    <Divider plain>Road Checkpoints</Divider>
-                    <Space wrap size={6}>
-                      {selected.checkpoints.map((cp, i) => (
-                        <Tag color="purple" key={i}>
-                          <EnvironmentOutlined />{" "}
-                          {cp.name || cp.city || `Checkpoint ${i + 1}`}
-                        </Tag>
-                      ))}
-                    </Space>
+                    <Divider plain>Lane Checkpoints</Divider>
+                    {selected.lanes.map((laneMapping, idx) => {
+                      const lane = laneMapping.lane;
+                      const checkpoints = lane.checkpoints || [];
+                      return (
+                        <div key={idx} style={{ marginBottom: 12 }}>
+                          <Text strong>
+                            Lane {idx + 1}{lane.variant_name ? ` - ${lane.variant_name}` : ""}
+                          </Text>
+                          {checkpoints.length > 0 ? (
+                            <Space wrap size={6} style={{ marginTop: 8, display: "block" }}>
+                              {checkpoints.map((cp, i) => (
+                                <Tag color="purple" key={i}>
+                                  <EnvironmentOutlined /> {cp.name || cp.city || `Checkpoint ${i + 1}`}
+                                </Tag>
+                              ))}
+                            </Space>
+                          ) : (
+                            <Text type="secondary" style={{ fontSize: 12 }}>
+                              No checkpoints
+                            </Text>
+                          )}
+                        </div>
+                      );
+                    })}
                   </>
                 ) : null}
               </Card>
@@ -1058,7 +1069,7 @@ export default function BranchTransferRoutesPage() {
         <Alert
           type="info"
           showIcon
-          message="Pick the From and To branches, then apply the suggested lane path (or build it manually). No direct lane is needed — routes can chain through transit branches. Optionally drop road checkpoints on the map to describe the exact road taken."
+          message="Pick the From and To branches, then apply the suggested lane path (or build it manually). No direct lane is needed — routes can chain through transit branches. Checkpoints are configured per lane variant."
           style={{ marginBottom: 18 }}
         />
 
@@ -1120,20 +1131,6 @@ export default function BranchTransferRoutesPage() {
             onChange={setLaneIds}
             onChangeFrom={setFromBranchId}
             onChangeTo={setToBranchId}
-          />
-
-          <Divider orientation="left" plain>
-            <Space size={6}>
-              <EnvironmentOutlined />
-              Road Checkpoints (optional)
-            </Space>
-          </Divider>
-
-          <CheckpointMapPicker
-            value={checkpoints}
-            onChange={setCheckpoints}
-            pathNodes={modalPathNodes}
-            height={360}
           />
 
           <Divider orientation="left" plain>
