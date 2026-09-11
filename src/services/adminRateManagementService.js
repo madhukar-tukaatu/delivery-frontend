@@ -661,6 +661,12 @@ export async function deleteBranchTransferLane(id) {
   return response.data;
 }
 
+export async function createRouteForBranchTransferLane(id) {
+  const response = await api.post(`${ENDPOINTS.transferLanes}/${id}/create-route`);
+
+  return response.data;
+}
+
 export async function createReverseBranchTransferLane(lane, overrides = {}) {
   const fromBranchId = resolveId(lane?.from_branch_id ?? lane?.from_branch);
 

@@ -68,6 +68,28 @@ const CheckpointMapPicker = dynamic(
   },
 );
 
+const ArcRouteMap = dynamic(
+  () => import("@/components/rate-admin/ArcRouteMap"),
+  {
+    ssr: false,
+    loading: () => (
+      <div
+        style={{
+          height: 300,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          background: "#f5f7fa",
+          borderRadius: 8,
+          color: "#8c8c8c",
+        }}
+      >
+        Loading map...
+      </div>
+    ),
+  },
+);
+
 const BranchNetworkMap = dynamic(
   () => import("@/components/rate-admin/BranchNetworkMap"),
   {
@@ -93,6 +115,7 @@ const BranchNetworkMap = dynamic(
 import {
   createBranchTransferLane,
   createReverseBranchTransferLane,
+  createRouteForBranchTransferLane,
   deleteBranchTransferLane,
   getBranchTransferLanes,
   getRateBranches,
@@ -155,12 +178,15 @@ export default function BranchTransferLanesPage() {
 
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [creatingRoutes, setCreatingRoutes] = useState(new Set()); // Track which lanes are being processed
 
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState(null);
 
   const [view, setView] = useState("lanes"); // lanes | connectivity
   const [connBranchId, setConnBranchId] = useState(undefined);
+
+  const [selectedRowKeys, setSelectedRowKeys] = useState([]); // For bulk operations
 
   const [filters, setFilters] = useState({
     search: "",
@@ -418,6 +444,85 @@ export default function BranchTransferLanesPage() {
     }
   };
 
+  const createRoute = async (row) => {
+    try {
+      setCreatingRoutes((prev) => new Set([...prev, row.id]));
+      await createRouteForBranchTransferLane(row.id);
+      message.success("Route created successfully for this lane.");
+      
+      // Update only that specific row
+      setRows((prevRows) =>
+        prevRows.map((r) =>
+          r.id === row.id ? { ...r, route_exists: true } : r
+        )
+      );
+    } catch (err) {
+      message.error(apiErrorMessage(err, "Could not create route for this lane."));
+    } finally {
+      setCreatingRoutes((prev) => {
+        const next = new Set(prev);
+        next.delete(row.id);
+        return next;
+      });
+    }
+  };
+
+  const bulkCreateRoutes = async () => {
+    if (selectedRowKeys.length === 0) {
+      message.warning("Please select lanes to create routes for.");
+      return;
+    }
+
+    try {
+      setCreatingRoutes((prev) => new Set([...prev, ...selectedRowKeys]));
+      
+      // Create routes for all selected lanes that don't have one
+      const lanesToProcess = rows.filter(
+        (r) => selectedRowKeys.includes(r.id) && !r.route_exists
+      );
+
+      if (lanesToProcess.length === 0) {
+        message.info("All selected lanes already have routes.");
+        return;
+      }
+
+      let successCount = 0;
+      let failedCount = 0;
+
+      for (const lane of lanesToProcess) {
+        try {
+          await createRouteForBranchTransferLane(lane.id);
+          successCount++;
+          
+          // Update the row
+          setRows((prevRows) =>
+            prevRows.map((r) =>
+              r.id === lane.id ? { ...r, route_exists: true } : r
+            )
+          );
+        } catch (err) {
+          failedCount++;
+        }
+      }
+
+      if (failedCount === 0) {
+        message.success(`Routes created for ${successCount} lane(s).`);
+      } else {
+        message.warning(
+          `Created routes for ${successCount} lane(s). ${failedCount} failed.`
+        );
+      }
+
+      setSelectedRowKeys([]);
+    } finally {
+      setCreatingRoutes((prev) => {
+        const next = new Set(prev);
+        selectedRowKeys.forEach((id) => next.delete(id));
+        return next;
+      });
+    }
+  };
+
   // ------------------------------------------------------------------
   // Table columns
   // ------------------------------------------------------------------
@@ -472,6 +577,18 @@ export default function BranchTransferLanesPage() {
       render: (v) => (!v || v.length === 0) ? "—" : `${v.length} pts`,
     },
     {
+      title: "Route Status",
+      dataIndex: "route_exists",
+      width: 130,
+      render: (exists, row) => exists ? (
+        <Tag color="green">
+          ✓ Route exists
+        </Tag>
+      ) : (
+        <Tag color="orange">No route</Tag>
+      ),
+    },
+    {
       title: "Status",
       dataIndex: "is_active",
       width: 90,
@@ -480,13 +597,27 @@ export default function BranchTransferLanesPage() {
     {
       title: "Actions",
       key: "actions",
-      width: 240,
+      width: 300,
       fixed: "right",
       render: (_, row) => (
         <Space wrap>
           <Tooltip title="Edit lane">
             <Button size="small" icon={<EditOutlined />} onClick={(e) => { e.stopPropagation(); openEdit(row); }} />
           </Tooltip>
+          {!row.route_exists && (
+            <Tooltip title="Create route for this lane">
+              <Button 
+                size="small" 
+                type="primary" 
+                ghost
+                icon={<SendOutlined />} 
+                onClick={(e) => { e.stopPropagation(); createRoute(row); }}
+                loading={creatingRoutes.has(row.id)}
+              >
+                Create Route
+              </Button>
+            </Tooltip>
+          )}
           <Tooltip title={Number(row.from_branch_id) === Number(row.to_branch_id) ? "Same-branch lane has no reverse" : "Create reverse lane"}>
             <Button
               size="small"
@@ -564,6 +695,38 @@ export default function BranchTransferLanesPage() {
         />
       ) : (
         <>
+          {/* Bulk actions bar */}
+          {selectedRowKeys.length > 0 && (
+            <Card
+              bordered={false}
+              style={{
+                background: "#e6f7ff",
+                borderLeft: "4px solid #1890ff",
+              }}
+            >
+              <Row justify="space-between" align="middle">
+                <Col>
+                  <Text>
+                    <strong>{selectedRowKeys.length}</strong> lane(s) selected
+                  </Text>
+                </Col>
+                <Col>
+                  <Space>
+                    <Button onClick={() => setSelectedRowKeys([])}>Clear</Button>
+                    <Button
+                      type="primary"
+                      icon={<SendOutlined />}
+                      onClick={bulkCreateRoutes}
+                      loading={creatingRoutes.size > 0}
+                    >
+                      Bulk Create Routes
+                    </Button>
+                  </Space>
+                </Col>
+              </Row>
+            </Card>
+          )}
+
           {/* Filters */}
           <Card bordered={false}>
             <Row gutter={[16, 16]}>
@@ -611,12 +774,68 @@ export default function BranchTransferLanesPage() {
                     showSizeChanger: true,
                   }}
                   onChange={(next) => loadRows(next.current, next.pageSize)}
+                  rowSelection={{
+                    selectedRowKeys,
+                    onChange: setSelectedRowKeys,
+                    selections: [
+                      Table.SELECTION_ALL,
+                      Table.SELECTION_INVERT,
+                      {
+                        key: "no-routes",
+                        text: "Lanes without routes",
+                        onSelect: () => {
+                          const noRouteIds = rows
+                            .filter((r) => !r.route_exists)
+                            .map((r) => r.id);
+                          setSelectedRowKeys(noRouteIds);
+                        },
+                      },
+                    ],
+                  }}
                 />
               </Card>
             </Col>
             <Col xs={24} xl={8}>
-              <Card bordered={false} title="Selected Lane Map">
-                <RouteMap nodes={selectedNodes} height={360} selectedLabel="Direct transfer lane" />
+              <Card
+                bordered={false}
+                title={
+                  <Space>
+                    Selected Lane Map
+                    {selected?.transport_mode && <TransportBadge mode={selected.transport_mode} />}
+                  </Space>
+                }
+              >
+                {selected ? (
+                  selected.transport_mode === "road" || !selected.transport_mode ? (
+                    <CheckpointMapPicker
+                      value={selected.checkpoints || []}
+                      onChange={() => {}} // Read-only in preview
+                      pathNodes={selectedNodes}
+                      height={360}
+                    />
+                  ) : (
+                    <ArcRouteMap
+                      fromNode={selected.from_branch}
+                      toNode={selected.to_branch}
+                      mode={selected.transport_mode}
+                      height={360}
+                    />
+                  )
+                ) : (
+                  <div
+                    style={{
+                      height: 360,
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      background: "#f5f5f5",
+                      borderRadius: 8,
+                      color: "#bbb",
+                    }}
+                  >
+                    Select a lane to preview
+                  </div>
+                )}
                 <Descriptions column={1} size="small" style={{ marginTop: 18 }}>
                   <Descriptions.Item label="From">{selected?.from_branch?.name || "—"}</Descriptions.Item>
                   <Descriptions.Item label="To">{selected?.to_branch?.name || "—"}</Descriptions.Item>
@@ -625,6 +844,17 @@ export default function BranchTransferLanesPage() {
                   <Descriptions.Item label="ETA">{selected ? `${Number(selected.estimated_hours || 0)} hrs` : "—"}</Descriptions.Item>
                   <Descriptions.Item label="Variant">{selected?.variant_name || "—"}</Descriptions.Item>
                   <Descriptions.Item label="Checkpoints">{selected?.checkpoints?.length ? `${selected.checkpoints.length} checkpoint(s)` : "—"}</Descriptions.Item>
+                  <Descriptions.Item label="Route Status">
+                    {selected ? (
+                      selected.route_exists ? (
+                        <Tag color="green">✓ Route exists</Tag>
+                      ) : (
+                        <Tag color="orange">No route</Tag>
+                      )
+                    ) : (
+                      "—"
+                    )}
+                  </Descriptions.Item>
                   <Descriptions.Item label="Status">{selected ? statusTag(selected.is_active) : "—"}</Descriptions.Item>
                 </Descriptions>
               </Card>
@@ -686,36 +916,12 @@ export default function BranchTransferLanesPage() {
                   height={300}
                 />
               ) : (
-                <div
-                  style={{
-                    height: 220,
-                    display: "flex",
-                    flexDirection: "column",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    background: modalTransportMode === "flight" ? "#e6f7ff" : "#fff7e6",
-                    borderRadius: 8,
-                    border: `2px dashed ${modalTransportMode === "flight" ? "#1677ff" : "#fa8c16"}`,
-                    gap: 8,
-                  }}
-                >
-                  <Text style={{ fontSize: 48 }}>
-                    {modalTransportMode === "flight" ? "✈️" : "🚂"}
-                  </Text>
-                  <Text strong style={{ fontSize: 16 }}>
-                    {modalTransportMode === "flight" ? "Flight Route" : "Rail Route"}
-                  </Text>
-                  <Text type="secondary">
-                    Direct {modalTransportMode} from{" "}
-                    <strong>{modalPathNodes[0]?.name}</strong> to{" "}
-                    <strong>{modalPathNodes[modalPathNodes.length - 1]?.name}</strong>
-                  </Text>
-                  {modalTransportMode === "flight" && (
-                    <Text type="secondary" style={{ fontSize: 12 }}>
-                      Road checkpoints are not applicable for flight routes
-                    </Text>
-                  )}
-                </div>
+                <ArcRouteMap
+                  fromNode={modalPathNodes[0]}
+                  toNode={modalPathNodes[modalPathNodes.length - 1]}
+                  mode={modalTransportMode}
+                  height={300}
+                />
               )
             ) : (
               <div
