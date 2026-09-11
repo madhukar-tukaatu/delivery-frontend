@@ -327,6 +327,42 @@ export default function BranchTransferLanesPage() {
     ? branchesById.get(Number(connBranchId))
     : null;
 
+  // Compute modal map path nodes based on current form values
+  const modalPathNodes = useMemo(() => {
+    const fromBranchId = modalFormValues.from_branch_id;
+    const toBranchId = modalFormValues.to_branch_id;
+
+    if (!fromBranchId || !toBranchId) {
+      return [];
+    }
+
+    const fromBranch = branchesById.get(Number(fromBranchId));
+    const toBranch = branchesById.get(Number(toBranchId));
+
+    if (!fromBranch || !toBranch) {
+      return [];
+    }
+
+    return [
+      {
+        id: fromBranch.id,
+        name: fromBranch.name,
+        code: fromBranch.code,
+        latitude: Number(fromBranch.latitude),
+        longitude: Number(fromBranch.longitude),
+        sequence: 0,
+      },
+      {
+        id: toBranch.id,
+        name: toBranch.name,
+        code: toBranch.code,
+        latitude: Number(toBranch.latitude),
+        longitude: Number(toBranch.longitude),
+        sequence: 1,
+      },
+    ];
+  }, [modalFormValues, branchesById]);
+
   const openCreate = (prefill = {}) => {
     setEditing(null);
 
@@ -381,7 +417,24 @@ export default function BranchTransferLanesPage() {
     setEditing(null);
     form.resetFields();
     setCheckpoints([]);
+    setModalFormValues({});
   };
+
+  // Watch form changes to update map preview
+  useEffect(() => {
+    if (!modalOpen) return;
+    
+    const subscription = form.getFieldsValue((changedValues) => {
+      setModalFormValues(form.getFieldsValue());
+      return true;
+    });
+
+    return () => {
+      if (subscription?.unsubscribe) {
+        subscription.unsubscribe();
+      }
+    };
+  }, [form, modalOpen]);
 
   const saveLane = async () => {
     try {
@@ -915,141 +968,178 @@ export default function BranchTransferLanesPage() {
             is_active: true,
           }}
         >
-          <Row gutter={16}>
+          <Row gutter={24}>
+            {/* Left Column: Form Fields */}
             <Col span={12}>
-              <Form.Item
-                name="from_branch_id"
-                label="From Branch"
-                rules={[
-                  {
-                    required: true,
-                    message: "Please select from branch.",
-                  },
-                ]}
-              >
-                <Select
-                  showSearch
-                  optionFilterProp="label"
-                  options={branchOptions}
-                />
-              </Form.Item>
+              <Row gutter={16}>
+                <Col span={24}>
+                  <Form.Item
+                    name="from_branch_id"
+                    label="From Branch"
+                    rules={[
+                      {
+                        required: true,
+                        message: "Please select from branch.",
+                      },
+                    ]}
+                  >
+                    <Select
+                      showSearch
+                      optionFilterProp="label"
+                      options={branchOptions}
+                    />
+                  </Form.Item>
+                </Col>
+
+                <Col span={24}>
+                  <Form.Item
+                    name="to_branch_id"
+                    label="To Branch"
+                    rules={[
+                      {
+                        required: true,
+                        message: "Please select to branch.",
+                      },
+                    ]}
+                  >
+                    <Select
+                      showSearch
+                      optionFilterProp="label"
+                      options={branchOptions}
+                    />
+                  </Form.Item>
+                </Col>
+
+                <Col span={12}>
+                  <Form.Item
+                    name="service_type"
+                    label="Service Type"
+                    rules={[
+                      {
+                        required: true,
+                      },
+                    ]}
+                  >
+                    <Select options={SERVICE_TYPES} />
+                  </Form.Item>
+                </Col>
+
+                <Col span={12}>
+                  <Form.Item name="transport_mode" label="Transport Mode">
+                    <Select allowClear options={TRANSPORT_MODES} />
+                  </Form.Item>
+                </Col>
+
+                <Col span={24}>
+                  <Form.Item name="distance_km" label="Distance">
+                    <InputNumber
+                      min={0}
+                      precision={2}
+                      addonAfter="km"
+                      style={{
+                        width: "100%",
+                      }}
+                    />
+                  </Form.Item>
+                </Col>
+
+                <Col span={12}>
+                  <Form.Item
+                    name="estimated_hours"
+                    label="Estimated Hours"
+                    rules={[
+                      {
+                        required: true,
+                      },
+                    ]}
+                  >
+                    <InputNumber
+                      min={1}
+                      style={{
+                        width: "100%",
+                      }}
+                    />
+                  </Form.Item>
+                </Col>
+
+                <Col span={12}>
+                  <Form.Item
+                    name="priority"
+                    label="Priority"
+                    rules={[
+                      {
+                        required: true,
+                      },
+                    ]}
+                  >
+                    <InputNumber
+                      min={1}
+                      style={{
+                        width: "100%",
+                      }}
+                    />
+                  </Form.Item>
+                </Col>
+
+                <Col span={24}>
+                  <Form.Item
+                    name="is_active"
+                    label="Active"
+                    valuePropName="checked"
+                  >
+                    <Switch />
+                  </Form.Item>
+                </Col>
+
+                <Col span={24}>
+                  <Form.Item
+                    name="variant_name"
+                    label="Variant Name"
+                    tooltip="e.g., 'Via Khaireni', 'Via Gorkha', 'Direct'"
+                  >
+                    <Input placeholder="Enter variant name (optional)" />
+                  </Form.Item>
+                </Col>
+              </Row>
             </Col>
 
+            {/* Right Column: Map Preview */}
             <Col span={12}>
-              <Form.Item
-                name="to_branch_id"
-                label="To Branch"
-                rules={[
-                  {
-                    required: true,
-                    message: "Please select to branch.",
-                  },
-                ]}
+              <div
+                style={{
+                  border: "1px solid #f0f0f0",
+                  borderRadius: 12,
+                  padding: 12,
+                  background: "#fafafa",
+                  height: 500,
+                  overflow: "hidden",
+                }}
               >
-                <Select
-                  showSearch
-                  optionFilterProp="label"
-                  options={branchOptions}
-                />
-              </Form.Item>
-            </Col>
-          </Row>
-
-          <Row gutter={16}>
-            <Col span={8}>
-              <Form.Item
-                name="service_type"
-                label="Service Type"
-                rules={[
-                  {
-                    required: true,
-                  },
-                ]}
-              >
-                <Select options={SERVICE_TYPES} />
-              </Form.Item>
-            </Col>
-
-            <Col span={8}>
-              <Form.Item name="transport_mode" label="Transport Mode">
-                <Select allowClear options={TRANSPORT_MODES} />
-              </Form.Item>
-            </Col>
-
-            <Col span={8}>
-              <Form.Item name="distance_km" label="Distance">
-                <InputNumber
-                  min={0}
-                  precision={2}
-                  addonAfter="km"
-                  style={{
-                    width: "100%",
-                  }}
-                />
-              </Form.Item>
-            </Col>
-          </Row>
-
-          <Row gutter={16}>
-            <Col span={8}>
-              <Form.Item
-                name="estimated_hours"
-                label="Estimated Hours"
-                rules={[
-                  {
-                    required: true,
-                  },
-                ]}
-              >
-                <InputNumber
-                  min={1}
-                  style={{
-                    width: "100%",
-                  }}
-                />
-              </Form.Item>
-            </Col>
-
-            <Col span={8}>
-              <Form.Item
-                name="priority"
-                label="Priority"
-                rules={[
-                  {
-                    required: true,
-                  },
-                ]}
-              >
-                <InputNumber
-                  min={1}
-                  style={{
-                    width: "100%",
-                  }}
-                />
-              </Form.Item>
-            </Col>
-
-            <Col span={8}>
-              <Form.Item
-                name="is_active"
-                label="Active"
-                valuePropName="checked"
-              >
-                <Switch />
-              </Form.Item>
-            </Col>
-          </Row>
-
-          <Divider>Path Variant</Divider>
-          <Row gutter={16}>
-            <Col span={24}>
-              <Form.Item
-                name="variant_name"
-                label="Variant Name"
-                tooltip="e.g., 'Via Khaireni', 'Via Gorkha', 'Direct'"
-              >
-                <Input placeholder="Enter variant name (optional)" />
-              </Form.Item>
+                <Text strong style={{ display: "block", marginBottom: 12 }}>
+                  Lane Route Preview
+                </Text>
+                {modalPathNodes.length >= 2 ? (
+                  <RouteMap
+                    nodes={modalPathNodes}
+                    height={450}
+                    selectedLabel={`${modalFormValues.transport_mode || "road"} service`}
+                  />
+                ) : (
+                  <div
+                    style={{
+                      height: 450,
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      background: "#f5f5f5",
+                      borderRadius: 8,
+                      color: "#999",
+                    }}
+                  >
+                    Select from and to branches to preview the route
+                  </div>
+                )}
+              </div>
             </Col>
           </Row>
 
@@ -1059,6 +1149,7 @@ export default function BranchTransferLanesPage() {
               <CheckpointMapPicker
                 value={checkpoints}
                 onChange={setCheckpoints}
+                pathNodes={modalPathNodes}
               />
             </Col>
           </Row>
