@@ -135,7 +135,7 @@ export default function StaffDetailPage() {
           }
           onClick={() =>
             router.push(
-              "/admin/staff"
+              "/admin/branch-staff"
             )
           }
         >
@@ -173,7 +173,7 @@ export default function StaffDetailPage() {
               }
               onClick={() =>
                 router.push(
-                  "/admin/staff"
+                  "/admin/branch-staff"
                 )
               }
             />

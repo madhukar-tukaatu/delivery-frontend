@@ -35,7 +35,20 @@ function UserAvatar({ name }) {
 }
 
 export default function BranchStaffPage() {
-  const { can, branchId, branchName, isSuperAdmin } = usePermissions();
+  const { can, branchId, branchName, isSuperAdmin, isBranchManager } = usePermissions();
+  
+  // This page is only for branch managers to manage their own staff
+  if (isSuperAdmin || !isBranchManager) {
+    return (
+      <Card style={{ marginTop: 24 }}>
+        <div style={{ textAlign: "center", padding: "40px 20px" }}>
+          <Text type="danger" style={{ fontSize: 16 }}>
+            You don't have permission to access this page. This page is for branch managers only.
+          </Text>
+        </div>
+      </Card>
+    );
+  }
 
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(false);
