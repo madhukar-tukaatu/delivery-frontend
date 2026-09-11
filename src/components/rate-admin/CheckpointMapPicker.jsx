@@ -508,7 +508,7 @@ export default function CheckpointMapPicker({
                   </Tooltip>
                 </Space>
               </Space>
-            </div>
+            </Card>
           ))}
         </Space>
       )}
