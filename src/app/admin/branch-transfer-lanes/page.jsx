@@ -5,15 +5,19 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Button,
   Card,
+  Checkbox,
   Col,
   Descriptions,
   Divider,
+  Empty,
   Form,
   Input,
   InputNumber,
+  List,
   Modal,
   Popconfirm,
   Row,
+  Segmented,
   Select,
   Space,
   Statistic,
@@ -32,13 +36,9 @@ import {
   NodeIndexOutlined,
   PlusOutlined,
   ReloadOutlined,
+  SendOutlined,
   SwapOutlined,
-  PlaneOutlined,
-  RoadOutlined,
-  RailOutlined,
 } from "@ant-design/icons";
-
-import { Checkbox, Empty, List, Segmented } from "antd";
 
 import dynamic from "next/dynamic";
 
@@ -53,7 +53,7 @@ const CheckpointMapPicker = dynamic(
     loading: () => (
       <div
         style={{
-          height: 360,
+          height: 300,
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
@@ -112,34 +112,31 @@ import {
 const { Title, Text } = Typography;
 
 const SERVICE_TYPES = [
-  {
-    label: "Standard",
-    value: "standard",
-  },
-  {
-    label: "Express",
-    value: "express",
-  },
-  {
-    label: "Same Day",
-    value: "same_day",
-  },
+  { label: "Standard", value: "standard" },
+  { label: "Express", value: "express" },
+  { label: "Same Day", value: "same_day" },
 ];
 
 const TRANSPORT_MODES = [
-  {
-    label: "Road",
-    value: "road",
-  },
-  {
-    label: "Flight",
-    value: "flight",
-  },
-  {
-    label: "Rail",
-    value: "rail",
-  },
+  { label: "Road", value: "road" },
+  { label: "Flight", value: "flight" },
+  { label: "Rail", value: "rail" },
 ];
+
+// Transport mode icon as a simple emoji/text badge
+function TransportBadge({ mode }) {
+  const config = {
+    road:   { label: "ROAD",   color: "blue",   icon: "🛣️" },
+    flight: { label: "FLIGHT", color: "cyan",   icon: "✈️" },
+    rail:   { label: "RAIL",   color: "orange", icon: "🚂" },
+  };
+  const c = config[mode] || { label: mode?.toUpperCase() || "—", color: "default", icon: "🚚" };
+  return (
+    <Tag color={c.color}>
+      {c.icon} {c.label}
+    </Tag>
+  );
+}
 
 function statusTag(active) {
   return (
@@ -174,7 +171,11 @@ export default function BranchTransferLanesPage() {
   });
 
   const [checkpoints, setCheckpoints] = useState([]);
-  const [modalFormValues, setModalFormValues] = useState({});
+
+  // Tracks what the form currently holds so the map preview reacts
+  const [modalFromId, setModalFromId] = useState(null);
+  const [modalToId, setModalToId] = useState(null);
+  const [modalTransportMode, setModalTransportMode] = useState("road");
 
   const [pagination, setPagination] = useState({
     current: 1,
@@ -186,29 +187,20 @@ export default function BranchTransferLanesPage() {
 
   const branchOptions = useMemo(
     () =>
-      branches.map((branch) => ({
-        value: Number(branch.id),
-        label: branchLabel(branch),
-      })),
+      branches.map((b) => ({ value: Number(b.id), label: branchLabel(b) })),
     [branches],
   );
 
   const loadBranches = useCallback(async () => {
     try {
-      const payload = await getRateBranches({
-        status: "active",
-        per_page: 500,
-      });
-
+      const payload = await getRateBranches({ status: "active", per_page: 500 });
       const collection = extractCollection(payload);
-
-      const normalizedBranches = collection.rows
+      const normalized = collection.rows
         .map(normalizeBranch)
-        .filter((branch) => Number.isFinite(Number(branch?.id)));
-
-      setBranches(normalizedBranches);
-    } catch (error) {
-      message.error(apiErrorMessage(error, "Could not load branch options."));
+        .filter((b) => Number.isFinite(Number(b?.id)));
+      setBranches(normalized);
+    } catch (err) {
+      message.error(apiErrorMessage(err, "Could not load branch options."));
     }
   }, []);
 
@@ -216,75 +208,49 @@ export default function BranchTransferLanesPage() {
     async (page = 1, pageSize = pagination.pageSize, overrideFilters = null) => {
       try {
         setLoading(true);
-
         const active = overrideFilters || filters;
-
         const payload = await getBranchTransferLanes({
           page,
           per_page: pageSize,
-
           search: active.search?.trim() || undefined,
-
           from_branch_id: active.from_branch_id || undefined,
-
           to_branch_id: active.to_branch_id || undefined,
-
           service_type: active.service_type || undefined,
-
-          is_active:
-            active.is_active === undefined ? undefined : active.is_active,
+          is_active: active.is_active === undefined ? undefined : active.is_active,
         });
-
         const collection = extractCollection(payload);
-
-        const normalized = collection.rows.map((row) =>
-          normalizeTransferLane(row, branchesById),
+        const normalized = collection.rows.map((r) =>
+          normalizeTransferLane(r, branchesById),
         );
-
         setRows(normalized);
-
         setSelected((current) => {
-          if (!normalized.length) {
-            return null;
-          }
-
+          if (!normalized.length) return null;
           return (
-            normalized.find((row) => Number(row.id) === Number(current?.id)) ||
+            normalized.find((r) => Number(r.id) === Number(current?.id)) ||
             normalized[0]
           );
         });
-
         setPagination({
           current: collection.currentPage || page,
-
           pageSize: collection.pageSize || pageSize,
-
           total: collection.total ?? normalized.length,
         });
-      } catch (error) {
-        message.error(apiErrorMessage(error, "Could not load transfer lanes."));
+      } catch (err) {
+        message.error(apiErrorMessage(err, "Could not load transfer lanes."));
       } finally {
         setLoading(false);
       }
     },
-    [branchesById, filters, pagination.current, pagination.pageSize],
+    [branchesById, filters, pagination.pageSize],
   );
 
-  useEffect(() => {
-    loadBranches();
-  }, [loadBranches]);
+  useEffect(() => { loadBranches(); }, [loadBranches]);
+  useEffect(() => { if (branches.length > 0) loadRows(1, pagination.pageSize); }, [branches.length]);
 
-  useEffect(() => {
-    if (branches.length > 0) {
-      loadRows(1, pagination.pageSize);
-    }
-  }, [branches.length]);
-
-  // Update a filter and immediately reload with the new value (page reset to 1).
   const applyFilter = useCallback(
     (patch) => {
-      setFilters((current) => {
-        const next = { ...current, ...patch };
+      setFilters((cur) => {
+        const next = { ...cur, ...patch };
         loadRows(1, pagination.pageSize, next);
         return next;
       });
@@ -293,133 +259,83 @@ export default function BranchTransferLanesPage() {
   );
 
   const resetFilters = useCallback(() => {
-    const cleared = {
-      search: "",
-      from_branch_id: undefined,
-      to_branch_id: undefined,
-      service_type: undefined,
-      is_active: undefined,
-    };
+    const cleared = { search: "", from_branch_id: undefined, to_branch_id: undefined, service_type: undefined, is_active: undefined };
     setFilters(cleared);
     loadRows(1, pagination.pageSize, cleared);
   }, [loadRows, pagination.pageSize]);
 
   const stats = useMemo(() => {
-    const active = rows.filter((row) => row.is_active).length;
-    const inactive = rows.length - active;
-
-    const distance = rows.reduce(
-      (sum, row) => sum + Number(row.distance_km || 0),
-      0,
-    );
-
-    return {
-      active,
-      inactive,
-      distance,
-    };
+    const active = rows.filter((r) => r.is_active).length;
+    const distance = rows.reduce((s, r) => s + Number(r.distance_km || 0), 0);
+    return { active, inactive: rows.length - active, distance };
   }, [rows]);
 
-  // Branch-centric connectivity: which branches the selected branch links to.
   const connectivity = useMemo(() => {
     if (!connBranchId) return null;
     return deriveBranchConnectivity(connBranchId, rows);
   }, [connBranchId, rows]);
 
-  const connBranch = connBranchId
-    ? branchesById.get(Number(connBranchId))
-    : null;
+  const connBranch = connBranchId ? branchesById.get(Number(connBranchId)) : null;
 
-  // Compute modal map path nodes based on current form values
+  // Map preview path nodes derived from modal branch selections
   const modalPathNodes = useMemo(() => {
-    const fromBranchId = modalFormValues.from_branch_id;
-    const toBranchId = modalFormValues.to_branch_id;
-
-    if (!fromBranchId || !toBranchId) {
-      return [];
-    }
-
-    const fromBranch = branchesById.get(Number(fromBranchId));
-    const toBranch = branchesById.get(Number(toBranchId));
-
-    if (!fromBranch || !toBranch) {
-      return [];
-    }
-
+    if (!modalFromId || !modalToId) return [];
+    const from = branchesById.get(Number(modalFromId));
+    const to   = branchesById.get(Number(modalToId));
+    if (!from || !to) return [];
+    const toNum = (v) => {
+      const n = Number(v);
+      return Number.isFinite(n) ? n : null;
+    };
+    if (!toNum(from.latitude) || !toNum(from.longitude)) return [];
+    if (!toNum(to.latitude)   || !toNum(to.longitude))   return [];
     return [
-      {
-        id: fromBranch.id,
-        name: fromBranch.name,
-        code: fromBranch.code,
-        latitude: Number(fromBranch.latitude),
-        longitude: Number(fromBranch.longitude),
-        sequence: 0,
-      },
-      {
-        id: toBranch.id,
-        name: toBranch.name,
-        code: toBranch.code,
-        latitude: Number(toBranch.latitude),
-        longitude: Number(toBranch.longitude),
-        sequence: 1,
-      },
+      { id: from.id, name: from.name, code: from.code, latitude: toNum(from.latitude), longitude: toNum(from.longitude), sequence: 0 },
+      { id: to.id,   name: to.name,   code: to.code,   latitude: toNum(to.latitude),   longitude: toNum(to.longitude),   sequence: 1 },
     ];
-  }, [modalFormValues, branchesById]);
+  }, [modalFromId, modalToId, branchesById]);
 
+  // ------------------------------------------------------------------
+  // Modal helpers
+  // ------------------------------------------------------------------
   const openCreate = (prefill = {}) => {
     setEditing(null);
+    setCheckpoints([]);
+    setModalFromId(prefill.from_branch_id ? Number(prefill.from_branch_id) : null);
+    setModalToId(null);
+    setModalTransportMode("road");
 
+    form.resetFields();
     form.setFieldsValue({
-      from_branch_id: undefined,
-      to_branch_id: undefined,
       service_type: "standard",
       transport_mode: "road",
-      distance_km: undefined,
       estimated_hours: 1,
       priority: 100,
       is_active: true,
       ...prefill,
     });
-
     setModalOpen(true);
   };
 
   const openEdit = (row) => {
     setEditing(row);
-
-    form.setFieldsValue({
-      from_branch_id: Number(row.from_branch_id),
-
-      to_branch_id: Number(row.to_branch_id),
-
-      service_type: row.service_type || "standard",
-
-      transport_mode: row.transport_mode || "road",
-
-      distance_km:
-        row.distance_km === null || row.distance_km === undefined
-          ? undefined
-          : Number(row.distance_km),
-
-      estimated_hours: Number(row.estimated_hours || 1),
-
-      priority: Number(row.priority || 100),
-
-      is_active: Boolean(row.is_active),
-
-      variant_name: row.variant_name || "",
-    });
-
     setCheckpoints(Array.isArray(row.checkpoints) ? row.checkpoints : []);
+    setModalFromId(Number(row.from_branch_id));
+    setModalToId(Number(row.to_branch_id));
+    setModalTransportMode(row.transport_mode || "road");
 
-    // Sync form values to modalFormValues for map preview
-    setModalFormValues({
-      from_branch_id: Number(row.from_branch_id),
-      to_branch_id: Number(row.to_branch_id),
-      service_type: row.service_type || "standard",
-      transport_mode: row.transport_mode || "road",
+    form.resetFields();
+    form.setFieldsValue({
+      from_branch_id:  Number(row.from_branch_id),
+      to_branch_id:    Number(row.to_branch_id),
+      service_type:    row.service_type || "standard",
+      transport_mode:  row.transport_mode || "road",
+      distance_km:     row.distance_km == null ? undefined : Number(row.distance_km),
+      estimated_hours: Number(row.estimated_hours || 1),
+      priority:        Number(row.priority || 100),
+      is_active:       Boolean(row.is_active),
+      variant_name:    row.variant_name || "",
     });
-
     setModalOpen(true);
   };
 
@@ -428,51 +344,33 @@ export default function BranchTransferLanesPage() {
     setEditing(null);
     form.resetFields();
     setCheckpoints([]);
-    setModalFormValues({});
+    setModalFromId(null);
+    setModalToId(null);
+    setModalTransportMode("road");
   };
 
-  // Sync form values when modal opens
-  useEffect(() => {
-    if (modalOpen) {
-      setModalFormValues(form.getFieldsValue());
-    }
-  }, [modalOpen, form]);
+  const onFormValuesChange = (changed) => {
+    if ("from_branch_id"  in changed) setModalFromId(changed.from_branch_id ? Number(changed.from_branch_id) : null);
+    if ("to_branch_id"    in changed) setModalToId(changed.to_branch_id ? Number(changed.to_branch_id) : null);
+    if ("transport_mode"  in changed) setModalTransportMode(changed.transport_mode || "road");
+  };
 
   const saveLane = async () => {
     try {
       const values = await form.validateFields();
-
       const payload = {
-        from_branch_id: Number(values.from_branch_id),
-        to_branch_id: Number(values.to_branch_id),
-        service_type: values.service_type,
-        transport_mode: values.transport_mode || null,
-
-        distance_km:
-          values.distance_km === undefined || values.distance_km === null
-            ? null
-            : Number(values.distance_km),
-
-        estimated_hours:
-          values.estimated_hours === undefined ||
-          values.estimated_hours === null
-            ? 1
-            : Number(values.estimated_hours),
-
-        priority:
-          values.priority === undefined || values.priority === null
-            ? 100
-            : Number(values.priority),
-
-        is_active: Boolean(values.is_active),
-
-        variant_name: values.variant_name?.trim() || null,
-
-        checkpoints: checkpoints,
+        from_branch_id:  Number(values.from_branch_id),
+        to_branch_id:    Number(values.to_branch_id),
+        service_type:    values.service_type,
+        transport_mode:  values.transport_mode || null,
+        distance_km:     values.distance_km == null ? null : Number(values.distance_km),
+        estimated_hours: values.estimated_hours == null ? 1 : Number(values.estimated_hours),
+        priority:        values.priority == null ? 100 : Number(values.priority),
+        is_active:       Boolean(values.is_active),
+        variant_name:    values.variant_name?.trim() || null,
+        checkpoints,
       };
-
       setSaving(true);
-
       if (editing) {
         await updateBranchTransferLane(editing.id, payload);
         message.success("Transfer lane updated.");
@@ -480,16 +378,11 @@ export default function BranchTransferLanesPage() {
         await createBranchTransferLane(payload);
         message.success("Transfer lane created.");
       }
-
-      setModalOpen(false);
-      setEditing(null);
-      form.resetFields();
-
+      closeModal();
       await loadRows();
-    } catch (error) {
-      if (error?.errorFields) return;
-
-      message.error(apiErrorMessage(error, "Could not save transfer lane."));
+    } catch (err) {
+      if (err?.errorFields) return;
+      message.error(apiErrorMessage(err, "Could not save transfer lane."));
     } finally {
       setSaving(false);
     }
@@ -498,196 +391,122 @@ export default function BranchTransferLanesPage() {
   const toggleStatus = async (row) => {
     try {
       await updateBranchTransferLaneStatus(row.id, !row.is_active);
-
-      message.success(
-        `Transfer lane ${row.is_active ? "disabled" : "enabled"}.`,
-      );
-
+      message.success(`Transfer lane ${row.is_active ? "disabled" : "enabled"}.`);
       await loadRows(pagination.current, pagination.pageSize);
-    } catch (error) {
-      message.error(apiErrorMessage(error, "Could not update lane status."));
+    } catch (err) {
+      message.error(apiErrorMessage(err, "Could not update lane status."));
     }
   };
 
   const createReverse = async (row) => {
     try {
       await createReverseBranchTransferLane(row);
-
       message.success("Reverse transfer lane created.");
-
       await loadRows(pagination.current, pagination.pageSize);
-    } catch (error) {
-      message.error(apiErrorMessage(error, "Could not create reverse lane."));
+    } catch (err) {
+      message.error(apiErrorMessage(err, "Could not create reverse lane."));
     }
   };
 
   const removeLane = async (row) => {
     try {
       await deleteBranchTransferLane(row.id);
-
       message.success("Transfer lane deleted.");
-
       await loadRows(pagination.current, pagination.pageSize);
-    } catch (error) {
-      message.error(apiErrorMessage(error, "Could not delete transfer lane."));
+    } catch (err) {
+      message.error(apiErrorMessage(err, "Could not delete transfer lane."));
     }
   };
 
+  // ------------------------------------------------------------------
+  // Table columns
+  // ------------------------------------------------------------------
   const columns = [
     {
       title: "Direct Lane",
       key: "lane",
-      width: 290,
-
+      width: 260,
       render: (_, row) => (
         <Space direction="vertical" size={2}>
           <Text strong>
-            {row.from_branch?.name || "Unknown"}
-
-            {" → "}
-
-            {row.to_branch?.name || "Unknown"}
+            {row.from_branch?.name || "Unknown"} {" → "} {row.to_branch?.name || "Unknown"}
           </Text>
-
-          <Text type="secondary" style={{ fontSize: 12 }}>
-            Priority {row.priority}
-          </Text>
+          <Text type="secondary" style={{ fontSize: 12 }}>Priority {row.priority}</Text>
         </Space>
       ),
     },
-
     {
       title: "Service",
       dataIndex: "service_type",
-      width: 120,
-
-      render: (value) => <Tag color="blue">{value || "—"}</Tag>,
+      width: 110,
+      render: (v) => <Tag color="blue">{v || "—"}</Tag>,
     },
-
     {
       title: "Transport",
       dataIndex: "transport_mode",
       width: 110,
-
-      render: (value) => value || "—",
+      render: (v) => v ? <TransportBadge mode={v} /> : "—",
     },
-
     {
       title: "Distance",
       dataIndex: "distance_km",
       width: 110,
-
-      render: (value) =>
-        value === null || value === undefined
-          ? "—"
-          : `${Number(value).toFixed(2)} km`,
+      render: (v) => v == null ? "—" : `${Number(v).toFixed(2)} km`,
     },
-
     {
       title: "ETA",
       dataIndex: "estimated_hours",
-      width: 90,
-
-      render: (value) => `${Number(value || 0)} hrs`,
+      width: 80,
+      render: (v) => `${Number(v || 0)} hrs`,
     },
-
     {
       title: "Variant",
       dataIndex: "variant_name",
       width: 130,
-
-      render: (value) => value || "—",
+      render: (v) => v || "—",
     },
-
     {
       title: "Checkpoints",
       dataIndex: "checkpoints",
-      width: 130,
-
-      render: (value) => {
-        if (!value || value.length === 0) return "—";
-        return `${value.length} checkpoints`;
-      },
+      width: 120,
+      render: (v) => (!v || v.length === 0) ? "—" : `${v.length} pts`,
     },
-
     {
       title: "Status",
       dataIndex: "is_active",
-      width: 110,
+      width: 90,
       render: statusTag,
     },
-
     {
       title: "Actions",
       key: "actions",
-      width: 250,
+      width: 240,
       fixed: "right",
-
       render: (_, row) => (
         <Space wrap>
-          {/* <PermissionGate permission="pricing.transfer_lanes.update"> */}
           <Tooltip title="Edit lane">
-            <Button
-              size="small"
-              icon={<EditOutlined />}
-              onClick={(event) => {
-                event.stopPropagation();
-                openEdit(row);
-              }}
-            />
+            <Button size="small" icon={<EditOutlined />} onClick={(e) => { e.stopPropagation(); openEdit(row); }} />
           </Tooltip>
-          {/* </PermissionGate> */}
-
-          {/* <PermissionGate permission="pricing.transfer_lanes.create"> */}
-          <Tooltip
-            title={
-              Number(row.from_branch_id) === Number(row.to_branch_id)
-                ? "Same-branch lane has no reverse route"
-                : "Create reverse lane"
-            }
-          >
+          <Tooltip title={Number(row.from_branch_id) === Number(row.to_branch_id) ? "Same-branch lane has no reverse" : "Create reverse lane"}>
             <Button
               size="small"
               disabled={Number(row.from_branch_id) === Number(row.to_branch_id)}
               icon={<SwapOutlined />}
-              onClick={(event) => {
-                event.stopPropagation();
-                createReverse(row);
-              }}
+              onClick={(e) => { e.stopPropagation(); createReverse(row); }}
             />
           </Tooltip>
-          {/* </PermissionGate> */}
-
-          {/* <PermissionGate permission="pricing.transfer_lanes.status"> */}
-          <Button
-            size="small"
-            onClick={(event) => {
-              event.stopPropagation();
-              toggleStatus(row);
-            }}
-          >
+          <Button size="small" onClick={(e) => { e.stopPropagation(); toggleStatus(row); }}>
             {row.is_active ? "Disable" : "Enable"}
           </Button>
-          {/* </PermissionGate> */}
-
-          {/* <PermissionGate permission="pricing.transfer_lanes.delete"> */}
           <Popconfirm
             title="Delete this transfer lane?"
             description="Routes using this lane may stop working."
             okText="Delete"
-            okButtonProps={{
-              danger: true,
-            }}
+            okButtonProps={{ danger: true }}
             onConfirm={() => removeLane(row)}
           >
-            <Button
-              danger
-              size="small"
-              icon={<DeleteOutlined />}
-              onClick={(event) => event.stopPropagation()}
-            />
+            <Button danger size="small" icon={<DeleteOutlined />} onClick={(e) => e.stopPropagation()} />
           </Popconfirm>
-          {/* </PermissionGate> */}
         </Space>
       ),
     },
@@ -697,20 +516,18 @@ export default function BranchTransferLanesPage() {
     ? [selected.from_branch, selected.to_branch].filter(Boolean)
     : [];
 
+  // ------------------------------------------------------------------
+  // Render
+  // ------------------------------------------------------------------
   return (
     <Space direction="vertical" size={20} style={{ width: "100%" }}>
+      {/* Header */}
       <Card bordered={false}>
         <Row justify="space-between" align="middle" gutter={[16, 16]}>
           <Col flex="auto">
-            <Title level={3} style={{ margin: 0 }}>
-              Transfer Lanes
-            </Title>
-
-            <Text type="secondary">
-              Manage direct physical network connections between branches.
-            </Text>
+            <Title level={3} style={{ margin: 0 }}>Transfer Lanes</Title>
+            <Text type="secondary">Manage direct physical network connections between branches.</Text>
           </Col>
-
           <Col>
             <Space>
               <Segmented
@@ -718,65 +535,22 @@ export default function BranchTransferLanesPage() {
                 onChange={setView}
                 options={[
                   { label: "Lanes", value: "lanes", icon: <SwapOutlined /> },
-                  {
-                    label: "Connectivity",
-                    value: "connectivity",
-                    icon: <ApartmentOutlined />,
-                  },
+                  { label: "Connectivity", value: "connectivity", icon: <ApartmentOutlined /> },
                 ]}
               />
-              <Button
-                icon={<ReloadOutlined />}
-                onClick={() =>
-                  loadRows(pagination.current, pagination.pageSize)
-                }
-              >
-                Refresh
-              </Button>
-
-              {/* <PermissionGate permission="pricing.transfer_lanes.create"> */}
-              <Button
-                type="primary"
-                icon={<PlusOutlined />}
-                onClick={() => openCreate()}
-              >
-                Add Transfer Lane
-              </Button>
-              {/* </PermissionGate> */}
+              <Button icon={<ReloadOutlined />} onClick={() => loadRows(pagination.current, pagination.pageSize)}>Refresh</Button>
+              <Button type="primary" icon={<PlusOutlined />} onClick={() => openCreate()}>Add Transfer Lane</Button>
             </Space>
           </Col>
         </Row>
       </Card>
 
+      {/* Stats */}
       <Row gutter={[16, 16]}>
-        <Col xs={24} md={6}>
-          <Card bordered={false}>
-            <Statistic title="Loaded Lanes" value={rows.length} />
-          </Card>
-        </Col>
-
-        <Col xs={24} md={6}>
-          <Card bordered={false}>
-            <Statistic title="Active Lanes" value={stats.active} />
-          </Card>
-        </Col>
-
-        <Col xs={24} md={6}>
-          <Card bordered={false}>
-            <Statistic title="Inactive Lanes" value={stats.inactive} />
-          </Card>
-        </Col>
-
-        <Col xs={24} md={6}>
-          <Card bordered={false}>
-            <Statistic
-              title="Loaded Distance"
-              value={stats.distance}
-              precision={1}
-              suffix="km"
-            />
-          </Card>
-        </Col>
+        <Col xs={24} md={6}><Card bordered={false}><Statistic title="Loaded Lanes" value={rows.length} /></Card></Col>
+        <Col xs={24} md={6}><Card bordered={false}><Statistic title="Active Lanes" value={stats.active} /></Card></Col>
+        <Col xs={24} md={6}><Card bordered={false}><Statistic title="Inactive Lanes" value={stats.inactive} /></Card></Col>
+        <Col xs={24} md={6}><Card bordered={false}><Statistic title="Loaded Distance" value={stats.distance} precision={1} suffix="km" /></Card></Col>
       </Row>
 
       {view === "connectivity" ? (
@@ -790,415 +564,230 @@ export default function BranchTransferLanesPage() {
         />
       ) : (
         <>
-      <Card bordered={false}>
-        <Row gutter={[16, 16]}>
-          <Col xs={24} lg={6}>
-            <Input.Search
-              allowClear
-              placeholder="Search branch name"
-              value={filters.search}
-              onChange={(event) =>
-                setFilters((current) => ({
-                  ...current,
-                  search: event.target.value,
-                }))
-              }
-              onSearch={(value) => applyFilter({ search: value })}
-            />
-          </Col>
-
-          <Col xs={24} sm={12} lg={4}>
-            <Select
-              allowClear
-              showSearch
-              optionFilterProp="label"
-              placeholder="From branch"
-              style={{ width: "100%" }}
-              options={branchOptions}
-              value={filters.from_branch_id}
-              onChange={(value) => applyFilter({ from_branch_id: value })}
-            />
-          </Col>
-
-          <Col xs={24} sm={12} lg={4}>
-            <Select
-              allowClear
-              showSearch
-              optionFilterProp="label"
-              placeholder="To branch"
-              style={{ width: "100%" }}
-              options={branchOptions}
-              value={filters.to_branch_id}
-              onChange={(value) => applyFilter({ to_branch_id: value })}
-            />
-          </Col>
-
-          <Col xs={24} sm={12} lg={4}>
-            <Select
-              allowClear
-              placeholder="Service"
-              style={{ width: "100%" }}
-              options={SERVICE_TYPES}
-              value={filters.service_type}
-              onChange={(value) => applyFilter({ service_type: value })}
-            />
-          </Col>
-
-          <Col xs={24} sm={12} lg={3}>
-            <Select
-              allowClear
-              placeholder="Status"
-              style={{ width: "100%" }}
-              value={filters.is_active}
-              onChange={(value) => applyFilter({ is_active: value })}
-              options={[
-                { label: "Active", value: 1 },
-                { label: "Inactive", value: 0 },
-              ]}
-            />
-          </Col>
-
-          <Col xs={24} lg={3}>
-            <Button block onClick={resetFilters}>
-              Reset
-            </Button>
-          </Col>
-        </Row>
-      </Card>
-
-      <Row gutter={[16, 16]}>
-        <Col xs={24} xl={16}>
+          {/* Filters */}
           <Card bordered={false}>
-            <Table
-              rowKey="id"
-              loading={loading}
-              columns={columns}
-              dataSource={rows}
-              scroll={{ x: 1250 }}
-              rowClassName={(row) =>
-                Number(row.id) === Number(selected?.id)
-                  ? "ant-table-row-selected"
-                  : ""
-              }
-              onRow={(row) => ({
-                onClick: () => setSelected(row),
-                style: {
-                  cursor: "pointer",
-                },
-              })}
-              pagination={{
-                current: pagination.current,
-                pageSize: pagination.pageSize,
-                total: pagination.total,
-                showSizeChanger: true,
-              }}
-              onChange={(next) => loadRows(next.current, next.pageSize)}
-            />
+            <Row gutter={[16, 16]}>
+              <Col xs={24} lg={6}>
+                <Input.Search
+                  allowClear
+                  placeholder="Search branch name"
+                  value={filters.search}
+                  onChange={(e) => setFilters((c) => ({ ...c, search: e.target.value }))}
+                  onSearch={(v) => applyFilter({ search: v })}
+                />
+              </Col>
+              <Col xs={24} sm={12} lg={4}>
+                <Select allowClear showSearch optionFilterProp="label" placeholder="From branch" style={{ width: "100%" }} options={branchOptions} value={filters.from_branch_id} onChange={(v) => applyFilter({ from_branch_id: v })} />
+              </Col>
+              <Col xs={24} sm={12} lg={4}>
+                <Select allowClear showSearch optionFilterProp="label" placeholder="To branch" style={{ width: "100%" }} options={branchOptions} value={filters.to_branch_id} onChange={(v) => applyFilter({ to_branch_id: v })} />
+              </Col>
+              <Col xs={24} sm={12} lg={4}>
+                <Select allowClear placeholder="Service" style={{ width: "100%" }} options={SERVICE_TYPES} value={filters.service_type} onChange={(v) => applyFilter({ service_type: v })} />
+              </Col>
+              <Col xs={24} sm={12} lg={3}>
+                <Select allowClear placeholder="Status" style={{ width: "100%" }} value={filters.is_active} onChange={(v) => applyFilter({ is_active: v })} options={[{ label: "Active", value: 1 }, { label: "Inactive", value: 0 }]} />
+              </Col>
+              <Col xs={24} lg={3}><Button block onClick={resetFilters}>Reset</Button></Col>
+            </Row>
           </Card>
-        </Col>
 
-        <Col xs={24} xl={8}>
-          <Card bordered={false} title="Selected Lane Map">
-            <RouteMap
-              nodes={selectedNodes}
-              height={360}
-              selectedLabel="Direct transfer lane"
-            />
-
-            <Descriptions
-              column={1}
-              size="small"
-              style={{
-                marginTop: 18,
-              }}
-            >
-              <Descriptions.Item label="From">
-                {selected?.from_branch?.name || "—"}
-              </Descriptions.Item>
-
-              <Descriptions.Item label="To">
-                {selected?.to_branch?.name || "—"}
-              </Descriptions.Item>
-
-              <Descriptions.Item label="Distance">
-                {selected
-                  ? selected.distance_km === null
-                    ? "—"
-                    : `${Number(selected.distance_km).toFixed(2)} km`
-                  : "—"}
-              </Descriptions.Item>
-
-              <Descriptions.Item label="ETA">
-                {selected
-                  ? `${Number(selected.estimated_hours || 0)} hrs`
-                  : "—"}
-              </Descriptions.Item>
-
-              <Descriptions.Item label="Status">
-                {selected ? statusTag(selected.is_active) : "—"}
-              </Descriptions.Item>
-            </Descriptions>
-          </Card>
-        </Col>
-      </Row>
+          {/* Table + detail */}
+          <Row gutter={[16, 16]}>
+            <Col xs={24} xl={16}>
+              <Card bordered={false}>
+                <Table
+                  rowKey="id"
+                  loading={loading}
+                  columns={columns}
+                  dataSource={rows}
+                  scroll={{ x: 1200 }}
+                  rowClassName={(row) => Number(row.id) === Number(selected?.id) ? "ant-table-row-selected" : ""}
+                  onRow={(row) => ({ onClick: () => setSelected(row), style: { cursor: "pointer" } })}
+                  pagination={{
+                    current: pagination.current,
+                    pageSize: pagination.pageSize,
+                    total: pagination.total,
+                    showSizeChanger: true,
+                  }}
+                  onChange={(next) => loadRows(next.current, next.pageSize)}
+                />
+              </Card>
+            </Col>
+            <Col xs={24} xl={8}>
+              <Card bordered={false} title="Selected Lane Map">
+                <RouteMap nodes={selectedNodes} height={360} selectedLabel="Direct transfer lane" />
+                <Descriptions column={1} size="small" style={{ marginTop: 18 }}>
+                  <Descriptions.Item label="From">{selected?.from_branch?.name || "—"}</Descriptions.Item>
+                  <Descriptions.Item label="To">{selected?.to_branch?.name || "—"}</Descriptions.Item>
+                  <Descriptions.Item label="Transport">{selected?.transport_mode ? <TransportBadge mode={selected.transport_mode} /> : "—"}</Descriptions.Item>
+                  <Descriptions.Item label="Distance">{selected ? (selected.distance_km == null ? "—" : `${Number(selected.distance_km).toFixed(2)} km`) : "—"}</Descriptions.Item>
+                  <Descriptions.Item label="ETA">{selected ? `${Number(selected.estimated_hours || 0)} hrs` : "—"}</Descriptions.Item>
+                  <Descriptions.Item label="Variant">{selected?.variant_name || "—"}</Descriptions.Item>
+                  <Descriptions.Item label="Checkpoints">{selected?.checkpoints?.length ? `${selected.checkpoints.length} checkpoint(s)` : "—"}</Descriptions.Item>
+                  <Descriptions.Item label="Status">{selected ? statusTag(selected.is_active) : "—"}</Descriptions.Item>
+                </Descriptions>
+              </Card>
+            </Col>
+          </Row>
         </>
       )}
 
+      {/* CREATE / EDIT MODAL */}
       <Modal
         open={modalOpen}
         title={editing ? "Edit Transfer Lane" : "Create Transfer Lane"}
-        width={1200}
+        width={860}
         confirmLoading={saving}
         okText={editing ? "Update Lane" : "Create Lane"}
         onOk={saveLane}
         onCancel={closeModal}
         destroyOnClose
-        styles={{ body: { maxHeight: "75vh", overflowY: "auto", paddingRight: 8 } }}
+        styles={{ body: { maxHeight: "82vh", overflowY: "auto", paddingRight: 6 } }}
       >
         <Form
           form={form}
           layout="vertical"
-          onValuesChange={(changedValues, allValues) => {
-            setModalFormValues(allValues);
-          }}
+          onValuesChange={onFormValuesChange}
           initialValues={{
             service_type: "standard",
-
             transport_mode: "road",
-
             estimated_hours: 1,
-
             priority: 100,
-
             is_active: true,
           }}
         >
-          {/* Top: Lane Route Map Preview with Checkpoint Picker */}
+          {/* Map preview — road: checkpoint picker; flight/rail: visual indicator */}
           <div
             style={{
               border: "1px solid #f0f0f0",
               borderRadius: 12,
               padding: 12,
               background: "#fafafa",
-              marginBottom: 24,
+              marginBottom: 20,
             }}
           >
-            <Space direction="vertical" size={12} style={{ width: "100%" }}>
-              <Space>
-                <Text strong>Lane Route Preview</Text>
-                {modalFormValues.transport_mode && (
-                  <Tag
-                    icon={
-                      modalFormValues.transport_mode === "road" ? (
-                        <RoadOutlined />
-                      ) : modalFormValues.transport_mode === "flight" ? (
-                        <PlaneOutlined />
-                      ) : (
-                        <RailOutlined />
-                      )
-                    }
-                    color={
-                      modalFormValues.transport_mode === "road"
-                        ? "blue"
-                        : modalFormValues.transport_mode === "flight"
-                          ? "cyan"
-                          : "orange"
-                    }
-                  >
-                    {modalFormValues.transport_mode.toUpperCase()}
-                  </Tag>
-                )}
-              </Space>
+            <Space style={{ marginBottom: 8 }}>
+              <Text strong>Route Preview</Text>
+              <TransportBadge mode={modalTransportMode} />
+              {modalPathNodes.length >= 2 && (
+                <Text type="secondary" style={{ fontSize: 12 }}>
+                  {modalPathNodes[0]?.name} → {modalPathNodes[modalPathNodes.length - 1]?.name}
+                </Text>
+              )}
+            </Space>
 
-              {modalPathNodes.length >= 2 ? (
-                modalFormValues.transport_mode === "road" ? (
-                  <CheckpointMapPicker
-                    value={checkpoints}
-                    onChange={setCheckpoints}
-                    pathNodes={modalPathNodes}
-                    height={300}
-                  />
-                ) : (
-                  <div
-                    style={{
-                      height: 300,
-                      display: "flex",
-                      flexDirection: "column",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      background: "#f0f9ff",
-                      borderRadius: 8,
-                      border: "2px dashed #1677ff",
-                    }}
-                  >
-                    {modalFormValues.transport_mode === "flight" ? (
-                      <>
-                        <PlaneOutlined
-                          style={{ fontSize: 48, color: "#1677ff", marginBottom: 16 }}
-                        />
-                        <Text strong style={{ fontSize: 16, marginBottom: 8 }}>
-                          Flight Route
-                        </Text>
-                        <Text type="secondary">
-                          Direct flight from {modalPathNodes[0]?.name} to{" "}
-                          {modalPathNodes[modalPathNodes.length - 1]?.name}
-                        </Text>
-                      </>
-                    ) : (
-                      <>
-                        <RailOutlined
-                          style={{ fontSize: 48, color: "#fa8c16", marginBottom: 16 }}
-                        />
-                        <Text strong style={{ fontSize: 16, marginBottom: 8 }}>
-                          Rail Route
-                        </Text>
-                        <Text type="secondary">
-                          Direct rail from {modalPathNodes[0]?.name} to{" "}
-                          {modalPathNodes[modalPathNodes.length - 1]?.name}
-                        </Text>
-                      </>
-                    )}
-                  </div>
-                )
+            {modalPathNodes.length >= 2 ? (
+              modalTransportMode === "road" ? (
+                <CheckpointMapPicker
+                  value={checkpoints}
+                  onChange={setCheckpoints}
+                  pathNodes={modalPathNodes}
+                  height={300}
+                />
               ) : (
                 <div
                   style={{
-                    height: 300,
+                    height: 220,
                     display: "flex",
+                    flexDirection: "column",
                     alignItems: "center",
                     justifyContent: "center",
-                    background: "#f5f5f5",
+                    background: modalTransportMode === "flight" ? "#e6f7ff" : "#fff7e6",
                     borderRadius: 8,
-                    color: "#999",
+                    border: `2px dashed ${modalTransportMode === "flight" ? "#1677ff" : "#fa8c16"}`,
+                    gap: 8,
                   }}
                 >
-                  Select from and to branches to preview the route
+                  <Text style={{ fontSize: 48 }}>
+                    {modalTransportMode === "flight" ? "✈️" : "🚂"}
+                  </Text>
+                  <Text strong style={{ fontSize: 16 }}>
+                    {modalTransportMode === "flight" ? "Flight Route" : "Rail Route"}
+                  </Text>
+                  <Text type="secondary">
+                    Direct {modalTransportMode} from{" "}
+                    <strong>{modalPathNodes[0]?.name}</strong> to{" "}
+                    <strong>{modalPathNodes[modalPathNodes.length - 1]?.name}</strong>
+                  </Text>
+                  {modalTransportMode === "flight" && (
+                    <Text type="secondary" style={{ fontSize: 12 }}>
+                      Road checkpoints are not applicable for flight routes
+                    </Text>
+                  )}
                 </div>
-              )}
-            </Space>
+              )
+            ) : (
+              <div
+                style={{
+                  height: 160,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  background: "#f5f5f5",
+                  borderRadius: 8,
+                  color: "#bbb",
+                  fontSize: 14,
+                }}
+              >
+                Select From and To branches below to preview the route
+              </div>
+            )}
           </div>
 
-          {/* Form Fields */}
+          {/* Form fields */}
           <Row gutter={16}>
             <Col span={12}>
               <Form.Item
                 name="from_branch_id"
                 label="From Branch"
-                rules={[
-                  {
-                    required: true,
-                    message: "Please select from branch.",
-                  },
-                ]}
+                rules={[{ required: true, message: "Please select from branch." }]}
               >
-                <Select
-                  showSearch
-                  optionFilterProp="label"
-                  options={branchOptions}
-                />
+                <Select showSearch optionFilterProp="label" options={branchOptions} />
               </Form.Item>
             </Col>
-
             <Col span={12}>
               <Form.Item
                 name="to_branch_id"
                 label="To Branch"
-                rules={[
-                  {
-                    required: true,
-                    message: "Please select to branch.",
-                  },
-                ]}
+                rules={[{ required: true, message: "Please select to branch." }]}
               >
-                <Select
-                  showSearch
-                  optionFilterProp="label"
-                  options={branchOptions}
-                />
+                <Select showSearch optionFilterProp="label" options={branchOptions} />
               </Form.Item>
             </Col>
           </Row>
 
           <Row gutter={16}>
             <Col span={8}>
-              <Form.Item
-                name="service_type"
-                label="Service Type"
-                rules={[
-                  {
-                    required: true,
-                  },
-                ]}
-              >
+              <Form.Item name="service_type" label="Service Type" rules={[{ required: true }]}>
                 <Select options={SERVICE_TYPES} />
               </Form.Item>
             </Col>
-
             <Col span={8}>
               <Form.Item name="transport_mode" label="Transport Mode">
                 <Select allowClear options={TRANSPORT_MODES} />
               </Form.Item>
             </Col>
-
             <Col span={8}>
               <Form.Item name="distance_km" label="Distance">
-                <InputNumber
-                  min={0}
-                  precision={2}
-                  addonAfter="km"
-                  style={{
-                    width: "100%",
-                  }}
-                />
+                <InputNumber min={0} precision={2} addonAfter="km" style={{ width: "100%" }} />
               </Form.Item>
             </Col>
           </Row>
 
           <Row gutter={16}>
             <Col span={8}>
-              <Form.Item
-                name="estimated_hours"
-                label="Estimated Hours"
-                rules={[
-                  {
-                    required: true,
-                  },
-                ]}
-              >
-                <InputNumber
-                  min={1}
-                  style={{
-                    width: "100%",
-                  }}
-                />
+              <Form.Item name="estimated_hours" label="Estimated Hours" rules={[{ required: true }]}>
+                <InputNumber min={1} style={{ width: "100%" }} />
               </Form.Item>
             </Col>
-
             <Col span={8}>
-              <Form.Item
-                name="priority"
-                label="Priority"
-                rules={[
-                  {
-                    required: true,
-                  },
-                ]}
-              >
-                <InputNumber
-                  min={1}
-                  style={{
-                    width: "100%",
-                  }}
-                />
+              <Form.Item name="priority" label="Priority" rules={[{ required: true }]}>
+                <InputNumber min={1} style={{ width: "100%" }} />
               </Form.Item>
             </Col>
-
             <Col span={8}>
-              <Form.Item
-                name="is_active"
-                label="Active"
-                valuePropName="checked"
-              >
+              <Form.Item name="is_active" label="Active" valuePropName="checked">
                 <Switch />
               </Form.Item>
             </Col>
@@ -1221,31 +810,17 @@ export default function BranchTransferLanesPage() {
   );
 }
 
-// -------------------- Branch Connectivity Panel --------------------
+// ─────────────────────────────────────────────
+// Branch Connectivity Panel
+// ─────────────────────────────────────────────
+function LaneConnectivityPanel({ branchOptions, connBranchId, setConnBranchId, connectivity, connBranch, onAddLane }) {
+  const [serviceFilter, setServiceFilter] = useState(["standard", "express", "same_day", "flight"]);
 
-function LaneConnectivityPanel({
-  branchOptions,
-  connBranchId,
-  setConnBranchId,
-  connectivity,
-  connBranch,
-  onAddLane,
-}) {
-  const [serviceFilter, setServiceFilter] = useState([
-    "standard",
-    "express",
-    "same_day",
-    "flight",
-  ]);
-
-  // All lanes touching this branch (outbound + inbound), for the map.
   const connectedLanes = useMemo(() => {
     const out = connectivity?.outbound || [];
     const inb = connectivity?.inbound || [];
     const map = new Map();
-    for (const lane of [...out, ...inb]) {
-      map.set(Number(lane.id), lane);
-    }
+    for (const lane of [...out, ...inb]) map.set(Number(lane.id), lane);
     return Array.from(map.values());
   }, [connectivity]);
 
@@ -1255,17 +830,14 @@ function LaneConnectivityPanel({
       <List.Item>
         <Space direction="vertical" size={0} style={{ width: "100%" }}>
           <Space size={6}>
-            <Tag color={direction === "out" ? "geekblue" : "cyan"}>
-              {direction === "out" ? "→ to" : "← from"}
-            </Tag>
+            <Tag color={direction === "out" ? "geekblue" : "cyan"}>{direction === "out" ? "→ to" : "← from"}</Tag>
             <Text strong>{other?.name || "Branch"}</Text>
             <Tag color="blue">{lane.service_type}</Tag>
             {lane.transport_mode ? <Tag>{lane.transport_mode}</Tag> : null}
             {statusTag(lane.is_active)}
           </Space>
           <Text type="secondary" style={{ fontSize: 12 }}>
-            {Number(lane.distance_km || 0)} km · ~
-            {Number(lane.estimated_hours || 0)} hrs · priority {lane.priority}
+            {Number(lane.distance_km || 0)} km · ~{Number(lane.estimated_hours || 0)} hrs · priority {lane.priority}
           </Text>
         </Space>
       </List.Item>
@@ -1273,7 +845,7 @@ function LaneConnectivityPanel({
   };
 
   const outbound = connectivity?.outbound || [];
-  const inbound = connectivity?.inbound || [];
+  const inbound  = connectivity?.inbound  || [];
 
   return (
     <Card bordered={false}>
@@ -1281,10 +853,9 @@ function LaneConnectivityPanel({
         <Row gutter={[16, 16]} align="middle">
           <Col xs={24} md={10}>
             <Select
-              showSearch
-              allowClear
+              showSearch allowClear
               style={{ width: "100%" }}
-              placeholder="Select a branch (e.g. Kathmandu) to see its connections"
+              placeholder="Select a branch to see its connections"
               optionFilterProp="label"
               options={branchOptions}
               value={connBranchId}
@@ -1296,26 +867,16 @@ function LaneConnectivityPanel({
               <Space wrap>
                 <Text type="secondary">
                   <ApartmentOutlined />{" "}
-                  <Text strong>{connBranch.name}</Text> connects to{" "}
-                  {outbound.length} outbound and {inbound.length} inbound branch
-                  {outbound.length + inbound.length === 1 ? "" : "es"}.
+                  <Text strong>{connBranch.name}</Text> connects to {outbound.length} outbound and {inbound.length} inbound branch{outbound.length + inbound.length === 1 ? "" : "es"}.
                 </Text>
                 {connBranchId ? (
-                  <Button
-                    size="small"
-                    icon={<PlusOutlined />}
-                    onClick={() =>
-                      onAddLane({ from_branch_id: Number(connBranchId) })
-                    }
-                  >
+                  <Button size="small" icon={<PlusOutlined />} onClick={() => onAddLane({ from_branch_id: Number(connBranchId) })}>
                     Add lane from here
                   </Button>
                 ) : null}
               </Space>
             ) : (
-              <Text type="secondary">
-                Pick a branch to view every direct lane in and out of it.
-              </Text>
+              <Text type="secondary">Pick a branch to view every direct lane in and out of it.</Text>
             )}
           </Col>
         </Row>
@@ -1324,73 +885,37 @@ function LaneConnectivityPanel({
           <Empty description="No branch selected" />
         ) : (
           <>
-          <Card
-            size="small"
-            title={
-              <Space>
-                <ApartmentOutlined />
-                Network Map — {connBranch?.name}
-              </Space>
-            }
-            extra={
-              <Checkbox.Group
-                value={serviceFilter}
-                onChange={setServiceFilter}
-                options={[
-                  { label: "Standard", value: "standard" },
-                  { label: "Express", value: "express" },
-                  { label: "Same Day", value: "same_day" },
-                  { label: "Flight", value: "flight" },
-                ]}
-              />
-            }
-          >
-            <BranchNetworkMap
-              centerBranch={connBranch}
-              lanes={connectedLanes}
-              activeServices={serviceFilter}
-              height={460}
-            />
-          </Card>
+            <Card
+              size="small"
+              title={<Space><ApartmentOutlined />Network Map — {connBranch?.name}</Space>}
+              extra={
+                <Checkbox.Group
+                  value={serviceFilter}
+                  onChange={setServiceFilter}
+                  options={[
+                    { label: "Standard", value: "standard" },
+                    { label: "Express", value: "express" },
+                    { label: "Same Day", value: "same_day" },
+                    { label: "Flight", value: "flight" },
+                  ]}
+                />
+              }
+            >
+              <BranchNetworkMap centerBranch={connBranch} lanes={connectedLanes} activeServices={serviceFilter} height={460} />
+            </Card>
 
-          <Row gutter={[16, 16]}>
-            <Col xs={24} md={12}>
-              <Card
-                size="small"
-                title={
-                  <Space>
-                    <NodeIndexOutlined />
-                    Outbound Lanes ({outbound.length})
-                  </Space>
-                }
-              >
-                <List
-                  size="small"
-                  locale={{ emptyText: "No outbound lanes from this branch" }}
-                  dataSource={outbound}
-                  renderItem={(lane) => laneRow(lane, "out")}
-                />
-              </Card>
-            </Col>
-            <Col xs={24} md={12}>
-              <Card
-                size="small"
-                title={
-                  <Space>
-                    <NodeIndexOutlined />
-                    Inbound Lanes ({inbound.length})
-                  </Space>
-                }
-              >
-                <List
-                  size="small"
-                  locale={{ emptyText: "No inbound lanes to this branch" }}
-                  dataSource={inbound}
-                  renderItem={(lane) => laneRow(lane, "in")}
-                />
-              </Card>
-            </Col>
-          </Row>
+            <Row gutter={[16, 16]}>
+              <Col xs={24} md={12}>
+                <Card size="small" title={<Space><NodeIndexOutlined />Outbound Lanes ({outbound.length})</Space>}>
+                  <List size="small" locale={{ emptyText: "No outbound lanes from this branch" }} dataSource={outbound} renderItem={(lane) => laneRow(lane, "out")} />
+                </Card>
+              </Col>
+              <Col xs={24} md={12}>
+                <Card size="small" title={<Space><NodeIndexOutlined />Inbound Lanes ({inbound.length})</Space>}>
+                  <List size="small" locale={{ emptyText: "No inbound lanes to this branch" }} dataSource={inbound} renderItem={(lane) => laneRow(lane, "in")} />
+                </Card>
+              </Col>
+            </Row>
           </>
         )}
       </Space>
