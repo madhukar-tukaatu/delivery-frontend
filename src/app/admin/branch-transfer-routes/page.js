@@ -371,7 +371,6 @@ export default function BranchTransferRoutesPage() {
   const openCreate = () => {
     setEditing(null);
     setLaneIds([]);
-    setCheckpoints([]);
     setModalServiceType("standard");
     setFromBranchId(undefined);
     setToBranchId(undefined);

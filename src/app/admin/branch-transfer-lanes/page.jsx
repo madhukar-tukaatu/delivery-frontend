@@ -171,6 +171,7 @@ export default function BranchTransferLanesPage() {
   });
 
   const [checkpoints, setCheckpoints] = useState([]);
+  const [modalFormValues, setModalFormValues] = useState({});
 
   const [pagination, setPagination] = useState({
     current: 1,
@@ -891,12 +892,13 @@ export default function BranchTransferLanesPage() {
       <Modal
         open={modalOpen}
         title={editing ? "Edit Transfer Lane" : "Create Transfer Lane"}
-        width={760}
+        width={1200}
         confirmLoading={saving}
         okText={editing ? "Update Lane" : "Create Lane"}
         onOk={saveLane}
         onCancel={closeModal}
         destroyOnClose
+        styles={{ body: { maxHeight: "75vh", overflowY: "auto", paddingRight: 8 } }}
       >
         <Form
           form={form}
