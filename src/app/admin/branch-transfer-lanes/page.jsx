@@ -1055,8 +1055,8 @@ export default function BranchTransferLanesPage() {
           <Row gutter={16}>
             <Col span={24}>
               <CheckpointMapPicker
-                checkpoints={checkpoints}
-                onCheckpointsChange={setCheckpoints}
+                value={checkpoints}
+                onChange={setCheckpoints}
               />
             </Col>
           </Row>
