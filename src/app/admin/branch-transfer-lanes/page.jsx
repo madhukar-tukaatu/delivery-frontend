@@ -41,8 +41,29 @@ import dynamic from "next/dynamic";
 
 import PermissionGate from "@/components/rate-admin/PermissionGate";
 import RouteMap from "@/components/rate-admin/RouteMap";
-import CheckpointMapPicker from "@/components/rate-admin/CheckpointMapPicker";
 import { deriveBranchConnectivity } from "@/services/adminRateManagementService";
+
+const CheckpointMapPicker = dynamic(
+  () => import("@/components/rate-admin/CheckpointMapPicker"),
+  {
+    ssr: false,
+    loading: () => (
+      <div
+        style={{
+          height: 360,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          background: "#f5f7fa",
+          borderRadius: 12,
+          color: "#8c8c8c",
+        }}
+      >
+        Loading map...
+      </div>
+    ),
+  },
+);
 
 const BranchNetworkMap = dynamic(
   () => import("@/components/rate-admin/BranchNetworkMap"),
