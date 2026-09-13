@@ -66,6 +66,8 @@ import {
 } from "@/lib/rate-management-page-utils";
 
 import OrderedLaneBuilder from "@/components/rate-admin/OrderedLaneBuilder";
+import AdminPageHeader from "@/components/admin/AdminPageHeader";
+import StatCard, { StatCardGrid } from "@/components/admin/StatCard";
 
 const CheckpointMapPicker = dynamic(
   () => import("@/components/rate-admin/CheckpointMapPicker"),
@@ -728,79 +730,52 @@ export default function BranchTransferRoutesPage() {
   ];
 
   return (
-    <Space direction="vertical" size={20} style={{ width: "100%" }}>
+    <Space direction="vertical" size={16} style={{ width: "100%" }}>
       {/* HEADER */}
-      <Card bordered={false}>
-        <Row justify="space-between" align="middle" gutter={[16, 16]}>
-          <Col>
-            <Title level={3} style={{ margin: 0 }}>
-              Transfer Routes
-            </Title>
-            <Text type="secondary">
-              A route is an ordered chain of lanes with optional road
-              checkpoints. Build KTM → Itahari via Bardibas from existing lanes —
-              no direct lane needed. Customer prices live in Branch Pricing.
-            </Text>
-          </Col>
-
-          <Col>
-            <Space>
-              <Segmented
-                value={view}
-                onChange={setView}
-                options={[
-                  { label: "Routes", value: "routes", icon: <NodeIndexOutlined /> },
-                  {
-                    label: "Connectivity",
-                    value: "connectivity",
-                    icon: <ApartmentOutlined />,
-                  },
-                ]}
-              />
-              <Button
-                icon={<ReloadOutlined />}
-                onClick={() => {
-                  loadLanes();
-                  loadRows();
-                }}
-              >
-                Refresh
-              </Button>
-              <Button
-                type="primary"
-                icon={<PlusOutlined />}
-                onClick={openCreate}
-              >
-                Add Transfer Route
-              </Button>
-            </Space>
-          </Col>
-        </Row>
-      </Card>
+      <AdminPageHeader
+        title="Transfer Routes"
+        subtitle="A route is an ordered chain of lanes with optional road checkpoints. Build KTM → Itahari via Bardibas from existing lanes — no direct lane needed."
+        actions={
+          <>
+            <Segmented
+              value={view}
+              onChange={setView}
+              options={[
+                { label: "Routes", value: "routes", icon: <NodeIndexOutlined /> },
+                {
+                  label: "Connectivity",
+                  value: "connectivity",
+                  icon: <ApartmentOutlined />,
+                },
+              ]}
+            />
+            <Button
+              icon={<ReloadOutlined />}
+              onClick={() => {
+                loadLanes();
+                loadRows();
+              }}
+            >
+              Refresh
+            </Button>
+            <Button
+              type="primary"
+              icon={<PlusOutlined />}
+              onClick={openCreate}
+            >
+              Add Transfer Route
+            </Button>
+          </>
+        }
+      />
 
       {/* STATS */}
-      <Row gutter={[16, 16]}>
-        <Col xs={24} sm={12} lg={6}>
-          <Card bordered={false} style={{ borderRadius: "12px", boxShadow: "0 2px 8px rgba(0,0,0,0.06)" }}>
-            <Statistic title="Total Routes" value={stats.total} valueStyle={{ fontSize: "28px", fontWeight: "bold", color: "#667eea" }} />
-          </Card>
-        </Col>
-        <Col xs={24} sm={12} lg={6}>
-          <Card bordered={false} style={{ borderRadius: "12px", boxShadow: "0 2px 8px rgba(0,0,0,0.06)" }}>
-            <Statistic title="Active" value={stats.active} valueStyle={{ fontSize: "28px", fontWeight: "bold", color: "#10b981" }} />
-          </Card>
-        </Col>
-        <Col xs={24} sm={12} lg={6}>
-          <Card bordered={false} style={{ borderRadius: "12px", boxShadow: "0 2px 8px rgba(0,0,0,0.06)" }}>
-            <Statistic title="Via Transit" value={stats.withTransit} valueStyle={{ fontSize: "28px", fontWeight: "bold", color: "#8b5cf6" }} />
-          </Card>
-        </Col>
-        <Col xs={24} sm={12} lg={6}>
-          <Card bordered={false} style={{ borderRadius: "12px", boxShadow: "0 2px 8px rgba(0,0,0,0.06)" }}>
-            <Statistic title="Available Lanes" value={normalizedLanes.length} valueStyle={{ fontSize: "28px", fontWeight: "bold", color: "#f59e0b" }} />
-          </Card>
-        </Col>
-      </Row>
+      <StatCardGrid>
+        <StatCard label="Total Routes" value={stats.total} variant="primary" />
+        <StatCard label="Active" value={stats.active} variant="success" />
+        <StatCard label="Via Transit" value={stats.withTransit} variant="accent" />
+        <StatCard label="Available Lanes" value={normalizedLanes.length} variant="warning" />
+      </StatCardGrid>
 
       {view === "connectivity" ? (
         <ConnectivityView

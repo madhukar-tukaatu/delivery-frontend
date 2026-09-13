@@ -1,0 +1,736 @@
+/* ============================================================
+   TUKAATU EXPRESS ADMIN PANEL - MODERN SaaS DESIGN SYSTEM
+   Colors: Teal #0891B2 (primary) + Yellow #FBBF24 (accent)
+   Dark Navy #0F172A, Sidebar #1a3a3a (deep green)
+   ============================================================ */
+
+/* ============ Root & Layout ============ */
+.admin-layout {
+  background: #F8FAFC !important;
+}
+
+.admin-layout .ant-layout {
+  background: #F8FAFC !important;
+}
+
+.admin-layout .ant-layout-content {
+  background: #F8FAFC !important;
+  padding: 16px !important;
+  overflow-x: hidden !important;
+}
+
+/* ============ Sidebar - Luxury Dark Green ============ */
+.admin-layout .ant-layout-sider {
+  background: #002c37 !important;
+  border-right: 1px solid rgba(8, 145, 178, 0.1) !important;
+}
+
+.admin-layout .ant-layout-sider .ant-menu {
+  background: #002c37 !important;
+  border-right: none !important;
+}
+
+.admin-layout .ant-menu {
+  background: #002c37 !important;
+  color: #E0F2FE !important;
+}
+
+.admin-layout .ant-menu-item {
+  color: #CBD5E1 !important;
+  background: transparent !important;
+  margin: 4px 8px !important;
+  border-radius: 8px !important;
+  transition: all 0.3s ease !important;
+}
+
+.admin-layout .ant-menu-item:hover {
+  color: #0891B2 !important;
+  background: rgba(8, 145, 178, 0.1) !important;
+}
+
+.admin-layout .ant-menu-item-selected {
+  background: #0891B2 !important;
+  color: white !important;
+  border-radius: 8px !important;
+  box-shadow: 0 4px 12px rgba(8, 145, 178, 0.2) !important;
+}
+
+.admin-layout .ant-menu-submenu-title {
+  color: #CBD5E1 !important;
+  background: transparent !important;
+  margin: 4px 8px !important;
+  border-radius: 8px !important;
+}
+
+.admin-layout .ant-menu-submenu-title:hover {
+  color: #0891B2 !important;
+}
+
+.admin-layout .ant-menu-submenu-open > .ant-menu-submenu-title {
+  color: #0891B2 !important;
+}
+
+/* ============ Page Header - Luxury Gradient ============ */
+.admin-page-header {
+  background:linear-gradient(135deg, #006983 0%, #074657 100%) !important;
+  border-bottom: 4px solid #FBBF24 !important;
+  padding: 14px 20px !important;
+  border-radius: 12px !important;
+  margin-bottom: 16px !important;
+  box-shadow: 0 4px 12px rgba(8, 145, 178, 0.2) !important;
+  display: flex !important;
+  justify-content: space-between !important;
+  align-items: center !important;
+  position: relative !important;
+  z-index: 10 !important;
+  flex-wrap: wrap !important;
+  gap: 12px !important;
+  width: 100% !important;
+}
+
+.admin-page-header-left {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 2px !important;
+  flex: 1 1 auto !important;
+  min-width: 0 !important;
+}
+
+.admin-page-header h1,
+.admin-page-header h2,
+.admin-page-header h3 {
+  color: white !important;
+  margin: 0 !important;
+  font-weight: 700 !important;
+  letter-spacing: -0.5px !important;
+}
+
+.admin-page-header h1 { font-size: 20px !important; }
+.admin-page-header h2 { font-size: 18px !important; }
+.admin-page-header h3 { font-size: 16px !important; }
+
+.admin-page-header p {
+  color: rgba(255, 255, 255, 0.85) !important;
+  margin: 0 !important;
+  font-size: 12px !important;
+  font-weight: 400 !important;
+}
+
+.admin-page-header .ant-typography {
+  color: white !important;
+}
+
+.admin-page-header-right {
+  display: flex !important;
+  gap: 8px !important;
+  align-items: center !important;
+  flex-wrap: wrap !important;
+  justify-content: flex-end !important;
+}
+
+/* ============ Cards ============ */
+.admin-layout .ant-card {
+  border: none !important;
+  border-radius: 12px !important;
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.08) !important;
+  transition: box-shadow 0.3s ease !important;
+  background: #ffffff;
+  margin-bottom: 16px !important;
+  overflow: visible !important;
+}
+
+.admin-layout .ant-card:hover {
+  box-shadow: 0 4px 16px rgba(8, 145, 178, 0.12) !important;
+}
+
+.admin-layout .ant-card-head {
+  border-bottom: 2px solid #E2E8F0 !important;
+  background: linear-gradient(90deg, #FFFFFF 0%, #F8FAFC 100%) !important;
+  border-radius: 12px 12px 0 0 !important;
+  padding: 14px 18px !important;
+  min-height: auto !important;
+}
+
+.admin-layout .ant-card-head-title {
+  font-weight: 700 !important;
+  color: #0F172A !important;
+  font-size: 14px !important;
+}
+
+/* Card that wraps tables - full width, no clipping */
+.admin-card {
+  width: 100% !important;
+  overflow: visible !important;
+}
+
+.admin-card .ant-card-body {
+  overflow: visible !important;
+}
+
+/* ============ Stat Cards ============ */
+/* Responsive grid of stat cards: auto-fits, min 220px per card.
+   Yields 4 per row on wide desktop, fewer as space shrinks,
+   and 1 per row on mobile. */
+.admin-stat-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 12px;
+  margin-bottom: 16px;
+  width: 100%;
+}
+
+.admin-stat-card {
+  border-left: 4px solid #0891B2 !important;
+  border-radius: 8px !important;
+  background: white !important;
+  box-shadow: 0 1px 4px rgba(15, 23, 42, 0.06) !important;
+  padding: 10px 14px !important;
+  transition: box-shadow 0.2s ease, transform 0.2s ease !important;
+  position: relative !important;
+  overflow: hidden !important;
+  min-height: 60px !important;
+  display: flex !important;
+  align-items: center !important;
+}
+
+.admin-stat-card:hover {
+  box-shadow: 0 4px 12px rgba(8, 145, 178, 0.12) !important;
+  transform: translateY(-1px) !important;
+}
+
+.admin-stat-card .stat-card-inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  width: 100%;
+}
+
+.admin-stat-card.accent { border-left-color: #FBBF24 !important; }
+.admin-stat-card.success { border-left-color: #10B981 !important; }
+.admin-stat-card.danger { border-left-color: #EF4444 !important; }
+.admin-stat-card.warning { border-left-color: #F59E0B !important; }
+
+.admin-stat-card .stat-label {
+  font-size: 11px !important;
+  font-weight: 600 !important;
+  color: #64748B !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.4px !important;
+  margin-bottom: 2px !important;
+  line-height: 1.2 !important;
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+}
+
+.admin-stat-card .stat-value {
+  font-size: 18px !important;
+  font-weight: 700 !important;
+  color: #0F172A !important;
+  letter-spacing: -0.3px !important;
+  margin: 0 !important;
+  line-height: 1.25 !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+}
+
+.admin-stat-card .stat-hint {
+  font-size: 10px !important;
+  color: #94A3B8 !important;
+  margin-top: 2px !important;
+  line-height: 1.2 !important;
+}
+
+.admin-stat-card .stat-icon {
+  font-size: 22px !important;
+  color: #0891B2 !important;
+  opacity: 0.3 !important;
+  flex-shrink: 0 !important;
+}
+
+.admin-stat-card.accent .stat-icon { color: #FBBF24 !important; }
+.admin-stat-card.success .stat-icon { color: #10B981 !important; }
+.admin-stat-card.danger .stat-icon { color: #EF4444 !important; }
+.admin-stat-card.warning .stat-icon { color: #F59E0B !important; }
+
+/* ============ Buttons ============ */
+.admin-layout .ant-btn {
+  border-radius: 8px !important;
+  font-weight: 600 !important;
+  transition: all 0.2s ease !important;
+  height: 36px !important;
+  padding: 6px 16px !important;
+  font-size: 13px !important;
+}
+
+.admin-layout .ant-btn-sm {
+  height: 30px !important;
+  padding: 4px 12px !important;
+  font-size: 12px !important;
+}
+
+.admin-layout .ant-btn-icon-only {
+  width: 36px !important;
+  height: 36px !important;
+  padding: 0 !important;
+}
+
+.admin-layout .ant-btn-icon-only.ant-btn-sm {
+  width: 30px !important;
+  height: 30px !important;
+}
+
+.admin-layout .ant-btn-primary {
+  background-color: #0891B2 !important;
+  border-color: #0891B2 !important;
+  box-shadow: 0 2px 8px rgba(8, 145, 178, 0.25) !important;
+  color: white !important;
+}
+
+.admin-layout .ant-btn-primary:hover,
+.admin-layout .ant-btn-primary:focus {
+  background-color: #0e7490 !important;
+  border-color: #0e7490 !important;
+  box-shadow: 0 4px 16px rgba(8, 145, 178, 0.35) !important;
+}
+
+.admin-layout .ant-btn-default {
+  border-color: #E2E8F0 !important;
+  color: #0F172A !important;
+  background: white !important;
+}
+
+.admin-layout .ant-btn-default:hover,
+.admin-layout .ant-btn-default:focus {
+  color: #0891B2 !important;
+  border-color: #0891B2 !important;
+  background: #F0F9FB !important;
+}
+
+.admin-layout .ant-btn-text {
+  color: #0891B2 !important;
+}
+
+.admin-layout .ant-btn-text:hover {
+  background: #E0F2FE !important;
+  color: #0e7490 !important;
+}
+
+.admin-layout .ant-btn-dangerous {
+  background-color: #EF4444 !important;
+  border-color: #EF4444 !important;
+  color: white !important;
+}
+
+.admin-layout .ant-btn-dangerous:hover {
+  background-color: #DC2626 !important;
+  border-color: #DC2626 !important;
+}
+
+/* ============ TABLES - HORIZONTAL SCROLL FIX ============
+   IMPORTANT: Do NOT force overflow on .ant-table-container or
+   .ant-table-content. Ant Design manages horizontal scroll itself
+   via the scroll={{ x }} prop. We only ensure the outer wrapper
+   is full-width and never clips its children. */
+.admin-layout .ant-table-wrapper {
+  width: 100% !important;
+  max-width: 100% !important;
+}
+
+.admin-layout .ant-table {
+  background: transparent !important;
+  border-radius: 8px !important;
+  font-size: 13px !important;
+}
+
+/* The element Ant uses for horizontal scroll when scroll.x is set */
+.admin-layout .ant-table-content,
+.admin-layout .ant-table-body {
+  overflow-x: auto !important;
+  -webkit-overflow-scrolling: touch !important;
+}
+
+/* Regular table header */
+.admin-layout .ant-table-thead > tr > th {
+  background: linear-gradient(90deg, #F1F5F9 0%, #E2E8F0 100%) !important;
+  color: #0F172A !important;
+  font-weight: 700 !important;
+  font-size: 12px !important;
+  padding: 12px 16px !important;
+  border-bottom: 2px solid #CBD5E1 !important;
+  white-space: nowrap !important;
+}
+
+/* Regular table body */
+.admin-layout .ant-table-tbody > tr > td {
+  padding: 12px 16px !important;
+  color: #0F172A !important;
+  font-size: 13px !important;
+}
+
+.admin-layout .ant-table-tbody > tr:hover > td {
+  background: #F8FAFC !important;
+}
+
+.admin-layout .ant-table-row-selected > td {
+  background: #E0F2FE !important;
+}
+
+/* Compact table variant */
+.admin-layout .compact .ant-table-thead > tr > th {
+  background: linear-gradient(90deg, #F1F5F9 0%, #E2E8F0 100%) !important;
+  color: #0F172A !important;
+  font-weight: 700 !important;
+  font-size: 11px !important;
+  padding: 8px 12px !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.3px !important;
+  border-bottom: 2px solid #CBD5E1 !important;
+  white-space: nowrap !important;
+}
+
+.admin-layout .compact .ant-table-tbody > tr > td {
+  padding: 8px 12px !important;
+  color: #0F172A !important;
+  font-size: 12px !important;
+  vertical-align: middle !important;
+  white-space: nowrap !important;
+}
+
+.admin-layout .compact .ant-table-tbody > tr:hover > td {
+  background: #F8FAFC !important;
+}
+
+.admin-layout .compact .ant-table-row-selected > td {
+  background: #E0F2FE !important;
+}
+
+/* Table pagination */
+.admin-layout .ant-pagination {
+  margin: 16px 0 0 0 !important;
+}
+
+.admin-layout .ant-pagination-item-active {
+  border-color: #0891B2 !important;
+}
+
+.admin-layout .ant-pagination-item-active a {
+  color: #0891B2 !important;
+}
+
+/* Horizontal scrollbar styling */
+.admin-layout .ant-table-content::-webkit-scrollbar,
+.admin-layout .ant-table-body::-webkit-scrollbar {
+  height: 8px !important;
+  width: 8px !important;
+}
+
+.admin-layout .ant-table-content::-webkit-scrollbar-track,
+.admin-layout .ant-table-body::-webkit-scrollbar-track {
+  background: #f1f5f9 !important;
+  border-radius: 4px !important;
+}
+
+.admin-layout .ant-table-content::-webkit-scrollbar-thumb,
+.admin-layout .ant-table-body::-webkit-scrollbar-thumb {
+  background: #cbd5e1 !important;
+  border-radius: 4px !important;
+}
+
+.admin-layout .ant-table-content::-webkit-scrollbar-thumb:hover,
+.admin-layout .ant-table-body::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8 !important;
+}
+
+/* ============ Tags ============ */
+.admin-layout .ant-tag {
+  border-radius: 6px !important;
+  font-weight: 600 !important;
+  font-size: 11px !important;
+}
+
+/* ============ Inputs ============ */
+.admin-layout .ant-input,
+.admin-layout .ant-input-affix-wrapper,
+.admin-layout .ant-select-selector,
+.admin-layout .ant-picker {
+  border-radius: 8px !important;
+  border-color: #E2E8F0 !important;
+}
+
+.admin-layout .ant-input:focus,
+.admin-layout .ant-input-affix-wrapper-focused,
+.admin-layout .ant-select-focused .ant-select-selector,
+.admin-layout .ant-picker-focused {
+  border-color: #0891B2 !important;
+  box-shadow: 0 0 0 2px rgba(8, 145, 178, 0.1) !important;
+}
+
+/* ============ Modals ============ */
+.admin-layout .ant-modal-content,
+.ant-modal-content {
+  border-radius: 12px !important;
+}
+
+.ant-modal-header {
+  border-radius: 12px 12px 0 0 !important;
+  border-bottom: 2px solid #E2E8F0 !important;
+}
+
+/* ============ Alerts ============ */
+.admin-layout .ant-alert {
+  border-radius: 8px !important;
+}
+
+.admin-layout .ant-alert-info {
+  background: #F0F9FB !important;
+  border-color: rgba(8, 145, 178, 0.2) !important;
+}
+
+.admin-layout .ant-alert-success {
+  background: #ECFDF5 !important;
+}
+
+.admin-layout .ant-alert-warning {
+  background: #FFFBEB !important;
+}
+
+.admin-layout .ant-alert-error {
+  background: #FEF2F2 !important;
+}
+
+/* ============ Spinner ============ */
+.admin-layout .ant-spin-dot-item {
+  background-color: #0891B2 !important;
+}
+
+/* ============ Tabs ============ */
+.admin-layout .ant-tabs-tab {
+  font-weight: 600 !important;
+  color: #64748B !important;
+}
+
+.admin-layout .ant-tabs-tab-active .ant-tabs-tab-btn {
+  color: #0891B2 !important;
+}
+
+.admin-layout .ant-tabs-ink-bar {
+  background: #0891B2 !important;
+}
+
+/* ============ Dividers ============ */
+.admin-layout .ant-divider {
+  border-color: #E2E8F0 !important;
+}
+
+/* ============ Segmented ============ */
+.admin-layout .ant-segmented-item-selected {
+  background: #0891B2 !important;
+  color: white !important;
+}
+
+/* ============ Scrollbar (panels) ============ */
+.scrollable-panel::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.scrollable-panel::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.scrollable-panel::-webkit-scrollbar-thumb {
+  background: #CBD5E1;
+  border-radius: 3px;
+}
+
+.scrollable-panel::-webkit-scrollbar-thumb:hover {
+  background: #94A3B8;
+}
+
+/* ============ RESPONSIVE DESIGN ============ */
+
+/* Tablet */
+@media (max-width: 1024px) {
+  .admin-layout .ant-layout-content {
+    padding: 12px !important;
+  }
+
+  .admin-layout .ant-table-thead > tr > th {
+    padding: 10px 12px !important;
+    font-size: 11px !important;
+  }
+
+  .admin-layout .ant-table-tbody > tr > td {
+    padding: 10px 12px !important;
+    font-size: 12px !important;
+  }
+
+  .admin-layout .compact .ant-table-thead > tr > th {
+    padding: 6px 10px !important;
+    font-size: 10px !important;
+  }
+
+  .admin-layout .compact .ant-table-tbody > tr > td {
+    padding: 6px 10px !important;
+    font-size: 11px !important;
+  }
+}
+
+/* Mobile */
+@media (max-width: 768px) {
+  .admin-layout .ant-layout-content {
+    padding: 10px !important;
+  }
+
+  .admin-page-header {
+    padding: 12px 14px !important;
+    border-radius: 8px !important;
+  }
+
+  .admin-page-header h1 { font-size: 17px !important; }
+  .admin-page-header h2 { font-size: 15px !important; }
+
+  .admin-page-header-right {
+    width: 100% !important;
+    justify-content: flex-start !important;
+  }
+
+  .admin-layout .ant-card-body {
+    padding: 12px !important;
+  }
+
+  .admin-layout .ant-table {
+    font-size: 11px !important;
+  }
+
+  .admin-layout .ant-table-thead > tr > th {
+    padding: 8px 10px !important;
+    font-size: 10px !important;
+  }
+
+  .admin-layout .ant-table-tbody > tr > td {
+    padding: 8px 10px !important;
+    font-size: 11px !important;
+  }
+
+  .admin-layout .ant-btn {
+    height: 34px !important;
+    font-size: 12px !important;
+  }
+}
+
+/* Small mobile */
+@media (max-width: 480px) {
+  .admin-page-header h1 { font-size: 16px !important; }
+  .admin-page-header p { font-size: 11px !important; }
+}
+
+/* ============ Utility ============ */
+.bg-primary-light { background: #E0F2FE !important; }
+.bg-accent-light { background: #FEFCE8 !important; }
+.border-primary { border-color: #0891B2 !important; }
+
+/* ============ Transfer Lanes 2-Column Layout ============ */
+.lane-main-content {
+  width: 100%;
+}
+
+.lane-table-panel {
+  min-height: 400px;
+}
+
+/* On tablet and mobile, stack the map/detail panel below the table */
+@media (max-width: 1023px) {
+  .lane-main-content {
+    flex-direction: column-reverse !important;
+  }
+
+  .lane-detail-panel {
+    flex: 1 1 100% !important;
+    max-width: 100% !important;
+    min-width: 100% !important;
+    width: 100% !important;
+  }
+
+  .lane-table-panel {
+    flex: 1 1 100% !important;
+    min-width: 100% !important;
+    width: 100% !important;
+  }
+}
+
+/* ============ Branch Pricing destination rows ============ */
+.admin-layout .branch-pricing-destination-list {
+  width: 100% !important;
+  max-width: 100% !important;
+  box-sizing: border-box !important;
+  overflow: visible !important;
+}
+
+.admin-layout .branch-pricing-destination-row {
+  width: 100% !important;
+  max-width: 100% !important;
+  min-width: 0 !important;
+  box-sizing: border-box !important;
+  overflow: visible !important;
+}
+
+.admin-layout .branch-pricing-destination-grid {
+  display: grid !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  min-width: 0 !important;
+  box-sizing: border-box !important;
+  grid-template-columns:
+    minmax(0, 1.4fr)
+    minmax(74px, 1fr)
+    56px
+    56px
+    minmax(70px, auto)
+    minmax(0, 1.6fr) !important;
+}
+
+.admin-layout .branch-pricing-destination-grid > * {
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+
+.admin-layout .branch-pricing-destination-actions {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  justify-content: flex-start;
+  align-content: center;
+}
+
+@media (max-width: 640px) {
+  .admin-layout .branch-pricing-destination-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+    align-items: start !important;
+    padding: 10px 12px !important;
+  }
+
+  .admin-layout .branch-pricing-destination-grid > :nth-child(1) {
+    grid-column: 1 / -1;
+  }
+
+  .admin-layout .branch-pricing-destination-grid > :nth-child(2),
+  .admin-layout .branch-pricing-destination-grid > :nth-child(3),
+  .admin-layout .branch-pricing-destination-grid > :nth-child(4),
+  .admin-layout .branch-pricing-destination-grid > :nth-child(5) {
+    grid-column: auto;
+  }
+
+  .admin-layout .branch-pricing-destination-grid > :nth-child(6) {
+    grid-column: 2 / -1;
+    width: 100%;
+  }
+
+  .admin-layout .branch-pricing-destination-actions {
+    justify-content: flex-start;
+  }
+}

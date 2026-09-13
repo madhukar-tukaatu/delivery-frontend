@@ -25,6 +25,8 @@ import {
   message,
   Alert,
   Spin,
+  List,
+  Pagination,
 } from "antd";
 import {
   ApartmentOutlined,
@@ -36,6 +38,9 @@ import {
   SwapOutlined,
   CheckCircleOutlined,
   ExclamationCircleOutlined,
+  TeamOutlined,
+  LinkOutlined,
+  RiseOutlined,
 } from "@ant-design/icons";
 import dynamic from "next/dynamic";
 import PermissionGate from "@/components/rate-admin/PermissionGate";
@@ -166,31 +171,6 @@ function statusTag(active) {
   );
 }
 
-const styles = {
-  pageWrapper: {
-    background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
-    minHeight: "100vh",
-    padding: "24px",
-  },
-  headerCard: {
-    background: "white",
-    borderRadius: "16px",
-    boxShadow: "0 4px 12px rgba(0, 0, 0, 0.08)",
-    marginBottom: "24px",
-  },
-  statCard: {
-    background: "white",
-    borderRadius: "12px",
-    boxShadow: "0 2px 8px rgba(0, 0, 0, 0.06)",
-    border: "none",
-  },
-  tableCard: {
-    borderRadius: "12px",
-    boxShadow: "0 4px 12px rgba(0, 0, 0, 0.08)",
-    border: "none",
-  },
-};
-
 export default function BranchTransferLanesPage() {
   const [form] = Form.useForm();
   const [branches, setBranches] = useState([]);
@@ -210,6 +190,7 @@ export default function BranchTransferLanesPage() {
     to_branch_id: undefined,
     service_type: undefined,
     is_active: undefined,
+    route_status: undefined,
   });
   const [checkpoints, setCheckpoints] = useState([]);
   const [modalFromId, setModalFromId] = useState(null);
@@ -261,6 +242,7 @@ export default function BranchTransferLanesPage() {
           service_type: active.service_type || undefined,
           is_active:
             active.is_active === undefined ? undefined : active.is_active,
+          route_status: active.route_status || undefined,
         });
         const collection = extractCollection(payload);
         const normalized = collection.rows.map((r) =>
@@ -313,6 +295,7 @@ export default function BranchTransferLanesPage() {
       to_branch_id: undefined,
       service_type: undefined,
       is_active: undefined,
+      route_status: undefined,
     };
     setFilters(cleared);
     loadRows(1, pagination.pageSize, cleared);
@@ -646,11 +629,11 @@ export default function BranchTransferLanesPage() {
     {
       title: "Actions",
       key: "actions",
-      width: 280,
+      width: 320,
       fixed: "right",
       render: (_, row) => (
-        <Space wrap size="small">
-          <Tooltip title="Edit lane">
+        <Space wrap size={4} style={{ width: "100%" }}>
+          <Tooltip title="Edit">
             <Button
               size="small"
               type="text"
@@ -663,7 +646,7 @@ export default function BranchTransferLanesPage() {
           </Tooltip>
 
           {!row.route_exists && (
-            <Tooltip title="Create route for this lane">
+            <Tooltip title="Create route">
               <Button
                 size="small"
                 type="primary"
@@ -673,19 +656,11 @@ export default function BranchTransferLanesPage() {
                   createRoute(row);
                 }}
                 loading={creatingRoutes.has(row.id)}
-              >
-                Create
-              </Button>
+              />
             </Tooltip>
           )}
 
-          <Tooltip
-            title={
-              Number(row.from_branch_id) === Number(row.to_branch_id)
-                ? "Same-branch lane has no reverse"
-                : "Create reverse lane"
-            }
-          >
+          <Tooltip title="Reverse">
             <Button
               size="small"
               type="text"
@@ -698,19 +673,21 @@ export default function BranchTransferLanesPage() {
             />
           </Tooltip>
 
-          <Button
-            size="small"
-            type="text"
-            onClick={(e) => {
-              e.stopPropagation();
-              toggleStatus(row);
-            }}
-          >
-            {row.is_active ? "Disable" : "Enable"}
-          </Button>
+          <Tooltip title={row.is_active ? "Disable" : "Enable"}>
+            <Button
+              size="small"
+              type="text"
+              onClick={(e) => {
+                e.stopPropagation();
+                toggleStatus(row);
+              }}
+            >
+              {row.is_active ? "✓" : "○"}
+            </Button>
+          </Tooltip>
 
           <Popconfirm
-            title="Delete this transfer lane?"
+            title="Delete?"
             description="Routes using this lane may stop working."
             okText="Delete"
             okButtonProps={{ danger: true }}
@@ -734,115 +711,239 @@ export default function BranchTransferLanesPage() {
     : [];
 
   return (
-    <div style={styles.pageWrapper}>
-      <Space direction="vertical" size={20} style={{ width: "100%" }}>
-        {/* Header */}
-        <Card style={styles.headerCard}>
-          <Row justify="space-between" align="middle" gutter={[16, 16]}>
-            <Col flex="auto">
-              <Space direction="vertical" size={4}>
-                <Title level={2} style={{ margin: 0, color: "#1f2937" }}>
-                  🚀 Transfer Lanes Network
-                </Title>
-                <Text type="secondary">
-                  Manage direct physical connections between branches. Each lane
-                  requires a route to be active.
-                </Text>
-              </Space>
-            </Col>
-            <Col>
-              <Space wrap>
-                <Segmented
-                  value={view}
-                  onChange={setView}
-                  options={[
-                    { label: "Lanes", value: "lanes", icon: <SwapOutlined /> },
-                    {
-                      label: "Connectivity",
-                      value: "connectivity",
-                      icon: <ApartmentOutlined />,
-                    },
-                  ]}
-                />
-                <Button
-                  icon={<ReloadOutlined />}
-                  onClick={() =>
-                    loadRows(pagination.current, pagination.pageSize)
-                  }
-                >
-                  Refresh
-                </Button>
-                <Button
-                  type="primary"
-                  icon={<PlusOutlined />}
-                  onClick={() => openCreate()}
-                >
-                  Add Lane
-                </Button>
-              </Space>
-            </Col>
-          </Row>
-        </Card>
-
-        {/* Compact Stats - Just 2 rows */}
-        <Row gutter={[16, 16]}>
-          <Col xs={24} sm={12} lg={6}>
-            <Card style={styles.statCard}>
-              <Statistic
-                title="Total Lanes"
-                value={rows.length}
-                valueStyle={{
-                  color: "#667eea",
-                  fontSize: "28px",
-                  fontWeight: "bold",
-                }}
-              />
-            </Card>
+    <div
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        height: "100vh",
+        background: "#f5f7fa",
+      }}
+    >
+      {/* Header Section - Compact */}
+      <div
+        style={{
+          background: "white",
+          padding: "12px 16px",
+          borderBottom: "1px solid #e8e8e8",
+        }}
+      >
+        <Row
+          justify="space-between"
+          align="middle"
+          gutter={[12, 12]}
+          style={{ marginBottom: "12px" }}
+        >
+          <Col flex="auto">
+            <Title
+              level={3}
+              style={{ margin: 0, color: "#1f2937", fontSize: "18px" }}
+            >
+              Transfer Lanes
+            </Title>
           </Col>
-          <Col xs={24} sm={12} lg={6}>
-            <Card style={styles.statCard}>
-              <Statistic
-                title="Active"
-                value={stats.active}
-                valueStyle={{
-                  color: "#10b981",
-                  fontSize: "28px",
-                  fontWeight: "bold",
-                }}
+          <Col>
+            <Space wrap size="small">
+              <Segmented
+                value={view}
+                onChange={setView}
+                size="small"
+                options={[
+                  { label: "Lanes", value: "lanes", icon: <SwapOutlined /> },
+                  {
+                    label: "Connectivity",
+                    value: "connectivity",
+                    icon: <ApartmentOutlined />,
+                  },
+                ]}
               />
-            </Card>
-          </Col>
-          <Col xs={24} sm={12} lg={6}>
-            <Card style={styles.statCard}>
-              <Statistic
-                title="With Routes"
-                value={stats.withRoutes}
-                valueStyle={{
-                  color: "#8b5cf6",
-                  fontSize: "28px",
-                  fontWeight: "bold",
-                }}
-              />
-            </Card>
-          </Col>
-          <Col xs={24} sm={12} lg={6}>
-            <Card style={styles.statCard}>
-              <Statistic
-                title="Distance"
-                value={stats.distance}
-                precision={0}
-                suffix=" km"
-                valueStyle={{
-                  color: "#f59e0b",
-                  fontSize: "28px",
-                  fontWeight: "bold",
-                }}
-              />
-            </Card>
+              <Button
+                size="small"
+                icon={<ReloadOutlined />}
+                onClick={() =>
+                  loadRows(pagination.current, pagination.pageSize)
+                }
+              >
+                Refresh
+              </Button>
+              <Button
+                size="small"
+                type="primary"
+                icon={<PlusOutlined />}
+                onClick={() => openCreate()}
+              >
+                Add
+              </Button>
+            </Space>
           </Col>
         </Row>
 
-        {view === "connectivity" ? (
+        {/* Compact Stat Cards */}
+        <Row gutter={[8, 8]}>
+          <Col xs={12} sm={6} lg={6}>
+            <Card
+              style={{
+                background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
+                border: "none",
+                borderRadius: "6px",
+                height: "60px",
+              }}
+              bodyStyle={{ padding: "8px" }}
+            >
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  height: "100%",
+                }}
+              >
+                <div>
+                  <div
+                    style={{ fontSize: "11px", color: "rgba(255,255,255,0.8)" }}
+                  >
+                    Total
+                  </div>
+                  <div
+                    style={{
+                      fontSize: "18px",
+                      fontWeight: "bold",
+                      color: "white",
+                    }}
+                  >
+                    {rows.length}
+                  </div>
+                </div>
+                <TeamOutlined
+                  style={{ color: "white", fontSize: "24px", opacity: 0.6 }}
+                />
+              </div>
+            </Card>
+          </Col>
+          <Col xs={12} sm={6} lg={6}>
+            <Card
+              style={{
+                background: "linear-gradient(135deg, #10b981 0%, #059669 100%)",
+                border: "none",
+                borderRadius: "6px",
+                height: "60px",
+              }}
+              bodyStyle={{ padding: "8px" }}
+            >
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  height: "100%",
+                }}
+              >
+                <div>
+                  <div
+                    style={{ fontSize: "11px", color: "rgba(255,255,255,0.8)" }}
+                  >
+                    Active
+                  </div>
+                  <div
+                    style={{
+                      fontSize: "18px",
+                      fontWeight: "bold",
+                      color: "white",
+                    }}
+                  >
+                    {stats.active}
+                  </div>
+                </div>
+                <CheckCircleOutlined
+                  style={{ color: "white", fontSize: "24px", opacity: 0.6 }}
+                />
+              </div>
+            </Card>
+          </Col>
+          <Col xs={12} sm={6} lg={6}>
+            <Card
+              style={{
+                background: "linear-gradient(135deg, #8b5cf6 0%, #6d28d9 100%)",
+                border: "none",
+                borderRadius: "6px",
+                height: "60px",
+              }}
+              bodyStyle={{ padding: "8px" }}
+            >
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  height: "100%",
+                }}
+              >
+                <div>
+                  <div
+                    style={{ fontSize: "11px", color: "rgba(255,255,255,0.8)" }}
+                  >
+                    Routes
+                  </div>
+                  <div
+                    style={{
+                      fontSize: "18px",
+                      fontWeight: "bold",
+                      color: "white",
+                    }}
+                  >
+                    {stats.withRoutes}
+                  </div>
+                </div>
+                <LinkOutlined
+                  style={{ color: "white", fontSize: "24px", opacity: 0.6 }}
+                />
+              </div>
+            </Card>
+          </Col>
+          <Col xs={12} sm={6} lg={6}>
+            <Card
+              style={{
+                background: "linear-gradient(135deg, #f59e0b 0%, #d97706 100%)",
+                border: "none",
+                borderRadius: "6px",
+                height: "60px",
+              }}
+              bodyStyle={{ padding: "8px" }}
+            >
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  height: "100%",
+                }}
+              >
+                <div>
+                  <div
+                    style={{ fontSize: "11px", color: "rgba(255,255,255,0.8)" }}
+                  >
+                    Distance
+                  </div>
+                  <div
+                    style={{
+                      fontSize: "18px",
+                      fontWeight: "bold",
+                      color: "white",
+                    }}
+                  >
+                    {Number(stats.distance).toFixed(0)}
+                  </div>
+                </div>
+                <RiseOutlined
+                  style={{ color: "white", fontSize: "24px", opacity: 0.6 }}
+                />
+              </div>
+            </Card>
+          </Col>
+        </Row>
+      </div>
+
+      {view === "connectivity" ? (
+        <div style={{ flex: 1, overflow: "auto", padding: "12px" }}>
           <LaneConnectivityPanel
             branchOptions={branchOptions}
             connBranchId={connBranchId}
@@ -851,528 +952,748 @@ export default function BranchTransferLanesPage() {
             connBranch={connBranch}
             onAddLane={(prefill) => openCreate(prefill)}
           />
-        ) : (
-          <>
-            {rows.length > 0 && stats.withoutRoutes > 0 && (
-              <Alert
-                message={`⚠️ ${stats.withoutRoutes} lane(s) missing route(s)`}
-                description="Transfer lanes need routes to be used for shipment transfers. Create routes to enable their functionality."
-                type="warning"
-                showIcon
-                action={
-                  <Button
-                    size="small"
-                    type="primary"
-                    onClick={() => {
-                      const noRouteIds = rows
-                        .filter((r) => !r.route_exists)
-                        .map((r) => r.id);
-                      setSelectedRowKeys(noRouteIds);
-                    }}
-                  >
-                    Select All
-                  </Button>
-                }
-                style={{ marginBottom: "16px", borderRadius: "8px" }}
-              />
-            )}
-
-            {selectedRowKeys.length > 0 && (
-              <Card
-                style={{
-                  background:
-                    "linear-gradient(135deg, #667eea15 0%, #764ba215 100%)",
-                  border: "2px solid #667eea",
-                  borderRadius: "12px",
-                }}
-              >
-                <Row justify="space-between" align="middle">
-                  <Col>
-                    <Space direction="vertical" size={0}>
-                      <Text style={{ fontWeight: "600", color: "#1f2937" }}>
-                        ✓ {selectedRowKeys.length} lane(s) selected
-                      </Text>
-                      <Text type="secondary" style={{ fontSize: "12px" }}>
-                        {
-                          rows.filter(
-                            (r) =>
-                              selectedRowKeys.includes(r.id) && !r.route_exists,
-                          ).length
-                        }{" "}
-                        need routes
-                      </Text>
-                    </Space>
-                  </Col>
-                  <Col>
-                    <Space>
-                      <Button onClick={() => setSelectedRowKeys([])}>
-                        Clear
-                      </Button>
-                      <Button
-                        type="primary"
-                        icon={<SendOutlined />}
-                        onClick={bulkCreateRoutes}
-                        loading={creatingRoutes.size > 0}
-                      >
-                        Create Routes
-                      </Button>
-                    </Space>
-                  </Col>
-                </Row>
-              </Card>
-            )}
-
-            <Card style={styles.tableCard}>
-              <Row gutter={[12, 12]}>
-                <Col xs={24} lg={8}>
-                  <Input.Search
-                    allowClear
-                    size="large"
-                    placeholder="🔍 Search lanes by branch name..."
-                    value={filters.search}
-                    onChange={(e) =>
-                      setFilters((c) => ({ ...c, search: e.target.value }))
-                    }
-                    onSearch={(v) => applyFilter({ search: v })}
-                    style={{ borderRadius: "8px" }}
-                  />
-                </Col>
-                <Col xs={24} sm={12} lg={4}>
-                  <Select
-                    allowClear
-                    showSearch
-                    optionFilterProp="label"
-                    placeholder="📤 From branch"
-                    style={{ width: "100%", borderRadius: "8px" }}
-                    options={branchOptions}
-                    value={filters.from_branch_id}
-                    onChange={(v) => applyFilter({ from_branch_id: v })}
-                  />
-                </Col>
-                <Col xs={24} sm={12} lg={4}>
-                  <Select
-                    allowClear
-                    showSearch
-                    optionFilterProp="label"
-                    placeholder="📥 To branch"
-                    style={{ width: "100%", borderRadius: "8px" }}
-                    options={branchOptions}
-                    value={filters.to_branch_id}
-                    onChange={(v) => applyFilter({ to_branch_id: v })}
-                  />
-                </Col>
-                <Col xs={24} sm={12} lg={3}>
-                  <Select
-                    allowClear
-                    placeholder="📦 Service"
-                    style={{ width: "100%", borderRadius: "8px" }}
-                    options={SERVICE_TYPES}
-                    value={filters.service_type}
-                    onChange={(v) => applyFilter({ service_type: v })}
-                  />
-                </Col>
-                <Col xs={24} sm={12} lg={3}>
-                  <Select
-                    allowClear
-                    placeholder="🔌 Status"
-                    style={{ width: "100%", borderRadius: "8px" }}
-                    value={filters.is_active}
-                    onChange={(v) => applyFilter({ is_active: v })}
-                    options={[
-                      { label: "Active", value: 1 },
-                      { label: "Inactive", value: 0 },
-                    ]}
-                  />
-                </Col>
-                <Col xs={24} lg={2}>
-                  <Button
-                    block
-                    size="large"
-                    onClick={resetFilters}
-                    style={{ borderRadius: "8px" }}
-                  >
-                    Reset
-                  </Button>
-                </Col>
-              </Row>
-            </Card>
-
-            <Row gutter={[16, 16]}>
-              <Col xs={24} xl={16}>
-                <Card style={styles.tableCard}>
-                  <Spin spinning={loading}>
-                    <Table
-                      rowKey="id"
-                      columns={columns}
-                      dataSource={rows}
-                      scroll={{ x: 1200 }}
-                      rowClassName={(row) =>
-                        Number(row.id) === Number(selected?.id)
-                          ? "ant-table-row-selected"
-                          : ""
-                      }
-                      onRow={(row) => ({
-                        onClick: () => setSelected(row),
-                        style: { cursor: "pointer" },
-                      })}
-                      pagination={{
-                        current: pagination.current,
-                        pageSize: pagination.pageSize,
-                        total: pagination.total,
-                        showSizeChanger: true,
-                      }}
-                      onChange={(next) => loadRows(next.current, next.pageSize)}
-                      rowSelection={{
-                        selectedRowKeys,
-                        onChange: setSelectedRowKeys,
-                        selections: [
-                          Table.SELECTION_ALL,
-                          Table.SELECTION_INVERT,
-                          {
-                            key: "no-routes",
-                            text: "Lanes without routes",
-                            onSelect: () => {
-                              const noRouteIds = rows
-                                .filter((r) => !r.route_exists)
-                                .map((r) => r.id);
-                              setSelectedRowKeys(noRouteIds);
-                            },
-                          },
-                        ],
-                      }}
-                      locale={{
-                        emptyText: (
-                          <Empty description="No transfer lanes found" />
-                        ),
-                      }}
-                    />
-                  </Spin>
-                </Card>
-              </Col>
-
-              <Col xs={24} xl={8}>
-                <Card
-                  style={styles.tableCard}
-                  title={
-                    <Space>
-                      🗺️ Lane Details
-                      {selected?.transport_mode && (
-                        <TransportBadge mode={selected.transport_mode} />
-                      )}
-                    </Space>
-                  }
-                >
-                  {selected ? (
-                    <Spin spinning={loading}>
-                      <Space
-                        direction="vertical"
-                        size={16}
-                        style={{ width: "100%" }}
-                      >
-                        {selected.transport_mode === "road" ||
-                        !selected.transport_mode ? (
-                          <CheckpointMapPicker
-                            value={selected.checkpoints || []}
-                            onChange={() => {}}
-                            pathNodes={selectedNodes}
-                            height={280}
-                          />
-                        ) : (
-                          <ArcRouteMap
-                            fromNode={selected.from_branch}
-                            toNode={selected.to_branch}
-                            mode={selected.transport_mode}
-                            height={280}
-                          />
-                        )}
-
-                        <Descriptions column={1} size="small" bordered>
-                          <Descriptions.Item label="From Branch">
-                            {selected?.from_branch?.name || "—"}
-                          </Descriptions.Item>
-                          <Descriptions.Item label="To Branch">
-                            {selected?.to_branch?.name || "—"}
-                          </Descriptions.Item>
-                          <Descriptions.Item label="Service Type">
-                            <Tag color="blue">
-                              {selected?.service_type || "—"}
-                            </Tag>
-                          </Descriptions.Item>
-                          <Descriptions.Item label="Transport">
-                            {selected?.transport_mode ? (
-                              <TransportBadge mode={selected.transport_mode} />
-                            ) : (
-                              "—"
-                            )}
-                          </Descriptions.Item>
-                          <Descriptions.Item label="Distance">
-                            {selected
-                              ? selected.distance_km == null
-                                ? "—"
-                                : `${Number(selected.distance_km).toFixed(2)} km`
-                              : "—"}
-                          </Descriptions.Item>
-                          <Descriptions.Item label="ETA">
-                            {selected
-                              ? `${Number(selected.estimated_hours || 0)} hours`
-                              : "—"}
-                          </Descriptions.Item>
-                          <Descriptions.Item label="Priority">
-                            {selected?.priority || "—"}
-                          </Descriptions.Item>
-                          <Descriptions.Item label="Checkpoints">
-                            {selected?.checkpoints?.length
-                              ? `${selected.checkpoints.length}`
-                              : "—"}
-                          </Descriptions.Item>
-                          <Descriptions.Item label="Route Status">
-                            {selected ? (
-                              selected.route_exists ? (
-                                <Space>
-                                  <Tag
-                                    color="success"
-                                    icon={<CheckCircleOutlined />}
-                                  >
-                                    Active
-                                  </Tag>
-                                </Space>
-                              ) : (
-                                <Space direction="vertical">
-                                  <Tag
-                                    color="warning"
-                                    icon={<ExclamationCircleOutlined />}
-                                  >
-                                    No Route
-                                  </Tag>
-                                  <Button
-                                    block
-                                    size="small"
-                                    type="primary"
-                                    icon={<SendOutlined />}
-                                    onClick={() => createRoute(selected)}
-                                    loading={creatingRoutes.has(selected.id)}
-                                  >
-                                    Create Route
-                                  </Button>
-                                </Space>
-                              )
-                            ) : (
-                              "—"
-                            )}
-                          </Descriptions.Item>
-                          <Descriptions.Item label="Status">
-                            {selected ? statusTag(selected.is_active) : "—"}
-                          </Descriptions.Item>
-                        </Descriptions>
-                      </Space>
-                    </Spin>
-                  ) : (
-                    <Empty
-                      description="Select a lane to see details"
-                      style={{ marginTop: "40px" }}
-                    />
-                  )}
-                </Card>
-              </Col>
-            </Row>
-          </>
-        )}
-
-        <Modal
-          open={modalOpen}
-          title={editing ? "✏️ Edit Transfer Lane" : "➕ Create Transfer Lane"}
-          width={860}
-          confirmLoading={saving}
-          okText={editing ? "Update Lane" : "Create Lane"}
-          onOk={saveLane}
-          onCancel={closeModal}
-          destroyOnClose
-          styles={{
-            body: { maxHeight: "82vh", overflowY: "auto", paddingRight: 6 },
-          }}
-        >
-          <Form
-            form={form}
-            layout="vertical"
-            onValuesChange={onFormValuesChange}
-            initialValues={{
-              service_type: "standard",
-              transport_mode: "road",
-              estimated_hours: 1,
-              priority: 100,
-              is_active: true,
-            }}
-          >
+        </div>
+      ) : (
+        <>
+          {/* Compact Bulk Actions Bar */}
+          {selectedRowKeys.length > 0 && (
             <div
               style={{
-                border: "2px solid #667eea",
-                borderRadius: 12,
-                padding: 12,
-                background:
-                  "linear-gradient(135deg, #667eea15 0%, #764ba215 100%)",
-                marginBottom: 20,
+                padding: "6px 12px",
+                background: "#e3f2fd",
+                borderBottom: "1px solid #bbdefb",
               }}
             >
-              <Space style={{ marginBottom: 8 }}>
-                <Text strong>Route Preview</Text>
-                {modalTransportMode && (
-                  <TransportBadge mode={modalTransportMode} />
-                )}
-                {modalPathNodes.length >= 2 && (
-                  <Text type="secondary" style={{ fontSize: 12 }}>
-                    {modalPathNodes[0]?.name} →{" "}
-                    {modalPathNodes[modalPathNodes.length - 1]?.name}
+              <Row justify="space-between" align="middle">
+                <Col>
+                  <Text style={{ fontSize: "12px" }}>
+                    ✓ {selectedRowKeys.length} selected ·{" "}
+                    {
+                      rows.filter(
+                        (r) =>
+                          selectedRowKeys.includes(r.id) && !r.route_exists,
+                      ).length
+                    }{" "}
+                    need routes
                   </Text>
-                )}
-              </Space>
+                </Col>
+                <Col>
+                  <Space size="small">
+                    <Button size="small" onClick={() => setSelectedRowKeys([])}>
+                      Clear
+                    </Button>
+                    <Button
+                      size="small"
+                      type="primary"
+                      icon={<SendOutlined />}
+                      onClick={bulkCreateRoutes}
+                      loading={creatingRoutes.size > 0}
+                    >
+                      Create
+                    </Button>
+                  </Space>
+                </Col>
+              </Row>
+            </div>
+          )}
 
-              {modalPathNodes.length >= 2 ? (
-                modalTransportMode === "road" ? (
-                  <CheckpointMapPicker
-                    value={checkpoints}
-                    onChange={setCheckpoints}
-                    pathNodes={modalPathNodes}
-                    height={300}
-                  />
+          {/* Compact Filters */}
+          <div
+            style={{
+              padding: "8px 12px",
+              background: "white",
+              borderBottom: "1px solid #e8e8e8",
+            }}
+          >
+            <Row gutter={[6, 6]}>
+              <Col xs={24} lg={8}>
+                <Input.Search
+                  allowClear
+                  size="small"
+                  placeholder="Search lanes..."
+                  value={filters.search}
+                  onChange={(e) =>
+                    setFilters((c) => ({ ...c, search: e.target.value }))
+                  }
+                  onSearch={(v) => applyFilter({ search: v })}
+                />
+              </Col>
+              <Col xs={24} sm={12} lg={4}>
+                <Select
+                  allowClear
+                  showSearch
+                  optionFilterProp="label"
+                  placeholder="From"
+                  size="small"
+                  style={{ width: "100%" }}
+                  options={branchOptions}
+                  value={filters.from_branch_id}
+                  onChange={(v) => applyFilter({ from_branch_id: v })}
+                />
+              </Col>
+              <Col xs={24} sm={12} lg={4}>
+                <Select
+                  allowClear
+                  showSearch
+                  optionFilterProp="label"
+                  placeholder="To"
+                  size="small"
+                  style={{ width: "100%" }}
+                  options={branchOptions}
+                  value={filters.to_branch_id}
+                  onChange={(v) => applyFilter({ to_branch_id: v })}
+                />
+              </Col>
+              <Col xs={24} sm={12} lg={3}>
+                <Select
+                  allowClear
+                  placeholder="Service"
+                  size="small"
+                  style={{ width: "100%" }}
+                  options={SERVICE_TYPES}
+                  value={filters.service_type}
+                  onChange={(v) => applyFilter({ service_type: v })}
+                />
+              </Col>
+              <Col xs={24} sm={12} lg={3}>
+                <Select
+                  allowClear
+                  placeholder="Status"
+                  size="small"
+                  style={{ width: "100%" }}
+                  value={filters.is_active}
+                  onChange={(v) => applyFilter({ is_active: v })}
+                  options={[
+                    { label: "Active", value: 1 },
+                    { label: "Inactive", value: 0 },
+                  ]}
+                />
+              </Col>
+              <Col xs={24} sm={12} lg={3}>
+                <Select
+                  allowClear
+                  placeholder="Route"
+                  size="small"
+                  style={{ width: "100%" }}
+                  value={filters.route_status}
+                  onChange={(v) => applyFilter({ route_status: v })}
+                  options={[
+                    { label: "Has route", value: "active" },
+                    { label: "Missing route", value: "missing" },
+                  ]}
+                />
+              </Col>
+              <Col xs={24} lg={2}>
+                <Button block size="small" onClick={resetFilters}>
+                  Reset
+                </Button>
+              </Col>
+            </Row>
+          </div>
+
+          {/* Main Content - Scrollable Table + Fixed Map - RESPONSIVE */}
+          <div
+            className="lane-main-content"
+            style={{
+              flex: 1,
+              display: "flex",
+              padding: "8px",
+              gap: "12px",
+              overflow: "visible",
+              flexDirection: "row-reverse",
+              flexWrap: "wrap",
+              alignItems: "flex-start",
+            }}
+          >
+            {/* Detail Panel RIGHT - 35% desktop, full width mobile */}
+            <div
+              className="lane-detail-panel"
+              style={{
+                flex: "1 1 320px",
+                minWidth: "300px",
+                maxWidth: "420px",
+                display: "flex",
+                flexDirection: "column",
+                gap: "8px",
+                overflow: "visible",
+              }}
+            >
+              <Card
+                style={{
+                  borderRadius: "12px",
+                  height: "300px",
+                  overflow: "hidden",
+                  boxShadow: "0 2px 8px rgba(15, 23, 42, 0.1)",
+                  border: "none",
+                  padding: 0,
+                }}
+                bodyStyle={{ padding: "0", height: "100%", width: "100%" }}
+                title={
+                  <Text
+                    style={{
+                      fontSize: "12px",
+                      fontWeight: "600",
+                      color: "#0F172A",
+                    }}
+                  >
+                    🗺️ Route Map
+                  </Text>
+                }
+              >
+                {selected ? (
+                  <div
+                    style={{
+                      width: "100%",
+                      height: "100%",
+                      position: "relative",
+                      background: "#f5f5f5",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                    }}
+                  >
+                    {selected.transport_mode === "road" ||
+                    !selected.transport_mode ? (
+                      <div
+                        style={{
+                          width: "100%",
+                          height: "100%",
+                          position: "relative",
+                        }}
+                      >
+                        <CheckpointMapPicker
+                          value={selected.checkpoints || []}
+                          onChange={() => {}}
+                          pathNodes={selectedNodes}
+                          height={280}
+                        />
+                      </div>
+                    ) : (
+                      <div
+                        style={{
+                          width: "100%",
+                          height: "100%",
+                          position: "relative",
+                        }}
+                      >
+                        <ArcRouteMap
+                          fromNode={selected.from_branch}
+                          toNode={selected.to_branch}
+                          mode={selected.transport_mode}
+                          height={280}
+                        />
+                      </div>
+                    )}
+                  </div>
                 ) : (
-                  <ArcRouteMap
-                    fromNode={modalPathNodes[0]}
-                    toNode={modalPathNodes[modalPathNodes.length - 1]}
-                    mode={modalTransportMode}
-                    height={300}
+                  <div
+                    style={{
+                      width: "100%",
+                      height: "100%",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      background: "#f5f5f5",
+                      color: "#94A3B8",
+                      fontSize: "12px",
+                    }}
+                  >
+                    Select a lane to view map
+                  </div>
+                )}
+              </Card>
+
+              <Card
+                style={{
+                  borderRadius: "12px",
+                  flex: 1,
+                  overflow: "auto",
+                  boxShadow: "0 2px 8px rgba(15, 23, 42, 0.1)",
+                  border: "none",
+                  padding: 0,
+                }}
+                bodyStyle={{ padding: "12px" }}
+                title={
+                  <Text
+                    style={{
+                      fontSize: "12px",
+                      fontWeight: "600",
+                      color: "#0F172A",
+                    }}
+                  >
+                    📋 Details
+                  </Text>
+                }
+              >
+                {selected ? (
+                  <Descriptions
+                    column={1}
+                    size="small"
+                    layout="vertical"
+                    style={{ fontSize: "11px" }}
+                  >
+                    <Descriptions.Item
+                      label={
+                        <Text
+                          style={{
+                            fontSize: "10px",
+                            fontWeight: "600",
+                            color: "#64748B",
+                          }}
+                        >
+                          From
+                        </Text>
+                      }
+                    >
+                      <Text
+                        style={{
+                          fontSize: "12px",
+                          fontWeight: "500",
+                          color: "#0F172A",
+                        }}
+                      >
+                        {selected?.from_branch?.name || "—"}
+                      </Text>
+                    </Descriptions.Item>
+                    <Descriptions.Item
+                      label={
+                        <Text
+                          style={{
+                            fontSize: "10px",
+                            fontWeight: "600",
+                            color: "#64748B",
+                          }}
+                        >
+                          To
+                        </Text>
+                      }
+                    >
+                      <Text
+                        style={{
+                          fontSize: "12px",
+                          fontWeight: "500",
+                          color: "#0F172A",
+                        }}
+                      >
+                        {selected?.to_branch?.name || "—"}
+                      </Text>
+                    </Descriptions.Item>
+                    <Descriptions.Item
+                      label={
+                        <Text
+                          style={{
+                            fontSize: "10px",
+                            fontWeight: "600",
+                            color: "#64748B",
+                          }}
+                        >
+                          Service
+                        </Text>
+                      }
+                    >
+                      <Tag style={{ fontSize: "10px" }} color="blue">
+                        {selected?.service_type || "—"}
+                      </Tag>
+                    </Descriptions.Item>
+                    <Descriptions.Item
+                      label={
+                        <Text
+                          style={{
+                            fontSize: "10px",
+                            fontWeight: "600",
+                            color: "#64748B",
+                          }}
+                        >
+                          Distance
+                        </Text>
+                      }
+                    >
+                      <Text
+                        style={{
+                          fontSize: "12px",
+                          fontWeight: "500",
+                          color: "#0F172A",
+                        }}
+                      >
+                        {selected
+                          ? selected.distance_km == null
+                            ? "—"
+                            : `${Number(selected.distance_km).toFixed(1)} km`
+                          : "—"}
+                      </Text>
+                    </Descriptions.Item>
+                    <Descriptions.Item
+                      label={
+                        <Text
+                          style={{
+                            fontSize: "10px",
+                            fontWeight: "600",
+                            color: "#64748B",
+                          }}
+                        >
+                          ETA
+                        </Text>
+                      }
+                    >
+                      <Text
+                        style={{
+                          fontSize: "12px",
+                          fontWeight: "500",
+                          color: "#0F172A",
+                        }}
+                      >
+                        {selected
+                          ? `${Number(selected.estimated_hours || 0)} hrs`
+                          : "—"}
+                      </Text>
+                    </Descriptions.Item>
+                    <Descriptions.Item
+                      label={
+                        <Text
+                          style={{
+                            fontSize: "10px",
+                            fontWeight: "600",
+                            color: "#64748B",
+                          }}
+                        >
+                          Priority
+                        </Text>
+                      }
+                    >
+                      <Text
+                        style={{
+                          fontSize: "12px",
+                          fontWeight: "500",
+                          color: "#0F172A",
+                        }}
+                      >
+                        {selected?.priority || "—"}
+                      </Text>
+                    </Descriptions.Item>
+                    <Descriptions.Item
+                      label={
+                        <Text
+                          style={{
+                            fontSize: "10px",
+                            fontWeight: "600",
+                            color: "#64748B",
+                          }}
+                        >
+                          Route Status
+                        </Text>
+                      }
+                    >
+                      {selected ? (
+                        selected.route_exists ? (
+                          <Tag
+                            style={{ fontSize: "10px" }}
+                            color="success"
+                            icon={<CheckCircleOutlined />}
+                          >
+                            Active Route
+                          </Tag>
+                        ) : (
+                          <Space
+                            direction="vertical"
+                            size={4}
+                            style={{ width: "100%" }}
+                          >
+                            <Tag
+                              style={{ fontSize: "10px" }}
+                              color="warning"
+                              icon={<ExclamationCircleOutlined />}
+                            >
+                              No Route
+                            </Tag>
+                            <Button
+                              block
+                              size="small"
+                              type="primary"
+                              onClick={() => createRoute(selected)}
+                              loading={creatingRoutes.has(selected.id)}
+                              disabled={creatingRoutes.has(selected.id)}
+                              style={{
+                                fontSize: "10px",
+                                height: "24px",
+                                lineHeight: "24px",
+                              }}
+                            >
+                              Create Route
+                            </Button>
+                          </Space>
+                        )
+                      ) : (
+                        "—"
+                      )}
+                    </Descriptions.Item>
+                    <Descriptions.Item
+                      label={
+                        <Text
+                          style={{
+                            fontSize: "10px",
+                            fontWeight: "600",
+                            color: "#64748B",
+                          }}
+                        >
+                          Status
+                        </Text>
+                      }
+                    >
+                      {selected ? statusTag(selected.is_active) : "—"}
+                    </Descriptions.Item>
+                  </Descriptions>
+                ) : (
+                  <Empty
+                    description="Select a lane"
+                    style={{ paddingTop: "24px", fontSize: "11px" }}
                   />
-                )
-              ) : (
-                <div
-                  style={{
-                    height: 160,
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    background: "#f5f5f5",
-                    borderRadius: 8,
-                    color: "#bbb",
-                    fontSize: 14,
-                  }}
-                >
-                  Select From and To branches below to preview the route
-                </div>
-              )}
+                )}
+              </Card>
             </div>
 
-            <Row gutter={16}>
-              <Col span={12}>
-                <Form.Item
-                  name="from_branch_id"
-                  label="From Branch"
-                  rules={[
-                    { required: true, message: "Please select from branch." },
-                  ]}
-                >
-                  <Select
-                    showSearch
-                    optionFilterProp="label"
-                    placeholder="Select branch"
-                    options={branchOptions}
+            {/* Scrollable Table LEFT - 65% */}
+            <div
+              className="lane-table-panel"
+              style={{
+                flex: "2 1 480px",
+                minWidth: 0,
+                display: "flex",
+                flexDirection: "column",
+                background: "white",
+                borderRadius: "8px",
+                overflow: "hidden",
+                boxShadow: "0 2px 8px rgba(15, 23, 42, 0.08)",
+              }}
+            >
+              <div
+                style={{
+                  flex: 1,
+                  minWidth: 0,
+                  width: "100%",
+                }}
+              >
+                <Spin spinning={loading}>
+                  <Table
+                    rowKey="id"
+                    columns={columns}
+                    dataSource={rows}
+                    scroll={{ x: 1120, y: "calc(100vh - 340px)" }}
+                    rowClassName={(row) =>
+                      Number(row.id) === Number(selected?.id)
+                        ? "ant-table-row-selected"
+                        : ""
+                    }
+                    onRow={(row) => ({
+                      onClick: () => setSelected(row),
+                      style: { cursor: "pointer" },
+                    })}
+                    pagination={false}
+                    locale={{ emptyText: <Empty description="No lanes" /> }}
+                    size="small"
+                    className="compact"
                   />
-                </Form.Item>
-              </Col>
-              <Col span={12}>
-                <Form.Item
-                  name="to_branch_id"
-                  label="To Branch"
-                  rules={[
-                    { required: true, message: "Please select to branch." },
-                  ]}
-                >
-                  <Select
-                    showSearch
-                    optionFilterProp="label"
-                    placeholder="Select branch"
-                    options={branchOptions}
-                  />
-                </Form.Item>
-              </Col>
-            </Row>
+                </Spin>
+              </div>
 
-            <Row gutter={16}>
-              <Col span={8}>
-                <Form.Item
-                  name="service_type"
-                  label="Service Type"
-                  rules={[{ required: true }]}
-                >
-                  <Select options={SERVICE_TYPES} />
-                </Form.Item>
-              </Col>
-              <Col span={8}>
-                <Form.Item name="transport_mode" label="Transport Mode">
-                  <Select allowClear options={TRANSPORT_MODES} />
-                </Form.Item>
-              </Col>
-              <Col span={8}>
-                <Form.Item name="distance_km" label="Distance">
-                  <InputNumber
-                    min={0}
-                    precision={2}
-                    addonAfter="km"
-                    style={{ width: "100%" }}
-                  />
-                </Form.Item>
-              </Col>
-            </Row>
+              {/* Pagination Bar at Bottom */}
+              <div
+                style={{
+                  borderTop: "1px solid #e8e8e8",
+                  padding: "6px 8px",
+                  background: "#fafafa",
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                }}
+              >
+                <Text style={{ fontSize: "11px", color: "#666" }}>
+                  {pagination.total > 0
+                    ? `${(pagination.current - 1) * pagination.pageSize + 1}-${Math.min(pagination.current * pagination.pageSize, pagination.total)} of ${pagination.total}`
+                    : "No data"}
+                </Text>
+                <Pagination
+                  current={pagination.current}
+                  pageSize={pagination.pageSize}
+                  total={pagination.total}
+                  onChange={(page) => loadRows(page, pagination.pageSize)}
+                  onShowSizeChange={(_, size) => loadRows(1, size)}
+                  pageSizeOptions={["10", "25", "50"]}
+                  showSizeChanger
+                  showQuickJumper
+                  size="small"
+                  style={{ margin: 0 }}
+                />
+              </div>
+            </div>
+          </div>
+        </>
+      )}
 
-            <Row gutter={16}>
-              <Col span={8}>
-                <Form.Item
-                  name="estimated_hours"
-                  label="Estimated Hours"
-                  rules={[{ required: true }]}
-                >
-                  <InputNumber min={1} style={{ width: "100%" }} />
-                </Form.Item>
-              </Col>
-              <Col span={8}>
-                <Form.Item
-                  name="priority"
-                  label="Priority"
-                  rules={[{ required: true }]}
-                >
-                  <InputNumber min={1} style={{ width: "100%" }} />
-                </Form.Item>
-              </Col>
-              <Col span={8}>
-                <Form.Item
-                  name="is_active"
-                  label="Active"
-                  valuePropName="checked"
-                >
-                  <Switch />
-                </Form.Item>
-              </Col>
-            </Row>
+      {/* Modal */}
+      <Modal
+        open={modalOpen}
+        title={editing ? "Edit Lane" : "Create Lane"}
+        width={780}
+        confirmLoading={saving}
+        okText={editing ? "Update" : "Create"}
+        onOk={saveLane}
+        onCancel={closeModal}
+        destroyOnClose
+        size="small"
+        styles={{ body: { maxHeight: "80vh", overflowY: "auto" } }}
+      >
+        <Form
+          form={form}
+          layout="vertical"
+          onValuesChange={onFormValuesChange}
+          initialValues={{
+            service_type: "standard",
+            transport_mode: "road",
+            estimated_hours: 1,
+            priority: 100,
+            is_active: true,
+          }}
+          size="small"
+        >
+          <div
+            style={{
+              border: "1px solid #e8e8e8",
+              borderRadius: 6,
+              padding: 10,
+              background: "#f9fafb",
+              marginBottom: 16,
+            }}
+          >
+            <Text style={{ fontSize: "12px", fontWeight: "600" }}>
+              Route Preview
+            </Text>
+            {modalPathNodes.length >= 2 ? (
+              modalTransportMode === "road" ? (
+                <CheckpointMapPicker
+                  value={checkpoints}
+                  onChange={setCheckpoints}
+                  pathNodes={modalPathNodes}
+                  height={240}
+                />
+              ) : (
+                <ArcRouteMap
+                  fromNode={modalPathNodes[0]}
+                  toNode={modalPathNodes[modalPathNodes.length - 1]}
+                  mode={modalTransportMode}
+                  height={240}
+                />
+              )
+            ) : (
+              <div
+                style={{
+                  height: 120,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  background: "#f5f5f5",
+                  borderRadius: 6,
+                  color: "#999",
+                  fontSize: "12px",
+                }}
+              >
+                Select branches to preview
+              </div>
+            )}
+          </div>
 
-            <Row gutter={16}>
-              <Col span={24}>
-                <Form.Item
-                  name="variant_name"
-                  label="Variant Name"
-                  tooltip="e.g., 'Via Khaireni', 'Via Gorkha', 'Direct'"
-                >
-                  <Input placeholder="Enter variant name (optional)" />
-                </Form.Item>
-              </Col>
-            </Row>
-          </Form>
-        </Modal>
-      </Space>
+          <Row gutter={12}>
+            <Col span={12}>
+              <Form.Item
+                name="from_branch_id"
+                label="From"
+                rules={[{ required: true }]}
+              >
+                <Select
+                  showSearch
+                  optionFilterProp="label"
+                  options={branchOptions}
+                  size="small"
+                />
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item
+                name="to_branch_id"
+                label="To"
+                rules={[{ required: true }]}
+              >
+                <Select
+                  showSearch
+                  optionFilterProp="label"
+                  options={branchOptions}
+                  size="small"
+                />
+              </Form.Item>
+            </Col>
+          </Row>
+
+          <Row gutter={12}>
+            <Col span={6}>
+              <Form.Item
+                name="service_type"
+                label="Service"
+                rules={[{ required: true }]}
+              >
+                <Select options={SERVICE_TYPES} size="small" />
+              </Form.Item>
+            </Col>
+            <Col span={6}>
+              <Form.Item name="transport_mode" label="Transport">
+                <Select allowClear options={TRANSPORT_MODES} size="small" />
+              </Form.Item>
+            </Col>
+            <Col span={6}>
+              <Form.Item name="distance_km" label="Distance">
+                <InputNumber
+                  min={0}
+                  precision={2}
+                  style={{ width: "100%" }}
+                  size="small"
+                />
+              </Form.Item>
+            </Col>
+            <Col span={6}>
+              <Form.Item
+                name="estimated_hours"
+                label="Hours"
+                rules={[{ required: true }]}
+              >
+                <InputNumber min={1} style={{ width: "100%" }} size="small" />
+              </Form.Item>
+            </Col>
+          </Row>
+
+          <Row gutter={12}>
+            <Col span={12}>
+              <Form.Item
+                name="priority"
+                label="Priority"
+                rules={[{ required: true }]}
+              >
+                <InputNumber min={1} style={{ width: "100%" }} size="small" />
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item
+                name="is_active"
+                label="Active"
+                valuePropName="checked"
+              >
+                <Switch size="small" />
+              </Form.Item>
+            </Col>
+          </Row>
+        </Form>
+      </Modal>
     </div>
   );
 }
 
-// ─────────────────────────────────────────────
-// Branch Connectivity Panel
-// ─────────────────────────────────────────────
 function LaneConnectivityPanel({
   branchOptions,
   connBranchId,
@@ -1381,132 +1702,65 @@ function LaneConnectivityPanel({
   connBranch,
   onAddLane,
 }) {
-  const [serviceFilter, setServiceFilter] = useState([
-    "standard",
-    "express",
-    "same_day",
-    "flight",
-  ]);
-
-  const connectedLanes = useMemo(() => {
-    const out = connectivity?.outbound || [];
-    const inb = connectivity?.inbound || [];
-    const map = new Map();
-    for (const lane of [...out, ...inb]) map.set(Number(lane.id), lane);
-    return Array.from(map.values());
-  }, [connectivity]);
-
-  const laneRow = (lane, direction) => {
-    const other = direction === "out" ? lane.to_branch : lane.from_branch;
-    return (
-      <List.Item>
-        <Space direction="vertical" size={0} style={{ width: "100%" }}>
-          <Space size={6}>
-            <Tag color={direction === "out" ? "geekblue" : "cyan"}>
-              {direction === "out" ? "→ to" : "← from"}
-            </Tag>
-            <Text strong>{other?.name || "Branch"}</Text>
-            <Tag color="blue">{lane.service_type}</Tag>
-            {lane.transport_mode ? <Tag>{lane.transport_mode}</Tag> : null}
-            {statusTag(lane.is_active)}
-          </Space>
-          <Text type="secondary" style={{ fontSize: 12 }}>
-            {Number(lane.distance_km || 0)} km · ~
-            {Number(lane.estimated_hours || 0)} hrs · priority {lane.priority}
-          </Text>
-        </Space>
-      </List.Item>
-    );
-  };
-
   const outbound = connectivity?.outbound || [];
   const inbound = connectivity?.inbound || [];
 
   return (
     <Card>
       <Space direction="vertical" size={16} style={{ width: "100%" }}>
-        <Row gutter={[16, 16]} align="middle">
-          <Col xs={24} md={10}>
-            <Select
-              showSearch
-              allowClear
-              style={{ width: "100%" }}
-              placeholder="Select a branch to see its connections"
-              optionFilterProp="label"
-              options={branchOptions}
-              value={connBranchId}
-              onChange={setConnBranchId}
-            />
-          </Col>
-          <Col xs={24} md={14}>
-            {connBranch ? (
-              <Space wrap>
-                <Text type="secondary">
-                  <ApartmentOutlined /> <Text strong>{connBranch.name}</Text>{" "}
-                  connects to {outbound.length} outbound and {inbound.length}{" "}
-                  inbound branch
-                  {outbound.length + inbound.length === 1 ? "" : "es"}.
-                </Text>
-                {connBranchId ? (
-                  <Button
-                    size="small"
-                    icon={<PlusOutlined />}
-                    onClick={() =>
-                      onAddLane({ from_branch_id: Number(connBranchId) })
-                    }
-                  >
-                    Add lane from here
-                  </Button>
-                ) : null}
-              </Space>
-            ) : (
-              <Text type="secondary">
-                Pick a branch to view every direct lane in and out of it.
-              </Text>
-            )}
-          </Col>
-        </Row>
+        <Select
+          showSearch
+          allowClear
+          style={{ width: "100%" }}
+          placeholder="Select branch"
+          optionFilterProp="label"
+          options={branchOptions}
+          value={connBranchId}
+          onChange={setConnBranchId}
+        />
 
         {!connBranchId ? (
-          <Empty description="No branch selected" />
+          <Empty description="Select a branch" />
         ) : (
-          <Card
-            size="small"
-            title={
-              <Space>
-                <ApartmentOutlined />
-                Network Map — {connBranch?.name}
-              </Space>
-            }
-          >
+          <Card size="small" title={`${connBranch?.name} Network`}>
             {outbound.length > 0 && (
               <div>
-                <Text strong style={{ color: "#1890ff" }}>
-                  Outbound Lanes:
-                </Text>
+                <Text strong>Outbound:</Text>
                 <List
                   size="small"
                   dataSource={outbound}
-                  renderItem={(lane) => laneRow(lane, "out")}
+                  renderItem={(lane) => (
+                    <List.Item>
+                      <Space size={6}>
+                        <Tag color="blue">{lane.to_branch?.name}</Tag>
+                        <Text>
+                          {Number(lane.distance_km || 0).toFixed(1)} km
+                        </Text>
+                      </Space>
+                    </List.Item>
+                  )}
                 />
               </div>
             )}
 
             {inbound.length > 0 && (
               <div style={{ marginTop: "12px" }}>
-                <Text strong style={{ color: "#13c2c2" }}>
-                  Inbound Lanes:
-                </Text>
+                <Text strong>Inbound:</Text>
                 <List
                   size="small"
                   dataSource={inbound}
-                  renderItem={(lane) => laneRow(lane, "in")}
+                  renderItem={(lane) => (
+                    <List.Item>
+                      <Space size={6}>
+                        <Tag color="cyan">{lane.from_branch?.name}</Tag>
+                        <Text>
+                          {Number(lane.distance_km || 0).toFixed(1)} km
+                        </Text>
+                      </Space>
+                    </List.Item>
+                  )}
                 />
               </div>
-            )}
-
-            {outbound.length === 0 && inbound.length === 0 && (
-              <Empty description="No lanes connected to this branch" />
             )}
           </Card>
         )}

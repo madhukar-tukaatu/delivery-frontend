@@ -9,6 +9,7 @@ import {
   Avatar,
   Badge,
   Button,
+  Card,
   Col,
   DatePicker,
   Divider,
@@ -60,9 +61,11 @@ import {
   rejectPickupShipment,
 } from "@/services/pickupService";
 
+import AdminPageHeader from "@/components/admin/AdminPageHeader";
+
 const { Title, Text } = Typography;
 
-const BRAND = "#027196";
+const BRAND = "#0891B2";
 
 /*
 |--------------------------------------------------------------------------
@@ -953,29 +956,18 @@ export default function AdminPickupsPage() {
   return (
     <div style={{ padding: 24, background: "#f7f8fa", minHeight: "100%" }}>
       {/* Header */}
-      <Row
-        justify="space-between"
-        align="middle"
-        style={{ marginBottom: 16 }}
-        gutter={[12, 12]}
-      >
-        <Col>
-          <Title level={3} style={{ margin: 0 }}>
-            Pickups
-          </Title>
-          <Text type="secondary">
-            Monitor the pickup lifecycle across every branch
-          </Text>
-        </Col>
-        <Col>
-          <Space wrap>
+      <AdminPageHeader
+        title="Pickups"
+        subtitle="Monitor the pickup lifecycle across every branch"
+        actions={
+          <>
             <Input
               allowClear
               prefix={<SearchOutlined style={{ color: "#bfbfbf" }} />}
               placeholder="Search request, merchant, tracking…"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              style={{ width: 260 }}
+              style={{ width: 220 }}
             />
             <DatePicker.RangePicker
               allowEmpty={[true, true]}
@@ -996,6 +988,7 @@ export default function AdminPickupsPage() {
                   setMerchantFilter(null);
                   setActiveTab("all");
                 }}
+                style={{ background: "#fff", color: "#0891B2", borderColor: "#fff" }}
               >
                 Clear
               </Button>
@@ -1006,12 +999,13 @@ export default function AdminPickupsPage() {
                 load(pagination.current, pagination.pageSize);
                 loadSummary();
               }}
+              style={{ background: "#fff", color: "#0891B2", borderColor: "#fff" }}
             >
               Refresh
             </Button>
-          </Space>
-        </Col>
-      </Row>
+          </>
+        }
+      />
 
       {/* Diagrammatic status summary */}
       <div
@@ -1130,8 +1124,10 @@ export default function AdminPickupsPage() {
           background: "#fff",
           borderRadius: 14,
           border: "1px solid #eef0f2",
-          overflow: "hidden",
+          overflow: "visible",
+          width: "100%",
         }}
+        className="admin-card"
       >
         <div
           style={{
@@ -1164,11 +1160,13 @@ export default function AdminPickupsPage() {
         </div>
 
         <Table
+          className="compact"
           size="small"
           rowKey={(r) => getPickupId(r)}
           loading={loading}
           columns={columns}
           dataSource={rows}
+          scroll={{ x: 1200 }}
           onRow={(r) => ({
             onClick: () => openDetail(r),
             style: { cursor: "pointer" },
@@ -1246,6 +1244,7 @@ export default function AdminPickupsPage() {
                     loadStaff();
                     setAssignOpen(true);
                   }}
+                  style={{ background: "#0891B2", borderColor: "#0891B2" }}
                 >
                   Assign rider
                 </Button>
@@ -1507,6 +1506,7 @@ export default function AdminPickupsPage() {
                                   icon={<CheckCircleOutlined />}
                                   loading={receivingId === s.id}
                                   onClick={() => handleReceive(s.id)}
+                                  style={{ background: "#10B981", borderColor: "#10B981" }}
                                 >
                                   Receive
                                 </Button>

@@ -37,6 +37,9 @@ import {
 
 import { pricingErrorMessage, toBoolean } from "@/lib/pricing-settings-utils";
 
+import AdminPageHeader from "@/components/admin/AdminPageHeader";
+import StatCard, { StatCardGrid } from "@/components/admin/StatCard";
+
 const { Title, Text } = Typography;
 
 export default function PricingSettingsListPage() {
@@ -306,87 +309,53 @@ export default function PricingSettingsListPage() {
   ];
 
   return (
-    <Space direction="vertical" size={20} style={{ width: "100%" }}>
-      <Card bordered={false}>
-        <Row justify="space-between" align="middle" gutter={[16, 16]}>
-          <Col>
-            <Title level={3} style={{ margin: 0 }}>
-              Pricing Settings
-            </Title>
+    <Space direction="vertical" size={16} style={{ width: "100%" }}>
+      <AdminPageHeader
+        title="Pricing Settings"
+        subtitle="Manage global delivery pricing rules through controlled pricing versions."
+        actions={
+          <>
+            <Button icon={<ReloadOutlined />} onClick={loadData}>
+              Refresh
+            </Button>
+            <Button
+              type="primary"
+              icon={<PlusOutlined />}
+              onClick={() => router.push("/admin/rates/new")}
+            >
+              Add Pricing Version
+            </Button>
+          </>
+        }
+      />
 
-            <Text type="secondary">
-              Manage global delivery pricing rules through controlled pricing
-              versions.
-            </Text>
-          </Col>
-
-          <Col>
-            <Space>
-              <Button icon={<ReloadOutlined />} onClick={loadData}>
-                Refresh
-              </Button>
-
-              <Button
-                type="primary"
-                icon={<PlusOutlined />}
-                onClick={() => router.push("/admin/rates/new")}
-              >
-                Add Pricing Version
-              </Button>
-            </Space>
-          </Col>
-        </Row>
-      </Card>
-
-      <Row gutter={[16, 16]}>
-        <Col xs={24} lg={8}>
-          <Card bordered={false}>
-            <Statistic
-              title="Active Version"
-              value={active?.name || "Not configured"}
-            />
-          </Card>
-        </Col>
-
-        <Col xs={24} sm={12} lg={4}>
-          <Card bordered={false}>
-            <Statistic
-              title="Included Weight"
-              value={Number(active?.base_weight_kg || 0)}
-              precision={2}
-              suffix="kg"
-            />
-          </Card>
-        </Col>
-
-        <Col xs={24} sm={12} lg={4}>
-          <Card bordered={false}>
-            <Statistic
-              title="Included Distance"
-              value={Number(active?.base_distance_km || 0)}
-              precision={2}
-              suffix="km"
-            />
-          </Card>
-        </Col>
-
-        <Col xs={24} sm={12} lg={4}>
-          <Card bordered={false}>
-            <Statistic
-              title="Per KM Charge"
-              value={Number(active?.extra_distance_rate || 0)}
-              precision={2}
-              prefix="NPR"
-            />
-          </Card>
-        </Col>
-
-        <Col xs={24} sm={12} lg={4}>
-          <Card bordered={false}>
-            <Statistic title="Versions" value={history.length} />
-          </Card>
-        </Col>
-      </Row>
+      <StatCardGrid>
+        <StatCard
+          label="Active Version"
+          value={active?.name || "Not configured"}
+          variant="primary"
+        />
+        <StatCard
+          label="Included Weight"
+          value={`${Number(active?.base_weight_kg || 0).toFixed(2)} kg`}
+          variant="success"
+        />
+        <StatCard
+          label="Included Distance"
+          value={`${Number(active?.base_distance_km || 0).toFixed(2)} km`}
+          variant="accent"
+        />
+        <StatCard
+          label="Per KM Charge"
+          value={`NPR ${Number(active?.extra_distance_rate || 0).toFixed(2)}`}
+          variant="warning"
+        />
+        <StatCard
+          label="Versions"
+          value={history.length}
+          variant="primary"
+        />
+      </StatCardGrid>
 
       <Card bordered={false}>
         <Row gutter={[16, 16]}>

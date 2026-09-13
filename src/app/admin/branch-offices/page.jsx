@@ -63,6 +63,8 @@ import {
 
 import BranchInvitationStatusTag from "@/components/branches/BranchInvitationStatusTag";
 import BranchInvitationActions from "@/components/branches/BranchInvitationActions";
+import AdminPageHeader from "@/components/admin/AdminPageHeader";
+import StatCard, { StatCardGrid } from "@/components/admin/StatCard";
 
 const CoverageRadiusMapFull = dynamic(
   () => import("@/components/maps/CoverageRadiusMapFull"),
@@ -1036,90 +1038,59 @@ export default function BranchOfficesPage() {
     <div
       style={{
         minHeight: "100vh",
-        padding: 20,
-        background: "linear-gradient(180deg, #f7faff 0%, #f2f6fb 100%)",
+        padding: 16,
+        background: "#f5f7fa",
       }}
     >
       <Space direction="vertical" size={16} style={{ width: "100%" }}>
-        <Card
-          bordered={false}
-          style={{
-            borderRadius: 16,
-            boxShadow: "0 12px 30px rgba(15, 23, 42, 0.06)",
-          }}
-        >
-          <Row justify="space-between" align="middle" gutter={[16, 14]}>
-            <Col>
-              <Space direction="vertical" size={3}>
-                <Title level={3} style={{ margin: 0 }}>
-                  Branch Offices
-                </Title>
-                <Text type="secondary">
-                  Manage branch allocation, operational status and manager access.
-                </Text>
-              </Space>
-            </Col>
+        <AdminPageHeader
+          title="Branch Offices"
+          subtitle="Manage branch allocation, operational status and manager access."
+          actions={
+            <>
+              <Link href="/admin/branch-offices/create?type=franchise_branch">
+                <Button type="primary" icon={<PlusOutlined />}>
+                  Add Franchise
+                </Button>
+              </Link>
+              <Link href="/admin/branch-offices/create?type=sub_branch">
+                <Button
+                  icon={<PlusOutlined />}
+                  style={{ background: "#fff", color: "#0891B2", borderColor: "#fff" }}
+                >
+                  Add Sub-Branch
+                </Button>
+              </Link>
+            </>
+          }
+        />
 
-            <Col>
-              <Space wrap>
-                <Link href="/admin/branch-offices/create?type=franchise_branch">
-                  <Button type="primary" icon={<PlusOutlined />}>
-                    Add Franchise
-                  </Button>
-                </Link>
-
-                <Link href="/admin/branch-offices/create?type=sub_branch">
-                  <Button icon={<PlusOutlined />}>Add Sub-Branch</Button>
-                </Link>
-              </Space>
-            </Col>
-          </Row>
-        </Card>
-
-        <Row gutter={[14, 14]}>
-          <Col xs={24} sm={12} xl={6}>
-            <Card className="branch-stat-card" bordered={false}>
-              <Statistic
-                title="Total branches"
-                value={allBranches.length}
-                prefix={<ShopOutlined />}
-              />
-            </Card>
-          </Col>
-
-          <Col xs={24} sm={12} xl={6}>
-            <Card className="branch-stat-card" bordered={false}>
-              <Statistic
-                title="Active"
-                value={activeCount}
-                prefix={<ThunderboltOutlined />}
-                valueStyle={{ color: "#16a34a" }}
-              />
-            </Card>
-          </Col>
-
-          <Col xs={24} sm={12} xl={6}>
-            <Card className="branch-stat-card" bordered={false}>
-              <Statistic
-                title="Franchise / Main"
-                value={franchiseCount}
-                prefix={<ApartmentOutlined />}
-                valueStyle={{ color: "#2563eb" }}
-              />
-            </Card>
-          </Col>
-
-          <Col xs={24} sm={12} xl={6}>
-            <Card className="branch-stat-card" bordered={false}>
-              <Statistic
-                title="Sub-branches"
-                value={subCount}
-                prefix={<ApartmentOutlined />}
-                valueStyle={{ color: "#d97706" }}
-              />
-            </Card>
-          </Col>
-        </Row>
+        <StatCardGrid>
+          <StatCard
+            label="Total branches"
+            value={allBranches.length}
+            icon={<ShopOutlined />}
+            variant="primary"
+          />
+          <StatCard
+            label="Active"
+            value={activeCount}
+            icon={<ThunderboltOutlined />}
+            variant="success"
+          />
+          <StatCard
+            label="Franchise / Main"
+            value={franchiseCount}
+            icon={<ApartmentOutlined />}
+            variant="primary"
+          />
+          <StatCard
+            label="Sub-branches"
+            value={subCount}
+            icon={<ApartmentOutlined />}
+            variant="warning"
+          />
+        </StatCardGrid>
 
         <Card bordered={false} className="branch-filter-card">
           <Form form={filterForm} layout="vertical">

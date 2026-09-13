@@ -19,18 +19,18 @@ function fmt(v) {
 
 function StatCard({ title, value, prefix, color, link, loading, isMoney }) {
   return (
-    <Card size="small" loading={loading} style={{ height: "100%" }}>
+    <Card size="small" loading={loading} style={{ height: "100%", borderLeft: "4px solid #0891B2" }} className="admin-stat-card">
       <Statistic
         title={
           <Space style={{ justifyContent: "space-between", width: "100%" }}>
-            <Text type="secondary" style={{ fontSize: 12 }}>{title}</Text>
-            {link && <Link href={link}><Button type="link" size="small" style={{ padding: 0, fontSize: 11 }}>View →</Button></Link>}
+            <Text type="secondary" style={{ fontSize: 12, fontWeight: 600, color: "#64748B" }}>{title}</Text>
+            {link && <Link href={link}><Button type="link" size="small" style={{ padding: 0, fontSize: 11, color: "#0891B2" }}>View →</Button></Link>}
           </Space>
         }
         value={isMoney ? undefined : (value ?? 0)}
         formatter={isMoney ? () => fmt(value) : undefined}
         prefix={prefix}
-        valueStyle={{ color, fontSize: 22, fontWeight: 700 }}
+        valueStyle={{ color: color || "#0891B2", fontSize: 24, fontWeight: 700, letterSpacing: "-0.5px" }}
       />
     </Card>
   );
@@ -89,16 +89,15 @@ export default function DashboardPage() {
   return (
     <Space direction="vertical" size={16} style={{ width: "100%", padding: 4 }}>
 
-      <Row justify="space-between" align="middle">
-        <Col>
-          <Text style={{ fontSize: 18, fontWeight: 700 }}>Dashboard</Text>
-          <br />
-          <Text type="secondary" style={{ fontSize: 12 }}>{scopeLabel}</Text>
-        </Col>
-        <Col>
-          <Button icon={<ReloadOutlined />} onClick={load} loading={loading}>Refresh</Button>
-        </Col>
-      </Row>
+      <div className="admin-page-header">
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+          <div>
+            <h1>Dashboard</h1>
+            <p>{scopeLabel}</p>
+          </div>
+          <Button icon={<ReloadOutlined />} onClick={load} loading={loading} type="primary" style={{ background: "#0891B2" }}>Refresh</Button>
+        </div>
+      </div>
 
       {loading && !Object.keys(data).length ? (
         <div style={{ textAlign: "center", padding: 60 }}><Spin size="large" /></div>
@@ -108,23 +107,23 @@ export default function DashboardPage() {
           {shipments && (
             <Row gutter={[12, 12]}>
               <Col xs={12} sm={8} md={4}>
-                <StatCard title="Total Shipments" value={shipments.total} prefix={<BoxPlotOutlined />} color="#6366f1" link="/admin/shipments" loading={loading} />
+                <StatCard title="Total Shipments" value={shipments.total} prefix={<BoxPlotOutlined />} color="#0891B2" link="/admin/shipments" loading={loading} />
               </Col>
               <Col xs={12} sm={8} md={4}>
-                <StatCard title="Delivered" value={shipments.delivered} prefix={<TruckOutlined />} color="#22c55e" loading={loading} />
+                <StatCard title="Delivered" value={shipments.delivered} prefix={<TruckOutlined />} color="#10B981" loading={loading} />
               </Col>
               <Col xs={12} sm={8} md={4}>
-                <StatCard title="Failed" value={shipments.failed} prefix={<BoxPlotOutlined />} color="#ef4444" loading={loading} />
+                <StatCard title="Failed" value={shipments.failed} prefix={<BoxPlotOutlined />} color="#EF4444" loading={loading} />
               </Col>
               <Col xs={12} sm={8} md={4}>
-                <StatCard title="Returned" value={shipments.returned} prefix={<BoxPlotOutlined />} color="#f59e0b" loading={loading} />
+                <StatCard title="Returned" value={shipments.returned} prefix={<BoxPlotOutlined />} color="#F59E0B" loading={loading} />
               </Col>
               <Col xs={12} sm={8} md={4}>
-                <StatCard title="Cancelled" value={shipments.cancelled} prefix={<BoxPlotOutlined />} color="#6b7280" loading={loading} />
+                <StatCard title="Cancelled" value={shipments.cancelled} prefix={<BoxPlotOutlined />} color="#64748B" loading={loading} />
               </Col>
               {branches && (
                 <Col xs={12} sm={8} md={4}>
-                  <StatCard title="Branches" value={branches.total} prefix={<ApartmentOutlined />} color="#3b82f6" link={isSuperAdmin ? "/admin/branches" : undefined} loading={loading} />
+                  <StatCard title="Branches" value={branches.total} prefix={<ApartmentOutlined />} color="#0891B2" link={isSuperAdmin ? "/admin/branches" : undefined} loading={loading} />
                 </Col>
               )}
             </Row>
@@ -134,16 +133,16 @@ export default function DashboardPage() {
           {(revenue || pod) && (
             <Row gutter={[12, 12]}>
               {revenue && <>
-                <Col xs={12} sm={6}><StatCard title="Delivery Charges" value={revenue.delivery_charges} prefix={<DollarOutlined />} color="#6366f1" loading={loading} isMoney /></Col>
-                <Col xs={12} sm={6}><StatCard title="POD Charges" value={revenue.pod_charges} prefix={<DollarOutlined />} color="#3b82f6" loading={loading} isMoney /></Col>
-                <Col xs={12} sm={6}><StatCard title="Return Charges" value={revenue.return_charges} prefix={<DollarOutlined />} color="#f59e0b" loading={loading} isMoney /></Col>
-                <Col xs={12} sm={6}><StatCard title="Total Revenue" value={revenue.total_charges} prefix={<RiseOutlined />} color="#22c55e" loading={loading} isMoney /></Col>
+                <Col xs={12} sm={6}><StatCard title="Delivery Charges" value={revenue.delivery_charges} prefix={<DollarOutlined />} color="#0891B2" loading={loading} isMoney /></Col>
+                <Col xs={12} sm={6}><StatCard title="POD Charges" value={revenue.pod_charges} prefix={<DollarOutlined />} color="#FBBF24" loading={loading} isMoney /></Col>
+                <Col xs={12} sm={6}><StatCard title="Return Charges" value={revenue.return_charges} prefix={<DollarOutlined />} color="#F59E0B" loading={loading} isMoney /></Col>
+                <Col xs={12} sm={6}><StatCard title="Total Revenue" value={revenue.total_charges} prefix={<RiseOutlined />} color="#10B981" loading={loading} isMoney /></Col>
               </>}
               {pod && !revenue && <>
-                <Col xs={12} sm={6}><StatCard title="Total POD" value={pod.total_cod} prefix={<BankOutlined />} color="#3b82f6" loading={loading} isMoney /></Col>
-                <Col xs={12} sm={6}><StatCard title="POD Pending" value={pod.pending} prefix={<BankOutlined />} color="#f59e0b" loading={loading} isMoney /></Col>
-                <Col xs={12} sm={6}><StatCard title="POD Collected" value={pod.collected} prefix={<BankOutlined />} color="#22c55e" loading={loading} isMoney /></Col>
-                <Col xs={12} sm={6}><StatCard title="POD Settled" value={pod.settled} prefix={<BankOutlined />} color="#6366f1" loading={loading} isMoney /></Col>
+                <Col xs={12} sm={6}><StatCard title="Total POD" value={pod.total_cod} prefix={<BankOutlined />} color="#0891B2" loading={loading} isMoney /></Col>
+                <Col xs={12} sm={6}><StatCard title="POD Pending" value={pod.pending} prefix={<BankOutlined />} color="#F59E0B" loading={loading} isMoney /></Col>
+                <Col xs={12} sm={6}><StatCard title="POD Collected" value={pod.collected} prefix={<BankOutlined />} color="#10B981" loading={loading} isMoney /></Col>
+                <Col xs={12} sm={6}><StatCard title="POD Settled" value={pod.settled} prefix={<BankOutlined />} color="#FBBF24" loading={loading} isMoney /></Col>
               </>}
             </Row>
           )}
@@ -151,11 +150,11 @@ export default function DashboardPage() {
           {/* Merchants */}
           {merchants && (
             <Row gutter={[12, 12]}>
-              <Col xs={12} sm={6}><StatCard title="Total Merchants" value={merchants.total} prefix={<ShopOutlined />} color="#6366f1" link="/admin/merchants" loading={loading} /></Col>
-              <Col xs={12} sm={6}><StatCard title="Active Merchants" value={merchants.active} prefix={<ShopOutlined />} color="#22c55e" loading={loading} /></Col>
+              <Col xs={12} sm={6}><StatCard title="Total Merchants" value={merchants.total} prefix={<ShopOutlined />} color="#0891B2" link="/admin/merchants" loading={loading} /></Col>
+              <Col xs={12} sm={6}><StatCard title="Active Merchants" value={merchants.active} prefix={<ShopOutlined />} color="#10B981" loading={loading} /></Col>
               {pod && <>
-                <Col xs={12} sm={6}><StatCard title="Total POD" value={pod.total_cod} prefix={<BankOutlined />} color="#3b82f6" loading={loading} isMoney /></Col>
-                <Col xs={12} sm={6}><StatCard title="POD Pending" value={pod.pending} prefix={<BankOutlined />} color="#f59e0b" loading={loading} isMoney /></Col>
+                <Col xs={12} sm={6}><StatCard title="Total POD" value={pod.total_cod} prefix={<BankOutlined />} color="#0891B2" loading={loading} isMoney /></Col>
+                <Col xs={12} sm={6}><StatCard title="POD Pending" value={pod.pending} prefix={<BankOutlined />} color="#F59E0B" loading={loading} isMoney /></Col>
               </>}
             </Row>
           )}

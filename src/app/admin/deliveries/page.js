@@ -44,8 +44,11 @@ import {
   failDelivery,
 } from "@/services/deliveryService";
 
+import AdminPageHeader from "@/components/admin/AdminPageHeader";
+import StatCard, { StatCardGrid } from "@/components/admin/StatCard";
+
 const { Text, Title } = Typography;
-const BRAND = "#027196";
+const BRAND = "#0891B2";
 
 /* -------------------------------------------------------------------------- */
 /* Status + type config                                                       */
@@ -437,26 +440,53 @@ export default function DeliveriesPage() {
     : undefined;
 
   return (
-    <div style={{ padding: 24, background: "#f7f8fa", minHeight: "100%" }}>
-      <Row justify="space-between" align="middle" style={{ marginBottom: 16 }} gutter={[12, 12]}>
-        <Col>
-          <Title level={3} style={{ margin: 0 }}>Deliveries</Title>
-          <Text type="secondary">Assign riders and track last-mile deliveries and transfers</Text>
-        </Col>
-        <Col>
-          <Space wrap>
+    <div style={{ padding: 16, background: "#f7f8fa", minHeight: "100%" }}>
+      <AdminPageHeader
+        title="Deliveries"
+        subtitle="Assign riders and track last-mile deliveries and transfers"
+        actions={
+          <>
             <Input
               allowClear
               prefix={<SearchOutlined style={{ color: "#bfbfbf" }} />}
               placeholder="Search tracking, receiver, phone…"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              style={{ width: 260 }}
+              style={{ width: 220 }}
             />
-            <Button icon={<ReloadOutlined />} onClick={refresh}>Refresh</Button>
-          </Space>
-        </Col>
-      </Row>
+            <Button icon={<ReloadOutlined />} onClick={refresh}>
+              Refresh
+            </Button>
+          </>
+        }
+      />
+
+      <StatCardGrid>
+        <StatCard
+          label="Ready to Assign"
+          value={counts.pending ?? 0}
+          hint="Awaiting rider"
+          variant="warning"
+        />
+        <StatCard
+          label="Assigned"
+          value={counts.assigned ?? 0}
+          hint="With riders"
+          variant="primary"
+        />
+        <StatCard
+          label="Out for Delivery"
+          value={counts.out_for_delivery ?? 0}
+          hint="On the road"
+          variant="accent"
+        />
+        <StatCard
+          label="Delivered"
+          value={counts.delivered ?? 0}
+          hint="Completed"
+          variant="success"
+        />
+      </StatCardGrid>
 
       {/* Delivery type toggle */}
       <div style={{ display: "flex", gap: 8, marginBottom: 12, flexWrap: "wrap" }}>
@@ -568,8 +598,9 @@ export default function DeliveriesPage() {
       )}
 
       {/* Table */}
-      <Card styles={{ body: { padding: 0 } }} style={{ borderRadius: 14 }}>
+      <Card styles={{ body: { padding: 0 } }} style={{ borderRadius: 14, width: "100%" }} className="admin-card">
         <Table
+          className="compact"
           rowKey="id"
           size="middle"
           loading={loading}
@@ -595,7 +626,7 @@ export default function DeliveriesPage() {
       <Modal
         title={
           <Space>
-            <UserAddOutlined style={{ color: BRAND }} />
+            <UserAddOutlined style={{ color: "#0891B2" }} />
             {bulkMode ? "Assign selected deliveries" : "Assign delivery rider"}
           </Space>
         }

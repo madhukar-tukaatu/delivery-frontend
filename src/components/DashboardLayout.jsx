@@ -21,6 +21,14 @@ import { getMyMenus } from "@/services/menuService";
 
 const { Header, Sider, Content } = Layout;
 
+const COLORS = {
+  darkNavy: "#0F172A",
+  primary: "#2563EB",
+  primaryText: "#0F172A",
+  border: "#E2E8F0",
+  pageBackground: "#F8FAFC",
+};
+
 const iconMap = {
   dashboard: <AppstoreOutlined />,
   branches: <NodeIndexOutlined />,

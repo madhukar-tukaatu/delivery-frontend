@@ -56,6 +56,9 @@ import {
   normalizeBranchRate,
 } from "@/lib/rate-management-page-utils";
 
+import AdminPageHeader from "@/components/admin/AdminPageHeader";
+import StatCard, { StatCardGrid } from "@/components/admin/StatCard";
+
 const { Title, Text } = Typography;
 
 const RouteMapS = dynamic(() => import("@/components/rate-admin/RouteMapS"), {
@@ -618,6 +621,7 @@ export default function BranchPricingPage() {
   |--------------------------------------------------------------------------
   */
 
+  
   const destinationRows = useMemo(() => {
     if (!selectedPickupId) {
       return [];
@@ -1295,10 +1299,10 @@ export default function BranchPricingPage() {
 
     return (
       <div
+        className="branch-pricing-destination-row"
         style={{
           marginBottom: 6,
           borderRadius: 8,
-
           border: isSelected
             ? "1px solid #91caff"
             : isAdding || isEditing
@@ -1323,31 +1327,21 @@ export default function BranchPricingPage() {
                 ? "#fff"
                 : "#fffbe6",
 
-          overflow: "hidden",
-
           transition: "all .15s ease",
         }}
       >
         <div
+          className="branch-pricing-destination-grid"
           onClick={() => {
             if (hasRate && !isEditing) {
               setSelectedRoute(normalizedRate);
             }
           }}
           style={{
-            display: "grid",
-
-            gridTemplateColumns:
-              "minmax(140px, 1.2fr) 1fr 80px 80px 80px 170px",
-
-            gap: 10,
-
+            gap: 8,
             alignItems: "center",
-
             minHeight: 58,
-
             padding: "8px 14px",
-
             cursor: hasRate && !isEditing ? "pointer" : "default",
           }}
         >
@@ -1458,7 +1452,17 @@ export default function BranchPricingPage() {
             )}
           </div>
 
-          <Space size={4} onClick={(event) => event.stopPropagation()}>
+          <Space
+            className="branch-pricing-destination-actions"
+            size={4}
+            wrap
+            style={{
+              flexWrap: "wrap",
+              minWidth: 0,
+              maxWidth: "100%",
+            }}
+            onClick={(event) => event.stopPropagation()}
+          >
             {hasRate ? (
               isEditing ? null : (
                 <>
@@ -1611,99 +1615,47 @@ export default function BranchPricingPage() {
     <div
       style={{
         width: "100%",
-        padding: "20px 22px 32px",
+        maxWidth: "100%",
+        padding: "16px",
         background: "#f5f7fa",
         minHeight: "100vh",
+        boxSizing: "border-box",
+        overflowX: "hidden",
       }}
     >
-      <Card
-        bordered={false}
-        style={{
-          borderRadius: 12,
-          marginBottom: 16,
-        }}
-        styles={{
-          body: {
-            padding: "18px 20px",
-          },
-        }}
-      >
-        <Row justify="space-between" align="middle">
-          <Col>
-            <Title
-              level={3}
-              style={{
-                margin: 0,
-              }}
-            >
-              Branch Pricing
-            </Title>
+      <AdminPageHeader
+        title="Branch Pricing"
+        subtitle="Select a branch to view and manage its delivery rates."
+        actions={
+          <Button
+            icon={<ReloadOutlined />}
+            loading={loading}
+            onClick={() => loadMatrix(true)}
+          >
+            Refresh
+          </Button>
+        }
+      />
 
-            <Text type="secondary">
-              Select a branch to view and manage its delivery rates.
-            </Text>
-          </Col>
-
-          <Col>
-            <Button
-              icon={<ReloadOutlined />}
-              loading={loading}
-              onClick={() => loadMatrix(true)}
-            >
-              Refresh
-            </Button>
-          </Col>
-        </Row>
-      </Card>
-
-      <Row
-        gutter={[12, 12]}
-        style={{
-          marginBottom: 16,
-        }}
-      >
-        {[
-          {
-            title: "Branches",
-            value: stats.locationCount,
-            prefix: <EnvironmentOutlined />,
-          },
-
-          {
-            title: "Total Routes",
-            value: stats.total,
-          },
-
-          {
-            title: "Active Routes",
-            value: stats.active,
-            suffix: `/ ${stats.total}`,
-            valueStyle: {
-              color: "#52c41a",
-            },
-          },
-
-          {
-            title: "Matrix Coverage",
-            value: stats.coverage,
-            suffix: "%",
-            valueStyle: {
-              color: stats.coverage === 100 ? "#52c41a" : "#faad14",
-            },
-          },
-        ].map((stat) => (
-          <Col key={stat.title} xs={24} sm={12} lg={6}>
-            <Card
-              bordered={false}
-              style={{
-                borderRadius: 10,
-              }}
-            >
-              <Statistic {...stat} />
-            </Card>
-          </Col>
-        ))}
-      </Row>
+      <StatCardGrid>
+        <StatCard
+          label="Branches"
+          value={stats.locationCount}
+          icon={<EnvironmentOutlined />}
+          variant="primary"
+        />
+        <StatCard label="Total Routes" value={stats.total} variant="accent" />
+        <StatCard
+          label="Active Routes"
+          value={`${stats.active} / ${stats.total}`}
+          variant="success"
+        />
+        <StatCard
+          label="Matrix Coverage"
+          value={`${stats.coverage}%`}
+          variant={stats.coverage === 100 ? "success" : "warning"}
+        />
+      </StatCardGrid>
 
       <Row gutter={[16, 16]} align="top">
         {/*
@@ -1932,7 +1884,7 @@ export default function BranchPricingPage() {
         | CENTER: DELIVERY BRANCHES
         |--------------------------------------------------------------------------
         */}
-        <Col xs={24} xl={12}>
+        <Col xs={24} xl={12} style={{ minWidth: 0 }}>
           <Card
             bordered={false}
             style={{
@@ -2052,6 +2004,7 @@ export default function BranchPricingPage() {
                 />
 
                 <div
+                  className="branch-pricing-destination-list"
                   style={{
                     padding: "4px 14px 14px",
                   }}

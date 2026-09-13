@@ -29,6 +29,8 @@ import {
 
 import WorkflowStatusTag from "@/features/workflow/components/WorkflowStatusTag";
 
+import AdminPageHeader from "@/components/admin/AdminPageHeader";
+
 const { Title, Text } = Typography;
 
 const STATUS_OPTIONS = [
@@ -389,43 +391,22 @@ export default function ShipmentsPage() {
         width: "100%",
       }}
     >
-      <Card>
-        <Row
-          justify="space-between"
-          align="middle"
-          gutter={[16, 16]}
-        >
-          <Col>
-            <Title
-              level={3}
-              style={{ margin: 0 }}
-            >
-              Shipments
-            </Title>
+      <AdminPageHeader
+        title="Shipments"
+        subtitle="Branch shipment operations"
+        actions={
+          <Button
+            icon={<ReloadOutlined />}
+            onClick={() => load(pagination.current, pagination.pageSize)}
+            loading={loading}
+            style={{ background: "#fff", color: "#0891B2", borderColor: "#0891B2" }}
+          >
+            Refresh
+          </Button>
+        }
+      />
 
-            <Text type="secondary">
-              Branch shipment operations
-            </Text>
-          </Col>
-
-          <Col>
-            <Button
-              icon={<ReloadOutlined />}
-              onClick={() =>
-                load(
-                  pagination.current,
-                  pagination.pageSize
-                )
-              }
-              loading={loading}
-            >
-              Refresh
-            </Button>
-          </Col>
-        </Row>
-      </Card>
-
-      <Card title="Shipment Filters">
+      <Card title="Shipment Filters" className="admin-card">
         <Row gutter={[12, 12]}>
           <Col xs={24} md={8} lg={6}>
             <Input
@@ -535,6 +516,7 @@ export default function ShipmentsPage() {
                   pagination.pageSize
                 )
               }
+              style={{ background: "#0891B2", borderColor: "#0891B2" }}
             >
               Search
             </Button>
@@ -551,8 +533,9 @@ export default function ShipmentsPage() {
         </Row>
       </Card>
 
-      <Card>
+      <Card className="admin-card" style={{ width: "100%" }}>
         <Table
+          className="compact"
           rowKey="id"
           loading={loading}
           dataSource={shipments}

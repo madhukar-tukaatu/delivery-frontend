@@ -54,6 +54,9 @@ import {
 
 import { useAccess } from "@/hooks/useAccess";
 
+import AdminPageHeader from "@/components/admin/AdminPageHeader";
+import StatCard, { StatCardGrid } from "@/components/admin/StatCard";
+
 const CoverageRadiusMapFull = dynamic(
   () =>
     import(
@@ -1303,9 +1306,9 @@ export default function CoverageLocationsPage() {
   return (
     <div
       style={{
-        background: "#ffffff",
+        background: "#f5f7fa",
         minHeight: "100vh",
-        padding: 20,
+        padding: 16,
       }}
     >
       <Space
@@ -1316,128 +1319,33 @@ export default function CoverageLocationsPage() {
         }}
       >
         {/* Header */}
-
-        <Row
-          justify="space-between"
-          align="middle"
-          gutter={[
-            16,
-            12,
-          ]}
-        >
-          <Col>
-            <Space
-              direction="vertical"
-              size={2}
-            >
-              <Text
-                style={{
-                  fontSize: 20,
-                  fontWeight: 600,
-                }}
-              >
-                Branch Allocation
-              </Text>
-
-              <Text type="secondary">
-                Manage main branch and
-                sub-branch service
-                coverage allocations.
-              </Text>
-            </Space>
-          </Col>
-
-          <Col>
-            {headerActions}
-          </Col>
-        </Row>
+        <AdminPageHeader
+          title="Branch Allocation"
+          subtitle="Manage main branch and sub-branch service coverage allocations."
+          actions={headerActions}
+        />
 
         {/* Stats */}
-
-        <Row
-          gutter={[
-            16,
-            16,
-          ]}
-        >
-          <Col
-            xs={24}
-            sm={8}
-          >
-            <Card size="small">
-              <Statistic
-                title="Total Allocations"
-                value={
-                  rows.length
-                }
-                prefix={
-                  <HeatMapOutlined
-                    style={{
-                      color:
-                        "#6366f1",
-                    }}
-                  />
-                }
-                valueStyle={{
-                  color:
-                    "#6366f1",
-                }}
-              />
-            </Card>
-          </Col>
-
-          <Col
-            xs={24}
-            sm={8}
-          >
-            <Card size="small">
-              <Statistic
-                title="Main Branch Zones"
-                value={
-                  mainZones.length
-                }
-                prefix={
-                  <ApartmentOutlined
-                    style={{
-                      color:
-                        "#3b82f6",
-                    }}
-                  />
-                }
-                valueStyle={{
-                  color:
-                    "#3b82f6",
-                }}
-              />
-            </Card>
-          </Col>
-
-          <Col
-            xs={24}
-            sm={8}
-          >
-            <Card size="small">
-              <Statistic
-                title="Sub-Branch Zones"
-                value={
-                  subZones.length
-                }
-                prefix={
-                  <ApartmentOutlined
-                    style={{
-                      color:
-                        "#22c55e",
-                    }}
-                  />
-                }
-                valueStyle={{
-                  color:
-                    "#22c55e",
-                }}
-              />
-            </Card>
-          </Col>
-        </Row>
+        <StatCardGrid>
+          <StatCard
+            label="Total Allocations"
+            value={rows.length}
+            icon={<HeatMapOutlined />}
+            variant="primary"
+          />
+          <StatCard
+            label="Main Branch Zones"
+            value={mainZones.length}
+            icon={<ApartmentOutlined />}
+            variant="accent"
+          />
+          <StatCard
+            label="Sub-Branch Zones"
+            value={subZones.length}
+            icon={<ApartmentOutlined />}
+            variant="success"
+          />
+        </StatCardGrid>
 
         {/* Filters */}
 

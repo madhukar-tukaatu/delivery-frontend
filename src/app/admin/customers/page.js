@@ -5,6 +5,7 @@ import { Button, Card, Col, Form, Input, Modal, Row, Space, Table, Typography, m
 import { PlusOutlined, ReloadOutlined, SearchOutlined } from "@ant-design/icons";
 import api from "@/lib/api";
 import { usePermissions } from "@/hooks/usePermission";
+import AdminPageHeader from "@/components/admin/AdminPageHeader";
 
 const { Text } = Typography;
 
@@ -71,34 +72,48 @@ export default function CustomersPage() {
 
   return (
     <Space direction="vertical" size={12} style={{ width: "100%" }}>
-      <Card>
-        <Space style={{ justifyContent: "space-between", width: "100%" }} wrap>
-          <div>
-            <Text style={{ fontSize: 18, fontWeight: 700 }}>Customers</Text>
-            <br />
-            <Text type="secondary" style={{ fontSize: 12 }}>Manage customer records.</Text>
-          </div>
-          <Space>
+      <AdminPageHeader
+        title="Customers"
+        subtitle="Manage customer records."
+        actions={
+          <>
             {can("customers.create") && (
-              <Button type="primary" icon={<PlusOutlined />} onClick={() => setOpen(true)}>Add Customer</Button>
+              <Button
+                type="primary"
+                icon={<PlusOutlined />}
+                onClick={() => setOpen(true)}
+                style={{ background: "#FBBF24", borderColor: "#FBBF24", color: "#000" }}
+              >
+                Add Customer
+              </Button>
             )}
-            <Button icon={<ReloadOutlined />} onClick={() => load(pagination.current, pagination.pageSize)}>Refresh</Button>
-          </Space>
-        </Space>
-        <Space wrap style={{ marginTop: 12 }}>
+            <Button
+              icon={<ReloadOutlined />}
+              onClick={() => load(pagination.current, pagination.pageSize)}
+              style={{ background: "#fff", color: "#0891B2", borderColor: "#fff" }}
+            >
+              Refresh
+            </Button>
+          </>
+        }
+      />
+
+      <Card className="admin-card">
+        <Space wrap>
           <Input allowClear style={{ width: 240 }} placeholder="Search name / phone / email"
             prefix={<SearchOutlined />} value={search}
             onChange={e => setSearch(e.target.value)}
             onPressEnter={() => load(1, pagination.pageSize)}
           />
-          <Button type="primary" onClick={() => load(1, pagination.pageSize)}>Search</Button>
+          <Button type="primary" onClick={() => load(1, pagination.pageSize)} style={{ background: "#0891B2", borderColor: "#0891B2" }}>Search</Button>
           <Button onClick={() => { setSearch(""); setTimeout(() => load(1, pagination.pageSize), 0); }}>Reset</Button>
         </Space>
       </Card>
 
-      <Card>
+      <Card className="admin-card" style={{ width: "100%" }}>
         <Table rowKey="id" loading={loading} columns={columns} dataSource={rows} scroll={{ x: 800 }}
           pagination={{ ...pagination, showSizeChanger: true, showTotal: t => `${t} customers`, onChange: (p, ps) => load(p, ps) }}
+          className="compact"
         />
       </Card>
 
