@@ -780,32 +780,24 @@ export default function BranchTransferRoutesPage() {
 
       {/* STATS */}
       <Row gutter={[16, 16]}>
-        <Col xs={12} md={6}>
-          <Card bordered={false}>
-            <Statistic title="Total Routes" value={stats.total} />
+        <Col xs={24} sm={12} lg={6}>
+          <Card bordered={false} style={{ borderRadius: "12px", boxShadow: "0 2px 8px rgba(0,0,0,0.06)" }}>
+            <Statistic title="Total Routes" value={stats.total} valueStyle={{ fontSize: "28px", fontWeight: "bold", color: "#667eea" }} />
           </Card>
         </Col>
-        <Col xs={12} md={6}>
-          <Card bordered={false}>
-            <Statistic
-              title="Active"
-              value={stats.active}
-              valueStyle={{ color: "#52c41a" }}
-            />
+        <Col xs={24} sm={12} lg={6}>
+          <Card bordered={false} style={{ borderRadius: "12px", boxShadow: "0 2px 8px rgba(0,0,0,0.06)" }}>
+            <Statistic title="Active" value={stats.active} valueStyle={{ fontSize: "28px", fontWeight: "bold", color: "#10b981" }} />
           </Card>
         </Col>
-        <Col xs={12} md={6}>
-          <Card bordered={false}>
-            <Statistic
-              title="Via Transit"
-              value={stats.withTransit}
-              valueStyle={{ color: "#722ed1" }}
-            />
+        <Col xs={24} sm={12} lg={6}>
+          <Card bordered={false} style={{ borderRadius: "12px", boxShadow: "0 2px 8px rgba(0,0,0,0.06)" }}>
+            <Statistic title="Via Transit" value={stats.withTransit} valueStyle={{ fontSize: "28px", fontWeight: "bold", color: "#8b5cf6" }} />
           </Card>
         </Col>
-        <Col xs={12} md={6}>
-          <Card bordered={false}>
-            <Statistic title="Lanes Available" value={normalizedLanes.length} />
+        <Col xs={24} sm={12} lg={6}>
+          <Card bordered={false} style={{ borderRadius: "12px", boxShadow: "0 2px 8px rgba(0,0,0,0.06)" }}>
+            <Statistic title="Available Lanes" value={normalizedLanes.length} valueStyle={{ fontSize: "28px", fontWeight: "bold", color: "#f59e0b" }} />
           </Card>
         </Col>
       </Row>
@@ -821,27 +813,29 @@ export default function BranchTransferRoutesPage() {
       ) : (
         <>
           {/* FILTERS */}
-          <Card bordered={false}>
-            <Row gutter={[16, 16]}>
-              <Col xs={24} lg={8}>
+          <Card bordered={false} style={{ borderRadius: "12px", boxShadow: "0 2px 8px rgba(0,0,0,0.06)" }}>
+            <Row gutter={[12, 12]} align="middle">
+              <Col xs={24} lg={7}>
                 <Input.Search
                   allowClear
-                  placeholder="Search route code or name"
+                  size="large"
+                  placeholder="🔍 Search route code or name..."
                   value={filters.search}
                   onChange={(e) =>
                     setFilters((c) => ({ ...c, search: e.target.value }))
                   }
                   onSearch={() => loadRows(1)}
+                  style={{ borderRadius: "8px" }}
                 />
               </Col>
-              <Col xs={12} lg={5}>
+              <Col xs={24} sm={12} lg={5}>
                 <Select
                   allowClear
-                  placeholder="Route Type"
-                  style={{ width: "100%" }}
+                  placeholder="📍 Route Type"
+                  style={{ width: "100%", borderRadius: "8px" }}
                   options={[
                     { label: "Direct Only", value: false },
-                    { label: "Transit Only", value: true },
+                    { label: "Via Transit", value: true },
                   ]}
                   value={filters.has_transit}
                   onChange={(value) =>
@@ -849,11 +843,11 @@ export default function BranchTransferRoutesPage() {
                   }
                 />
               </Col>
-              <Col xs={12} lg={5}>
+              <Col xs={24} sm={12} lg={5}>
                 <Select
                   allowClear
-                  placeholder="Service"
-                  style={{ width: "100%" }}
+                  placeholder="📦 Service"
+                  style={{ width: "100%", borderRadius: "8px" }}
                   options={SERVICE_TYPES}
                   value={filters.service_type}
                   onChange={(value) =>
@@ -861,11 +855,11 @@ export default function BranchTransferRoutesPage() {
                   }
                 />
               </Col>
-              <Col xs={12} lg={3}>
+              <Col xs={24} sm={12} lg={4}>
                 <Select
                   allowClear
-                  placeholder="Status"
-                  style={{ width: "100%" }}
+                  placeholder="🔌 Status"
+                  style={{ width: "100%", borderRadius: "8px" }}
                   options={[
                     { label: "Active", value: true },
                     { label: "Inactive", value: false },
@@ -876,9 +870,15 @@ export default function BranchTransferRoutesPage() {
                   }
                 />
               </Col>
-              <Col xs={12} lg={3}>
-                <Button block type="primary" onClick={() => loadRows(1)}>
-                  Apply
+              <Col xs={24} lg={3}>
+                <Button 
+                  block 
+                  size="large"
+                  type="primary" 
+                  onClick={() => loadRows(1)}
+                  style={{ borderRadius: "8px" }}
+                >
+                  Search
                 </Button>
               </Col>
             </Row>
