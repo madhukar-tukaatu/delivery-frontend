@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   MapContainer,
   Marker,
@@ -39,6 +39,52 @@ const NEPAL_CENTER = [27.7172, 85.324];
 function toNumber(value) {
   const number = Number(value);
   return Number.isFinite(number) ? number : null;
+}
+
+async function reverseGeocode(latitude, longitude) {
+  try {
+    const response = await fetch(
+      `https://nominatim.openstreetmap.org/reverse?format=jsonv2&addressdetails=1&lat=${latitude}&lon=${longitude}`,
+      {
+        headers: {
+          Accept: "application/json",
+          "Accept-Language": "en",
+        },
+      },
+    );
+
+    if (!response.ok) {
+      return {};
+    }
+
+    const result = await response.json();
+    const address = result?.address || {};
+    const city =
+      address.city ||
+      address.town ||
+      address.municipality ||
+      address.village ||
+      address.county ||
+      null;
+    const landmark =
+      address.road ||
+      address.neighbourhood ||
+      address.suburb ||
+      address.hamlet ||
+      null;
+    const name =
+      result?.name ||
+      address.amenity ||
+      address.shop ||
+      address.tourism ||
+      landmark ||
+      city ||
+      null;
+
+    return { name, city, landmark };
+  } catch {
+    return {};
+  }
 }
 
 function checkpointIcon(index) {
@@ -123,6 +169,7 @@ export default function CheckpointMapPicker({
   height = 420,
 }) {
   const [mounted, setMounted] = useState(false);
+  const resolvedCheckpoints = useRef(new Set());
 
   useEffect(() => {
     setMounted(true);
@@ -130,6 +177,86 @@ export default function CheckpointMapPicker({
   }, []);
 
   const checkpoints = Array.isArray(value) ? value : [];
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const candidates = checkpoints
+      .map((checkpoint, index) => {
+        const latitude = toNumber(checkpoint.latitude);
+        const longitude = toNumber(checkpoint.longitude);
+        const hasNamedValue =
+          (checkpoint.name && !/^Checkpoint \d+$/.test(checkpoint.name)) ||
+          checkpoint.city ||
+          checkpoint.landmark;
+
+        if (
+          latitude === null ||
+          longitude === null ||
+          hasNamedValue
+        ) {
+          return null;
+        }
+
+        return {
+          checkpoint,
+          index,
+          key:
+            checkpoint._clientId ||
+            `${latitude.toFixed(7)}:${longitude.toFixed(7)}:${index}`,
+          latitude,
+          longitude,
+        };
+      })
+      .filter(Boolean);
+
+    candidates.forEach((candidate) => {
+      if (resolvedCheckpoints.current.has(candidate.key)) {
+        return;
+      }
+
+      resolvedCheckpoints.current.add(candidate.key);
+      reverseGeocode(candidate.latitude, candidate.longitude).then(
+        (location) => {
+          if (
+            cancelled ||
+            (!location.name && !location.city && !location.landmark)
+          ) {
+            return;
+          }
+
+          onChange?.((current) =>
+            (Array.isArray(current) ? current : []).map((checkpoint) => {
+              const checkpointKey =
+                checkpoint._clientId ||
+                `${toNumber(checkpoint.latitude)?.toFixed(7)}:${toNumber(
+                  checkpoint.longitude,
+                )?.toFixed(7)}:${candidate.index}`;
+
+              if (checkpointKey !== candidate.key) {
+                return checkpoint;
+              }
+
+              return {
+                ...checkpoint,
+                name:
+                  checkpoint.name &&
+                  !/^Checkpoint \d+$/.test(checkpoint.name)
+                    ? checkpoint.name
+                    : location.name || checkpoint.name,
+                city: checkpoint.city || location.city || null,
+                landmark: checkpoint.landmark || location.landmark || null,
+              };
+            }),
+          );
+        },
+      );
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [checkpoints, onChange]);
 
   const checkpointPoints = useMemo(
     () =>
@@ -204,11 +331,46 @@ export default function CheckpointMapPicker({
     };
   }, [orderedWaypoints]);
 
-  const addCheckpoint = ({ latitude, longitude }) => {
-    onChange?.([
-      ...checkpoints,
-      { name: "", city: null, landmark: null, latitude, longitude },
+  const addCheckpoint = async ({ latitude, longitude }) => {
+    const clientId = `checkpoint-${Date.now()}-${Math.random()}`;
+    const checkpointIndex = checkpoints.length;
+
+    onChange?.((current) => [
+      ...(Array.isArray(current) ? current : []),
+      {
+        _clientId: clientId,
+        name: `Checkpoint ${checkpointIndex + 1}`,
+        city: null,
+        landmark: null,
+        latitude,
+        longitude,
+      },
     ]);
+
+    const location = await reverseGeocode(latitude, longitude);
+    if (!location.name && !location.city && !location.landmark) {
+      return;
+    }
+
+    // Use a functional update so a quick second map click or a reorder/delete
+    // cannot apply the geocoded values to the wrong checkpoint.
+    onChange?.((current) =>
+      (Array.isArray(current) ? current : []).map((checkpoint) => {
+        if (checkpoint._clientId !== clientId) {
+          return checkpoint;
+        }
+
+        return {
+          ...checkpoint,
+          name:
+            checkpoint.name && !/^Checkpoint \d+$/.test(checkpoint.name)
+              ? checkpoint.name
+              : location.name || checkpoint.name,
+          city: checkpoint.city || location.city || null,
+          landmark: checkpoint.landmark || location.landmark || null,
+        };
+      }),
+    );
   };
 
   const updateCheckpoint = (index, patch) => {
@@ -451,7 +613,7 @@ export default function CheckpointMapPicker({
                     <Col span={8}>
                       <Input
                         placeholder="Name (e.g. Mugling)"
-                        value={cp.name ?? ""}
+                        value={cp.name || `Checkpoint ${index + 1}`}
                         onChange={(e) =>
                           updateCheckpoint(index, { name: e.target.value })
                         }

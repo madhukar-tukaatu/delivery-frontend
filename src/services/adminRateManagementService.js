@@ -144,6 +144,62 @@ function stringOrNull(value) {
   return valueString || null;
 }
 
+function normalizeTransferCheckpoints(value) {
+  let checkpoints = value;
+
+  if (typeof checkpoints === "string") {
+    try {
+      checkpoints = JSON.parse(checkpoints);
+    } catch {
+      checkpoints = [];
+    }
+  }
+
+  if (!Array.isArray(checkpoints)) {
+    return [];
+  }
+
+  return checkpoints
+    .map((checkpoint) => {
+      const name = stringOrNull(
+        checkpoint?.name ??
+          checkpoint?.label ??
+          checkpoint?.display_name ??
+          checkpoint?.place_name,
+      );
+      const city = stringOrNull(checkpoint?.city);
+      const landmark = stringOrNull(checkpoint?.landmark);
+      const latitude = numberOrNull(
+        checkpoint?.latitude ?? checkpoint?.lat,
+      );
+      const longitude = numberOrNull(
+        checkpoint?.longitude ?? checkpoint?.lng ?? checkpoint?.lon,
+      );
+
+      if (
+        name === null &&
+        city === null &&
+        landmark === null &&
+        latitude === null &&
+        longitude === null
+      ) {
+        return null;
+      }
+
+      return { name, city, landmark, latitude, longitude };
+    })
+    .filter(Boolean);
+}
+
+function numberOrNull(value) {
+  if (value === null || value === undefined || value === "") {
+    return null;
+  }
+
+  const number = Number(value);
+  return Number.isFinite(number) ? number : null;
+}
+
 /*
 |--------------------------------------------------------------------------
 | Branches
@@ -611,6 +667,10 @@ export async function createBranchTransferLane(payload = {}) {
     is_bidirectional: normalizeBoolean(payload.is_bidirectional, false),
 
     is_active: normalizeBoolean(payload.is_active, true),
+
+    variant_name: stringOrNull(payload.variant_name),
+
+    checkpoints: normalizeTransferCheckpoints(payload.checkpoints),
   };
 
   const response = await api.post(ENDPOINTS.transferLanes, requestPayload);
@@ -637,6 +697,10 @@ export async function updateBranchTransferLane(id, payload = {}) {
     is_bidirectional: normalizeBoolean(payload.is_bidirectional, false),
 
     is_active: normalizeBoolean(payload.is_active, true),
+
+    variant_name: stringOrNull(payload.variant_name),
+
+    checkpoints: normalizeTransferCheckpoints(payload.checkpoints),
   };
 
   const response = await api.put(
@@ -696,6 +760,10 @@ export async function createReverseBranchTransferLane(lane, overrides = {}) {
     is_bidirectional: false,
 
     is_active: normalizeBoolean(lane?.is_active, true),
+
+    variant_name: stringOrNull(lane?.variant_name),
+
+    checkpoints: normalizeTransferCheckpoints(lane?.checkpoints),
 
     ...Object.fromEntries(
       Object.entries(overrides).filter(([, value]) => value !== undefined),

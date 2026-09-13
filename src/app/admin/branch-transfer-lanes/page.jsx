@@ -62,6 +62,7 @@ import {
   buildBranchMap,
   extractCollection,
   normalizeBranch,
+  normalizeCheckpointList,
   normalizeTransferLane,
 } from "@/lib/rate-management-page-utils";
 
@@ -376,7 +377,7 @@ export default function BranchTransferLanesPage() {
 
   const openEdit = (row) => {
     setEditing(row);
-    setCheckpoints(Array.isArray(row.checkpoints) ? row.checkpoints : []);
+    setCheckpoints(normalizeCheckpointList(row.checkpoints));
     setModalFromId(Number(row.from_branch_id));
     setModalToId(Number(row.to_branch_id));
     setModalTransportMode(row.transport_mode || "road");
@@ -432,7 +433,7 @@ export default function BranchTransferLanesPage() {
         priority: values.priority == null ? 100 : Number(values.priority),
         is_active: Boolean(values.is_active),
         variant_name: values.variant_name?.trim() || null,
-        checkpoints,
+        checkpoints: normalizeCheckpointList(checkpoints),
       };
       setSaving(true);
       if (editing) {
@@ -1671,6 +1672,19 @@ export default function BranchTransferLanesPage() {
           <Row gutter={12}>
             <Col span={12}>
               <Form.Item
+                name="variant_name"
+                label="Lane variant"
+                extra="Use a label such as Via Gorkha for an alternative path."
+              >
+                <Input
+                  placeholder="e.g. Via Gorkha"
+                  maxLength={100}
+                  size="small"
+                />
+              </Form.Item>
+            </Col>
+            <Col span={6}>
+              <Form.Item
                 name="priority"
                 label="Priority"
                 rules={[{ required: true }]}
@@ -1678,7 +1692,7 @@ export default function BranchTransferLanesPage() {
                 <InputNumber min={1} style={{ width: "100%" }} size="small" />
               </Form.Item>
             </Col>
-            <Col span={12}>
+            <Col span={6}>
               <Form.Item
                 name="is_active"
                 label="Active"

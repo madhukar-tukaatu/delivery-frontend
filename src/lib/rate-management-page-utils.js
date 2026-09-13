@@ -246,6 +246,12 @@ export function normalizeTransferLane(row, branchesById) {
 
     priority: toNumber(row.priority, 100),
 
+    transport_mode: String(row.transport_mode ?? "road").toLowerCase(),
+
+    variant_name: row.variant_name ? String(row.variant_name) : null,
+
+    checkpoints: normalizeCheckpointList(row.checkpoints),
+
     is_bidirectional: toBoolean(row.is_bidirectional),
 
     is_active: toBoolean(row.is_active),
@@ -500,14 +506,27 @@ export function normalizeCheckpointList(raw) {
       if (!cp || typeof cp !== "object") return null;
       const latitude = nullableNumber(cp.latitude ?? cp.lat);
       const longitude = nullableNumber(cp.longitude ?? cp.lng ?? cp.lon);
-      const name = cp.name ? String(cp.name) : null;
-      if (name === null && (latitude === null || longitude === null)) {
+      const nameValue =
+        cp.name ?? cp.label ?? cp.display_name ?? cp.place_name ?? null;
+      const name =
+        nameValue === null || nameValue === undefined || nameValue === ""
+          ? null
+          : String(nameValue).trim() || null;
+      const city = cp.city ? String(cp.city).trim() : null;
+      const landmark = cp.landmark ? String(cp.landmark).trim() : null;
+      if (
+        name === null &&
+        city === null &&
+        landmark === null &&
+        latitude === null &&
+        longitude === null
+      ) {
         return null;
       }
       return {
         name,
-        city: cp.city ? String(cp.city) : null,
-        landmark: cp.landmark ? String(cp.landmark) : null,
+        city,
+        landmark,
         latitude,
         longitude,
       };
