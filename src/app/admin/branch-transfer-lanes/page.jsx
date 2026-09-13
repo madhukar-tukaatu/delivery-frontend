@@ -448,7 +448,7 @@ export default function BranchTransferLanesPage() {
     try {
       setCreatingRoutes((prev) => new Set([...prev, row.id]));
       await createRouteForBranchTransferLane(row.id);
-      message.success("Route created successfully for this lane.");
+      message.success(`✓ Route created successfully for lane: ${row.from_branch?.name} → ${row.to_branch?.name}`);
       
       // Update only that specific row
       setRows((prevRows) =>
@@ -457,7 +457,9 @@ export default function BranchTransferLanesPage() {
         )
       );
     } catch (err) {
-      message.error(apiErrorMessage(err, "Could not create route for this lane."));
+      const errorMsg = err?.response?.data?.message || "Could not create route for this lane.";
+      message.error(`✗ Failed to create route: ${errorMsg}`);
+      console.error("Route creation error:", err);
     } finally {
       setCreatingRoutes((prev) => {
         const next = new Set(prev);
@@ -483,11 +485,13 @@ export default function BranchTransferLanesPage() {
 
       if (lanesToProcess.length === 0) {
         message.info("All selected lanes already have routes.");
+        setSelectedRowKeys([]);
         return;
       }
 
       let successCount = 0;
       let failedCount = 0;
+      const failedLanes = [];
 
       for (const lane of lanesToProcess) {
         try {
@@ -502,15 +506,25 @@ export default function BranchTransferLanesPage() {
           );
         } catch (err) {
           failedCount++;
+          failedLanes.push(`${lane.from_branch?.name} → ${lane.to_branch?.name}`);
         }
       }
 
       if (failedCount === 0) {
-        message.success(`Routes created for ${successCount} lane(s).`);
+        message.success({
+          content: `✓ Routes created for ${successCount} lane(s).`,
+          duration: 3,
+        });
+      } else if (successCount === 0) {
+        message.error({
+          content: `✗ Failed to create routes for ${failedCount} lane(s):\n${failedLanes.join(", ")}`,
+          duration: 4,
+        });
       } else {
-        message.warning(
-          `Created routes for ${successCount} lane(s). ${failedCount} failed.`
-        );
+        message.warning({
+          content: `⚠ Created routes for ${successCount} lane(s). ${failedCount} failed:\n${failedLanes.join(", ")}`,
+          duration: 4,
+        });
       }
 
       setSelectedRowKeys([]);
@@ -585,7 +599,9 @@ export default function BranchTransferLanesPage() {
           ✓ Route exists
         </Tag>
       ) : (
-        <Tag color="orange">No route</Tag>
+        <Tooltip title="Click 'Create Route' button to create a route for this lane">
+          <Tag color="orange">No route</Tag>
+        </Tooltip>
       ),
     },
     {
@@ -695,6 +711,42 @@ export default function BranchTransferLanesPage() {
         />
       ) : (
         <>
+          {/* Info banner for lanes without routes */}
+          {rows.length > 0 && rows.filter(r => !r.route_exists).length > 0 && (
+            <Card
+              bordered={false}
+              style={{
+                background: "#fffbe6",
+                borderLeft: "4px solid #faad14",
+                marginBottom: 16,
+              }}
+            >
+              <Row justify="space-between" align="middle">
+                <Col flex="auto">
+                  <Space direction="vertical" size={0}>
+                    <Text>
+                      ⚠️ <strong>{rows.filter(r => !r.route_exists).length}</strong> lane(s) don't have routes yet
+                    </Text>
+                    <Text type="secondary" style={{ fontSize: 12 }}>
+                      Transfer lanes need routes to be used for shipment transfers. Create routes for these lanes to enable their functionality.
+                    </Text>
+                  </Space>
+                </Col>
+                <Col>
+                  <Button
+                    type="primary"
+                    icon={<SendOutlined />}
+                    onClick={() => {
+                      const noRouteIds = rows.filter(r => !r.route_exists).map(r => r.id);
+                      setSelectedRowKeys(noRouteIds);
+                    }}
+                  >
+                    Select All & Create Routes
+                  </Button>
+                </Col>
+              </Row>
+            </Card>
+          )}
           {/* Bulk actions bar */}
           {selectedRowKeys.length > 0 && (
             <Card
@@ -706,9 +758,14 @@ export default function BranchTransferLanesPage() {
             >
               <Row justify="space-between" align="middle">
                 <Col>
-                  <Text>
-                    <strong>{selectedRowKeys.length}</strong> lane(s) selected
-                  </Text>
+                  <Space direction="vertical" size={0}>
+                    <Text>
+                      <strong>{selectedRowKeys.length}</strong> lane(s) selected
+                    </Text>
+                    <Text type="secondary" style={{ fontSize: 12 }}>
+                      {rows.filter(r => selectedRowKeys.includes(r.id) && !r.route_exists).length} of these lanes don't have routes yet
+                    </Text>
+                  </Space>
                 </Col>
                 <Col>
                   <Space>
@@ -750,6 +807,17 @@ export default function BranchTransferLanesPage() {
               </Col>
               <Col xs={24} sm={12} lg={3}>
                 <Select allowClear placeholder="Status" style={{ width: "100%" }} value={filters.is_active} onChange={(v) => applyFilter({ is_active: v })} options={[{ label: "Active", value: 1 }, { label: "Inactive", value: 0 }]} />
+              </Col>
+              <Col xs={24} sm={12} lg={3}>
+                <Select allowClear placeholder="Route Status" style={{ width: "100%" }} options={[{ label: "Has Route", value: "has_route" }, { label: "No Route", value: "no_route" }]} onChange={(v) => {
+                  if (v === "has_route") {
+                    const filtered = rows.filter(r => r.route_exists);
+                    setRows(filtered.length > 0 ? filtered : rows);
+                  } else if (v === "no_route") {
+                    const filtered = rows.filter(r => !r.route_exists);
+                    setRows(filtered.length > 0 ? filtered : rows);
+                  }
+                }} />
               </Col>
               <Col xs={24} lg={3}><Button block onClick={resetFilters}>Reset</Button></Col>
             </Row>
@@ -849,7 +917,19 @@ export default function BranchTransferLanesPage() {
                       selected.route_exists ? (
                         <Tag color="green">✓ Route exists</Tag>
                       ) : (
-                        <Tag color="orange">No route</Tag>
+                        <Space>
+                          <Tag color="orange">No route</Tag>
+                          <Button
+                            size="small"
+                            type="primary"
+                            ghost
+                            icon={<SendOutlined />}
+                            onClick={() => createRoute(selected)}
+                            loading={creatingRoutes.has(selected.id)}
+                          >
+                            Create Route
+                          </Button>
+                        </Space>
                       )
                     ) : (
                       "—"

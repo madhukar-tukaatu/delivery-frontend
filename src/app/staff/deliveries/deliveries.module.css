@@ -69,6 +69,27 @@
   width: 100%;
 }
 
+/* List View Styles */
+.listItem {
+  padding: 12px 16px !important;
+  transition: all 0.2s ease;
+}
+
+.listItem:hover {
+  background-color: #fafafa;
+}
+
+.listItem :global(.ant-list-item-meta-title) {
+  margin: 0 !important;
+}
+
+.drawerContent {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+/* Responsive Design */
 @media (max-width: 768px) {
   .infoGrid {
     grid-template-columns: 1fr;
@@ -89,5 +110,9 @@
 
   .actionSection > :global(.ant-space) > :global(.ant-space-item) > button {
     width: 100%;
+  }
+
+  .listItem {
+    padding: 8px 12px !important;
   }
 }
