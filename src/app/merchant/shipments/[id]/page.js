@@ -444,6 +444,24 @@ export default function MerchantShipmentViewPage() {
                   {pod?.status || "-"}
                 </Tag>
               </Descriptions.Item>
+
+              {pod?.payment_method && (
+                <Descriptions.Item label="Paid By">
+                  {pod.payment_method === "qr" ? "Merchant QR" : "Cash directly to merchant"}
+                </Descriptions.Item>
+              )}
+
+              {pod?.payment_destination && (
+                <Descriptions.Item label="Payment Destination">
+                  {pod.payment_destination === "merchant" ? "Merchant directly" : pod.payment_destination}
+                </Descriptions.Item>
+              )}
+
+              {pod?.payment_reference && (
+                <Descriptions.Item label="Payment Reference">
+                  {pod.payment_reference}
+                </Descriptions.Item>
+              )}
             </Descriptions>
           </Card>
         </Col>

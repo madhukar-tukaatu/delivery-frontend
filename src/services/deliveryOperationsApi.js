@@ -708,6 +708,54 @@ export async function staffOutForDelivery(
   return unwrap(response);
 }
 
+export async function staffArriveAtDelivery(
+  id
+) {
+  if (!id) {
+    throw new Error("Delivery ID is required.");
+  }
+
+  const response = await api.post(
+    `/staff/deliveries/${id}/arrived`
+  );
+
+  return unwrap(response);
+}
+
+export async function staffCreatePaymentSession(
+  id,
+  payload = {}
+) {
+  if (!id) {
+    throw new Error("Delivery ID is required.");
+  }
+
+  const response = await api.post(
+    `/staff/deliveries/${id}/payment-session`,
+    payload
+  );
+
+  return unwrap(response);
+}
+
+export async function staffGetPaymentSession(
+  id,
+  refresh = false
+) {
+  if (!id) {
+    throw new Error("Delivery ID is required.");
+  }
+
+  const response = await api.get(
+    `/staff/deliveries/${id}/payment-session`,
+    {
+      params: refresh ? { refresh: true } : {},
+    }
+  );
+
+  return unwrap(response);
+}
+
 export async function staffMarkDelivered(
   id,
   payload = {}

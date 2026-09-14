@@ -111,6 +111,7 @@ export default function MerchantOnboardingPage() {
         business_type: data?.business_type || undefined,
         pan_vat_number: data?.pan_vat_number || "",
         website_url: data?.website_url || "",
+        payment_qr_code: data?.payment_qr_code || "",
         business_address: data?.address || "",
         city: data?.city || "",
         area: data?.area || "",
@@ -153,6 +154,7 @@ export default function MerchantOnboardingPage() {
         business_type: values.business_type,
         pan_vat_number: values.pan_vat_number,
         website_url: values.website_url || null,
+        payment_qr_code: values.payment_qr_code || null,
         address: values.business_address,
         city: values.city,
         area: values.area,
@@ -405,6 +407,19 @@ export default function MerchantOnboardingPage() {
                   ]}
                 >
                   <Input placeholder="https://example.com" />
+                </Form.Item>
+              </Col>
+
+              <Col xs={24}>
+                <Form.Item
+                  name="payment_qr_code"
+                  label="Merchant Payment QR Code"
+                  extra="Paste a publicly accessible QR image URL or a data:image/... URI. Customers will pay this merchant directly at delivery."
+                >
+                  <Input.TextArea
+                    rows={3}
+                    placeholder="https://example.com/my-merchant-qr.png"
+                  />
                 </Form.Item>
               </Col>
 
