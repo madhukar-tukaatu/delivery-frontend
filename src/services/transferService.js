@@ -26,12 +26,31 @@ function normalizeList(response, params = {}) {
  * Transfer board.
  *
  * GET /admin/transfers  params: direction ("outbound"|"inbound"), search, branch_id
+ * This returns cross-branch transfers ONLY (origin_branch_id != destination_branch_id)
  */
 export async function getTransfers(params = {}) {
   const response = await api.get("/admin/transfers", {
     params: { per_page: 20, direction: "outbound", ...params },
   });
   return normalizeList(response, params);
+}
+
+/**
+ * Get comprehensive transfer statistics (cross-branch only).
+ *
+ * GET /admin/transfers/stats -> { outbound, in_transit, received, completed, total_value, pod_amount }
+ */
+export async function getTransferStats() {
+  const response = await api.get("/admin/transfers/stats");
+  const payload = unwrap(response) ?? {};
+  return {
+    outbound: Number(payload.outbound ?? 0),
+    in_transit: Number(payload.in_transit ?? 0),
+    received: Number(payload.received ?? 0),
+    completed: Number(payload.completed ?? 0),
+    total_value: Number(payload.total_value ?? 0),
+    pod_amount: Number(payload.pod_amount ?? 0),
+  };
 }
 
 /**
@@ -44,6 +63,42 @@ export async function getTransferSummary() {
     outbound: Number(payload.outbound ?? 0),
     inbound: Number(payload.inbound ?? 0),
   };
+}
+
+/**
+ * Get received transfers (cross-branch only).
+ *
+ * GET /admin/transfers/received params: search, per_page
+ */
+export async function getReceivedTransfers(params = {}) {
+  const response = await api.get("/admin/transfers/received", {
+    params: { per_page: 20, ...params },
+  });
+  return normalizeList(response, params);
+}
+
+/**
+ * Get completed transfers (cross-branch only - delivered to this branch).
+ *
+ * GET /admin/transfers/completed params: search, date_from, date_to, per_page
+ */
+export async function getCompletedTransfers(params = {}) {
+  const response = await api.get("/admin/transfers/completed", {
+    params: { per_page: 20, ...params },
+  });
+  return normalizeList(response, params);
+}
+
+/**
+ * Get complete transfer history with timeline (cross-branch only).
+ *
+ * GET /admin/transfers/history params: search, date_from, date_to, status, per_page
+ */
+export async function getTransferHistory(params = {}) {
+  const response = await api.get("/admin/transfers/history", {
+    params: { per_page: 20, ...params },
+  });
+  return normalizeList(response, params);
 }
 
 /**
