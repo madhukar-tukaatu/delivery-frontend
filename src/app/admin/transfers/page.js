@@ -159,11 +159,13 @@ export default function TransfersPage() {
         case "inbound":
           result = await getTransfers({ ...params, direction: "inbound" });
           setData((d) => ({ ...d, inbound: result.list }));
+          setPagination((p) => ({ ...p, current: result.currentPage, total: result.total }));
           break;
 
         case "received":
           result = await getReceivedTransfers(params);
           setData((d) => ({ ...d, received: result.list }));
+          setPagination((p) => ({ ...p, current: result.currentPage, total: result.total }));
           break;
 
         case "completed":
@@ -317,12 +319,31 @@ export default function TransfersPage() {
     },
   };
 
+  // Status badge helper
+  const getStatusBadge = (status) => {
+    const statusConfig = {
+      sorted_for_transfer: { color: "orange", icon: <SendOutlined />, text: "Ready to Dispatch" },
+      in_transit: { color: "blue", icon: <CarOutlined />, text: "In Transit" },
+      received_at_destination_branch: { color: "cyan", icon: <InboxOutlined />, text: "Received" },
+      sorted_for_delivery: { color: "purple", icon: <HomeOutlined />, text: "Ready for Delivery" },
+      delivered: { color: "green", icon: <CheckCircleOutlined />, text: "Delivered" },
+    };
+    const config = statusConfig[status] || { color: "default", icon: <ClockCircleOutlined />, text: status };
+    return <Tag color={config.color} icon={config.icon}>{config.text}</Tag>;
+  };
+
   // Outbound columns
   const outboundColumns = [
     shipmentColumn,
     routeColumn,
     receiverColumn,
     paymentColumn,
+    {
+      title: "Status",
+      key: "status",
+      width: 140,
+      render: (_, s) => getStatusBadge(s.status),
+    },
     {
       title: "",
       key: "actions",
@@ -341,6 +362,12 @@ export default function TransfersPage() {
     routeColumn,
     receiverColumn,
     paymentColumn,
+    {
+      title: "Status",
+      key: "status",
+      width: 140,
+      render: (_, s) => getStatusBadge(s.status),
+    },
     {
       title: "Action",
       key: "action",
@@ -365,15 +392,16 @@ export default function TransfersPage() {
     shipmentColumn,
     routeColumn,
     {
+      title: "Status",
+      key: "status",
+      width: 140,
+      render: (_, s) => getStatusBadge(s.status),
+    },
+    {
       title: "Received At",
       key: "received_at",
       width: 150,
-      render: (_, s) => (
-        <Space direction="vertical" size={1}>
-          <Text>{formatDate(s.received_at_destination_at)}</Text>
-          <Tag color="blue" icon={<CheckCircleOutlined />}>Ready</Tag>
-        </Space>
-      ),
+      render: (_, s) => formatDate(s.received_at_destination_at),
     },
     receiverColumn,
     paymentColumn,
@@ -384,19 +412,32 @@ export default function TransfersPage() {
     shipmentColumn,
     routeColumn,
     {
-      title: "Delivered",
+      title: "Status",
+      key: "status",
+      width: 140,
+      render: (_, s) => getStatusBadge(s.status),
+    },
+    {
+      title: "Delivered At",
       key: "delivered",
       width: 150,
       render: (_, s) => formatDate(s.delivered_at),
     },
     receiverColumn,
     {
-      title: "Duration",
-      key: "duration",
-      width: 100,
+      title: "Transfer Time",
+      key: "transfer_time",
+      width: 120,
       render: (_, s) => {
-        const duration = s.transfer_details?.transfer_duration;
-        return duration ? <Tag color="green">{duration}</Tag> : "—";
+        if (s.dispatched_at && s.received_at_destination_at) {
+          const dispatch = new Date(s.dispatched_at);
+          const receive = new Date(s.received_at_destination_at);
+          const diffMs = receive - dispatch;
+          const hours = Math.floor(diffMs / (1000 * 60 * 60));
+          const mins = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
+          return <Text type="secondary">{hours}h {mins}m</Text>;
+        }
+        return "—";
       },
     },
   ];
@@ -408,24 +449,24 @@ export default function TransfersPage() {
     {
       title: "Status",
       key: "status",
-      width: 150,
-      render: (_, s) => {
-        const statusColors = {
-          sorted_for_transfer: { color: "orange", icon: <SendOutlined />, text: "Outbound" },
-          in_transit: { color: "blue", icon: <CarOutlined />, text: "In Transit" },
-          received_at_destination_branch: { color: "cyan", icon: <InboxOutlined />, text: "Received" },
-          sorted_for_delivery: { color: "purple", icon: <HomeOutlined />, text: "Pending" },
-          delivered: { color: "green", icon: <CheckCircleOutlined />, text: "Delivered" },
-        };
-        const config = statusColors[s.status] || { color: "default", text: s.status };
-        return <Tag color={config.color} icon={config.icon}>{config.text}</Tag>;
-      },
+      width: 140,
+      render: (_, s) => getStatusBadge(s.status),
     },
     {
       title: "Updated",
       key: "updated",
       width: 150,
       render: (_, s) => formatDate(s.updated_at),
+    },
+    {
+      title: "",
+      key: "timeline",
+      width: 80,
+      render: (_, s) => (
+        <Button type="link" size="small" onClick={() => showTimeline(s)}>
+          Timeline
+        </Button>
+      ),
     },
   ];
 
