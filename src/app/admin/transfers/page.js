@@ -492,8 +492,9 @@ export default function TransfersPage() {
     setTimelineModal({ open: true, shipment });
   };
 
-  // Row selection for outbound
-  const rowSelection = activeTab === "outbound" && can?.("transfers.dispatch")
+  // Row selection for outbound - simplified check
+  const canDispatch = can?.("transfers.dispatch") === true || can?.("transfers.dispatch");
+  const rowSelection = activeTab === "outbound" && canDispatch
     ? { selectedRowKeys, onChange: setSelectedRowKeys }
     : undefined;
 
@@ -587,7 +588,7 @@ export default function TransfersPage() {
       </Row>
 
       {/* Bulk Action Bar */}
-      {activeTab === "outbound" && can?.("transfers.dispatch") && selectedRowKeys.length > 0 && (
+      {activeTab === "outbound" && canDispatch && selectedRowKeys.length > 0 && (
         <div style={{
           display: "flex",
           justifyContent: "space-between",
