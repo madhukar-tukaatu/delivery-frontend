@@ -45,6 +45,18 @@ function isPod(t) {
   return ["pod", "cod", "to_pay"].includes(String(t || "").toLowerCase());
 }
 
+function routeLabel(branch, subBranch, fallback) {
+  const branchName = branch?.name || branch?.code;
+  const subBranchName = subBranch?.name || subBranch?.code;
+
+  if (subBranchName && branchName && Number(branch?.id) !== Number(subBranch?.id)) {
+    const parentName = subBranch?.parent?.name || branchName;
+    return `${parentName} / ${subBranchName}`;
+  }
+
+  return subBranchName || branchName || fallback;
+}
+
 export default function TransfersPage() {
   const { can } = usePermissions();
 
@@ -81,6 +93,7 @@ export default function TransfersPage() {
       } catch (e) {
         message.error(e?.response?.data?.message || "Could not load transfers.");
         setRows([]);
+        setPagination((current) => ({ ...current, total: 0 }));
       } finally {
         setLoading(false);
       }
@@ -103,8 +116,9 @@ export default function TransfersPage() {
   }, [direction, debouncedSearch]);
 
   useEffect(() => {
+    // Keep both direction badges accurate when switching between boards.
     loadSummary();
-  }, [loadSummary]);
+  }, [direction, loadSummary]);
 
   const refresh = useCallback(async () => {
     await Promise.all([load(pagination.current, pagination.pageSize), loadSummary()]);
@@ -157,13 +171,24 @@ export default function TransfersPage() {
       {
         title: "Route",
         key: "route",
-        render: (_, s) => (
-          <Space size={6} style={{ fontSize: 12 }}>
-            <Tag style={{ margin: 0 }}>{s.origin_branch?.name || "Origin"}</Tag>
-            <ArrowRightOutlined style={{ color: "#bfbfbf" }} />
-            <Tag color="blue" style={{ margin: 0 }}>{s.destination_branch?.name || "Destination"}</Tag>
-          </Space>
-        ),
+        render: (_, s) => {
+          const origin = routeLabel(s.origin_branch, s.origin_sub_branch, "Origin");
+          const destination = routeLabel(s.destination_branch, s.destination_sub_branch, "Destination");
+          const current = routeLabel(s.current_branch, s.current_sub_branch, origin);
+
+          return (
+            <Space direction="vertical" size={2}>
+              <Space size={6} style={{ fontSize: 12 }}>
+                <Tag style={{ margin: 0, maxWidth: 180 }}>{origin}</Tag>
+                <ArrowRightOutlined style={{ color: "#bfbfbf" }} />
+                <Tag color="blue" style={{ margin: 0, maxWidth: 180 }}>{destination}</Tag>
+              </Space>
+              <Text type="secondary" style={{ fontSize: 11 }}>
+                {direction === "inbound" ? `In transit to ${destination}` : `Ready at ${current}`}
+              </Text>
+            </Space>
+          );
+        },
       },
       {
         title: "Receiver",
@@ -200,7 +225,7 @@ export default function TransfersPage() {
         title: "",
         key: "actions",
         render: (_, s) =>
-          can?.("dispatches.receive") ? (
+          can?.("transfers.receive") ? (
             <Button
               type="primary"
               size="small"
@@ -219,7 +244,7 @@ export default function TransfersPage() {
   }, [direction, can, receivingId]);
 
   const rowSelection =
-    direction === "outbound" && can?.("dispatches.dispatch")
+    direction === "outbound" && can?.("transfers.dispatch")
       ? { selectedRowKeys, onChange: (keys) => setSelectedRowKeys(keys) }
       : undefined;
 
@@ -292,7 +317,7 @@ export default function TransfersPage() {
       </div>
 
       {/* Bulk dispatch bar */}
-      {direction === "outbound" && can?.("dispatches.dispatch") && selectedRowKeys.length > 0 && (
+      {direction === "outbound" && can?.("transfers.dispatch") && selectedRowKeys.length > 0 && (
         <div
           style={{
             display: "flex",
