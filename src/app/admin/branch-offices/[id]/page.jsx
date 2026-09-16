@@ -233,6 +233,7 @@ export default function BranchOfficeWorkspacePage() {
   const [editingSection, setEditingSection] = useState(null);
   const [savingSection, setSavingSection] = useState(null);
   const [changedFieldCount, setChangedFieldCount] = useState(0);
+  const [pendingEmailVerification, setPendingEmailVerification] = useState(null);
   const handledEditQueryRef = useRef(null);
   const [actionModal, setActionModal] = useState({
     open: false,
@@ -563,6 +564,24 @@ export default function BranchOfficeWorkspacePage() {
             ...previous,
             ...updatedRecord,
           }));
+        }
+
+        // Check if this was an email change with verification pending
+        if (response?.email_verification) {
+          const verification = response.email_verification;
+          setPendingEmailVerification(verification);
+          message.warning({
+            content: (
+              <div>
+                <strong>Email change verification required</strong>
+                <p style={{ marginTop: 8, marginBottom: 0 }}>
+                  A verification link has been sent to <strong>{verification.new_email}</strong>.
+                  The manager must verify this email before it becomes active.
+                </p>
+              </div>
+            ),
+            duration: 8,
+          });
         }
 
         closeSection();
@@ -1181,6 +1200,31 @@ export default function BranchOfficeWorkspacePage() {
           />
         ) : null}
 
+        {pendingEmailVerification ? (
+          <Alert
+            showIcon
+            type="warning"
+            message="Email change pending verification"
+            description={
+              <div>
+                <p style={{ marginTop: 0 }}>
+                  A verification link has been sent to <strong>{pendingEmailVerification.new_email}</strong>.
+                </p>
+                <p style={{ marginBottom: 0, fontSize: 13, color: "rgba(0,0,0,0.65)" }}>
+                  <strong>Old email:</strong> {pendingEmailVerification.old_email}
+                </p>
+                <p style={{ marginBottom: 0, fontSize: 13, color: "rgba(0,0,0,0.65)" }}>
+                  <strong>Expires:</strong> {new Date(pendingEmailVerification.expires_at).toLocaleString()}
+                </p>
+                <p style={{ marginTop: 8, marginBottom: 0 }}>
+                  The manager must verify the new email before it becomes active. Once verified, the old email can no longer be used to log in.
+                </p>
+              </div>
+            }
+            style={{ borderRadius: 14 }}
+          />
+        ) : null}
+
         <Row gutter={[18, 18]} align="top">
           <Col xs={24} xl={16}>
             <Space direction="vertical" size={18} style={{ width: "100%" }}>
@@ -1424,9 +1468,22 @@ export default function BranchOfficeWorkspacePage() {
                       {record.registration_number || "—"}
                     </Descriptions.Item>
                     {isMain ? (
-                      <Descriptions.Item label="Account invitation" span={2}>
-                        <BranchInvitationStatusTag branch={record} showEmail />
-                      </Descriptions.Item>
+                      <>
+                        <Descriptions.Item label="Account invitation" span={2}>
+                          <BranchInvitationStatusTag branch={record} showEmail />
+                        </Descriptions.Item>
+                        {pendingEmailVerification ? (
+                          <Descriptions.Item span={2}>
+                            <Alert
+                              showIcon
+                              type="warning"
+                              message="Email change pending verification"
+                              description={`A verification link has been sent to ${pendingEmailVerification.new_email}. The manager must verify this email before it becomes active. Old email: ${pendingEmailVerification.old_email}`}
+                              style={{ marginBottom: 0 }}
+                            />
+                          </Descriptions.Item>
+                        ) : null}
+                      </>
                     ) : null}
                   </Descriptions>
                 )}
