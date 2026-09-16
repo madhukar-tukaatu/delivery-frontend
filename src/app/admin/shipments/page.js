@@ -357,10 +357,15 @@ export default function ShipmentsPage() {
       title: "Status",
       dataIndex: "status",
       key: "status",
-      render: (value) => (
-        <WorkflowStatusTag
-          status={value}
-        />
+      render: (value, record) => (
+        <Space direction="vertical" size={2}>
+          <WorkflowStatusTag status={value} />
+          {record?.is_transfer ? (
+            <Tag color="orange" style={{ margin: 0 }}>
+              Transfer{record?.transfer_stage_label ? ` · ${record.transfer_stage_label}` : ""}
+            </Tag>
+          ) : null}
+        </Space>
       ),
     },
 

@@ -1,8 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import dayjs from "dayjs";
 import {
+  Alert,
   Badge,
   Button,
   Card,
@@ -13,7 +13,6 @@ import {
   Modal,
   Row,
   Space,
-  Statistic,
   Table,
   Tag,
   Timeline,
@@ -43,6 +42,7 @@ import {
   getTransferStats,
   dispatchTransfers,
   receiveTransfer,
+  getReceivedTransfers,
   getCompletedTransfers,
   getTransferHistory,
 } from "@/services/transferService";
@@ -50,8 +50,6 @@ import {
 const { Text, Title } = Typography;
 const { RangePicker } = DatePicker;
 const { Option } = Select;
-
-const BRAND = "#027196";
 
 function money(v) {
   const n = Number(v || 0);
@@ -78,6 +76,47 @@ function routeLabel(branch, subBranch, fallback) {
   }
 
   return subBranchName || branchName || fallback;
+}
+
+const TRANSFER_STAGE_META = {
+  ready_to_dispatch: { color: "orange", icon: <SendOutlined />, text: "Ready to Dispatch" },
+  in_transit: { color: "processing", icon: <CarOutlined />, text: "In Transit" },
+  received: { color: "cyan", icon: <InboxOutlined />, text: "Received at Destination" },
+  out_for_delivery: { color: "geekblue", icon: <HomeOutlined />, text: "Out for Delivery" },
+  delivered: { color: "success", icon: <CheckCircleOutlined />, text: "Delivered" },
+  returning: { color: "warning", icon: <SwapOutlined />, text: "Returning" },
+  cancelled: { color: "default", icon: null, text: "Cancelled" },
+};
+
+// Single source of truth for the transfer status chip. Uses the backend
+// transfer_stage/transfer_stage_label so every tab shows the same wording.
+function TransferStageTag({ shipment }) {
+  const stage = shipment?.transfer_stage;
+  const meta = TRANSFER_STAGE_META[stage];
+
+  if (!meta) {
+    const fallback = shipment?.transfer_stage_label || shipment?.status || "—";
+    return <Tag>{String(fallback).replaceAll("_", " ")}</Tag>;
+  }
+
+  return (
+    <Tag color={meta.color} icon={meta.icon}>
+      {meta.text}
+    </Tag>
+  );
+}
+
+// One-line instruction shown at the top of each tab so the operation flow is
+// obvious: dispatch -> in transit -> receive -> sorted for delivery -> done.
+function TabGuide({ type, message: msg }) {
+  return (
+    <Alert
+      type={type}
+      showIcon
+      message={msg}
+      style={{ borderRadius: "14px 14px 0 0" }}
+    />
+  );
 }
 
 function TimelineModal({ open, shipment, onClose }) {
@@ -258,7 +297,7 @@ export default function TransfersPage() {
   const loadReceived = useCallback(async (page = 1, pageSize = 20) => {
     setLoading(true);
     try {
-      const res = await getTransfers({ page, per_page: pageSize, direction: "received", search: debouncedSearch || undefined });
+      const res = await getReceivedTransfers({ page, per_page: pageSize, search: debouncedSearch || undefined });
       setReceivedRows(res.list);
     } catch (e) {
       message.error(e?.response?.data?.message || "Failed to load received transfers");
@@ -392,9 +431,7 @@ export default function TransfersPage() {
     render: (_, s) => (
       <Space direction="vertical" size={2}>
         <Text strong style={{ fontSize: 13 }}>{s.tracking_number || `#${s.id}`}</Text>
-        <Tag color="orange" style={{ margin: 0 }}>
-          <SwapOutlined /> Transfer
-        </Tag>
+        <TransferStageTag shipment={s} />
       </Space>
     ),
   };
@@ -407,12 +444,17 @@ export default function TransfersPage() {
       const destination = routeLabel(s.destination_branch, s.destination_sub_branch, "Destination");
       const current = routeLabel(s.current_branch, s.current_sub_branch, origin);
 
-      const statusLabels = {
-        outbound: `Ready at ${current}`,
-        inbound: `In transit to ${destination}`,
+      // Prefer the backend-computed transfer stage so every tab/view agrees.
+      const stageHint = {
+        ready_to_dispatch: `Ready at ${current}`,
+        in_transit: `In transit to ${destination}`,
         received: `Arrived at ${destination}`,
-        completed: `Delivered to ${destination}`,
+        out_for_delivery: `Out for delivery at ${destination}`,
+        delivered: `Delivered to ${destination}`,
+        returning: "Returning to origin",
+        cancelled: "Cancelled",
       };
+      const hint = stageHint[s.transfer_stage] || `Current: ${current}`;
 
       return (
         <Space direction="vertical" size={2}>
@@ -422,7 +464,7 @@ export default function TransfersPage() {
             <Tag color="blue" style={{ margin: 0, maxWidth: 180 }}>{destination}</Tag>
           </Space>
           <Text type="secondary" style={{ fontSize: 11 }}>
-            {statusLabels[activeTab] || `Current: ${current}`}
+            {hint}
           </Text>
         </Space>
       );
@@ -533,21 +575,7 @@ export default function TransfersPage() {
     {
       title: "Status",
       key: "status",
-      render: (_, s) => {
-        const statusConfig = {
-          sorted_for_transfer: { color: "orange", icon: <SendOutlined />, text: "Outbound" },
-          in_transit: { color: "blue", icon: <CarOutlined />, text: "In Transit" },
-          received_at_destination_branch: { color: "cyan", icon: <InboxOutlined />, text: "Received" },
-          sorted_for_delivery: { color: "purple", icon: <HomeOutlined />, text: "Pending Delivery" },
-          delivered: { color: "green", icon: <CheckCircleOutlined />, text: "Completed" },
-        };
-        const config = statusConfig[s.status] || { color: "default", text: s.status };
-        return (
-          <Tag color={config.color} icon={config.icon}>
-            {config.text}
-          </Tag>
-        );
-      },
+      render: (_, s) => <TransferStageTag shipment={s} />,
     },
     {
       title: "Updated",
@@ -606,6 +634,10 @@ export default function TransfersPage() {
       ),
       children: (
         <Card styles={{ body: { padding: 0 } }} style={{ borderRadius: 14 }}>
+          <TabGuide
+            type="warning"
+            message="Cross-branch parcels ready to leave this branch. Select parcels and click Dispatch to send them to their destination branch."
+          />
           <Table
             rowKey="id"
             size="middle"
@@ -641,6 +673,10 @@ export default function TransfersPage() {
       ),
       children: (
         <Card styles={{ body: { padding: 0 } }} style={{ borderRadius: 14 }}>
+          <TabGuide
+            type="info"
+            message="Parcels on their way to this branch. When a parcel physically arrives, click Receive to accept it and queue it for last-mile delivery."
+          />
           <Table
             rowKey="id"
             size="middle"
@@ -665,6 +701,10 @@ export default function TransfersPage() {
       ),
       children: (
         <Card styles={{ body: { padding: 0 } }} style={{ borderRadius: 14 }}>
+          <TabGuide
+            type="success"
+            message="Arrived at this branch and sorted for last-mile delivery. Assign a rider from the Deliveries board to complete the drop-off."
+          />
           <Table
             rowKey="id"
             size="middle"
@@ -689,6 +729,10 @@ export default function TransfersPage() {
       ),
       children: (
         <Card styles={{ body: { padding: 0 } }} style={{ borderRadius: 14 }}>
+          <TabGuide
+            type="success"
+            message="Cross-branch transfers that reached their destination and were delivered to the customer."
+          />
           <Table
             rowKey="id"
             size="middle"
@@ -723,6 +767,10 @@ export default function TransfersPage() {
       ),
       children: (
         <Card styles={{ body: { padding: 0 } }} style={{ borderRadius: 14 }}>
+          <TabGuide
+            type="info"
+            message="Full transfer timeline for every cross-branch parcel. Filter by date or status, and open View Timeline for step-by-step tracking."
+          />
           <Table
             rowKey="id"
             size="middle"
@@ -770,46 +818,6 @@ export default function TransfersPage() {
             />
             <Button icon={<ReloadOutlined />} onClick={refresh}>Refresh</Button>
           </Space>
-        </Col>
-      </Row>
-
-      {/* Statistics Cards */}
-      <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>
-        <Col xs={24} sm={12} lg={6}>
-          <Card bordered={false} style={{ borderRadius: 12 }}>
-            <Statistic
-              title={<Space><SendOutlined /> Outbound (Ready)</Space>}
-              value={stats.outbound}
-              valueStyle={{ color: BRAND }}
-            />
-          </Card>
-        </Col>
-        <Col xs={24} sm={12} lg={6}>
-          <Card bordered={false} style={{ borderRadius: 12 }}>
-            <Statistic
-              title={<Space><CarOutlined /> In Transit</Space>}
-              value={stats.in_transit}
-              valueStyle={{ color: "#1677ff" }}
-            />
-          </Card>
-        </Col>
-        <Col xs={24} sm={12} lg={6}>
-          <Card bordered={false} style={{ borderRadius: 12 }}>
-            <Statistic
-              title={<Space><InboxOutlined /> Received</Space>}
-              value={stats.received}
-              valueStyle={{ color: "#13c2c2" }}
-            />
-          </Card>
-        </Col>
-        <Col xs={24} sm={12} lg={6}>
-          <Card bordered={false} style={{ borderRadius: 12 }}>
-            <Statistic
-              title={<Space><CheckCircleOutlined /> Completed</Space>}
-              value={stats.completed}
-              valueStyle={{ color: "#52c41a" }}
-            />
-          </Card>
         </Col>
       </Row>
 
