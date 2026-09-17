@@ -107,10 +107,21 @@ function avatarColor(name = "") {
   return AVATAR_COLORS[i];
 }
 
-export default function DashboardLayout({ section = "admin", children }) {
+export default function DashboardLayout({ section: propsSection = "admin", children }) {
   const router = useRouter();
   const pathname = usePathname();
   const user = getUser();
+
+  // Determine section based on user role (overrides prop if needed)
+  const section = useMemo(() => {
+    const roles = user?.roles || [user?.role];
+    const role = roles.filter(Boolean)[0] || '';
+    
+    // Determine section based on role
+    if (role === 'merchant') return 'merchant';
+    if (['rider', 'pickup_staff', 'delivery_staff', 'dispatch_staff', 'warehouse_staff'].includes(role)) return 'staff';
+    return propsSection; // Default to prop or "admin"
+  }, [user, propsSection]);
 
   const [menus, setMenus] = useState([]);
   const [loadingMenus, setLoadingMenus] = useState(true);
@@ -156,7 +167,7 @@ export default function DashboardLayout({ section = "admin", children }) {
     onClick: ({ key }) => {
       if (key === "logout") logout();
       if (key === "settings") router.push(`/${section}/settings`);
-      if (key === "profile") router.push("/profile");
+      if (key === "profile") router.push(`/${section}/profile`);
       if (key === "forgot-password") router.push("/forgot-password");
     },
   };
