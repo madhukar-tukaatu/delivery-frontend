@@ -1,46 +1,45 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { Card, Typography, Form, Input, Button, Row, Col, Space, message, Divider } from 'antd';
 import { UserOutlined, LockOutlined, SaveOutlined, MailOutlined } from '@ant-design/icons';
 import api from '@/lib/api';
-import { useUser } from '@/hooks/usePermission';
+import { usePermissions } from '@/hooks/usePermission';
 import { useRouter } from 'next/navigation';
 
 const { Title, Text } = Typography;
 
-export default function ProfilePage() {
-  const { user, roles, can } = useUser();
+function ProfileContent() {
+  const { user, roles, can } = usePermissions();
   const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const [userState, setUserState] = useState(user);
   const [form] = Form.useForm();
 
   useEffect(() => {
-    if (user) {
+    if (userState) {
       form.setFieldsValue({
-        name: user.name || '',
-        email: user.email || '',
-        phone: user.phone || '',
+        name: userState.name || '',
+        email: userState.email || '',
+        phone: userState.phone || '',
       });
       setLoading(false);
     } else if (!loading) {
-      // User not authenticated, redirect to login
       router.push('/login');
     }
-  }, [user, form, loading, router]);
+  }, [userState, form, loading, router]);
 
   const handleProfileUpdate = async (values) => {
     setSubmitting(true);
     try {
-      await api.put('/auth/profile', {
+      const response = await api.put('/auth/profile', {
         name: values.name,
         phone: values.phone || null,
       });
+      const userData = response?.data?.data || response?.data;
+      setUserState(userData);
       message.success('Profile updated successfully!');
-      // Refresh user data
-      const response = await api.get('/auth/me');
-      setUser(response?.data?.data || response?.data);
     } catch (error) {
       message.error(error?.response?.data?.message || 'Failed to update profile.');
     } finally {
@@ -58,6 +57,9 @@ export default function ProfilePage() {
       });
       message.success('Password changed successfully! Please login with your new password.');
       form.resetFields(['current_password', 'password', 'password_confirmation']);
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
+      setTimeout(() => router.push('/login'), 2000);
     } catch (error) {
       message.error(error?.response?.data?.message || 'Failed to change password.');
     } finally {
@@ -65,7 +67,7 @@ export default function ProfilePage() {
     }
   };
 
-  if (loading && !user) {
+  if (loading && !userState) {
     return (
       <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
         <Typography.Text>Loading profile...</Typography.Text>
@@ -83,7 +85,6 @@ export default function ProfilePage() {
           <Text type="secondary">Manage your account details and security settings</Text>
         </Col>
 
-        {/* Profile Information */}
         <Col xs={24} md={12}>
           <Card title="Personal Information" bordered={false}>
             <Form
@@ -91,9 +92,9 @@ export default function ProfilePage() {
               layout="vertical"
               onFinish={handleProfileUpdate}
               initialValues={{
-                name: user?.name || '',
-                email: user?.email || '',
-                phone: user?.phone || '',
+                name: userState?.name || '',
+                email: userState?.email || '',
+                phone: userState?.phone || '',
               }}
             >
               <Form.Item
@@ -129,7 +130,6 @@ export default function ProfilePage() {
           </Card>
         </Col>
 
-        {/* Change Password */}
         <Col xs={24} md={12}>
           <Card title="Change Password" bordered={false}>
             <Form
@@ -192,5 +192,13 @@ export default function ProfilePage() {
         </Col>
       </Row>
     </div>
+  );
+}
+
+export default function ProfilePage() {
+  return (
+    <Suspense fallback={<div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Typography.Text>Loading profile...</Typography.Text></div>}>
+      <ProfileContent />
+    </Suspense>
   );
 }

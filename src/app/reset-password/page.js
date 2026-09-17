@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { Button, Card, Form, Input, Typography, message, Space } from 'antd';
 import { ArrowLeftOutlined, LockOutlined } from '@ant-design/icons';
 import api from '@/lib/api';
@@ -8,7 +8,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 
 const { Title, Text } = Typography;
 
-export default function ResetPasswordPage() {
+function ResetPasswordContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   
@@ -106,12 +106,6 @@ export default function ResetPasswordPage() {
                 { required: true, message: 'Please confirm your new password' },
               ]}
               dependencies={['password']}
-              shouldValidate={(context) => {
-                const { getFieldValue } = context;
-                return {
-                  validateTrigger: ['onChange', 'onBlur'],
-                };
-              }}
             >
               <Input.Password placeholder="Confirm new password" size="large" />
             </Form.Item>
@@ -133,5 +127,13 @@ export default function ResetPasswordPage() {
         </Space>
       </Card>
     </div>
+  );
+}
+
+export default function ResetPasswordPage() {
+  return (
+    <Suspense fallback={<div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Typography.Text>Loading...</Typography.Text></div>}>
+      <ResetPasswordContent />
+    </Suspense>
   );
 }
