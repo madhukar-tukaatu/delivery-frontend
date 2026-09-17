@@ -12,7 +12,7 @@ import {
   MenuOutlined, TeamOutlined, BarChartOutlined, BellOutlined,
   CustomerServiceOutlined, ReloadOutlined, CheckSquareOutlined,
   EnvironmentOutlined, MenuFoldOutlined, MenuUnfoldOutlined,
-  GlobalOutlined, SearchOutlined,
+  GlobalOutlined, SearchOutlined, LockOutlined,
 } from "@ant-design/icons";
 import { usePathname, useRouter } from "next/navigation";
 import Image from "next/image";
@@ -149,12 +149,15 @@ export default function DashboardLayout({ section = "admin", children }) {
     items: [
       { key: "profile", icon: <UserOutlined />, label: "Profile" },
       { key: "settings", icon: <SettingOutlined />, label: "Settings" },
+      { key: "forgot-password", icon: <LockOutlined />, label: "Forgot Password" },
       { type: "divider" },
       { key: "logout", icon: <LogoutOutlined />, label: "Sign out", danger: true },
     ],
     onClick: ({ key }) => {
       if (key === "logout") logout();
       if (key === "settings") router.push(`/${section}/settings`);
+      if (key === "profile") router.push("/profile");
+      if (key === "forgot-password") router.push("/forgot-password");
     },
   };
 

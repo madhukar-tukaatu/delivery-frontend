@@ -17,6 +17,7 @@ import {
   LoginOutlined,
   MailOutlined,
   SafetyCertificateOutlined,
+  ArrowLeftOutlined,
 } from "@ant-design/icons";
 import { useRouter, useSearchParams } from "next/navigation";
 
@@ -500,6 +501,17 @@ export default function LoginClient() {
               Sign In
             </Button>
           </Form>
+
+          <Space direction="vertical" style={{ width: "100%", marginTop: 16 }}>
+            <Button
+              type="link"
+              icon={<ArrowLeftOutlined />}
+              onClick={() => router.push("/forgot-password")}
+              style={{ fontSize: 14, padding: 0 }}
+            >
+              Forgot your password?
+            </Button>
+          </Space>
 
           <Divider style={{ margin: "26px 0 20px" }} />
 
