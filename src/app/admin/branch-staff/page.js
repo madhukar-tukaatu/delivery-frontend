@@ -11,25 +11,52 @@ import {
 } from "@ant-design/icons";
 import { usePermissions } from "@/hooks/usePermission";
 import {
-  createBranchStaff, getBranchStaff, updateBranchStaff, toggleBranchStaff, deleteBranchStaff,
+  createBranchStaff, getBranchStaff, updateBranchStaff, toggleBranchStaff, deleteBranchStaff, getBranchStaffRoles,
 } from "@/services/branchStaffService";
 
 const { Text, Title } = Typography;
 
-// Hard-coded staff roles (matches backend StaffService)
-const STAFF_ROLES = [
-  { value: "rider", label: "Rider (Pickup & Delivery)" },
-  { value: "pickup_rider", label: "Pickup Rider (Pickup only)" },
-  { value: "delivery_staff", label: "Delivery Staff" },
-  { value: "staff", label: "General Staff" },
-];
+// Dynamic staff roles - loaded from backend
+function useStaffRoles() {
+  const [roles, setRoles] = useState([]);
+  const [loading, setLoading] = useState(true);
 
-const ROLE_COLORS = {
-  rider: "green",
-  pickup_rider: "cyan",
-  delivery_staff: "blue",
-  staff: "default",
-};
+  useEffect(() => {
+    async function loadRoles() {
+      try {
+        const data = await getBranchStaffRoles();
+        const mapped = (data || []).map(role => ({
+          value: role.name,
+          label: role.name
+            .replace(/_/g, ' ')
+            .replace(/\b\w/g, l => l.toUpperCase()),
+        }));
+        setRoles(mapped);
+      } catch (err) {
+        console.error('Failed to load staff roles:', err);
+      } finally {
+        setLoading(false);
+      }
+    }
+    loadRoles();
+  }, []);
+
+  return { roles, loading };
+}
+
+function getRoleColor(roleName) {
+  const roleLower = (roleName || '').toLowerCase();
+  if (roleLower === 'rider') return 'green';
+  if (roleLower === 'pickup_rider' || roleLower === 'pickup_staff') return 'cyan';
+  if (roleLower === 'delivery_staff') return 'blue';
+  if (roleLower === 'branch_manager') return 'purple';
+  if (roleLower === 'booking_staff') return 'orange';
+  if (roleLower === 'dispatch_staff') return 'gold';
+  if (roleLower === 'support_staff') return 'magenta';
+  if (roleLower === 'accounts_staff') return 'red';
+  if (roleLower === 'branch_staff') return 'default';
+  return 'default';
+}
 
 function UserAvatar({ name, size = 28 }) {
   const initials = String(name || "?").split(" ").map(w => w[0]).join("").toUpperCase().slice(0, 2);
@@ -47,6 +74,9 @@ export default function BranchStaffPage() {
 
   // Ensure user has permission
   const hasManagePermission = can?.("staff.create") || can?.("staff.update");
+
+  // Dynamic roles from backend
+  const { roles: staffRoles, loading: rolesLoading } = useStaffRoles();
 
   // Data & state
   const [rows, setRows] = useState([]);
@@ -194,9 +224,9 @@ export default function BranchStaffPage() {
       width: 160,
       render: (_, row) => {
         const roleName = typeof row.role === "string" ? row.role : row.role?.name;
-        const roleObj = STAFF_ROLES.find(r => r.value === roleName);
+        const roleObj = staffRoles.find(r => r.value === roleName);
         return (
-          <Tag color={ROLE_COLORS[roleName] || "default"} style={{ margin: 0 }}>
+          <Tag color={getRoleColor(roleName)} style={{ margin: 0 }}>
             {roleObj?.label || roleName || "—"}
           </Tag>
         );
@@ -299,7 +329,8 @@ export default function BranchStaffPage() {
               placeholder="Filter by role"
               value={roleFilter || undefined}
               onChange={(v) => setRoleFilter(v || "")}
-              options={STAFF_ROLES}
+              options={staffRoles}
+              loading={rolesLoading}
             />
             <Button type="primary" onClick={() => load(1, pagination.pageSize)}>
               Search
@@ -424,7 +455,8 @@ export default function BranchStaffPage() {
                   <Select
                     placeholder="Select staff role"
                     size="large"
-                    options={STAFF_ROLES}
+                    options={staffRoles}
+                    loading={rolesLoading}
                   />
                 </Form.Item>
               </Col>
