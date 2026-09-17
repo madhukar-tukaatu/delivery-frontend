@@ -120,8 +120,8 @@ export default function BranchStaffPage() {
         role: values.role,
       };
 
-      // Only include password on create
-      if (!editing && values.password) {
+      // Only include password on create or if provided during edit
+      if (values.password) {
         payload.password = values.password;
         payload.password_confirmation = values.password;
       }
@@ -401,8 +401,6 @@ export default function BranchStaffPage() {
                   <Input
                     placeholder="staff@example.com"
                     size="large"
-                    disabled={!!editing}
-                    title={editing ? "Email cannot be changed" : ""}
                   />
                 </Form.Item>
               </Col>
@@ -430,23 +428,15 @@ export default function BranchStaffPage() {
                   />
                 </Form.Item>
               </Col>
-              {!editing && (
-                <Col xs={24}>
-                  <Form.Item
-                    name="password"
-                    label="Temporary Password"
-                    rules={[
-                      { required: true, message: "Please set a temporary password" },
-                      { min: 8, message: "Password must be at least 8 characters" },
-                    ]}
-                    extra="Staff will receive this password in their login email. They should change it on first login."
-                  >
-                    <Input.Password placeholder="Minimum 8 characters" size="large" />
-                  </Form.Item>
-                </Col>
-              )}
             </Row>
             <Divider />
+            <Form.Item
+              name="password"
+              label="New Password (leave blank to keep current)"
+              extra="Enter a new password to update it. Leave empty to keep the current password."
+            >
+              <Input.Password placeholder="Minimum 8 characters (optional)" size="large" />
+            </Form.Item>
             <Form.Item name="is_active" valuePropName="checked" label="Status">
               <Switch checkedChildren="Active" unCheckedChildren="Inactive" />
             </Form.Item>
