@@ -169,11 +169,6 @@ export default function PrivacyPolicyPage() {
 
               <h3>How to Exercise Your Rights</h3>
               <p>To request any of the above, email us at:</p>
-              <p style={{ marginTop: '16px' }}>
-                <a href="mailto:privacy@tukaatu-express.com" className={styles.emailLink}>
-                  privacy@tukaatu-express.com
-                </a>
-              </p>
             </section>
           </article>
 
