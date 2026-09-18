@@ -102,11 +102,11 @@ export default function Footer() {
             © {new Date().getFullYear()} Tukaatu Express Pvt. Ltd. All rights reserved.
           </span>
           <div className={styles.bottomLinks}>
-            <Link href="/contact" className={styles.bottomLink}>Privacy</Link>
+            <Link href="/privacy-policy" className={styles.bottomLink}>Privacy Policy</Link>
             <span className={styles.dot} />
-            <Link href="/contact" className={styles.bottomLink}>Terms</Link>
+            <Link href="/terms-conditions" className={styles.bottomLink}>Terms & Conditions</Link>
             <span className={styles.dot} />
-            <Link href="/contact" className={styles.bottomLink}>Cookies</Link>
+            <Link href="/contact" className={styles.bottomLink}>Contact</Link>
           </div>
           <span className={styles.madeIn}>Made for Nepal 🇳🇵</span>
         </div>
