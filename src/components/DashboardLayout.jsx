@@ -160,7 +160,6 @@ export default function DashboardLayout({ section: propsSection = "admin", child
     items: [
       { key: "profile", icon: <UserOutlined />, label: "Profile" },
       { key: "settings", icon: <SettingOutlined />, label: "Settings" },
-      { key: "forgot-password", icon: <LockOutlined />, label: "Forgot Password" },
       { type: "divider" },
       { key: "logout", icon: <LogoutOutlined />, label: "Sign out", danger: true },
     ],
@@ -168,7 +167,6 @@ export default function DashboardLayout({ section: propsSection = "admin", child
       if (key === "logout") logout();
       if (key === "settings") router.push(`/${section}/settings`);
       if (key === "profile") router.push(`/${section}/profile`);
-      if (key === "forgot-password") router.push("/forgot-password");
     },
   };
 
