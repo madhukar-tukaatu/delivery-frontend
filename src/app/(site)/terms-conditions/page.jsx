@@ -11,7 +11,6 @@ export default function TermsConditionsPage() {
         <div className={styles.headerContent}>
           <h1>Terms & Conditions</h1>
           <p className={styles.subtitle}>Legal terms governing the use of Tukaatu Express services</p>
-          <p className={styles.date}>Last updated: September 17, 2026</p>
         </div>
       </div>
 

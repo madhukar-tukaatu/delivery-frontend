@@ -11,7 +11,6 @@ export default function PrivacyPolicyPage() {
         <div className={styles.headerContent}>
           <h1>Privacy Policy</h1>
           <p className={styles.subtitle}>How we collect, use, and protect your information</p>
-          <p className={styles.date}>Last updated: September 17, 2026</p>
         </div>
       </div>
 
