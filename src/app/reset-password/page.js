@@ -1,8 +1,8 @@
 'use client';
 
 import { useState, useEffect, Suspense } from 'react';
-import { Button, Card, Form, Input, Typography, message, Space } from 'antd';
-import { ArrowLeftOutlined, LockOutlined } from '@ant-design/icons';
+import { Button, Card, Form, Input, Typography, message, Space, Progress, Alert } from 'antd';
+import { ArrowLeftOutlined, LockOutlined, CheckCircleOutlined, ExclamationCircleOutlined } from '@ant-design/icons';
 import api from '@/lib/api';
 import { useRouter, useSearchParams } from 'next/navigation';
 
@@ -16,8 +16,9 @@ function ResetPasswordContent() {
   const token = searchParams?.get('token') || '';
   
   const [loading, setLoading] = useState(false);
-  const [submitting, setSubmitting] = useState(false);
   const [success, setSuccess] = useState(false);
+  const [passwordStrength, setPasswordStrength] = useState(0);
+  const [form] = Form.useForm();
 
   useEffect(() => {
     // Validate token and email on mount
@@ -27,6 +28,25 @@ function ResetPasswordContent() {
     }
   }, [token, email, router]);
 
+  // Calculate password strength
+  const calculatePasswordStrength = (password) => {
+    let strength = 0;
+    
+    if (password.length >= 8) strength += 25;
+    if (password.length >= 12) strength += 25;
+    if (/[A-Z]/.test(password)) strength += 25;
+    if (/[a-z]/.test(password)) strength += 25;
+    if (/[0-9]/.test(password)) strength += 25;
+    if (/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(password)) strength += 25;
+    
+    return Math.min(strength, 100);
+  };
+
+  const handlePasswordChange = (e) => {
+    const strength = calculatePasswordStrength(e.target.value);
+    setPasswordStrength(strength);
+  };
+
   const handleSubmit = async (values) => {
     if (values.password !== values.password_confirmation) {
       message.error('Passwords do not match.');
@@ -35,32 +55,82 @@ function ResetPasswordContent() {
 
     setLoading(true);
     try {
-      await api.post('/auth/reset-password', {
+      const response = await api.post('/auth/reset-password', {
         email,
         token,
         password: values.password,
         password_confirmation: values.password_confirmation,
       });
+      
       setSuccess(true);
       message.success('Password reset successfully!');
       setTimeout(() => router.push('/login'), 3000);
     } catch (error) {
-      message.error(error?.response?.data?.message || 'Failed to reset password. Please try again.');
+      const errorMsg = error?.response?.data?.message || 
+                      error?.response?.data?.errors?.password?.join(', ') ||
+                      'Failed to reset password. Please try again.';
+      message.error(errorMsg);
     } finally {
       setLoading(false);
     }
   };
 
+  const getPasswordStrengthLabel = () => {
+    if (passwordStrength === 0) return '';
+    if (passwordStrength <= 25) return 'Weak';
+    if (passwordStrength <= 50) return 'Fair';
+    if (passwordStrength <= 75) return 'Good';
+    return 'Strong';
+  };
+
+  const getPasswordStrengthColor = () => {
+    if (passwordStrength === 0) return '#d9d9d9';
+    if (passwordStrength <= 25) return '#ff4d4f';
+    if (passwordStrength <= 50) return '#faad14';
+    if (passwordStrength <= 75) return '#1890ff';
+    return '#52c41a';
+  };
+
   if (success) {
     return (
-      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
-        <Card style={{ maxWidth: 400, width: '100%', textAlign: 'center' }}>
-          <LockOutlined style={{ fontSize: 48, color: '#52c41a', marginBottom: 16 }} />
-          <Title level={3}>Password Reset Successful!</Title>
-          <Text type="secondary">
-            Your password has been updated. You will be redirected to the login page shortly...
+      <div 
+        style={{ 
+          minHeight: '100vh', 
+          display: 'flex', 
+          alignItems: 'center', 
+          justifyContent: 'center', 
+          padding: '20px',
+          background: 'linear-gradient(135deg, #f3f7fb 0%, #eef3f8 100%)'
+        }}
+      >
+        <Card 
+          style={{ 
+            maxWidth: 450, 
+            width: '100%', 
+            textAlign: 'center',
+            borderRadius: '12px',
+            boxShadow: '0 4px 16px rgba(0, 0, 0, 0.08)'
+          }}
+        >
+          <div style={{ marginBottom: '20px' }}>
+            <CheckCircleOutlined style={{ fontSize: 64, color: '#52c41a' }} />
+          </div>
+          
+          <Title level={3} style={{ marginBottom: '12px' }}>
+            Password Reset Successful!
+          </Title>
+          
+          <Text type="secondary" style={{ fontSize: '15px', lineHeight: '1.6', display: 'block' }}>
+            Your password has been updated successfully. You will be redirected to the login page shortly...
           </Text>
-          <Button type="primary" onClick={() => router.push('/login')} style={{ marginTop: 16 }}>
+
+          <Button 
+            type="primary" 
+            onClick={() => router.push('/login')} 
+            style={{ marginTop: '24px', borderRadius: '8px', height: '44px', fontWeight: 600 }}
+            size="large"
+            block
+          >
             Go to Login
           </Button>
         </Card>
@@ -69,62 +139,183 @@ function ResetPasswordContent() {
   }
 
   return (
-    <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
-      <Card style={{ maxWidth: 400, width: '100%' }}>
-        <Space direction="vertical" style={{ width: '100%' }}>
-          <Button icon={<ArrowLeftOutlined />} onClick={() => router.push('/forgot-password')} style={{ width: 'auto' }}>
+    <div 
+      style={{ 
+        minHeight: '100vh', 
+        display: 'flex', 
+        alignItems: 'center', 
+        justifyContent: 'center', 
+        padding: '20px',
+        background: 'linear-gradient(135deg, #f3f7fb 0%, #eef3f8 100%)'
+      }}
+    >
+      <Card 
+        style={{ 
+          maxWidth: 450, 
+          width: '100%',
+          borderRadius: '12px',
+          boxShadow: '0 4px 16px rgba(0, 0, 0, 0.08)'
+        }}
+      >
+        <Space direction="vertical" style={{ width: '100%', marginBottom: '20px' }}>
+          <Button 
+            icon={<ArrowLeftOutlined />} 
+            onClick={() => router.push('/forgot-password')} 
+            type="text"
+            style={{ padding: '0', width: 'auto', color: '#015472' }}
+          >
             Back to Forgot Password
           </Button>
-          <Title level={2} style={{ textAlign: 'center' }}>
-            Reset Password
-          </Title>
-          <Text type="secondary" style={{ textAlign: 'center', display: 'block', marginBottom: 24 }}>
-            Enter your new password below.
-          </Text>
-          <Form
-            layout="vertical"
-            onFinish={handleSubmit}
+        </Space>
+
+        <Space direction="vertical" style={{ width: '100%', marginBottom: '24px' }} size="small">
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <LockOutlined style={{ fontSize: '24px', color: '#015472' }} />
+            <Title level={2} style={{ margin: 0, color: '#015472' }}>
+              Reset Password
+            </Title>
+          </div>
+          
+          <Text 
+            type="secondary" 
+            style={{ 
+              display: 'block', 
+              marginBottom: '8px',
+              fontSize: '14px',
+              lineHeight: '1.6'
+            }}
           >
-            <Form.Item
-              name="password"
-              label="New Password"
-              rules={[
-                { required: true, message: 'Please enter a new password' },
-                { min: 8, message: 'Password must be at least 8 characters' },
-                { pattern: /[A-Z]/, message: 'Password must contain at least one uppercase letter' },
-                { pattern: /[a-z]/, message: 'Password must contain at least one lowercase letter' },
-                { pattern: /[0-9]/, message: 'Password must contain at least one number' },
-              ]}
-              hasFeedback
-            >
-              <Input.Password placeholder="Enter new password" size="large" />
-            </Form.Item>
-            <Form.Item
-              name="password_confirmation"
-              label="Confirm New Password"
-              rules={[
-                { required: true, message: 'Please confirm your new password' },
-              ]}
-              dependencies={['password']}
-            >
-              <Input.Password placeholder="Confirm new password" size="large" />
-            </Form.Item>
-            <Form.Item style={{ marginTop: 16 }}>
-              <Button
-                type="primary"
-                htmlType="submit"
-                loading={loading}
-                size="large"
-                block
-              >
-                Reset Password
-              </Button>
-            </Form.Item>
-          </Form>
-          <Text type="secondary" style={{ fontSize: 12, textAlign: 'center' }}>
-            Remember your password? <a href="/login">Login here</a>
+            Create a strong, unique password for your account.
           </Text>
         </Space>
+
+        <Form
+          form={form}
+          layout="vertical"
+          onFinish={handleSubmit}
+          size="large"
+          requiredMark={false}
+        >
+          <Form.Item
+            name="password"
+            label="New Password"
+            rules={[
+              { 
+                required: true, 
+                message: 'Please enter a new password' 
+              },
+              { 
+                min: 8, 
+                message: 'Password must be at least 8 characters' 
+              },
+            ]}
+            hasFeedback
+          >
+            <Input.Password 
+              placeholder="Enter new password" 
+              prefix={<LockOutlined />}
+              onChange={handlePasswordChange}
+              disabled={loading}
+            />
+          </Form.Item>
+
+          {passwordStrength > 0 && (
+            <div style={{ marginBottom: '16px' }}>
+              <Progress 
+                percent={passwordStrength} 
+                strokeColor={getPasswordStrengthColor()}
+                status={passwordStrength < 50 ? 'exception' : 'success'}
+                size="small"
+              />
+              <Text 
+                style={{ 
+                  fontSize: '12px', 
+                  marginTop: '4px', 
+                  color: getPasswordStrengthColor(),
+                  fontWeight: 600
+                }}
+              >
+                Password Strength: {getPasswordStrengthLabel()}
+              </Text>
+            </div>
+          )}
+
+          <Form.Item
+            name="password_confirmation"
+            label="Confirm New Password"
+            rules={[
+              { 
+                required: true, 
+                message: 'Please confirm your new password' 
+              },
+              ({ getFieldValue }) => ({
+                validator(_, value) {
+                  if (!value || getFieldValue('password') === value) {
+                    return Promise.resolve();
+                  }
+                  return Promise.reject(new Error('Passwords do not match'));
+                },
+              }),
+            ]}
+            dependencies={['password']}
+            hasFeedback
+          >
+            <Input.Password 
+              placeholder="Confirm new password" 
+              prefix={<LockOutlined />}
+              disabled={loading}
+            />
+          </Form.Item>
+
+          <Form.Item style={{ marginTop: 24, marginBottom: 0 }}>
+            <Button
+              type="primary"
+              htmlType="submit"
+              loading={loading}
+              size="large"
+              block
+              style={{ 
+                borderRadius: '8px', 
+                height: '44px', 
+                fontWeight: 600 
+              }}
+            >
+              Reset Password
+            </Button>
+          </Form.Item>
+        </Form>
+
+        <Alert
+          type="warning"
+          message="Password Requirements"
+          description={
+            <ul style={{ marginBottom: 0, paddingLeft: '20px' }}>
+              <li>At least 8 characters long</li>
+              <li>Contains uppercase letter (A-Z)</li>
+              <li>Contains lowercase letter (a-z)</li>
+              <li>Contains number (0-9)</li>
+            </ul>
+          }
+          style={{ marginTop: '20px', borderRadius: '6px' }}
+          showIcon
+        />
+
+        <div style={{ marginTop: '20px', textAlign: 'center' }}>
+          <Text 
+            type="secondary" 
+            style={{ 
+              fontSize: '13px' 
+            }}
+          >
+            Remember your password?{' '}
+            <a 
+              href="/login"
+              style={{ color: '#015472', fontWeight: 600 }}
+            >
+              Login here
+            </a>
+          </Text>
+        </div>
       </Card>
     </div>
   );
@@ -132,7 +323,21 @@ function ResetPasswordContent() {
 
 export default function ResetPasswordPage() {
   return (
-    <Suspense fallback={<div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Typography.Text>Loading...</Typography.Text></div>}>
+    <Suspense 
+      fallback={
+        <div 
+          style={{ 
+            minHeight: '100vh', 
+            display: 'flex', 
+            alignItems: 'center', 
+            justifyContent: 'center',
+            background: 'linear-gradient(135deg, #f3f7fb 0%, #eef3f8 100%)'
+          }}
+        >
+          <Text>Loading...</Text>
+        </div>
+      }
+    >
       <ResetPasswordContent />
     </Suspense>
   );

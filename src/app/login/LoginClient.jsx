@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Alert,
   Button,
@@ -11,6 +11,7 @@ import {
   Space,
   Typography,
   message,
+  Spin,
 } from "antd";
 import {
   LockOutlined,
@@ -18,6 +19,7 @@ import {
   MailOutlined,
   SafetyCertificateOutlined,
   ArrowLeftOutlined,
+  ExclamationCircleOutlined,
 } from "@ant-design/icons";
 import { useRouter, useSearchParams } from "next/navigation";
 
@@ -101,6 +103,34 @@ function getPrimaryRole(user) {
 }
 
 /*
+ * Check if user is already logged in
+ */
+function isUserLoggedIn() {
+  if (typeof window === "undefined") return false;
+  
+  const token = localStorage.getItem("token");
+  const user = localStorage.getItem("user");
+  
+  return !!(token && user);
+}
+
+/*
+ * Get stored user data
+ */
+function getStoredUser() {
+  if (typeof window === "undefined") return null;
+  
+  const userStr = localStorage.getItem("user");
+  if (!userStr) return null;
+  
+  try {
+    return JSON.parse(userStr);
+  } catch {
+    return null;
+  }
+}
+
+/*
  * Branch managers use the existing admin portal.
  * Merchants and operational staff use their own portals.
  */
@@ -160,12 +190,51 @@ export default function LoginClient() {
   const searchParams = useSearchParams();
 
   const [loading, setLoading] = useState(false);
+  const [checking, setChecking] = useState(true);
 
   const accountSetupSuccess = searchParams.get("account_setup") === "success";
 
   const registeredEmail = searchParams.get("email") || "";
 
   const requestedRedirect = getSafeRedirect(searchParams.get("redirect"));
+
+  // Check if user is already logged in on mount
+  useEffect(() => {
+    const checkAuth = async () => {
+      try {
+        if (isUserLoggedIn()) {
+          const user = getStoredUser();
+          if (user) {
+            const destination = requestedRedirect || getRoleRedirect(user);
+            router.replace(destination);
+            return;
+          }
+        }
+      } catch (error) {
+        console.error("Auth check error:", error);
+      } finally {
+        setChecking(false);
+      }
+    };
+
+    checkAuth();
+  }, [router, requestedRedirect]);
+
+  if (checking) {
+    return (
+      <div
+        style={{
+          minHeight: "100vh",
+          display: "grid",
+          placeItems: "center",
+          background:
+            "linear-gradient(135deg, #071d34 0%, #0b3154 55%, #145b87 100%)",
+        }}
+      >
+        <Spin size="large" tip="Checking authentication..." />
+      </div>
+    );
+  }
 
   async function submit(values) {
     try {
