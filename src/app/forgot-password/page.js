@@ -1,22 +1,29 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { Button, Card, Form, Input, Typography, message, Space, Alert, Spin } from 'antd';
 import { ArrowLeftOutlined, SendOutlined, MailOutlined, CheckCircleOutlined, LockOutlined } from '@ant-design/icons';
 import api from '@/lib/api';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 
 const { Title, Text } = Typography;
 
-export default function ForgotPasswordPage() {
+function ForgotPasswordContent() {
   const router = useRouter();
-  const searchParams = useSearchParams();
   const [loading, setLoading] = useState(false);
-  const [emailInput, setEmailInput] = useState(searchParams?.get('email') || '');
+  const [emailInput, setEmailInput] = useState('');
   const [submitted, setSubmitted] = useState(false);
   const [form] = Form.useForm();
   const [checking, setChecking] = useState(true);
   const [resendLoading, setResendLoading] = useState(false);
+
+  // Get email from URL
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const urlParams = new URLSearchParams(window.location.search);
+      setEmailInput(urlParams.get('email') || '');
+    }
+  }, []);
 
   // Check if user is already logged in
   useEffect(() => {
@@ -293,5 +300,17 @@ export default function ForgotPasswordPage() {
         />
       </Card>
     </div>
+  );
+}
+
+export default function ForgotPasswordPage() {
+  return (
+    <Suspense fallback={
+      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <Spin size="large" />
+      </div>
+    }>
+      <ForgotPasswordContent />
+    </Suspense>
   );
 }

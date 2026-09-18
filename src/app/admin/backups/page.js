@@ -1,7 +1,7 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { Button, Card, Form, Input, Table, Space, Popconfirm, Typography, message, Modal, Badge, InputNumber } from 'antd';
-import { DownloadOutlined, DeleteOutlined, ReloadOutlined, MailOutlined, TrashOutlined } from '@ant-design/icons';
+import { DownloadOutlined, DeleteOutlined, ReloadOutlined, MailOutlined, ExclamationCircleOutlined } from '@ant-design/icons';
 import api from '@/lib/api';
 import dayjs from 'dayjs';
 
@@ -183,7 +183,7 @@ export default function BackupsPage() {
         </Button>
 
         <Button 
-          icon={<TrashOutlined />} 
+          icon={<ExclamationCircleOutlined />} 
           onClick={() => message.info('Cleanup options below')}
           loading={cleanupLoading}
         >
@@ -214,7 +214,7 @@ export default function BackupsPage() {
           <Button 
             type="primary" 
             danger 
-            icon={<TrashOutlined />}
+            icon={<ExclamationCircleOutlined />}
             onClick={handleCleanupBackups}
             loading={cleanupLoading}
           >
