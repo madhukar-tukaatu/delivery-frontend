@@ -1,20 +1,32 @@
 .experience {
   position: relative;
   width: 100%;
+  max-width: 100%;
   height: 100vh;
-  min-height: 720px;
+  height: 100dvh;
+  min-height: 640px;
   overflow: hidden;
-  background: #06101d;
+  isolation: isolate;
+  background:
+    radial-gradient(circle at 72% 42%, rgba(2, 113, 150, 0.22), transparent 38%),
+    radial-gradient(circle at 18% 78%, rgba(245, 197, 24, 0.08), transparent 32%),
+    #06101d;
   color: #ffffff;
+}
+
+.experienceReady {
+  /* hook for entrance completion */
 }
 
 .stage {
   position: relative;
   width: 100%;
   height: 100%;
+  max-width: 100%;
   overflow: hidden;
-  perspective: 1600px;
+  perspective: 1400px;
   isolation: isolate;
+  contain: layout paint;
 }
 
 .backgroundLayer {
@@ -96,8 +108,13 @@
   background:
     radial-gradient(
       circle at 70% 50%,
-      rgba(37, 99, 235, 0.13),
+      rgba(2, 113, 150, 0.18),
       transparent 42%
+    ),
+    radial-gradient(
+      circle at 30% 70%,
+      rgba(245, 197, 24, 0.06),
+      transparent 36%
     ),
     linear-gradient(
       180deg,
@@ -170,27 +187,39 @@
 }
 
 .sceneContent {
-  position: relative;
+  position: absolute;
+  inset: 0;
   width: 100%;
   height: 100%;
+  overflow: hidden;
   transform-style: preserve-3d;
+  clip-path: inset(0);
 }
 
 .infoCard {
   position: absolute;
   z-index: 20;
-  width: min(430px, 40vw);
-  padding: 30px;
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  border-radius: 24px;
-  background: rgba(5, 13, 25, 0);
+  width: min(400px, calc(100vw - 48px), 38vw);
+  max-width: calc(100% - 32px);
+  padding: 28px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 28px;
+  background:
+    linear-gradient(
+      155deg,
+      rgba(12, 28, 48, 0.72) 0%,
+      rgba(6, 16, 30, 0.55) 55%,
+      rgba(5, 13, 25, 0.48) 100%
+    );
   box-shadow:
-    0 25px 80px rgba(0, 0, 0, 0.3),
-    inset 0 1px 0 rgba(255, 255, 255, 0.08);
-  backdrop-filter: blur(22px);
-  -webkit-backdrop-filter: blur(22px);
+    0 30px 90px rgba(0, 0, 0, 0.42),
+    0 0 0 1px rgba(34, 211, 238, 0.06),
+    inset 0 1px 0 rgba(255, 255, 255, 0.14);
+  backdrop-filter: blur(28px) saturate(1.25);
+  -webkit-backdrop-filter: blur(28px) saturate(1.25);
   transform-style: preserve-3d;
   will-change: transform, opacity;
+  transition: box-shadow 0.45s ease, border-color 0.45s ease;
 }
 
 .pickupCard,
@@ -198,16 +227,10 @@
 .roadCard,
 .destinationCard,
 .deliveryCard {
-  left: 7vw;
-}
-
-.pickupCard,
-.originCard,
-.roadCard,
-.destinationCard,
-.deliveryCard {
-  top: 50%;
+  left: clamp(16px, 5vw, 72px);
+  top: 46%;
   transform: translateY(-50%);
+  max-height: calc(100% - 180px);
 }
 
 .cardEyebrow {
@@ -251,8 +274,9 @@
 }
 
 .miniSteps .activeStep {
-  background: rgba(6, 182, 212, 0.15);
-  color: #67e8f9;
+  background: linear-gradient(135deg, rgba(2, 113, 150, 0.45), rgba(6, 182, 212, 0.28));
+  color: #a5f3fc;
+  box-shadow: 0 0 0 1px rgba(103, 232, 249, 0.25), 0 8px 24px rgba(2, 113, 150, 0.25);
 }
 
 .processingList {
@@ -391,29 +415,14 @@
   will-change: transform, opacity;
 }
 
-.pickupStatus {
-  top: 26%;
-  right: 15%;
-}
-
-.scanStatus {
-  top: 25%;
-  right: 16%;
-}
-
-.transitStatus {
-  top: 27%;
-  right: 14%;
-}
-
-.destinationStatus {
-  top: 26%;
-  right: 14%;
-}
-
+.pickupStatus,
+.scanStatus,
+.transitStatus,
+.destinationStatus,
 .deliveredStatus {
-  top: 25%;
-  right: 14%;
+  top: clamp(96px, 18%, 160px);
+  right: clamp(16px, 8vw, 120px);
+  max-width: min(220px, 42vw);
 }
 
 .statusPulse {
@@ -435,10 +444,10 @@
 
 .routeSvg {
   position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  overflow: visible;
+  inset: 6% 7% 12% 7%;
+  width: auto;
+  height: auto;
+  overflow: hidden;
 }
 
 .routeLine,
@@ -472,10 +481,20 @@
   position: absolute;
   z-index: 10;
   display: grid;
-  gap: 3px;
-  font-size: 14px;
+  gap: 4px;
+  max-width: 140px;
+  padding: 10px 12px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 14px;
+  background: rgba(4, 12, 22, 0.72);
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.28);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  font-size: 13px;
   font-weight: 800;
   letter-spacing: -0.02em;
+  white-space: nowrap;
+  pointer-events: none;
 }
 
 .locationKathmandu span,
@@ -488,13 +507,13 @@
 }
 
 .locationKathmandu {
-  left: 6.5%;
-  bottom: 21%;
+  left: clamp(16px, 5vw, 64px);
+  bottom: clamp(120px, 22%, 180px);
 }
 
 .locationPokhara {
-  right: 7%;
-  top: 17%;
+  right: clamp(16px, 5vw, 64px);
+  top: clamp(88px, 14%, 120px);
   text-align: right;
 }
 
@@ -509,13 +528,15 @@
 }
 
 .originBranch {
-  right: 10%;
-  top: 31%;
+  right: clamp(24px, 8vw, 120px);
+  top: 34%;
+  max-width: min(330px, 36vw);
 }
 
 .destinationBranch {
-  right: 10%;
-  top: 31%;
+  right: clamp(24px, 8vw, 120px);
+  top: 34%;
+  max-width: min(330px, 36vw);
 }
 
 .branchRoof {
@@ -618,10 +639,10 @@
 .vehicle {
   position: absolute;
   z-index: 18;
-  left: 48%;
-  top: 52%;
-  width: 230px;
-  height: 125px;
+  left: 52%;
+  top: 54%;
+  width: min(210px, 28vw);
+  height: 115px;
   transform-style: preserve-3d;
   will-change: transform, opacity;
 }
@@ -767,8 +788,8 @@
 .parcel {
   position: absolute;
   z-index: 22;
-  left: 48%;
-  top: 50%;
+  left: 52%;
+  top: 52%;
   width: 54px;
   height: 54px;
   transform-style: preserve-3d;
@@ -827,10 +848,10 @@
 .house {
   position: absolute;
   z-index: 10;
-  right: 9%;
-  bottom: 14%;
-  width: 340px;
-  height: 300px;
+  right: clamp(20px, 7vw, 100px);
+  bottom: clamp(90px, 14%, 140px);
+  width: min(300px, 34vw);
+  height: min(270px, 42vh);
   transform-style: preserve-3d;
   will-change: transform, opacity;
 }
@@ -1006,156 +1027,235 @@
   );
 }
 
-@media (max-width: 1100px) {
-  .infoCard {
-    width: min(390px, 43vw);
-    padding: 25px;
-  }
-
-  .branchVisual {
-    right: 5%;
-    transform: scale(0.9);
-  }
-
-  .house {
-    right: 4%;
-    transform: scale(0.9);
-  }
-
-  .pickupStatus,
-  .scanStatus,
-  .transitStatus,
-  .destinationStatus,
-  .deliveredStatus {
-    right: 8%;
-  }
+/* ——— Experience chrome (progress + scroll hint) ——— */
+.experienceChrome {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 40;
+  pointer-events: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  padding: 0 clamp(16px, 4vw, 48px) clamp(16px, 2.4vh, 28px);
+  background: linear-gradient(180deg, transparent, rgba(2, 7, 14, 0.55) 55%, rgba(2, 7, 14, 0.82));
 }
 
-@media (max-width: 800px) {
-  .experience {
-    min-height: 650px;
-  }
+.scrollHint {
+  position: static;
+  transform: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  opacity: 0;
+  color: rgba(255, 255, 255, 0.62);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  transition: opacity 0.55s ease, transform 0.55s ease;
+}
 
-  .topBar {
-    padding: 20px;
-  }
+.scrollHintReady { opacity: 1; }
+.scrollHintHidden { opacity: 0 !important; transform: translateY(6px); }
 
-  .scrollIndicator span:first-child {
-    display: none;
-  }
+.mouse {
+  width: 18px;
+  height: 28px;
+  border: 1.5px solid rgba(103, 232, 249, 0.7);
+  border-radius: 12px;
+  position: relative;
+  flex: 0 0 auto;
+}
 
+.mouse i {
+  position: absolute;
+  left: 50%;
+  top: 6px;
+  width: 3px;
+  height: 6px;
+  border-radius: 5px;
+  background: #22d3ee;
+  transform: translateX(-50%);
+  animation: experienceMouse 1.6s infinite;
+}
+
+@keyframes experienceMouse {
+  0% { opacity: 0; transform: translate(-50%, 0); }
+  40% { opacity: 1; }
+  100% { opacity: 0; transform: translate(-50%, 9px); }
+}
+
+.progressRail {
+  display: grid;
+  gap: 12px;
+  width: min(920px, 100%);
+  margin: 0 auto;
+}
+
+.progressTrackOuter {
+  height: 3px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.12);
+  overflow: hidden;
+}
+
+.progressFill {
+  display: block;
+  width: 100%;
+  height: 100%;
+  transform-origin: left center;
+  transform: scaleX(0);
+  border-radius: inherit;
+  background: linear-gradient(90deg, #027196, #22d3ee, #f5c518);
+  box-shadow: 0 0 18px rgba(34, 211, 238, 0.45);
+  will-change: transform;
+}
+
+.progressSteps {
+  display: flex;
+  justify-content: space-between;
+  gap: 6px;
+  width: 100%;
+}
+
+.progressStep {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+  color: rgba(255, 255, 255, 0.38);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  transition: color 0.35s ease;
+}
+
+.progressStep i {
+  display: inline-grid;
+  place-items: center;
+  min-width: 26px;
+  height: 20px;
+  padding: 0 5px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.04);
+  font-style: normal;
+  font-size: 9px;
+  letter-spacing: 0.08em;
+}
+
+.progressStepActive { color: #ffffff; }
+.progressStepActive i {
+  border-color: rgba(34, 211, 238, 0.55);
+  background: rgba(2, 113, 150, 0.35);
+  color: #a5f3fc;
+  box-shadow: 0 0 18px rgba(34, 211, 238, 0.25);
+}
+.progressStepDone { color: rgba(165, 243, 252, 0.78); }
+.progressStepDone i {
+  border-color: rgba(34, 211, 238, 0.28);
+  background: rgba(2, 113, 150, 0.18);
+  color: #67e8f9;
+}
+
+/* ——— Responsive: all screen sizes ——— */
+@media (max-width: 1280px) {
   .infoCard {
-    left: 20px !important;
-    right: 20px;
-    top: auto !important;
-    bottom: 8%;
-    width: auto;
-    padding: 22px;
-    transform: none;
+    width: min(360px, 36vw);
+    padding: 24px;
   }
 
   .infoCard h2 {
-    font-size: 34px;
+    font-size: clamp(30px, 3.6vw, 48px);
+  }
+
+  .branchVisual {
+    width: min(280px, 30vw);
+  }
+}
+
+@media (max-width: 1024px) {
+  .progressStep {
+    font-size: 0;
+    gap: 0;
+    justify-content: center;
+  }
+
+  .routeSvg {
+    inset: 8% 8% 16% 8%;
+  }
+
+  .vehicle {
+    width: min(180px, 26vw);
+  }
+
+  .house {
+    width: min(240px, 30vw);
+    height: min(220px, 34vh);
+  }
+
+  .locationKathmandu,
+  .locationPokhara {
+    font-size: 12px;
+    padding: 8px 10px;
+  }
+}
+
+@media (max-width: 900px) {
+  .experience {
+    min-height: 100svh;
+  }
+
+  .pickupCard,
+  .originCard,
+  .roadCard,
+  .destinationCard,
+  .deliveryCard {
+    left: 16px;
+    right: 16px;
+    top: auto;
+    bottom: 118px;
+    transform: none;
+    width: auto;
+    max-width: none;
+    max-height: none;
+    padding: 20px;
+    border-radius: 20px;
+  }
+
+  .infoCard h2 {
+    font-size: clamp(26px, 7vw, 36px);
   }
 
   .infoCard p {
-    margin-top: 13px;
+    margin-top: 12px;
     font-size: 13px;
     line-height: 1.55;
   }
 
-  .branchVisual {
-    right: 50%;
-    top: 25%;
-    transform: translateX(50%) scale(0.65);
-  }
-
-  .house {
-    right: 50%;
-    bottom: 35%;
-    transform: translateX(50%) scale(0.62);
-  }
-
-  .vehicle {
-    left: 50%;
-    top: 45%;
-    transform-origin: center;
-  }
-
-  .parcel {
-    left: 50%;
-    top: 45%;
-  }
-
-  .statusChip {
-    top: 12%;
-    right: 20px;
-    font-size: 9px;
-  }
-
-  .locationKathmandu {
-    left: 5%;
-    bottom: 35%;
-    font-size: 11px;
-  }
-
-  .locationPokhara {
-    right: 5%;
-    top: 23%;
-    font-size: 11px;
-  }
-
-  .routeMeta {
-    margin-top: 18px;
-  }
-
-  .processingList {
+  .miniSteps {
     margin-top: 16px;
-  }
-}
-
-@media (max-width: 520px) {
-  .experience {
-    min-height: 600px;
+    flex-wrap: wrap;
   }
 
-  .brandMark {
-    font-size: 13px;
-  }
-
-  .infoCard {
-    bottom: 5%;
-    padding: 18px;
-    border-radius: 18px;
-  }
-
-  .infoCard h2 {
-    font-size: 28px;
-  }
-
-  .infoCard p {
-    font-size: 12px;
-  }
-
-  .miniSteps span {
-    padding: 6px 8px;
-    font-size: 8px;
-  }
-
-  .branchVisual {
-    transform: translateX(50%) scale(0.5);
-  }
-
+  .branchVisual,
   .house {
-    transform: translateX(50%) scale(0.5);
+    display: none;
   }
 
   .vehicle {
-    transform: scale(0.72);
+    left: 58%;
+    top: 42%;
+    width: min(150px, 34vw);
   }
 
   .parcel {
-    transform: scale(0.82);
+    left: 58%;
+    top: 40%;
   }
 
   .pickupStatus,
@@ -1163,14 +1263,160 @@
   .transitStatus,
   .destinationStatus,
   .deliveredStatus {
-    right: 15px;
-    top: 12%;
+    top: 96px;
+    right: 16px;
+    font-size: 9px;
+    padding: 8px 11px;
+  }
+
+  .locationKathmandu {
+    left: 16px;
+    bottom: auto;
+    top: 110px;
+  }
+
+  .locationPokhara {
+    right: 16px;
+    top: 110px;
+  }
+
+  .routeSvg {
+    inset: 18% 8% 28% 8%;
+    opacity: 0.85;
+  }
+
+  .scrollHint span {
+    display: none;
+  }
+
+  .experienceChrome {
+    gap: 10px;
+    padding: 0 16px 14px;
+  }
+
+  .progressRail {
+    width: 100%;
+  }
+}
+
+@media (max-width: 640px) {
+  .experience {
+    min-height: 100svh;
+  }
+
+  .pickupCard,
+  .originCard,
+  .roadCard,
+  .destinationCard,
+  .deliveryCard {
+    bottom: 104px;
+    padding: 16px;
+    border-radius: 18px;
+  }
+
+  .infoCard h2 {
+    font-size: 24px;
+  }
+
+  .infoCard p {
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  .vehicle,
+  .parcel {
+    display: none;
+  }
+
+  .locationKathmandu,
+  .locationPokhara {
+    top: 88px;
+    max-width: 110px;
+    font-size: 11px;
+  }
+
+  .pickupStatus,
+  .scanStatus,
+  .transitStatus,
+  .destinationStatus,
+  .deliveredStatus {
+    top: auto;
+    bottom: 250px;
+    right: 16px;
+    left: auto;
+  }
+
+  .routeSvg {
+    inset: 22% 6% 36% 6%;
+  }
+
+  .progressStep i {
+    min-width: 24px;
+    height: 18px;
+    font-size: 8px;
+  }
+
+  .miniSteps span {
+    padding: 6px 9px;
+    font-size: 8px;
+  }
+}
+
+@media (max-width: 400px) {
+  .locationPokhara span,
+  .locationKathmandu span {
+    display: none;
+  }
+
+  .pickupCard,
+  .originCard,
+  .roadCard,
+  .destinationCard,
+  .deliveryCard {
+    bottom: 96px;
+    padding: 14px;
+  }
+
+  .infoCard h2 {
+    font-size: 22px;
+  }
+}
+
+@media (min-width: 901px) and (max-height: 760px) {
+  .infoCard {
+    padding: 22px;
+  }
+
+  .infoCard h2 {
+    font-size: clamp(28px, 4vw, 42px);
+  }
+
+  .experienceChrome {
+    padding-bottom: 12px;
+  }
+
+  .house {
+    transform: scale(0.85);
+    transform-origin: bottom right;
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .experience *,
-  .experience {
-    scroll-behavior: auto;
+  .mouse i,
+  .scrollHint,
+  .progressFill,
+  .progressStep {
+    animation: none !important;
+    transition: none !important;
+  }
+
+  .scrollHint {
+    opacity: 0 !important;
+  }
+
+  .progressFill {
+    transform: scaleX(0.18);
   }
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useLayoutEffect, useRef } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import styles from "./DeliveryExperience.module.css";
@@ -14,6 +14,14 @@ const SCENES = {
   destination: 0.7,
   delivery: 0.9,
 };
+
+const SCENE_LABELS = [
+  "Pickup",
+  "Origin",
+  "Transfer",
+  "Destination",
+  "Delivered",
+];
 
 export default function DeliveryExperience() {
   const sectionRef = useRef(null);
@@ -46,6 +54,10 @@ export default function DeliveryExperience() {
   const originBranchRef = useRef(null);
   const destinationBranchRef = useRef(null);
   const houseRef = useRef(null);
+  const progressFillRef = useRef(null);
+  const [sceneIndex, setSceneIndex] = useState(0);
+  const [ready, setReady] = useState(false);
+  const [scrolled, setScrolled] = useState(false);
 
   useLayoutEffect(() => {
     const section = sectionRef.current;
@@ -54,6 +66,10 @@ export default function DeliveryExperience() {
     if (!section || !stage) {
       return undefined;
     }
+
+    const prefersReduced =
+      typeof window !== "undefined" &&
+      window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
     const context = gsap.context(() => {
       const backgrounds = [
@@ -103,8 +119,8 @@ export default function DeliveryExperience() {
       });
 
       gsap.set(vehicleRef.current, {
-        x: -260,
-        y: 70,
+        x: -140,
+        y: 40,
         scale: 0.72,
         opacity: 0,
         rotation: -2,
@@ -156,6 +172,34 @@ export default function DeliveryExperience() {
         }
       );
 
+      if (prefersReduced) {
+        gsap.set(pickupBgRef.current, { opacity: 1, scale: 1 });
+        gsap.set(pickupCardRef.current, { opacity: 1, y: 0, scale: 1 });
+        gsap.set(parcelRef.current, { opacity: 1 });
+        setReady(true);
+        return;
+      }
+
+      // Soft entrance before scroll storytelling begins
+      gsap.fromTo(
+        section,
+        { opacity: 0.72 },
+        { opacity: 1, duration: 0.7, ease: "power2.out" }
+      );
+      gsap.fromTo(
+        pickupCardRef.current,
+        { opacity: 0, y: 36, scale: 0.97 },
+        {
+          opacity: 1,
+          y: 0,
+          scale: 1,
+          duration: 0.9,
+          ease: "power3.out",
+          delay: 0.12,
+          onComplete: () => setReady(true),
+        }
+      );
+
       const timeline = gsap.timeline({
         defaults: {
           ease: "none",
@@ -163,13 +207,26 @@ export default function DeliveryExperience() {
         scrollTrigger: {
           trigger: section,
           start: "top top",
-          end: "+=4200",
+          end: () => (window.innerWidth < 900 ? "+=2800" : window.innerHeight < 760 ? "+=3600" : "+=4600"),
           pin: true,
-          scrub: 2.2,
+          scrub: 1.15,
           anticipatePin: 1,
           invalidateOnRefresh: true,
-          fastScrollEnd: false,
+          fastScrollEnd: true,
           preventOverlaps: true,
+          onUpdate: (self) => {
+            const p = self.progress;
+            if (progressFillRef.current) {
+              progressFillRef.current.style.transform = `scaleX(${p})`;
+            }
+            let next = 0;
+            if (p >= 0.86) next = 4;
+            else if (p >= 0.62) next = 3;
+            else if (p >= 0.4) next = 2;
+            else if (p >= 0.16) next = 1;
+            setSceneIndex((prev) => (prev === next ? prev : next));
+            setScrolled(p > 0.035);
+          },
         },
       });
 
@@ -613,9 +670,9 @@ export default function DeliveryExperience() {
         .to(
           vehicleRef.current,
           {
-            x: 180,
-            y: 40,
-            scale: 0.8,
+            x: 90,
+            y: 28,
+            scale: 0.78,
             opacity: 1,
             duration: 0.9,
           },
@@ -624,8 +681,8 @@ export default function DeliveryExperience() {
         .to(
           parcelRef.current,
           {
-            x: 175,
-            y: -5,
+            x: 85,
+            y: -4,
             scale: 1,
             duration: 0.9,
           },
@@ -643,8 +700,8 @@ export default function DeliveryExperience() {
         .to(
           parcelRef.current,
           {
-            x: 225,
-            y: 55,
+            x: 110,
+            y: 36,
             scale: 0.72,
             rotation: 4,
             duration: 0.7,
@@ -707,7 +764,7 @@ export default function DeliveryExperience() {
   return (
     <section
       ref={sectionRef}
-      className={styles.experience}
+      className={`${styles.experience} ${ready ? styles.experienceReady : ""}`}
       aria-label="How Tukaatu Express delivers your parcel"
     >
       <div ref={stageRef} className={styles.stage}>
@@ -773,9 +830,9 @@ export default function DeliveryExperience() {
               </p>
 
               <div className={styles.miniSteps}>
-                <span className={styles.activeStep}>ORDER</span>
+                <span>ORDER</span>
                 <span>PACK</span>
-                <span>PICKUP</span>
+                <span className={styles.activeStep}>PICKUP</span>
               </div>
             </div>
 
@@ -1057,6 +1114,44 @@ export default function DeliveryExperience() {
         </div>
 
         <div className={styles.bottomGradient} />
+
+        <div className={styles.experienceChrome} aria-hidden={!ready}>
+          <div
+            className={[
+              styles.scrollHint,
+              ready ? styles.scrollHintReady : "",
+              scrolled ? styles.scrollHintHidden : "",
+            ].join(" ")}
+          >
+            <div className={styles.mouse}>
+              <i />
+            </div>
+            <span>Scroll to follow the delivery</span>
+          </div>
+
+          <div className={styles.progressRail}>
+            <div className={styles.progressTrackOuter}>
+              <span ref={progressFillRef} className={styles.progressFill} />
+            </div>
+            <div className={styles.progressSteps}>
+              {SCENE_LABELS.map((label, index) => (
+                <span
+                  key={label}
+                  className={
+                    index === sceneIndex
+                      ? `${styles.progressStep} ${styles.progressStepActive}`
+                      : index < sceneIndex
+                        ? `${styles.progressStep} ${styles.progressStepDone}`
+                        : styles.progressStep
+                  }
+                >
+                  <i>{String(index + 1).padStart(2, "0")}</i>
+                  {label}
+                </span>
+              ))}
+            </div>
+          </div>
+        </div>
       </div>
     </section>
   );

@@ -1,7 +1,7 @@
 import HomeLanding from "./home/HomeLanding";
 
 export const metadata = {
-  title: "Tukaatu Express | Nepal Delivered. Simply.",
+  title: "Tukaatu Express — Nepal Delivered. Simply.",
   description:
     "Fast, reliable and trackable parcel delivery across Nepal with Tukaatu Express.",
 };
