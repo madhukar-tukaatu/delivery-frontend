@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, Suspense } from 'react';
-import { Button, Card, Form, Input, Typography, message, Space, Progress, Alert } from 'antd';
+import { Button, Card, Form, Input, Typography, message, Space, Progress, Alert, Checkbox } from 'antd';
 import { ArrowLeftOutlined, LockOutlined, CheckCircleOutlined, ExclamationCircleOutlined } from '@ant-design/icons';
 import api from '@/lib/api';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -60,11 +60,46 @@ function ResetPasswordContent() {
         token,
         password: values.password,
         password_confirmation: values.password_confirmation,
+        logout_all_devices: values.logout_all_devices === true,
       });
+      
+      const result = response?.data || {};
+      
+      // If logout_all_devices is false, stay logged in on this device
+      if (values.logout_all_devices === false && result?.data?.token) {
+        localStorage.setItem('token', result.data.token);
+        if (result?.data?.user) {
+          localStorage.setItem('user', JSON.stringify(result.data.user));
+        }
+      }
       
       setSuccess(true);
       message.success('Password reset successfully!');
-      setTimeout(() => router.push('/login'), 3000);
+      
+      // Redirect after 2 seconds
+      setTimeout(() => {
+        if (values.logout_all_devices === true) {
+          // Go to login if logging out all devices
+          router.push('/login');
+        } else {
+          // Go to dashboard if staying logged in
+          const user = result?.data?.user;
+          if (user) {
+            const role = user.role?.toLowerCase() || '';
+            const roles = user.roles || [];
+            
+            if (roles.includes('merchant') || role.includes('merchant')) {
+              router.push('/merchant/dashboard');
+            } else if (roles.includes('rider') || role.includes('rider')) {
+              router.push('/staff/dashboard');
+            } else {
+              router.push('/admin/dashboard');
+            }
+          } else {
+            router.push('/admin/dashboard');
+          }
+        }
+      }, 2000);
     } catch (error) {
       const errorMsg = error?.response?.data?.message || 
                       error?.response?.data?.errors?.password?.join(', ') ||
@@ -121,17 +156,28 @@ function ResetPasswordContent() {
           </Title>
           
           <Text type="secondary" style={{ fontSize: '15px', lineHeight: '1.6', display: 'block' }}>
-            Your password has been updated successfully. You will be redirected to the login page shortly...
+            Your password has been updated successfully. 
+            <br />
+            <br />
+            {form.getFieldValue('logout_all_devices') 
+              ? 'You have been logged out from all devices. Please login with your new password.' 
+              : 'You are logged in on this device. You have been logged out from other devices.'}
           </Text>
 
           <Button 
             type="primary" 
-            onClick={() => router.push('/login')} 
+            onClick={() => {
+              if (form.getFieldValue('logout_all_devices')) {
+                router.push('/login');
+              } else {
+                router.push('/admin/dashboard');
+              }
+            }} 
             style={{ marginTop: '24px', borderRadius: '8px', height: '44px', fontWeight: 600 }}
             size="large"
             block
           >
-            Go to Login
+            {form.getFieldValue('logout_all_devices') ? 'Go to Login' : 'Go to Dashboard'}
           </Button>
         </Card>
       </div>
@@ -267,6 +313,18 @@ function ResetPasswordContent() {
             />
           </Form.Item>
 
+          <Form.Item
+            name="logout_all_devices"
+            label=""
+            valuePropName="checked"
+            initialValue={false}
+            style={{ marginTop: 24, marginBottom: 24 }}
+          >
+            <Checkbox>
+              Logout from all devices and login on this device only
+            </Checkbox>
+          </Form.Item>
+
           <Form.Item style={{ marginTop: 24, marginBottom: 0 }}>
             <Button
               type="primary"
@@ -294,6 +352,7 @@ function ResetPasswordContent() {
               <li>Contains uppercase letter (A-Z)</li>
               <li>Contains lowercase letter (a-z)</li>
               <li>Contains number (0-9)</li>
+              <li>Link expires in 60 minutes</li>
             </ul>
           }
           style={{ marginTop: '20px', borderRadius: '6px' }}

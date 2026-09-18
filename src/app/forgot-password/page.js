@@ -4,17 +4,19 @@ import { useState, useEffect } from 'react';
 import { Button, Card, Form, Input, Typography, message, Space, Alert, Spin } from 'antd';
 import { ArrowLeftOutlined, SendOutlined, MailOutlined, CheckCircleOutlined, LockOutlined } from '@ant-design/icons';
 import api from '@/lib/api';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 
 const { Title, Text } = Typography;
 
 export default function ForgotPasswordPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [loading, setLoading] = useState(false);
-  const [email, setEmail] = useState('');
+  const [emailInput, setEmailInput] = useState(searchParams?.get('email') || '');
   const [submitted, setSubmitted] = useState(false);
   const [form] = Form.useForm();
   const [checking, setChecking] = useState(true);
+  const [resendLoading, setResendLoading] = useState(false);
 
   // Check if user is already logged in
   useEffect(() => {
@@ -32,7 +34,7 @@ export default function ForgotPasswordPage() {
         email: values.email.trim(),
       });
       
-      setEmail(values.email);
+      setEmailInput(values.email.trim());
       setSubmitted(true);
       message.success('Password reset link sent to your email.');
     } catch (error) {
@@ -42,6 +44,25 @@ export default function ForgotPasswordPage() {
       message.error(errorMessage);
     } finally {
       setLoading(false);
+    }
+  };
+
+  // ✅ RESEND LINK - STAYS ON SUCCESS SCREEN
+  const handleResendLink = async () => {
+    setResendLoading(true);
+    try {
+      const response = await api.post('/auth/forgot-password', {
+        email: emailInput,
+      });
+      
+      message.success('New password reset link sent to your email!');
+    } catch (error) {
+      const errorMessage = error?.response?.data?.message || 
+                          error?.response?.data?.errors?.email?.join(', ') ||
+                          'Failed to resend link. Please try again.';
+      message.error(errorMessage);
+    } finally {
+      setResendLoading(false);
     }
   };
 
@@ -83,18 +104,18 @@ export default function ForgotPasswordPage() {
           </Title>
           
           <Text type="secondary" style={{ fontSize: '15px', lineHeight: '1.6' }}>
-            We've sent a password reset link to <strong>{email}</strong>. 
+            We've sent a password reset link to <strong>{emailInput}</strong>. 
             <br />
             <br />
             Please check your inbox and click the link to reset your password. 
-            The link will expire in 24 hours.
+            The link will expire in 60 minutes.
           </Text>
 
           <Alert
             type="info"
             icon={<MailOutlined />}
             message="Didn't receive the email?"
-            description="Check your spam folder or try requesting a new link."
+            description="Check your spam folder or try requesting a new link below. The link expires in 60 minutes."
             style={{ marginTop: '20px', marginBottom: '20px' }}
           />
 
@@ -108,15 +129,26 @@ export default function ForgotPasswordPage() {
             >
               Back to Login
             </Button>
+            
+            {/* ✅ RESEND LINK - STAYS ON THIS PAGE, SENDS FROM HERE */}
             <Button 
-              onClick={() => {
-                setSubmitted(false);
-                form.resetFields();
-              }}
+              onClick={handleResendLink}
+              loading={resendLoading}
               size="large"
               style={{ borderRadius: '8px', height: '44px' }}
+              icon={<SendOutlined />}
             >
-              Request Another Link
+              {resendLoading ? 'Sending...' : 'Send Another Link to This Email'}
+            </Button>
+
+            {/* Change email option */}
+            <Button 
+              type="text"
+              onClick={() => setSubmitted(false)}
+              size="large"
+              style={{ color: '#015472', fontWeight: 600 }}
+            >
+              ← Use Different Email
             </Button>
           </Space>
 
@@ -192,6 +224,7 @@ export default function ForgotPasswordPage() {
           onFinish={handleSubmit}
           size="large"
           requiredMark={false}
+          initialValues={{ email: emailInput }}
         >
           <Form.Item
             name="email"
@@ -254,7 +287,7 @@ export default function ForgotPasswordPage() {
         <Alert
           type="info"
           message="Security Tip"
-          description="Never share your password reset link with anyone. The link is personal and expires in 24 hours."
+          description="Never share your password reset link with anyone. The link is personal and expires in 60 minutes."
           style={{ marginTop: '20px', borderRadius: '6px' }}
           showIcon
         />
