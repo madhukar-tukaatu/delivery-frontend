@@ -1,7 +1,7 @@
 'use client';
 import { useState, useEffect } from 'react';
-import { Button, Card, Form, Input, Table, Space, Popconfirm, Typography, message, Modal, Badge } from 'antd';
-import { DownloadOutlined, DeleteOutlined, ReloadOutlined, MailOutlined } from '@ant-design/icons';
+import { Button, Card, Form, Input, Table, Space, Popconfirm, Typography, message, Modal, Badge, InputNumber } from 'antd';
+import { DownloadOutlined, DeleteOutlined, ReloadOutlined, MailOutlined, TrashOutlined } from '@ant-design/icons';
 import api from '@/lib/api';
 import dayjs from 'dayjs';
 
@@ -11,9 +11,11 @@ export default function BackupsPage() {
   const [backups, setBackups] = useState([]);
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [cleanupLoading, setCleanupLoading] = useState(false);
   const [email, setEmail] = useState('');
   const [emailModalOpen, setEmailModalOpen] = useState(false);
   const [emailLoading, setEmailLoading] = useState(false);
+  const [cleanupDays, setCleanupDays] = useState(7);
 
   useEffect(() => {
     fetchBackups();
@@ -64,6 +66,19 @@ export default function BackupsPage() {
     }
   }
 
+  async function handleCleanupBackups() {
+    setCleanupLoading(true);
+    try {
+      await api.post('/admin/backups/cleanup', { days: cleanupDays });
+      message.success(`Backups older than ${cleanupDays} days cleaned up`);
+      await fetchBackups();
+    } catch (error) {
+      message.error(error.response?.data?.message || 'Failed to cleanup backups');
+    } finally {
+      setCleanupLoading(false);
+    }
+  }
+
   async function handleDelete(filename) {
     try {
       await api.delete(`/admin/backups/${filename}`);
@@ -76,8 +91,11 @@ export default function BackupsPage() {
 
   function handleDownload(filename) {
     // Download via API endpoint
+    const baseUrl = typeof window !== 'undefined' 
+      ? (process.env.NEXT_PUBLIC_API_BASE_URL || 'https://api.tukaatuexpress.com/api/v1')
+      : 'https://api.tukaatuexpress.com/api/v1';
     const link = document.createElement('a');
-    link.href = `/api/v1/admin/backups/${filename}`;
+    link.href = `${baseUrl}/admin/backups/${filename}`;
     link.download = filename;
     document.body.appendChild(link);
     link.click();
@@ -147,7 +165,7 @@ export default function BackupsPage() {
         Database Backup
       </Title>
 
-      <div style={{ marginBottom: 24, display: 'flex', gap: 12, alignItems: 'center' }}>
+      <div style={{ marginBottom: 24, display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
         <Button 
           type="primary" 
           icon={<MailOutlined />} 
@@ -165,6 +183,14 @@ export default function BackupsPage() {
         </Button>
 
         <Button 
+          icon={<TrashOutlined />} 
+          onClick={() => message.info('Cleanup options below')}
+          loading={cleanupLoading}
+        >
+          Cleanup Old Backups
+        </Button>
+
+        <Button 
           icon={<ReloadOutlined />} 
           onClick={fetchBackups}
           loading={refreshing}
@@ -172,6 +198,33 @@ export default function BackupsPage() {
           Refresh
         </Button>
       </div>
+
+      <Card title="Cleanup Configuration" style={{ marginBottom: 24 }}>
+        <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
+          <div>
+            <label style={{ marginRight: 8 }}>Keep backups for (days):</label>
+            <InputNumber
+              min={1}
+              max={365}
+              value={cleanupDays}
+              onChange={(value) => setCleanupDays(value || 7)}
+              style={{ width: 100 }}
+            />
+          </div>
+          <Button 
+            type="primary" 
+            danger 
+            icon={<TrashOutlined />}
+            onClick={handleCleanupBackups}
+            loading={cleanupLoading}
+          >
+            Delete Backups Older Than {cleanupDays} Days
+          </Button>
+        </div>
+        <p style={{ marginTop: 12, fontSize: 13, color: '#6b7280' }}>
+          This will permanently delete backup files older than the specified number of days.
+        </p>
+      </Card>
 
       <Table
         columns={columns}
