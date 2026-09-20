@@ -181,18 +181,14 @@ export default function SettlementsPage() {
       <Alert
         type="info"
         showIcon
-        message="Where cash POD goes after rider Complete"
+        message="What appears on settlements automatically"
         description={
           <div>
             <Paragraph style={{ marginBottom: 8 }}>
-              Rider completes cash POD → cash sits with the rider as{" "}
-              <Tag color="orange">collected / pending_deposit</Tag>
-              → it shows in <strong>section 1 below</strong> → branch deposits → then{" "}
-              <strong>Generate settlement</strong> creates a row in section 2 → Mark paid.
+              <strong>Prepaid</strong> and <strong>POD online</strong> -> listed on settlements right after
+              successful delivery. <strong>POD cash</strong> -> listed only after branch deposit
+              (section 1). Use Generate only as catch-up. Mark paid when you pay the merchant.
             </Paragraph>
-            <Text type="secondary">
-              Section 2 (settlements list) stays empty until you generate. That is expected.
-            </Text>
           </div>
         }
       />
@@ -263,8 +259,8 @@ export default function SettlementsPage() {
       <Card
         title="2. Merchant settlements — generated batches (empty until Generate)"
         extra={
-          <Button type="primary" onClick={openSettle}>
-            Generate settlement
+          <Button onClick={openSettle}>
+            Generate (catch-up)
           </Button>
         }
         loading={loading}
@@ -274,7 +270,7 @@ export default function SettlementsPage() {
           dataSource={settlements}
           locale={{
             emptyText:
-              "No settlement batches yet. Deposit cash in section 1 (preferred), then click Generate settlement for the merchant.",
+              "No settlement batches yet. They appear automatically after a successful delivery. Use Generate only if something was missed.",
           }}
           pagination={{ pageSize: 10 }}
           columns={[
