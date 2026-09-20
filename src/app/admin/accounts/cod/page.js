@@ -1,61 +1,235 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { Button, Card, Col, DatePicker, Form, InputNumber, Modal, Row, Space, Table, Tag, message } from "antd";
-import { accountsConfirmCodDeposit, accountsCreateSettlement, accountsGetCodPending, accountsGetSettlements, accountsMarkSettlementPaid } from "@/services/deliveryOperationsApi";
+import { useEffect, useMemo, useState } from "react";
+import {
+  Button,
+  Card,
+  Col,
+  Form,
+  Input,
+  InputNumber,
+  Modal,
+  Row,
+  Space,
+  Table,
+  Tag,
+  message,
+} from "antd";
+import api from "@/lib/api";
+
+function unwrap(response) {
+  return response?.data?.data ?? response?.data ?? response;
+}
 
 export default function AdminCodAccountsPage() {
-  const [codRows, setCodRows] = useState([]);
+  const [pendingDeposit, setPendingDeposit] = useState([]);
+  const [onlinePaid, setOnlinePaid] = useState([]);
   const [settlements, setSettlements] = useState([]);
+  const [selectedIds, setSelectedIds] = useState([]);
+  const [loading, setLoading] = useState(false);
   const [settleOpen, setSettleOpen] = useState(false);
   const [form] = Form.useForm();
 
   async function load() {
+    setLoading(true);
     try {
-      setCodRows(await accountsGetCodPending());
-      setSettlements(await accountsGetSettlements());
-    } catch { message.error("Could not load accounts data."); }
+      const [collectedRes, paidDirectRes, settlementsRes] = await Promise.all([
+        api.get("/admin/pod", { params: { status: "collected", per_page: 100 } }),
+        api.get("/admin/pod", { params: { status: "paid_direct", per_page: 50 } }),
+        api.get("/admin/settlements", { params: { per_page: 50 } }),
+      ]);
+
+      const collected = unwrap(collectedRes);
+      const paid = unwrap(paidDirectRes);
+      const settled = unwrap(settlementsRes);
+
+      setPendingDeposit(collected?.data || collected || []);
+      setOnlinePaid(paid?.data || paid || []);
+      setSettlements(settled?.data || settled || []);
+      setSelectedIds([]);
+    } catch (e) {
+      message.error(e?.response?.data?.message || "Could not load POD / settlement data.");
+    } finally {
+      setLoading(false);
+    }
   }
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => {
+    load();
+  }, []);
 
-  async function run(action, ok = "Updated") {
-    try { await action(); message.success(ok); setSettleOpen(false); form.resetFields(); load(); } catch (e) { message.error(e?.response?.data?.message || "Action failed."); }
+  const selectedAmount = useMemo(() => {
+    return pendingDeposit
+      .filter((row) => selectedIds.includes(row.id))
+      .reduce((sum, row) => sum + Number(row.collected_amount || 0), 0);
+  }, [pendingDeposit, selectedIds]);
+
+  async function depositSelected() {
+    if (!selectedIds.length) {
+      message.warning("Select at least one collected cash POD to deposit.");
+      return;
+    }
+
+    try {
+      await api.post("/admin/pod/deposit", {
+        pod_record_ids: selectedIds,
+        remarks: "Branch deposit from accounts console",
+      });
+      message.success("Cash POD deposited. Shipments are ready for settlement.");
+      load();
+    } catch (e) {
+      message.error(e?.response?.data?.message || "Deposit failed.");
+    }
   }
 
-  return <Space direction="vertical" size={16} style={{ width: "100%" }}>
-    <Card title="Pending POD Deposits">
-      <Table rowKey="id" dataSource={codRows} columns={[
-        { title: "Tracking", dataIndex: "tracking_number" },
-        { title: "Customer", dataIndex: "customer_name" },
-        { title: "Rider", dataIndex: "rider_id" },
-        { title: "POD", dataIndex: "pod_amount" },
-        { title: "Collect", dataIndex: "total_collected" },
-        { title: "Status", dataIndex: "status", render: (v) => <Tag>{v}</Tag> },
-        { title: "Action", render: (_, r) => <Button type="primary" onClick={() => run(() => accountsConfirmCodDeposit(r.id, { amount: r.total_collected }), "Deposit confirmed")}>Confirm Deposit</Button> },
-      ]} />
-    </Card>
+  async function createSettlement(values) {
+    try {
+      await api.post("/admin/settlements", {
+        merchant_id: values.merchant_id,
+        adjustments: values.adjustments || 0,
+      });
+      message.success("Settlement generated from deposited cash shipments.");
+      setSettleOpen(false);
+      form.resetFields();
+      load();
+    } catch (e) {
+      message.error(e?.response?.data?.message || "Settlement create failed.");
+    }
+  }
 
-    <Card title="Merchant Settlements" extra={<Button onClick={() => setSettleOpen(true)}>Create Settlement</Button>}>
-      <Table rowKey="id" dataSource={settlements} columns={[
-        { title: "Number", dataIndex: "settlement_number" },
-        { title: "Merchant", dataIndex: "merchant_id" },
-        { title: "Shipments", dataIndex: "shipment_count" },
-        { title: "POD Total", dataIndex: "pod_total" },
-        { title: "Charges", dataIndex: "delivery_charge_total" },
-        { title: "Payable", dataIndex: "payable_amount" },
-        { title: "Status", dataIndex: "status", render: (v) => <Tag>{v}</Tag> },
-        { title: "Action", render: (_, r) => <Button disabled={r.status === "paid"} onClick={() => run(() => accountsMarkSettlementPaid(r.id), "Settlement paid")}>Mark Paid</Button> },
-      ]} />
-    </Card>
+  async function markPaid(id) {
+    try {
+      await api.post(`/admin/settlements/${id}/mark-paid`, {});
+      message.success("Settlement marked paid.");
+      load();
+    } catch (e) {
+      message.error(e?.response?.data?.message || "Mark paid failed.");
+    }
+  }
 
-    <Modal title="Create Merchant Settlement" open={settleOpen} onCancel={() => setSettleOpen(false)} onOk={() => form.validateFields().then((v) => run(() => accountsCreateSettlement({ merchant_id: v.merchant_id, period_from: v.period?.[0]?.format('YYYY-MM-DD'), period_to: v.period?.[1]?.format('YYYY-MM-DD') }), "Settlement created"))}>
-      <Form form={form} layout="vertical">
-        <Row gutter={16}>
-          <Col span={24}><Form.Item name="merchant_id" label="Merchant ID" rules={[{ required: true }]}><InputNumber style={{ width: "100%" }} /></Form.Item></Col>
-          <Col span={24}><Form.Item name="period" label="Period"><DatePicker.RangePicker style={{ width: "100%" }} /></Form.Item></Col>
-        </Row>
-      </Form>
-    </Modal>
-  </Space>;
+  return (
+    <Space direction="vertical" size={16} style={{ width: "100%" }}>
+      <Card
+        title="Cash POD awaiting branch deposit"
+        extra={
+          <Button type="primary" disabled={!selectedIds.length} onClick={depositSelected}>
+            Deposit selected (Rs. {selectedAmount.toFixed(2)})
+          </Button>
+        }
+        loading={loading}
+      >
+        <Table
+          rowKey="id"
+          dataSource={pendingDeposit}
+          rowSelection={{
+            selectedRowKeys: selectedIds,
+            onChange: setSelectedIds,
+          }}
+          columns={[
+            {
+              title: "Tracking",
+              render: (_, r) => r.shipment?.tracking_number || r.shipment_id,
+            },
+            { title: "Merchant", dataIndex: "merchant_id" },
+            { title: "Rider", dataIndex: "collected_by" },
+            { title: "POD", dataIndex: "pod_amount" },
+            { title: "Collected", dataIndex: "collected_amount" },
+            {
+              title: "Status",
+              dataIndex: "status",
+              render: (v) => <Tag color="orange">{v}</Tag>,
+            },
+          ]}
+        />
+      </Card>
+
+      <Card title="Online POD paid direct to merchant (record only)" loading={loading}>
+        <Table
+          rowKey="id"
+          dataSource={onlinePaid}
+          columns={[
+            {
+              title: "Tracking",
+              render: (_, r) => r.shipment?.tracking_number || r.shipment_id,
+            },
+            { title: "Merchant", dataIndex: "merchant_id" },
+            { title: "Amount", dataIndex: "collected_amount" },
+            { title: "Reference", dataIndex: "payment_reference" },
+            { title: "Session", dataIndex: "payment_session_id" },
+            {
+              title: "Status",
+              dataIndex: "status",
+              render: (v) => <Tag color="green">{v}</Tag>,
+            },
+          ]}
+        />
+      </Card>
+
+      <Card
+        title="Merchant settlements (cash payable)"
+        extra={<Button onClick={() => setSettleOpen(true)}>Generate settlement</Button>}
+        loading={loading}
+      >
+        <Table
+          rowKey="id"
+          dataSource={settlements}
+          columns={[
+            { title: "Number", dataIndex: "settlement_number" },
+            { title: "Merchant", dataIndex: "merchant_id" },
+            { title: "POD", dataIndex: "total_pod_collected" },
+            { title: "Payable", dataIndex: "final_payable_amount" },
+            {
+              title: "Status",
+              dataIndex: "status",
+              render: (v) => <Tag>{v}</Tag>,
+            },
+            {
+              title: "Action",
+              render: (_, r) => (
+                <Button
+                  disabled={["paid", "settled"].includes(String(r.status))}
+                  onClick={() => markPaid(r.id)}
+                >
+                  Mark paid
+                </Button>
+              ),
+            },
+          ]}
+        />
+      </Card>
+
+      <Modal
+        title="Generate merchant settlement"
+        open={settleOpen}
+        onCancel={() => setSettleOpen(false)}
+        onOk={() => form.validateFields().then(createSettlement)}
+      >
+        <Form form={form} layout="vertical">
+          <Row gutter={16}>
+            <Col span={24}>
+              <Form.Item
+                name="merchant_id"
+                label="Merchant ID"
+                rules={[{ required: true, message: "Merchant ID is required" }]}
+              >
+                <InputNumber style={{ width: "100%" }} min={1} />
+              </Form.Item>
+            </Col>
+            <Col span={24}>
+              <Form.Item name="adjustments" label="Adjustments">
+                <InputNumber style={{ width: "100%" }} />
+              </Form.Item>
+            </Col>
+            <Col span={24}>
+              <Input.TextArea
+                disabled
+                value="Uses delivered shipments with settlement_status=ready (cash deposited). Online paid_direct shipments are excluded from payable."
+                autoSize
+              />
+            </Col>
+          </Row>
+        </Form>
+      </Modal>
+    </Space>
+  );
 }
