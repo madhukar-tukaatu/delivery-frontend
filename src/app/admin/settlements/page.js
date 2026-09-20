@@ -30,6 +30,7 @@ function unwrap(response) {
 export default function SettlementsPage() {
   const [pendingDeposit, setPendingDeposit] = useState([]);
   const [settlements, setSettlements] = useState([]);
+  const [invoices, setInvoices] = useState([]);
   const [counts, setCounts] = useState(null);
   const [hint, setHint] = useState("");
   const [selectedIds, setSelectedIds] = useState([]);
@@ -45,24 +46,27 @@ export default function SettlementsPage() {
     setLoading(true);
     setLoadError("");
     try {
-      const [pendingRes, settlementsRes] = await Promise.all([
+      const [pendingRes, settlementsRes, invoicesRes] = await Promise.all([
         api.get("/admin/settlements/pending-cash", { params: { per_page: 100 } }),
         api.get("/admin/settlements", { params: { per_page: 50 } }),
+        api.get("/admin/invoices", { params: { type: "delivery_charges", per_page: 50 } }),
       ]);
 
       const pending = unwrap(pendingRes);
       const settled = unwrap(settlementsRes);
+      const billed = unwrap(invoicesRes);
 
       setPendingDeposit(pending?.pending_deposit || []);
       setCounts(pending?.counts || null);
       setHint(pending?.hint || "");
       setSettlements(settled?.data || settled || []);
+      setInvoices(billed?.data || billed || []);
       setSelectedIds([]);
     } catch (e) {
       const msg =
         e?.response?.data?.message ||
         e?.message ||
-        "Could not load settlements / pending cash.";
+        "Could not load settlements / bills.";
       setLoadError(msg);
       message.error(msg);
     } finally {
@@ -95,7 +99,7 @@ export default function SettlementsPage() {
         pod_record_ids: selectedIds,
         remarks: "Branch deposit from settlements console",
       });
-      message.success("Cash deposited. Those shipments are now ready to settle.");
+      message.success("Cash deposited. POD settlement batch updated.");
       load();
     } catch (e) {
       message.error(e?.response?.data?.message || "Deposit failed.");
@@ -155,7 +159,7 @@ export default function SettlementsPage() {
         cash_path: values.cash_path || "after_deposit",
         ...periodParams(values),
       });
-      message.success("Settlement generated (POD cash + delivery charges).");
+      message.success("POD settlement generated (cash payable to merchant).");
       setSettleOpen(false);
       form.resetFields();
       setPreview(null);
@@ -166,13 +170,38 @@ export default function SettlementsPage() {
     }
   }
 
-  async function markPaid(id) {
+  async function markSettlementPaid(id) {
     try {
       await api.post(`/admin/settlements/${id}/mark-paid`, {});
-      message.success("Settlement marked paid.");
+      message.success("POD settlement marked paid to merchant.");
       load();
     } catch (e) {
       message.error(e?.response?.data?.message || "Mark paid failed.");
+    }
+  }
+
+  async function paySettlementHamroPay(id) {
+    try {
+      const res = await api.post(`/admin/settlements/${id}/pay-hamropay`, {});
+      const data = unwrap(res);
+      message.success("HamroPay session created. Complete checkout to pay the merchant.");
+      if (data?.gateway_url && data?.checkout) {
+        // Keep session details visible for ops; open gateway when URL present.
+        console.info("HamroPay checkout", data);
+      }
+      load();
+    } catch (e) {
+      message.error(e?.response?.data?.message || "HamroPay pay failed. Register merchant KYB first.");
+    }
+  }
+
+  async function markInvoicePaid(id) {
+    try {
+      await api.post(`/admin/invoices/${id}/mark-paid`, {});
+      message.success("Delivery bill marked paid by merchant.");
+      load();
+    } catch (e) {
+      message.error(e?.response?.data?.message || "Mark invoice paid failed.");
     }
   }
 
@@ -181,13 +210,16 @@ export default function SettlementsPage() {
       <Alert
         type="info"
         showIcon
-        message="What appears on settlements automatically"
+        message="Money tracks (POD + delivery bills + HQ commission)"
         description={
           <div>
             <Paragraph style={{ marginBottom: 8 }}>
-              <strong>Prepaid</strong> and <strong>POD online</strong> -> listed on settlements right after
-              successful delivery. <strong>POD cash</strong> -> listed only after branch deposit
-              (section 1). Use Generate only as catch-up. Mark paid when you pay the merchant.
+              <strong>1. POD settlement</strong> — cash collected for the merchant.
+              Listed after branch deposit. Payable = full POD cash (no delivery fee deducted).
+            </Paragraph>
+            <Paragraph style={{ marginBottom: 0 }}>
+              <strong>2. Delivery charge bills</strong> — merchant-owed checkout delivery fees
+              (and POD service fees). Auto-created after successful delivery. Billed separately. HQ commission (branch → Tukaatu Express) is on /admin/hq-commissions.
             </Paragraph>
           </div>
         }
@@ -202,13 +234,13 @@ export default function SettlementsPage() {
           <Tag color="orange">
             Awaiting branch deposit: {counts.awaiting_branch_deposit}
           </Tag>
-          <Tag color="blue">Ready to settle: {counts.ready_to_settle}</Tag>
-          <Tag>Settlement batches: {counts.settlements}</Tag>
+          <Tag color="blue">Ready to settle POD: {counts.ready_to_settle}</Tag>
+          <Tag>POD settlement batches: {counts.settlements}</Tag>
         </Space>
       ) : null}
 
       <Card
-        title="1. Branch deposit — cash POD from riders (appears here first)"
+        title="1. Branch deposit — cash POD from riders"
         extra={
           <Button type="primary" disabled={!selectedIds.length} onClick={depositSelected}>
             Deposit selected (Rs. {selectedAmount.toFixed(2)})
@@ -220,8 +252,7 @@ export default function SettlementsPage() {
           rowKey={(r) => r.pod_record_id || r.id}
           dataSource={pendingDeposit}
           locale={{
-            emptyText:
-              "No cash POD awaiting deposit. After rider Complete (cash), a row should appear here. If a delivery shows pending_deposit in DB but nothing here, redeploy backend or check pod_records.status=collected.",
+            emptyText: "No cash POD awaiting deposit.",
           }}
           rowSelection={{
             selectedRowKeys: selectedIds,
@@ -241,10 +272,7 @@ export default function SettlementsPage() {
               title: "Status",
               dataIndex: "status",
               render: (v, r) => (
-                <Space>
-                  <Tag color={r.can_deposit ? "orange" : "red"}>{v}</Tag>
-                  {!r.can_deposit ? <Tag>fix POD row</Tag> : null}
-                </Space>
+                <Tag color={r.can_deposit ? "orange" : "red"}>{v}</Tag>
               ),
             },
           ]}
@@ -257,10 +285,10 @@ export default function SettlementsPage() {
       </Card>
 
       <Card
-        title="2. Merchant settlements — generated batches (empty until Generate)"
+        title="2. POD settlements — payable to merchant (full POD cash)"
         extra={
           <Button onClick={openSettle}>
-            Generate (catch-up)
+            Generate POD settlement (catch-up)
           </Button>
         }
         loading={loading}
@@ -270,7 +298,7 @@ export default function SettlementsPage() {
           dataSource={settlements}
           locale={{
             emptyText:
-              "No settlement batches yet. They appear automatically after a successful delivery. Use Generate only if something was missed.",
+              "No POD settlements yet. They appear after branch deposit of cash POD.",
           }}
           pagination={{ pageSize: 10 }}
           columns={[
@@ -286,10 +314,8 @@ export default function SettlementsPage() {
                   <Tag color="blue">After deposit</Tag>
                 ),
             },
-            { title: "POD cash", dataIndex: "total_pod_collected" },
-            { title: "Delivery charges", dataIndex: "total_delivery_charges" },
-            { title: "POD fees", dataIndex: "total_pod_charges" },
-            { title: "Payable", dataIndex: "final_payable_amount" },
+            { title: "POD cash (payable)", dataIndex: "total_pod_collected" },
+            { title: "Payable to merchant", dataIndex: "final_payable_amount" },
             {
               title: "Status",
               dataIndex: "status",
@@ -298,27 +324,92 @@ export default function SettlementsPage() {
             {
               title: "Action",
               render: (_, r) => (
-                <Button
-                  disabled={["paid", "settled"].includes(String(r.status))}
-                  onClick={() => markPaid(r.id)}
-                >
-                  Mark paid
-                </Button>
+                <Space>
+                  <Button
+                    type="primary"
+                    disabled={["paid", "settled"].includes(String(r.status))}
+                    onClick={() => paySettlementHamroPay(r.id)}
+                  >
+                    Pay via HamroPay
+                  </Button>
+                  <Button
+                    disabled={["paid", "settled"].includes(String(r.status))}
+                    onClick={() => markSettlementPaid(r.id)}
+                  >
+                    Mark paid (manual)
+                  </Button>
+                </Space>
               ),
             },
           ]}
         />
       </Card>
 
+      <Card
+        title="3. Delivery charge bills — merchant owes platform (checkout fees)"
+        loading={loading}
+      >
+        <Table
+          rowKey="id"
+          dataSource={invoices}
+          locale={{
+            emptyText:
+              "No delivery bills yet. They auto-create after successful delivery when the merchant owes delivery fees.",
+          }}
+          pagination={{ pageSize: 10 }}
+          columns={[
+            { title: "Invoice", dataIndex: "invoice_number" },
+            { title: "Merchant", dataIndex: "merchant_id" },
+            { title: "Date", dataIndex: "invoice_date" },
+            { title: "Subtotal", dataIndex: "subtotal" },
+            { title: "Total due", dataIndex: "total_amount" },
+            {
+              title: "Status",
+              dataIndex: "status",
+              render: (v) => (
+                <Tag color={v === "paid" ? "green" : "volcano"}>{v}</Tag>
+              ),
+            },
+            {
+              title: "Action",
+              render: (_, r) => (
+                <Button
+                  disabled={String(r.status) === "paid"}
+                  onClick={() => markInvoicePaid(r.id)}
+                >
+                  Mark bill paid
+                </Button>
+              ),
+            },
+          ]}
+          expandable={{
+            expandedRowRender: (r) => (
+              <Table
+                size="small"
+                pagination={false}
+                rowKey="id"
+                dataSource={r.items || []}
+                columns={[
+                  { title: "Description", dataIndex: "description" },
+                  { title: "Qty", dataIndex: "quantity" },
+                  { title: "Unit", dataIndex: "unit_price" },
+                  { title: "Total", dataIndex: "total" },
+                ]}
+              />
+            ),
+          }}
+        />
+      </Card>
+
       <Modal
-        title="Generate accountable settlement"
+        title="Generate POD settlement (catch-up)"
         open={settleOpen}
         onCancel={() => setSettleOpen(false)}
         width={720}
         destroyOnClose
         footer={[
           <Button key="prev" loading={previewLoading} onClick={runPreview}>
-            Preview breakdown
+            Preview
           </Button>,
           <Button key="cancel" onClick={() => setSettleOpen(false)}>
             Cancel
@@ -336,27 +427,19 @@ export default function SettlementsPage() {
           <Form.Item name="cash_path" label="Cash POD path" rules={[{ required: true }]}>
             <Radio.Group>
               <Space direction="vertical">
-                <Radio value="after_deposit">
-                  After branch deposit (preferred)
-                </Radio>
+                <Radio value="after_deposit">After branch deposit (preferred)</Radio>
                 <Radio value="on_collection">
                   From collected cash (optional, before deposit)
                 </Radio>
               </Space>
             </Radio.Group>
           </Form.Item>
-
           <Alert
             style={{ marginBottom: 16 }}
-            type={cashPath === "on_collection" ? "warning" : "success"}
+            type="success"
             showIcon
-            message={
-              cashPath === "on_collection"
-                ? "Uses collected cash still with riders. Merchant delivery charges are still deducted."
-                : "Uses deposited cash POD. Also includes fee-only deliveries where merchant owes delivery charge."
-            }
+            message="Payable to merchant = full POD cash. Delivery fees are billed on invoices, not deducted here."
           />
-
           <Row gutter={16}>
             <Col span={12}>
               <Form.Item
@@ -382,31 +465,10 @@ export default function SettlementsPage() {
 
         {preview && (
           <Card size="small" title="Preview" style={{ marginTop: 8 }}>
-            <Space direction="vertical" style={{ width: "100%" }}>
-              <Text>
-                Shipments: {preview.shipment_count} · POD cash: Rs.{" "}
-                {Number(preview.total_pod_collected || 0).toFixed(2)} · Delivery
-                charges: Rs. {Number(preview.total_delivery_charges || 0).toFixed(2)} ·
-                Payable:{" "}
-                <strong>
-                  Rs. {Number(preview.final_payable_amount || 0).toFixed(2)}
-                </strong>
-              </Text>
-              <Table
-                size="small"
-                rowKey="shipment_id"
-                pagination={false}
-                dataSource={preview.lines || []}
-                columns={[
-                  { title: "Tracking", dataIndex: "tracking_number" },
-                  { title: "Type", dataIndex: "payment_type" },
-                  { title: "POD cash", dataIndex: "pod_amount" },
-                  { title: "Delivery owed", dataIndex: "delivery_charge" },
-                  { title: "Payer", dataIndex: "delivery_charge_paid_by" },
-                  { title: "Net", dataIndex: "net_amount" },
-                ]}
-              />
-            </Space>
+            <Text>
+              Shipments: {preview.shipment_count} | POD cash payable: Rs.{" "}
+              {Number(preview.final_payable_amount || preview.total_pod_collected || 0).toFixed(2)}
+            </Text>
           </Card>
         )}
       </Modal>
