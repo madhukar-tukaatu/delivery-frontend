@@ -111,6 +111,73 @@ function isPod(paymentType) {
   return ["pod", "cod", "to_pay"].includes(String(paymentType || "").toLowerCase());
 }
 
+/** Post-complete money state for branch managers. */
+function moneyFollowUp(shipment = {}) {
+  const paymentType = String(shipment.payment_type || "").toLowerCase();
+  const podStatus = String(shipment.pod_status || "").toLowerCase();
+  const settlementStatus = String(shipment.settlement_status || "").toLowerCase();
+  const pod = isPod(paymentType);
+  const amount = Number(shipment.total_collectable_amount || shipment.pod_amount || 0);
+
+  if (settlementStatus === "settled" || settlementStatus === "processing") {
+    return {
+      kind: settlementStatus,
+      label: settlementStatus === "settled" ? "Settled with merchant" : "Settlement processing",
+      color: settlementStatus === "settled" ? "success" : "processing",
+      linkSettlements: settlementStatus === "processing",
+    };
+  }
+
+  if (pod && amount > 0 && (podStatus === "collected" || settlementStatus === "pending_deposit")) {
+    return {
+      kind: "pod_cash",
+      label: "Cash with rider — deposit at branch",
+      color: "orange",
+      linkSettlements: true,
+    };
+  }
+
+  if (pod && (podStatus === "deposited" || settlementStatus === "ready") && podStatus !== "paid_direct") {
+    return {
+      kind: "ready",
+      label: "Deposited — ready to settle",
+      color: "blue",
+      linkSettlements: true,
+    };
+  }
+
+  if (pod && podStatus === "paid_direct") {
+    return {
+      kind: "pod_online",
+      label:
+        settlementStatus === "ready"
+          ? "Online paid to merchant — delivery fee may still settle"
+          : "Online paid to merchant — no cash pool",
+      color: "green",
+      linkSettlements: settlementStatus === "ready",
+    };
+  }
+
+  if (!pod || amount <= 0) {
+    return {
+      kind: "prepaid",
+      label:
+        settlementStatus === "ready"
+          ? "Prepaid — merchant delivery fee to settle"
+          : "Prepaid — complete (no door collection)",
+      color: settlementStatus === "ready" ? "blue" : "default",
+      linkSettlements: settlementStatus === "ready",
+    };
+  }
+
+  return {
+    kind: "other",
+    label: `POD ${podStatus || "—"} / ${settlementStatus || "—"}`,
+    color: "default",
+    linkSettlements: ["pending_deposit", "ready"].includes(settlementStatus),
+  };
+}
+
 function initials(name) {
   const parts = String(name || "").trim().split(/\s+/).filter(Boolean);
   if (!parts.length) return "?";
@@ -360,15 +427,27 @@ export default function DeliveriesPage() {
           const s = r.shipment ?? {};
           const pod = isPod(s.payment_type);
           const amount = Number(s.total_collectable_amount || s.pod_amount || 0);
-          return pod ? (
-            <Space direction="vertical" size={0}>
-              <Tag color="volcano" style={{ margin: 0 }}>
-                <DollarOutlined /> POD
-              </Tag>
-              <Text strong style={{ fontSize: 12 }}>{money(amount)}</Text>
+          const delivered = r.status === "delivered";
+          const follow = delivered ? moneyFollowUp(s) : null;
+
+          return (
+            <Space direction="vertical" size={2}>
+              {pod ? (
+                <Space direction="vertical" size={0}>
+                  <Tag color="volcano" style={{ margin: 0 }}>
+                    <DollarOutlined /> POD
+                  </Tag>
+                  <Text strong style={{ fontSize: 12 }}>{money(amount)}</Text>
+                </Space>
+              ) : (
+                <Tag color="green" style={{ margin: 0 }}>Prepaid</Tag>
+              )}
+              {follow ? (
+                <Tag color={follow.color} style={{ margin: 0, whiteSpace: "normal", maxWidth: 180 }}>
+                  {follow.label}
+                </Tag>
+              ) : null}
             </Space>
-          ) : (
-            <Tag color="green" style={{ margin: 0 }}>Prepaid</Tag>
           );
         },
       },
@@ -400,26 +479,40 @@ export default function DeliveriesPage() {
       {
         title: "",
         key: "actions",
-        render: (_, r) => (
-          <Space size={4}>
-            {can?.("deliveries.assign") && ["pending", "assigned"].includes(r.status) && (
-              <Button
-                size="small"
-                type="primary"
-                icon={<UserAddOutlined />}
-                onClick={() => openAssign(r)}
-              >
-                {r.status === "pending" ? "Assign" : "Reassign"}
-              </Button>
-            )}
-            {can?.("deliveries.failed") &&
-              ["pending", "assigned", "accepted", "out_for_delivery"].includes(r.status) && (
-                <Button size="small" danger onClick={() => handleFail(r)}>
-                  Fail
+        render: (_, r) => {
+          const follow = r.status === "delivered" ? moneyFollowUp(r.shipment ?? {}) : null;
+
+          return (
+            <Space size={4} wrap>
+              {can?.("deliveries.assign") && ["pending", "assigned"].includes(r.status) && (
+                <Button
+                  size="small"
+                  type="primary"
+                  icon={<UserAddOutlined />}
+                  onClick={() => openAssign(r)}
+                >
+                  {r.status === "pending" ? "Assign" : "Reassign"}
                 </Button>
               )}
-          </Space>
-        ),
+              {can?.("deliveries.failed") &&
+                ["pending", "assigned", "accepted", "out_for_delivery"].includes(r.status) && (
+                  <Button size="small" danger onClick={() => handleFail(r)}>
+                    Fail
+                  </Button>
+                )}
+              {follow?.linkSettlements && (
+                <Button
+                  size="small"
+                  type="default"
+                  icon={<DollarOutlined />}
+                  href="/admin/settlements"
+                >
+                  {follow.kind === "pod_cash" ? "Deposit / settle" : "Settlements"}
+                </Button>
+              )}
+            </Space>
+          );
+        },
       },
     ],
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -443,7 +536,7 @@ export default function DeliveriesPage() {
     <div style={{ padding: 16, background: "#f7f8fa", minHeight: "100%" }}>
       <AdminPageHeader
         title="Deliveries"
-        subtitle="Assign riders and track last-mile deliveries and transfers"
+        subtitle="Assign riders, track last-mile, and follow cash POD / settlement after delivery"
         actions={
           <>
             <Input
