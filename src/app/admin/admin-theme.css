@@ -550,6 +550,108 @@
   background: #94A3B8;
 }
 
+/* ============ SHIPMENTS PAGE ENHANCEMENTS ============ */
+
+/* Row highlighting for status */
+.admin-layout .ant-table-tbody > tr.row-success:hover > td {
+  background: #ECFDF5 !important;
+}
+
+.admin-layout .ant-table-tbody > tr.row-danger:hover > td {
+  background: #FEF2F2 !important;
+}
+
+.admin-layout .ant-table-tbody > tr.row-info:hover > td {
+  background: #F0F9FB !important;
+}
+
+/* Enhanced stat cards */
+.admin-stat-card {
+  background: linear-gradient(135deg, #FFFFFF 0%, #F9FAFB 100%) !important;
+  transition: all 0.3s ease !important;
+}
+
+.admin-stat-card:hover {
+  background: linear-gradient(135deg, #F8FAFC 0%, #FFFFFF 100%) !important;
+  transform: translateY(-2px) !important;
+  box-shadow: 0 8px 16px rgba(8, 145, 178, 0.15) !important;
+}
+
+/* Shipment table cell styling */
+.admin-layout .ant-table .ant-table-cell {
+  vertical-align: middle !important;
+}
+
+/* Status badge styling */
+.admin-layout .ant-badge {
+  margin-bottom: 2px !important;
+}
+
+.admin-layout .ant-badge-status-dot {
+  width: 8px !important;
+  height: 8px !important;
+  margin-right: 6px !important;
+}
+
+/* Filter card styling */
+.admin-layout .ant-card-head {
+  background: linear-gradient(90deg, #FFFFFF 0%, #F8FAFC 100%) !important;
+}
+
+/* Tracking number button styling */
+.tracking-link {
+  color: #0891B2 !important;
+  text-decoration: none !important;
+  font-weight: 600 !important;
+  font-size: 12px !important;
+  transition: all 0.2s ease !important;
+}
+
+.tracking-link:hover {
+  color: #0e7490 !important;
+  text-decoration: underline !important;
+}
+
+/* Service type tags */
+.admin-layout .ant-tag {
+  font-weight: 600 !important;
+  letter-spacing: 0.3px !important;
+}
+
+.admin-layout .ant-tag-blue {
+  background: #EFF6FF !important;
+  border-color: #3B82F6 !important;
+  color: #1E40AF !important;
+}
+
+/* Arrow icon in route */
+.route-arrow {
+  color: #0891B2 !important;
+  margin: 0 4px !important;
+  font-weight: 700 !important;
+}
+
+/* Empty state styling */
+.admin-layout .ant-empty-description {
+  color: #94A3B8 !important;
+  font-size: 13px !important;
+}
+
+/* Segmented control styling */
+.admin-layout .ant-segmented {
+  padding: 4px !important;
+  background: #F1F5F9 !important;
+}
+
+.admin-layout .ant-segmented-item {
+  border-radius: 6px !important;
+}
+
+.admin-layout .ant-segmented-item-selected {
+  background: #0891B2 !important;
+  box-shadow: 0 2px 8px rgba(8, 145, 178, 0.2) !important;
+}
+
 /* ============ RESPONSIVE DESIGN ============ */
 
 /* Tablet */
