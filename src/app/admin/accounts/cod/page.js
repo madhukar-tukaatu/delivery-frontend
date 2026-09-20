@@ -2,13 +2,14 @@
 
 import { useEffect, useMemo, useState } from "react";
 import {
+  Alert,
   Button,
   Card,
   Col,
   Form,
-  Input,
   InputNumber,
   Modal,
+  Radio,
   Row,
   Space,
   Table,
@@ -29,6 +30,7 @@ export default function AdminCodAccountsPage() {
   const [loading, setLoading] = useState(false);
   const [settleOpen, setSettleOpen] = useState(false);
   const [form] = Form.useForm();
+  const cashPath = Form.useWatch("cash_path", form);
 
   async function load() {
     setLoading(true);
@@ -84,13 +86,20 @@ export default function AdminCodAccountsPage() {
 
   async function createSettlement(values) {
     try {
+      const path = values.cash_path || "after_deposit";
       await api.post("/admin/settlements", {
         merchant_id: values.merchant_id,
         adjustments: values.adjustments || 0,
+        cash_path: path,
       });
-      message.success("Settlement generated from deposited cash shipments.");
+      message.success(
+        path === "on_collection"
+          ? "Settlement generated from collected cash (before deposit)."
+          : "Settlement generated from deposited cash shipments."
+      );
       setSettleOpen(false);
       form.resetFields();
+      form.setFieldsValue({ cash_path: "after_deposit" });
       load();
     } catch (e) {
       message.error(e?.response?.data?.message || "Settlement create failed.");
@@ -100,17 +109,29 @@ export default function AdminCodAccountsPage() {
   async function markPaid(id) {
     try {
       await api.post(`/admin/settlements/${id}/mark-paid`, {});
-      message.success("Settlement marked paid.");
+      message.success("Settlement marked paid (merchant paid).");
       load();
     } catch (e) {
       message.error(e?.response?.data?.message || "Mark paid failed.");
     }
   }
 
+  function openSettleModal() {
+    form.setFieldsValue({ cash_path: "after_deposit", adjustments: 0 });
+    setSettleOpen(true);
+  }
+
   return (
     <Space direction="vertical" size={16} style={{ width: "100%" }}>
+      <Alert
+        type="info"
+        showIcon
+        message="Cash POD: pay merchant first"
+        description="Preferred path: rider collects → branch deposit → generate settlement → mark paid. Optional path: settle from collected cash before deposit when you need to pay the merchant sooner. Online prepaid/POD stay out of this cash pool."
+      />
+
       <Card
-        title="Cash POD awaiting branch deposit"
+        title="Cash POD awaiting branch deposit (preferred)"
         extra={
           <Button type="primary" disabled={!selectedIds.length} onClick={depositSelected}>
             Deposit selected (Rs. {selectedAmount.toFixed(2)})
@@ -167,7 +188,7 @@ export default function AdminCodAccountsPage() {
 
       <Card
         title="Merchant settlements (cash payable)"
-        extra={<Button onClick={() => setSettleOpen(true)}>Generate settlement</Button>}
+        extra={<Button type="primary" onClick={openSettleModal}>Generate settlement</Button>}
         loading={loading}
       >
         <Table
@@ -176,6 +197,16 @@ export default function AdminCodAccountsPage() {
           columns={[
             { title: "Number", dataIndex: "settlement_number" },
             { title: "Merchant", dataIndex: "merchant_id" },
+            {
+              title: "Path",
+              dataIndex: "cash_path",
+              render: (v) =>
+                v === "on_collection" ? (
+                  <Tag color="gold">Before deposit</Tag>
+                ) : (
+                  <Tag color="blue">After deposit</Tag>
+                ),
+            },
             { title: "POD", dataIndex: "total_pod_collected" },
             { title: "Payable", dataIndex: "final_payable_amount" },
             {
@@ -203,8 +234,39 @@ export default function AdminCodAccountsPage() {
         open={settleOpen}
         onCancel={() => setSettleOpen(false)}
         onOk={() => form.validateFields().then(createSettlement)}
+        okText="Generate"
+        width={560}
+        destroyOnClose
       >
-        <Form form={form} layout="vertical">
+        <Form form={form} layout="vertical" initialValues={{ cash_path: "after_deposit", adjustments: 0 }}>
+          <Form.Item
+            name="cash_path"
+            label="Cash settlement path"
+            rules={[{ required: true, message: "Choose a cash path." }]}
+          >
+            <Radio.Group>
+              <Space direction="vertical">
+                <Radio value="after_deposit">
+                  After branch deposit (preferred) - shipments with settlement_status ready
+                </Radio>
+                <Radio value="on_collection">
+                  From collected cash (optional) - pay merchant before deposit; rider cash still deposits later
+                </Radio>
+              </Space>
+            </Radio.Group>
+          </Form.Item>
+
+          <Alert
+            type={cashPath === "on_collection" ? "warning" : "success"}
+            showIcon
+            style={{ marginBottom: 16 }}
+            message={
+              cashPath === "on_collection"
+                ? "Optional path: uses collected / pending_deposit cash POD. Deposit can still happen afterward for cash control."
+                : "Preferred path: only deposited cash POD (ready). Online paid_direct is excluded."
+            }
+          />
+
           <Row gutter={16}>
             <Col span={24}>
               <Form.Item
@@ -219,13 +281,6 @@ export default function AdminCodAccountsPage() {
               <Form.Item name="adjustments" label="Adjustments">
                 <InputNumber style={{ width: "100%" }} />
               </Form.Item>
-            </Col>
-            <Col span={24}>
-              <Input.TextArea
-                disabled
-                value="Uses delivered shipments with settlement_status=ready (cash deposited). Online paid_direct shipments are excluded from payable."
-                autoSize
-              />
             </Col>
           </Row>
         </Form>

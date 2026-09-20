@@ -145,6 +145,33 @@ function isCollectable(delivery) {
   return isPodDelivery(delivery) && collectableAmount(delivery) > 0;
 }
 
+function isPrepaidDelivery(delivery) {
+  return !isCollectable(delivery);
+}
+
+function completionTypeOf(delivery, paymentMethod = "cash") {
+  if (!isCollectable(delivery)) return "prepaid";
+  return paymentMethod === "online" ? "pod_online" : "pod_cash";
+}
+
+function canCompleteDelivery(delivery) {
+  return (
+    delivery?.status === "out_for_delivery" &&
+    !!delivery?.arrived_at
+  );
+}
+
+function paymentTypeLabel(delivery) {
+  const type = paymentTypeOf(delivery);
+  if (["pod", "cod", "to_pay"].includes(type)) {
+    return collectableAmount(delivery) > 0 ? "POD (collect at door)" : "POD (nothing due)";
+  }
+  if (["prepaid", "paid", "online"].includes(type) || type === "") {
+    return "Prepaid";
+  }
+  return type || "Prepaid";
+}
+
 function deliveryProgressStep(delivery) {
   if (delivery?.status === "delivered") return 4;
   if (delivery?.arrived_at) return 3;
@@ -522,11 +549,21 @@ export default function StaffDeliveriesPage() {
       return;
     }
 
+    if (!canCompleteDelivery(paymentDelivery)) {
+      message.warning("Arrive at the delivery location before completing.");
+      return;
+    }
+
     const receiptProof = {
-      customer_confirmed: values.customer_confirmed,
-      customer_name: values.customer_name,
+      customer_confirmed: true,
+      customer_name: String(values.customer_name || "").trim(),
       customer_signature: values.customer_signature,
     };
+
+    if (!values.customer_confirmed) {
+      message.warning("Customer confirmation is required.");
+      return;
+    }
 
     const payload = collectable
       ? {
@@ -534,7 +571,7 @@ export default function StaffDeliveriesPage() {
           payment_method: values.payment_method,
           pod_collected_amount: collectableAmount(paymentDelivery),
           ...(values.payment_method === "online"
-            ? { payment_session_id: paymentSession.payment_session_id }
+            ? { payment_session_id: paymentSession?.payment_session_id }
             : {}),
         }
       : receiptProof;
@@ -807,12 +844,12 @@ export default function StaffDeliveriesPage() {
                 disabled={
                   !!busyAction ||
                   delivery.status !== "out_for_delivery" ||
-                  !delivery.arrived_at
+                  !canCompleteDelivery(delivery)
                 }
                 loading={busyAction === `deliver:${delivery.id}`}
                 onClick={() => openDeliveryConfirmation(delivery)}
               >
-                {delivery.arrived_at ? "Complete Delivery" : "Complete after arrival"}
+                {canCompleteDelivery(delivery) ? (isCollectable(delivery) ? "Collect & complete" : "Confirm receipt & complete") : "Complete after arrival"}
               </Button>
               <Button
                 size="small"
@@ -880,7 +917,7 @@ export default function StaffDeliveriesPage() {
               description={
                 deliveryIsCollectable
                   ? "Collect the exact amount directly for the merchant, or verify the Store Manager online payment before completing delivery."
-                  : "Ask the customer to confirm receipt and sign before completing this prepaid delivery."
+                  : "Prepaid: confirm receiver name and signature only - no cash or QR collection."
               }
               style={{ marginBottom: 16 }}
             />
@@ -1050,8 +1087,8 @@ export default function StaffDeliveriesPage() {
             <Alert
               type="success"
               showIcon
-              message="Prepaid delivery"
-              description="No payment is collected. After reaching the location, ask the customer to confirm receipt, enter the receiver name, and sign before completing delivery."
+              message="Prepaid - no collection at the door"
+              description="Do not collect cash or open Store Manager QR. Confirm the receiver, take their name and signature, then complete."
               style={{ marginBottom: 16 }}
             />
           )}
@@ -1102,12 +1139,12 @@ export default function StaffDeliveriesPage() {
                 disabled={
                   !!busyAction ||
                   delivery.status !== "out_for_delivery" ||
-                  !delivery.arrived_at
+                  !canCompleteDelivery(delivery)
                 }
                 loading={busyAction === `deliver:${delivery.id}`}
                 onClick={() => openDeliveryConfirmation(delivery)}
               >
-                {delivery.arrived_at ? "Complete Delivery" : "Complete after arrival"}
+                {canCompleteDelivery(delivery) ? (isCollectable(delivery) ? "Collect & complete" : "Confirm receipt & complete") : "Complete after arrival"}
               </Button>
               <Button
                 block
@@ -1181,7 +1218,7 @@ export default function StaffDeliveriesPage() {
         style={{ marginBottom: "24px", borderRadius: 12 }}
         title={
           <div>
-            <h2 style={{ margin: 0 }}>📦 Deliveries</h2>
+            <h2 style={{ margin: 0 }}>ðŸ“¦ Deliveries</h2>
             <p style={{ margin: "4px 0 0 0", color: "#666", fontSize: "12px" }}>
               {statusCounts.all} {statusCounts.all === 1 ? "delivery" : "deliveries"} in your assigned history
             </p>
@@ -1299,13 +1336,13 @@ export default function StaffDeliveriesPage() {
             <Alert
               type="info"
               showIcon
-              message={`Collect Rs. ${collectableAmount(paymentDelivery).toFixed(2)} from the customer for ${
+              message={`${paymentTypeLabel(paymentDelivery)} - collect Rs. ${collectableAmount(paymentDelivery).toFixed(2)} for ${
                 paymentDelivery?.shipment?.merchant?.name || "the merchant"
               }.`}
               description={
                 paymentMethod === "online"
-                  ? "After Store Manager verifies the merchant payment, the receiver must confirm receipt, provide their name, and sign before delivery is completed."
-                  : "After the rider collects the cash for the merchant, the receiver must confirm receipt, provide their name, and sign before delivery is completed."
+                  ? "After Store Manager verifies payment, take receiver name and signature, then complete."
+                  : "Collect exact cash for the merchant. After delivery, that cash must be deposited at the branch before merchant settlement."
               }
               style={{ marginBottom: 16 }}
             />
@@ -1451,8 +1488,8 @@ export default function StaffDeliveriesPage() {
             <Alert
               type="success"
               showIcon
-              message="This shipment is prepaid"
-              description="No payment is collected at delivery. The customer must confirm receipt and sign before the rider completes the delivery."
+              message="Prepaid - no collection at the door"
+              description="Do not collect cash or open Store Manager QR. Confirm the receiver, take their name and signature, then complete."
               style={{ marginBottom: 16 }}
             />
 
