@@ -85,7 +85,7 @@ export default function PricingQuoteDetailPage() {
       render: (value) => <Tag color={value === "fragile" ? "volcano" : "blue"}>{value}</Tag>,
     },
     { title: "Actual KG", dataIndex: "actual_weight_kg", width: 100 },
-    { title: "Volumetric KG", dataIndex: "volumetric_weight_kg", width: 130, render: (value) => value ?? "—" },
+    { title: "Volumetric KG", dataIndex: "volumetric_weight_kg", width: 130, render: (value) => value ?? "-" },
     { title: "Chargeable KG", dataIndex: "chargeable_weight_kg", width: 130 },
     { title: "Base Share", dataIndex: "allocated_base_rate", width: 120, render: (value) => money(value, quote.currency) },
     { title: "Weight Share", dataIndex: "allocated_weight_charge", width: 120, render: (value) => money(value, quote.currency) },
@@ -124,10 +124,10 @@ export default function PricingQuoteDetailPage() {
               size="small"
               column={{ xs: 1, sm: 2, lg: 3 }}
               items={[
-                { key: "store", label: "Store ID", children: quote.store_id ?? "—" },
-                { key: "merchant", label: "Merchant ID", children: quote.merchant_id ?? "—" },
+                { key: "store", label: "Store ID", children: quote.store_id ?? "-" },
+                { key: "merchant", label: "Merchant ID", children: quote.merchant_id ?? "-" },
                 { key: "service", label: "Service", children: quote.service_type },
-                { key: "payment", label: "Payment", children: String(quote.payment_type || "—").toUpperCase() },
+                { key: "payment", label: "Payment", children: String(quote.payment_type || "-").toUpperCase() },
                 { key: "pod", label: "POD Amount", children: money(quote.pod_amount, quote.currency) },
                 { key: "packets", label: "Packets", children: quote.packet_count },
                 { key: "weight", label: "Parcel Weight", children: `${quote.parcel_weight} KG` },
@@ -135,7 +135,7 @@ export default function PricingQuoteDetailPage() {
                 { key: "type", label: "Aggregate Type", children: quote.parcel_type },
                 { key: "created", label: "Created", children: formatDateTime(quote.created_at) },
                 { key: "expires", label: "Expires", children: formatDateTime(quote.expires_at) },
-                { key: "hours", label: "Estimated Hours", children: quote.estimated_hours ?? "—" },
+                { key: "hours", label: "Estimated Hours", children: quote.estimated_hours ?? "-" },
               ]}
             />
           </Card>
@@ -153,10 +153,10 @@ export default function PricingQuoteDetailPage() {
           size="small"
           column={{ xs: 1, md: 2 }}
           items={[
-            { key: "pickup-branch", label: "Pickup Branch", children: snapshot.pickup_branch?.name || "—" },
-            { key: "delivery-branch", label: "Delivery Branch", children: snapshot.delivery_branch?.name || "—" },
-            { key: "pickup", label: "Pickup Address", children: quote.pickup_address || "—" },
-            { key: "delivery", label: "Delivery Address", children: quote.delivery_address || "—" },
+            { key: "pickup-branch", label: "Pickup Branch", children: snapshot.pickup_branch?.name || "-" },
+            { key: "delivery-branch", label: "Delivery Branch", children: snapshot.delivery_branch?.name || "-" },
+            { key: "pickup", label: "Pickup Address", children: quote.pickup_address || "-" },
+            { key: "delivery", label: "Delivery Address", children: quote.delivery_address || "-" },
             { key: "same", label: "Same Branch", children: snapshot.route?.same_branch ? "Yes" : "No" },
             { key: "base", label: "Base Rate", children: money(snapshot.route?.base_rate, quote.currency) },
           ]}

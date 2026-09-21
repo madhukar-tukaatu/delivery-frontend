@@ -6,12 +6,12 @@ import { usePermissions } from "@/hooks/usePermission";
  * Conditionally renders children based on role/permission.
  *
  * Props:
- *   permission      – e.g. "shipments.view"  (optional)
- *   role            – e.g. "branch_manager"  (optional, OR logic with permission)
- *   anyRole         – string[]  (user must have at least one)
- *   branchId        – number    (if set, also checks canForBranch)
- *   fallback        – ReactNode shown when access is denied (default: null)
- *   loadingFallback – ReactNode shown while permissions are loading (default: null)
+ *   permission     -e.g. "shipments.view"  (optional)
+ *   role           -e.g. "branch_manager"  (optional, OR logic with permission)
+ *   anyRole        -string[]  (user must have at least one)
+ *   branchId       -number    (if set, also checks canForBranch)
+ *   fallback       -ReactNode shown when access is denied (default: null)
+ *   loadingFallback-ReactNode shown while permissions are loading (default: null)
  */
 export default function PermissionGate({
   permission,

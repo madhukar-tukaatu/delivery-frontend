@@ -72,7 +72,7 @@ export default function MenusPage() {
       title: "Permission",
       dataIndex: "permission",
       width: 180,
-      render: (v) => v ? <Tag style={{ fontSize: 11 }}>{v}</Tag> : <Text type="secondary">ΓÇö</Text>,
+      render: (v) => v ? <Tag style={{ fontSize: 11 }}>{v}</Tag> : <Text type="secondary">-</Text>,
     },
     {
       title: "Roles",
@@ -96,7 +96,7 @@ export default function MenusPage() {
       title: "Order",
       dataIndex: "sort_order",
       width: 70,
-      render: (v) => <Text style={{ fontSize: 12 }}>{v ?? "ΓÇö"}</Text>,
+      render: (v) => <Text style={{ fontSize: 12 }}>{v ?? "-"}</Text>,
     },
     {
       title: "Status",
@@ -219,7 +219,7 @@ export default function MenusPage() {
       />
       <SimpleTablePageWithCRUD
         key={section}
-        title={`Menu Visibility ΓÇö ${SECTION_TABS.find((s) => s.key === section)?.label}`}
+        title={`Menu Visibility - ${SECTION_TABS.find((s) => s.key === section)?.label}`}
         endpoint={`/admin/menus?section=${section}`}
         columns={columns}
         reloadKey={refresh}

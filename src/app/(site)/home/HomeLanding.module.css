@@ -5,7 +5,7 @@
   overflow-x: clip;
 }
 
-/* ——— HERO ——— */
+/* --- HERO --- */
 .hero {
   position: relative;
   min-height: 100vh;
@@ -449,7 +449,7 @@
   animation: mouseScroll 1.5s infinite;
 }
 
-/* ——— NUMBERS ——— */
+/* --- NUMBERS --- */
 .numbers {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
@@ -483,7 +483,7 @@
   font-size: 13px;
 }
 
-/* ——— AFTER / SERVICES ——— */
+/* --- AFTER / SERVICES --- */
 .afterExperience {
   position: relative;
   overflow: hidden;
@@ -597,7 +597,7 @@
   transform: translateX(4px);
 }
 
-/* ——— FINAL CTA ——— */
+/* --- FINAL CTA --- */
 .finalCta {
   position: relative;
   min-height: 520px;

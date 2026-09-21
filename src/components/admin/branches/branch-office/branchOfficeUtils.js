@@ -207,7 +207,7 @@ export function typeLabel(type) {
   if (type === "sub_branch") return "Sub-Branch";
   if (type === "pickup_point") return "Pickup Point";
   if (type === "delivery_hub") return "Delivery Hub";
-  return type || "—";
+  return type || "-";
 }
 
 export function typeColor(type) {
@@ -220,7 +220,7 @@ export function typeColor(type) {
 }
 
 export function formatDate(value) {
-  if (!value) return "—";
+  if (!value) return "-";
   const date = new Date(value);
   return Number.isNaN(date.getTime()) ? String(value) : date.toLocaleString();
 }

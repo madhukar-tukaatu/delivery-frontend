@@ -43,15 +43,15 @@ export function normalizeTracking(payload) {
       data?.tracking ||
       "",
     status: data?.status || data?.currentStatus || data?.current_status || "UNKNOWN",
-    origin: data?.origin?.name || data?.origin || "—",
-    destination: data?.destination?.name || data?.destination || "—",
+    origin: data?.origin?.name || data?.origin || "-",
+    destination: data?.destination?.name || data?.destination || "-",
     estimatedDelivery:
-      data?.estimatedDelivery || data?.estimated_delivery || "—",
+      data?.estimatedDelivery || data?.estimated_delivery || "-",
     currentLocation:
       data?.currentLocation?.name ||
       data?.current_location ||
       data?.location ||
-      "—",
+      "-",
     timeline:
       data?.timeline ||
       data?.events ||

@@ -850,7 +850,7 @@ export default function CoverageLocationForm({
                       children:
                         value || (
                           <Text type="secondary">
-                            —
+                            -
                           </Text>
                         ),
                     }),

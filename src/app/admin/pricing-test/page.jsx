@@ -691,7 +691,7 @@ function LocationPickerModal({
                 ? selectedPoint[0].toFixed(
                     6,
                   )
-                : "ΓÇö"}
+                : "-"}
             </Text>
           </div>
 
@@ -705,7 +705,7 @@ function LocationPickerModal({
                 ? selectedPoint[1].toFixed(
                     6,
                   )
-                : "ΓÇö"}
+                : "-"}
             </Text>
           </div>
 

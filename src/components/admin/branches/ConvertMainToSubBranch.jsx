@@ -546,7 +546,7 @@ export default function ConvertMainToSubBranch({
                 >
                   <strong>
                     {location?.name ||
-                      "—"}
+                      "-"}
                   </strong>
                 </Descriptions.Item>
 
@@ -554,7 +554,7 @@ export default function ConvertMainToSubBranch({
                   label="Code"
                 >
                   {location?.code ||
-                    "—"}
+                    "-"}
                 </Descriptions.Item>
 
                 <Descriptions.Item
@@ -569,10 +569,10 @@ export default function ConvertMainToSubBranch({
                   label="Coordinates"
                 >
                   {location?.latitude ??
-                    "—"}
+                    "-"}
                   {", "}
                   {location?.longitude ??
-                    "—"}
+                    "-"}
                 </Descriptions.Item>
 
                 <Descriptions.Item

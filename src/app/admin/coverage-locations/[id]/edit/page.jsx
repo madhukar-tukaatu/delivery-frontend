@@ -1119,7 +1119,7 @@ export default function EditCoverageLocationPage() {
                 >
                   Code:{" "}
                   <Text code>
-                    {record.code || "ΓÇö"}
+                    {record.code || "-"}
                   </Text>
 
                   {" ┬╖ "}
@@ -1612,7 +1612,7 @@ export default function EditCoverageLocationPage() {
                         }}
                       >
                         {getAddress(record) ||
-                          "ΓÇö"}
+                          "-"}
                       </Text>
 
                       <Space
@@ -2076,7 +2076,7 @@ export default function EditCoverageLocationPage() {
                       </Text>
 
                       <Text strong>
-                        {form.latitude ?? "ΓÇö"}
+                        {form.latitude ?? "-"}
                       </Text>
                     </Col>
 
@@ -2093,7 +2093,7 @@ export default function EditCoverageLocationPage() {
                       </Text>
 
                       <Text strong>
-                        {form.longitude ?? "ΓÇö"}
+                        {form.longitude ?? "-"}
                       </Text>
                     </Col>
 

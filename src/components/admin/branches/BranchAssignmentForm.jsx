@@ -1222,7 +1222,7 @@ export default function BranchAssignmentForm({
                         }
                         options={filteredCoverageLocations.map((item) => ({
                           value: item.id,
-                          label: `${item.name} (${item.code}) — Unassigned`,
+                          label: `${item.name} (${item.code}) - Unassigned`,
                         }))}
                       />
                     </Form.Item>
@@ -1849,7 +1849,7 @@ export default function BranchAssignmentForm({
                           Latitude
                         </Text>
                         <Text strong ellipsis style={{ display: "block" }}>
-                          {officeLatitude || "—"}
+                          {officeLatitude || "-"}
                         </Text>
                       </div>
                     </Col>
@@ -1867,7 +1867,7 @@ export default function BranchAssignmentForm({
                           Longitude
                         </Text>
                         <Text strong ellipsis style={{ display: "block" }}>
-                          {officeLongitude || "—"}
+                          {officeLongitude || "-"}
                         </Text>
                       </div>
                     </Col>

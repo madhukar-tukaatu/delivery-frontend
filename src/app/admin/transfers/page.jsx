@@ -57,7 +57,7 @@ function money(v) {
 }
 
 function formatDate(dateStr) {
-  if (!dateStr) return "ΓÇö";
+  if (!dateStr) return "-";
   return new Date(dateStr).toLocaleString("en-NP", {
     month: "short",
     day: "numeric",
@@ -95,7 +95,7 @@ function TransferStageTag({ shipment }) {
   const meta = TRANSFER_STAGE_META[stage];
 
   if (!meta) {
-    const fallback = shipment?.transfer_stage_label || shipment?.status || "ΓÇö";
+    const fallback = shipment?.transfer_stage_label || shipment?.status || "-";
     return <Tag>{String(fallback).replaceAll("_", " ")}</Tag>;
   }
 
@@ -476,12 +476,12 @@ export default function TransfersPage() {
     key: "receiver",
     render: (_, s) => (
       <Space direction="vertical" size={0}>
-        <Text style={{ fontSize: 13 }}>{s.receiver_name || "ΓÇö"}</Text>
+        <Text style={{ fontSize: 13 }}>{s.receiver_name || "-"}</Text>
         <Text type="secondary" style={{ fontSize: 11 }}>
-          {s.receiver_phone ? <Space size={4}><PhoneOutlined />{s.receiver_phone}</Space> : "ΓÇö"}
+          {s.receiver_phone ? <Space size={4}><PhoneOutlined />{s.receiver_phone}</Space> : "-"}
         </Text>
         <Text type="secondary" style={{ fontSize: 11 }}>
-          {s.delivery_address || s.receiver_address || s.receiver_city || "ΓÇö"}
+          {s.delivery_address || s.receiver_address || s.receiver_city || "-"}
         </Text>
       </Space>
     ),
@@ -563,7 +563,7 @@ export default function TransfersPage() {
         s.transfer_details?.transfer_duration ? (
           <Tag color="green">{s.transfer_details.transfer_duration}</Tag>
         ) : (
-          "ΓÇö"
+          "-"
         ),
     },
   ];

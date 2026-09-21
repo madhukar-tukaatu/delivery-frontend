@@ -358,8 +358,8 @@ export default function BranchOfficeWorkspacePage() {
         value: item.id,
         label:
           Number(item.id) === Number(record?.coverage_location_id)
-            ? `${item.name} (${item.code}) ΓÇö Current allocation`
-            : `${item.name} (${item.code}) ΓÇö Inactive ┬╖ Unassigned`,
+            ? `${item.name} (${item.code}) - Current allocation`
+            : `${item.name} (${item.code}) - Inactive ┬╖ Unassigned`,
       }));
   }, [
     coverageLocations,
@@ -880,7 +880,7 @@ export default function BranchOfficeWorkspacePage() {
     {
       title: "Office",
       render: (_, row) =>
-        [row.office_area, row.office_city].filter(Boolean).join(", ") || "ΓÇö",
+        [row.office_area, row.office_city].filter(Boolean).join(", ") || "-",
     },
     {
       title: "Status",
@@ -913,12 +913,12 @@ export default function BranchOfficeWorkspacePage() {
       render: (value) =>
         DOCUMENT_TYPE_OPTIONS.find((option) => option.value === value)?.label ||
         value ||
-        "ΓÇö",
+        "-",
     },
     {
       title: "Remarks",
       dataIndex: "remarks",
-      render: (value) => value || "ΓÇö",
+      render: (value) => value || "-",
     },
     {
       title: "Status",
@@ -941,7 +941,7 @@ export default function BranchOfficeWorkspacePage() {
       dataIndex: "size_bytes",
       width: 100,
       render: (value) =>
-        value ? `${(Number(value) / 1024).toFixed(1)} KB` : "ΓÇö",
+        value ? `${(Number(value) / 1024).toFixed(1)} KB` : "-",
     },
     {
       title: "Actions",
@@ -1284,13 +1284,13 @@ export default function BranchOfficeWorkspacePage() {
                 ) : (
                   <Descriptions size="small" column={{ xs: 1, sm: 2 }}>
                     <Descriptions.Item label="Branch name">
-                      {record.name || "ΓÇö"}
+                      {record.name || "-"}
                     </Descriptions.Item>
                     <Descriptions.Item label="Legal name">
-                      {record.legal_name || "ΓÇö"}
+                      {record.legal_name || "-"}
                     </Descriptions.Item>
                     <Descriptions.Item label="Code">
-                      {record.code || "ΓÇö"}
+                      {record.code || "-"}
                     </Descriptions.Item>
                     <Descriptions.Item label="Type">
                       <Tag color={typeColor(record.type)}>{typeLabel(record.type)}</Tag>
@@ -1301,7 +1301,7 @@ export default function BranchOfficeWorkspacePage() {
                           {record.parent.name}
                         </Link>
                       ) : (
-                        "ΓÇö"
+                        "-"
                       )}
                     </Descriptions.Item>
                     <Descriptions.Item label="Coverage allocation">
@@ -1400,28 +1400,28 @@ export default function BranchOfficeWorkspacePage() {
                 ) : (
                   <Descriptions size="small" column={{ xs: 1, sm: 2 }}>
                     <Descriptions.Item label="Owner / manager">
-                      {record.owner_name || record.manager?.name || "ΓÇö"}
+                      {record.owner_name || record.manager?.name || "-"}
                     </Descriptions.Item>
                     <Descriptions.Item label="Contact person">
-                      {record.contact_person || "ΓÇö"}
+                      {record.contact_person || "-"}
                     </Descriptions.Item>
                     <Descriptions.Item label="Manager email">
-                      {getManagerEmail(record) || "ΓÇö"}
+                      {getManagerEmail(record) || "-"}
                     </Descriptions.Item>
                     <Descriptions.Item label="Primary phone">
-                      {record.phone || record.manager?.phone || "ΓÇö"}
+                      {record.phone || record.manager?.phone || "-"}
                     </Descriptions.Item>
                     <Descriptions.Item label="Alternative phone">
-                      {record.alternative_phone || "ΓÇö"}
+                      {record.alternative_phone || "-"}
                     </Descriptions.Item>
                     <Descriptions.Item label="Business type">
-                      {record.business_type || "ΓÇö"}
+                      {record.business_type || "-"}
                     </Descriptions.Item>
                     <Descriptions.Item label="PAN / VAT">
-                      {record.pan_vat_number || "ΓÇö"}
+                      {record.pan_vat_number || "-"}
                     </Descriptions.Item>
                     <Descriptions.Item label="Registration number">
-                      {record.registration_number || "ΓÇö"}
+                      {record.registration_number || "-"}
                     </Descriptions.Item>
                     {isMain ? (
                       <Descriptions.Item label="Account invitation" span={2}>
@@ -1518,25 +1518,25 @@ export default function BranchOfficeWorkspacePage() {
                 ) : (
                   <Descriptions size="small" column={{ xs: 1, sm: 2 }}>
                     <Descriptions.Item label="Address" span={2}>
-                      {record.office_address || "ΓÇö"}
+                      {record.office_address || "-"}
                     </Descriptions.Item>
                     <Descriptions.Item label="City">
-                      {record.office_city || "ΓÇö"}
+                      {record.office_city || "-"}
                     </Descriptions.Item>
                     <Descriptions.Item label="Area">
-                      {record.office_area || "ΓÇö"}
+                      {record.office_area || "-"}
                     </Descriptions.Item>
                     <Descriptions.Item label="Street">
-                      {record.office_street || "ΓÇö"}
+                      {record.office_street || "-"}
                     </Descriptions.Item>
                     <Descriptions.Item label="Landmark">
-                      {record.office_landmark || "ΓÇö"}
+                      {record.office_landmark || "-"}
                     </Descriptions.Item>
                     <Descriptions.Item label="Latitude">
-                      {record.office_latitude || "ΓÇö"}
+                      {record.office_latitude || "-"}
                     </Descriptions.Item>
                     <Descriptions.Item label="Longitude">
-                      {record.office_longitude || "ΓÇö"}
+                      {record.office_longitude || "-"}
                     </Descriptions.Item>
                   </Descriptions>
                 )}
@@ -1629,18 +1629,18 @@ export default function BranchOfficeWorkspacePage() {
                 ) : (
                   <Descriptions size="small" column={{ xs: 1, sm: 2 }}>
                     <Descriptions.Item label="Opening time">
-                      {record.opening_time || "ΓÇö"}
+                      {record.opening_time || "-"}
                     </Descriptions.Item>
                     <Descriptions.Item label="Closing time">
-                      {record.closing_time || "ΓÇö"}
+                      {record.closing_time || "-"}
                     </Descriptions.Item>
                     <Descriptions.Item label="Operating days" span={2}>
                       {record.operating_days?.length
                         ? record.operating_days.join(", ")
-                        : "ΓÇö"}
+                        : "-"}
                     </Descriptions.Item>
                     <Descriptions.Item label="Daily capacity">
-                      {record.daily_shipment_capacity || "ΓÇö"}
+                      {record.daily_shipment_capacity || "-"}
                     </Descriptions.Item>
                     <Descriptions.Item label="Services">
                       {services.length ? (

@@ -58,16 +58,16 @@ export default function CustomersPage() {
       title: "Name",
       render: (_, r) => (
         <Space direction="vertical" size={0}>
-          <Text strong style={{ fontSize: 13 }}>{r.name || "ΓÇö"}</Text>
-          <Text type="secondary" style={{ fontSize: 11 }}>{r.email || "ΓÇö"}</Text>
+          <Text strong style={{ fontSize: 13 }}>{r.name || "-"}</Text>
+          <Text type="secondary" style={{ fontSize: 11 }}>{r.email || "-"}</Text>
         </Space>
       ),
     },
-    { title: "Phone", dataIndex: "phone", render: v => v || "ΓÇö" },
-    { title: "City", dataIndex: "city", render: v => v || "ΓÇö" },
-    { title: "Area", dataIndex: "area", render: v => v || "ΓÇö" },
-    { title: "Merchant", render: (_, r) => r.merchant?.name || "ΓÇö" },
-    { title: "Shipments", dataIndex: "shipments_count", render: v => v ?? "ΓÇö" },
+    { title: "Phone", dataIndex: "phone", render: v => v || "-" },
+    { title: "City", dataIndex: "city", render: v => v || "-" },
+    { title: "Area", dataIndex: "area", render: v => v || "-" },
+    { title: "Merchant", render: (_, r) => r.merchant?.name || "-" },
+    { title: "Shipments", dataIndex: "shipments_count", render: v => v ?? "-" },
   ];
 
   return (

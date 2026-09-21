@@ -129,11 +129,11 @@ export default function MerchantRegisterPage() {
 
           {/* Note */}
           <div className={s.note}>
-            After creating your account you'll be guided to upload: business registration certificate, PAN/VAT document, owner ID, and bank proof — before your account is activated by our team.
+            After creating your account you'll be guided to upload: business registration certificate, PAN/VAT document, owner ID, and bank proof - before your account is activated by our team.
           </div>
 
           <button className={s.btn} type="submit" disabled={loading}>
-            {loading ? <><span className={s.spinner} />Creating account…</> : "Create account"}
+            {loading ? <><span className={s.spinner} />Creating account...</> : "Create account"}
           </button>
 
         </form>

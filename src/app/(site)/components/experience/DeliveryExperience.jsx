@@ -232,7 +232,7 @@ export default function DeliveryExperience() {
 
       /*
        * ------------------------------------------------------------
-       * SCENE 01 — MERCHANT PICKUP
+       * SCENE 01 - MERCHANT PICKUP
        * ------------------------------------------------------------
        */
 
@@ -299,7 +299,7 @@ export default function DeliveryExperience() {
 
       /*
        * ------------------------------------------------------------
-       * SCENE 02 — ORIGIN BRANCH
+       * SCENE 02 - ORIGIN BRANCH
        * ------------------------------------------------------------
        */
 
@@ -404,7 +404,7 @@ export default function DeliveryExperience() {
 
       /*
        * ------------------------------------------------------------
-       * SCENE 03 — NEPAL ROAD / BRANCH TRANSFER
+       * SCENE 03 - NEPAL ROAD / BRANCH TRANSFER
        * ------------------------------------------------------------
        */
 
@@ -517,7 +517,7 @@ export default function DeliveryExperience() {
 
       /*
        * ------------------------------------------------------------
-       * SCENE 04 — DESTINATION BRANCH
+       * SCENE 04 - DESTINATION BRANCH
        * ------------------------------------------------------------
        */
 
@@ -614,7 +614,7 @@ export default function DeliveryExperience() {
 
       /*
        * ------------------------------------------------------------
-       * SCENE 05 — LAST MILE DELIVERY
+       * SCENE 05 - LAST MILE DELIVERY
        * ------------------------------------------------------------
        */
 

@@ -280,7 +280,7 @@ export default function ReportsPage() {
           <Text style={{ fontSize: 18, fontWeight: 700 }}>Reports</Text>
           <br />
           <Text type="secondary" style={{ fontSize: 12 }}>
-            {branchName ? `Scoped to: ${branchName}` : "Global ΓÇö all branches"}
+            {branchName ? `Scoped to: ${branchName}` : "Global - all branches"}
           </Text>
         </div>
         <Button icon={<ReloadOutlined />} onClick={reload}>Refresh</Button>

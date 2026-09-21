@@ -257,7 +257,7 @@ const TABS = [
     hex: "#fa8c16",
     icon: <CarOutlined />,
     statuses: ["on_way_to_branch"],
-    hint: "In transit to origin branch ΓÇö awaiting branch validation",
+    hint: "In transit to origin branch - awaiting branch validation",
   },
   {
     key: "completed",
@@ -554,7 +554,7 @@ export default function AdminPickupsPage() {
 
   /*
   |--------------------------------------------------------------------------
-  | Summary / reports ΓÇö one call, respects date + merchant filters.
+  | Summary / reports - one call, respects date + merchant filters.
   |--------------------------------------------------------------------------
   */
   const loadSummary = useCallback(async () => {
@@ -881,7 +881,7 @@ export default function AdminPickupsPage() {
 
   // Branch validation phase: rider has arrived at branch, staff verifies each shipment.
   const inValidation = detailStatus === "on_way_to_branch";
-  // A shipment is "received" once the branch has accepted it ΓÇö including after it
+  // A shipment is "received" once the branch has accepted it - including after it
   // has been auto-sorted for delivery or transfer.
   const RECEIVED_STATUSES = [
     "received_at_origin_branch",
@@ -1404,7 +1404,7 @@ export default function AdminPickupsPage() {
                 description={
                   pendingCount === 0
                     ? `Every shipment has been resolved (${receivedCount} received${rejectedCount ? `, ${rejectedCount} rejected` : ""}). The pickup will complete automatically.`
-                    : `Rider is at the branch. Verify each shipment ΓÇö receive it or reject a discrepancy. ${resolvedCount}/${detailShipments.length} resolved, ${pendingCount} pending.`
+                    : `Rider is at the branch. Verify each shipment - receive it or reject a discrepancy. ${resolvedCount}/${detailShipments.length} resolved, ${pendingCount} pending.`
                 }
               />
             )}
@@ -1450,7 +1450,7 @@ export default function AdminPickupsPage() {
                         <Space direction="vertical" size={2}>
                           <Space size={6}>
                             <Text strong style={{ fontSize: 13 }}>
-                              {s.tracking_number ?? "ΓÇö"}
+                              {s.tracking_number ?? "-"}
                             </Text>
                             {s.tracking_number ? (
                               <Tooltip title="Copy tracking">

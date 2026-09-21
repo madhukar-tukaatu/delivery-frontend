@@ -23,7 +23,7 @@ export default function StatCard({
         <div style={{ minWidth: 0, flex: 1 }}>
           <div className="stat-label">{label}</div>
           <div className="stat-value" title={String(value ?? "")}>
-            {value ?? "—"}
+            {value ?? "-"}
           </div>
           {hint ? <div className="stat-hint">{hint}</div> : null}
         </div>

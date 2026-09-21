@@ -905,7 +905,7 @@ export default function CoverageLocationsPage() {
             record.branch?.name ||
             (
               <Text type="secondary">
-                ΓÇö
+                -
               </Text>
             ),
         },
@@ -1010,7 +1010,7 @@ export default function CoverageLocationsPage() {
             record.parent?.name ||
             (
               <Text type="secondary">
-                ΓÇö
+                -
               </Text>
             ),
         },
@@ -1049,7 +1049,7 @@ export default function CoverageLocationsPage() {
             record.branch?.name ||
             (
               <Text type="secondary">
-                ΓÇö
+                -
               </Text>
             ),
         },

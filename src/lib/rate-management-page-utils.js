@@ -184,7 +184,7 @@ export function normalizeBranchRate(row) {
     row.delivery_coverage_location_id ?? row.delivery_branch_id ?? row.delivery_branch?.id,
   );
 
-  // Coverage locations are the pricing entities — build display objects from the name/code columns
+  // Coverage locations are the pricing entities - build display objects from the name/code columns
   const pickupBranch = row.pickup_branch ?? (
     pickupId ? { id: pickupId, name: row.pickup_branch_name ?? `Zone ${pickupId}`, code: row.pickup_branch_code ?? String(pickupId) } : null
   );
@@ -545,12 +545,12 @@ export function formatMoney(value, currency = "NPR") {
 
 export function formatDate(value) {
   if (!value) {
-    return "—";
+    return "-";
   }
 
   const date = new Date(value);
 
-  return Number.isNaN(date.getTime()) ? "—" : date.toLocaleString();
+  return Number.isNaN(date.getTime()) ? "-" : date.toLocaleString();
 }
 
 export function apiErrorMessage(

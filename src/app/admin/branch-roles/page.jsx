@@ -101,7 +101,7 @@ const BRANCH_STAFF_ROLES = [
     name: "rider",
     label: "Rider",
     color: "green",
-    description: "Pickup and delivery rider — uses staff portal for tasks and POD.",
+    description: "Pickup and delivery rider - uses staff portal for tasks and POD.",
     permissions: [
       "staff.dashboard", "staff.pickups", "staff.deliveries", "staff.pod", "staff.rider_location",
       "shipments.view",

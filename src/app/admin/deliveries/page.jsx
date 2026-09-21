@@ -131,7 +131,7 @@ function moneyFollowUp(shipment = {}) {
   if (pod && amount > 0 && (podStatus === "collected" || settlementStatus === "pending_deposit")) {
     return {
       kind: "pod_cash",
-      label: "Cash with rider ΓÇö deposit at branch",
+      label: "Cash with rider - deposit at branch",
       color: "orange",
       linkSettlements: true,
     };
@@ -140,7 +140,7 @@ function moneyFollowUp(shipment = {}) {
   if (pod && (podStatus === "deposited" || settlementStatus === "ready") && podStatus !== "paid_direct") {
     return {
       kind: "ready",
-      label: "Deposited ΓÇö ready to settle",
+      label: "Deposited - ready to settle",
       color: "blue",
       linkSettlements: true,
     };
@@ -151,8 +151,8 @@ function moneyFollowUp(shipment = {}) {
       kind: "pod_online",
       label:
         settlementStatus === "ready"
-          ? "Online paid to merchant ΓÇö delivery fee may still settle"
-          : "Online paid to merchant ΓÇö no cash pool",
+          ? "Online paid to merchant - delivery fee may still settle"
+          : "Online paid to merchant - no cash pool",
       color: "green",
       linkSettlements: settlementStatus === "ready",
     };
@@ -163,8 +163,8 @@ function moneyFollowUp(shipment = {}) {
       kind: "prepaid",
       label:
         settlementStatus === "ready"
-          ? "Prepaid ΓÇö merchant delivery fee to settle"
-          : "Prepaid ΓÇö complete (no door collection)",
+          ? "Prepaid - merchant delivery fee to settle"
+          : "Prepaid - complete (no door collection)",
       color: settlementStatus === "ready" ? "blue" : "default",
       linkSettlements: settlementStatus === "ready",
     };
@@ -172,7 +172,7 @@ function moneyFollowUp(shipment = {}) {
 
   return {
     kind: "other",
-    label: `POD ${podStatus || "ΓÇö"} / ${settlementStatus || "ΓÇö"}`,
+    label: `POD ${podStatus || "-"} / ${settlementStatus || "-"}`,
     color: "default",
     linkSettlements: ["pending_deposit", "ready"].includes(settlementStatus),
   };
@@ -407,14 +407,14 @@ export default function DeliveriesPage() {
           const s = r.shipment ?? {};
           return (
             <Space direction="vertical" size={0}>
-              <Text style={{ fontSize: 13 }}>{s.receiver_name || "ΓÇö"}</Text>
+              <Text style={{ fontSize: 13 }}>{s.receiver_name || "-"}</Text>
               <Text type="secondary" style={{ fontSize: 11 }}>
                 {s.receiver_phone ? (
                   <Space size={4}><PhoneOutlined />{s.receiver_phone}</Space>
-                ) : "ΓÇö"}
+                ) : "-"}
               </Text>
               <Text type="secondary" style={{ fontSize: 11 }}>
-                {s.delivery_address || s.receiver_address || s.receiver_city || "ΓÇö"}
+                {s.delivery_address || s.receiver_address || s.receiver_city || "-"}
               </Text>
             </Space>
           );
@@ -751,7 +751,7 @@ export default function DeliveriesPage() {
                 onChange={setSelectedRider}
                 options={riders.map((r) => ({
                   value: r.id,
-                  label: `${r.name}${r.phone ? ` ┬╖ ${r.phone}` : ""} ΓÇö ${r.active_deliveries_count ?? 0} active`,
+                  label: `${r.name}${r.phone ? ` ┬╖ ${r.phone}` : ""} - ${r.active_deliveries_count ?? 0} active`,
                 }))}
                 notFoundContent={ridersLoading ? "LoadingΓÇª" : "No riders at this branch"}
               />
@@ -770,7 +770,7 @@ export default function DeliveriesPage() {
                 </Text>
                 <Text type="secondary" style={{ fontSize: 12 }}>
                   <Space size={4}><EnvironmentOutlined />
-                    {assignTarget.shipment?.delivery_address || assignTarget.shipment?.receiver_address || "ΓÇö"}
+                    {assignTarget.shipment?.delivery_address || assignTarget.shipment?.receiver_address || "-"}
                   </Space>
                 </Text>
                 {isPod(assignTarget.shipment?.payment_type) ? (
@@ -778,7 +778,7 @@ export default function DeliveriesPage() {
                     <DollarOutlined /> Collect {money(assignTarget.shipment?.total_collectable_amount || assignTarget.shipment?.pod_amount)}
                   </Tag>
                 ) : (
-                  <Tag color="green" style={{ margin: 0, width: "fit-content" }}>Prepaid ΓÇö nothing to collect</Tag>
+                  <Tag color="green" style={{ margin: 0, width: "fit-content" }}>Prepaid - nothing to collect</Tag>
                 )}
               </Space>
             </Card>
@@ -793,7 +793,7 @@ export default function DeliveriesPage() {
                 onChange={setSelectedRider}
                 options={riders.map((r) => ({
                   value: r.id,
-                  label: `${r.name}${r.phone ? ` ┬╖ ${r.phone}` : ""} ΓÇö ${r.active_deliveries_count ?? 0} active`,
+                  label: `${r.name}${r.phone ? ` ┬╖ ${r.phone}` : ""} - ${r.active_deliveries_count ?? 0} active`,
                 }))}
                 notFoundContent={ridersLoading ? "LoadingΓÇª" : "No riders at this branch"}
               />

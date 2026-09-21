@@ -13,7 +13,7 @@ import { usePermissions } from "@/hooks/usePermission";
 const { Text } = Typography;
 
 function fmt(v) {
-  if (!v && v !== 0) return "—";
+  if (!v && v !== 0) return "-";
   return `Rs. ${Number(v).toLocaleString("en-NP", { minimumFractionDigits: 2 })}`;
 }
 
@@ -72,7 +72,7 @@ export default function DashboardPage() {
   const { shipments, revenue, pod, merchants, branches } = data;
 
   const scopeLabel = isSuperAdmin
-    ? "All Branches — Global View"
+    ? "All Branches - Global View"
     : branchName
     ? `Branch: ${branchName}`
     : primaryRole?.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase());

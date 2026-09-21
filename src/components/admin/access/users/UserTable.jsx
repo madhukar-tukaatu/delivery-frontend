@@ -120,7 +120,7 @@ export default function UserTable({
         if (!record.branch) {
           return (
             <Text type="secondary">
-              —
+              -
             </Text>
           );
         }
@@ -150,7 +150,7 @@ export default function UserTable({
         if (!record.merchant) {
           return (
             <Text type="secondary">
-              —
+              -
             </Text>
           );
         }

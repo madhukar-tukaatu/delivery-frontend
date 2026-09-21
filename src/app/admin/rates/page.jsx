@@ -243,7 +243,7 @@ export default function PricingSettingsListPage() {
       dataIndex: "created_at",
       width: 180,
 
-      render: (value) => (value ? new Date(value).toLocaleString() : "ΓÇö"),
+      render: (value) => (value ? new Date(value).toLocaleString() : "-"),
     },
 
     {

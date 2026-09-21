@@ -96,27 +96,27 @@ export default function UserDetails({
         </Descriptions.Item>
 
         <Descriptions.Item label="Full Name">
-          {user.name || "—"}
+          {user.name || "-"}
         </Descriptions.Item>
 
         <Descriptions.Item label="Email">
-          {user.email || "—"}
+          {user.email || "-"}
         </Descriptions.Item>
 
         <Descriptions.Item label="Phone">
-          {user.phone || "—"}
+          {user.phone || "-"}
         </Descriptions.Item>
 
         <Descriptions.Item label="Legacy Role">
-          {user.role || "—"}
+          {user.role || "-"}
         </Descriptions.Item>
 
         <Descriptions.Item label="Branch">
-          {user.branch?.name || user.branch_id || "—"}
+          {user.branch?.name || user.branch_id || "-"}
         </Descriptions.Item>
 
         <Descriptions.Item label="Merchant">
-          {user.merchant?.name || user.merchant_id || "—"}
+          {user.merchant?.name || user.merchant_id || "-"}
         </Descriptions.Item>
 
         <Descriptions.Item label="Status">
@@ -130,13 +130,13 @@ export default function UserDetails({
         <Descriptions.Item label="Created">
           {user.created_at
             ? new Date(user.created_at).toLocaleString()
-            : "—"}
+            : "-"}
         </Descriptions.Item>
 
         <Descriptions.Item label="Last Login">
           {user.last_login_at
             ? new Date(user.last_login_at).toLocaleString()
-            : "—"}
+            : "-"}
         </Descriptions.Item>
       </Descriptions>
 

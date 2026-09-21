@@ -373,7 +373,7 @@ export default function MerchantsPage() {
               fontSize: 13,
             }}
           >
-            {value || "ΓÇö"}
+            {value || "-"}
           </Text>
 
           {row.owner_name && (
@@ -412,7 +412,7 @@ export default function MerchantsPage() {
             {value}
           </Tag>
         ) : (
-          "ΓÇö"
+          "-"
         ),
     },
 
@@ -431,7 +431,7 @@ export default function MerchantsPage() {
             fontSize: 12,
           }}
         >
-          {value || "ΓÇö"}
+          {value || "-"}
         </Text>
       ),
     },
@@ -451,7 +451,7 @@ export default function MerchantsPage() {
             fontSize: 12,
           }}
         >
-          {value || "ΓÇö"}
+          {value || "-"}
         </Text>
       ),
     },
@@ -477,7 +477,7 @@ export default function MerchantsPage() {
                 fontSize: 11,
               }}
             >
-              ΓÇö
+              -
             </Text>
           );
         }
@@ -491,7 +491,7 @@ export default function MerchantsPage() {
               }}
             >
               {branch.name ||
-                "ΓÇö"}
+                "-"}
             </div>
 
             {branch.code && (
@@ -552,7 +552,7 @@ export default function MerchantsPage() {
                   year: "2-digit",
                 },
               )
-            : "ΓÇö"}
+            : "-"}
         </Text>
       ),
     },

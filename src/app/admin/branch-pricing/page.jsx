@@ -1419,7 +1419,7 @@ export default function BranchPricingPage() {
                   fontSize: 12,
                 }}
               >
-                ΓÇö
+                -
               </Text>
             )}
           </div>

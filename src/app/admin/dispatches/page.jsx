@@ -84,7 +84,7 @@ export default function DispatchesPage() {
       render: (_, r) => (
         <Space direction="vertical" size={0}>
           <Text strong style={{ fontSize: 13 }}>{r.manifest_number || `#${r.id}`}</Text>
-          <Text type="secondary" style={{ fontSize: 11 }}>{r.vehicle_number || "ΓÇö"}</Text>
+          <Text type="secondary" style={{ fontSize: 11 }}>{r.vehicle_number || "-"}</Text>
         </Space>
       ),
     },
@@ -92,15 +92,15 @@ export default function DispatchesPage() {
       title: "Route",
       render: (_, r) => (
         <Space direction="vertical" size={0}>
-          <Text style={{ fontSize: 12 }}>{r.from_branch?.name || "ΓÇö"}</Text>
-          <Text type="secondary" style={{ fontSize: 11 }}>ΓåÆ {r.to_branch?.name || "ΓÇö"}</Text>
+          <Text style={{ fontSize: 12 }}>{r.from_branch?.name || "-"}</Text>
+          <Text type="secondary" style={{ fontSize: 11 }}>ΓåÆ {r.to_branch?.name || "-"}</Text>
         </Space>
       ),
     },
-    { title: "Driver", dataIndex: "driver_name", render: v => v || "ΓÇö" },
-    { title: "Shipments", dataIndex: "shipment_count", render: v => v ?? "ΓÇö" },
+    { title: "Driver", dataIndex: "driver_name", render: v => v || "-" },
+    { title: "Shipments", dataIndex: "shipment_count", render: v => v ?? "-" },
     { title: "Status", dataIndex: "status", render: v => <StatusTag value={v} /> },
-    { title: "Created", dataIndex: "created_at", render: v => v ? new Date(v).toLocaleDateString() : "ΓÇö" },
+    { title: "Created", dataIndex: "created_at", render: v => v ? new Date(v).toLocaleDateString() : "-" },
     {
       title: "Actions",
       render: (_, r) => (

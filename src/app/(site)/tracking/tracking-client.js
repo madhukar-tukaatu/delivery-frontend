@@ -154,7 +154,7 @@ function Summary({ label, value }) {
   return (
     <div className="rounded-2xl border border-slate-200 bg-white p-5">
       <p className="text-xs font-bold uppercase tracking-wide text-slate-400">{label}</p>
-      <p className="mt-2 truncate text-sm font-extrabold text-slate-950">{value || "—"}</p>
+      <p className="mt-2 truncate text-sm font-extrabold text-slate-950">{value || "-"}</p>
     </div>
   );
 }

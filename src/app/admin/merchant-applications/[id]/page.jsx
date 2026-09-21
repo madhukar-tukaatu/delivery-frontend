@@ -194,7 +194,7 @@ function StatusPill({ status }) {
     STATUS_CFG[normalized] || {
       bg: "#f3f4f6",
       color: "#374151",
-      label: status || "—",
+      label: status || "-",
     };
 
   return (
@@ -282,7 +282,7 @@ function Field({
               color: "#cbd5e1",
             }}
           >
-            —
+            -
           </span>
         )}
 
@@ -346,7 +346,7 @@ function SectionTitle({
 
 function getBranchLabel(branch) {
   if (!branch) {
-    return "—";
+    return "-";
   }
 
   return [
@@ -480,7 +480,7 @@ function DocThumb({
           color: "#94a3b8",
         }}
       >
-        …
+        ...
       </div>
     );
   }
@@ -1387,7 +1387,7 @@ export default function AdminMerchantApplicationDetailPage() {
             }}
           >
             {doc.original_name ||
-              "—"}
+              "-"}
           </div>
         </div>
       ),
@@ -1405,7 +1405,7 @@ export default function AdminMerchantApplicationDetailPage() {
             color: "#94a3b8",
           }}
         >
-          {value || "—"}
+          {value || "-"}
         </Text>
       ),
     },
@@ -2715,7 +2715,7 @@ export default function AdminMerchantApplicationDetailPage() {
           >
             <Input.TextArea
               rows={4}
-              placeholder="Detailed reason for rejection…"
+              placeholder="Detailed reason for rejection..."
             />
           </Form.Item>
         </Form>
@@ -2735,7 +2735,7 @@ export default function AdminMerchantApplicationDetailPage() {
             label="Message to Merchant"
             rules={[{ required: true, message: "Please enter your message." }]}
           >
-            <Input.TextArea rows={4} placeholder="Specify what needs correction or clarification…" />
+            <Input.TextArea rows={4} placeholder="Specify what needs correction or clarification..." />
           </Form.Item>
         </Form>
       </Modal>
@@ -2859,7 +2859,7 @@ export default function AdminMerchantApplicationDetailPage() {
             label="Message to Merchant"
             rules={[{ required: true, message: "Please enter a message." }]}
           >
-            <Input.TextArea rows={3} placeholder="Explain what needs to be resubmitted…" />
+            <Input.TextArea rows={3} placeholder="Explain what needs to be resubmitted..." />
           </Form.Item>
         </Form>
       </Modal>

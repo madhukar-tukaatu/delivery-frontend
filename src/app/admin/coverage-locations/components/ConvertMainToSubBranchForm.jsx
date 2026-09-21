@@ -1081,7 +1081,7 @@ export default function ConvertMainToSubBranchForm({
                         FULL ADDRESS
                       </Text>
 
-                      <Text strong>{getAddress(currentLocation) || "ΓÇö"}</Text>
+                      <Text strong>{getAddress(currentLocation) || "-"}</Text>
 
                       <Space
                         wrap
@@ -1100,10 +1100,10 @@ export default function ConvertMainToSubBranchForm({
 
                         <Tag>Area: {locationConfiguration.area}</Tag>
 
-                        <Tag>Street: {locationConfiguration.street || "ΓÇö"}</Tag>
+                        <Tag>Street: {locationConfiguration.street || "-"}</Tag>
 
                         <Tag>
-                          Landmark: {locationConfiguration.landmark || "ΓÇö"}
+                          Landmark: {locationConfiguration.landmark || "-"}
                         </Tag>
                       </Space>
                     </div>

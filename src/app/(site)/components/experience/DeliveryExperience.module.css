@@ -1027,7 +1027,7 @@
   );
 }
 
-/* ——— Experience chrome (progress + scroll hint) ——— */
+/* --- Experience chrome (progress + scroll hint) --- */
 .experienceChrome {
   position: absolute;
   left: 0;
@@ -1162,7 +1162,7 @@
   color: #67e8f9;
 }
 
-/* ——— Responsive: all screen sizes ——— */
+/* --- Responsive: all screen sizes --- */
 @media (max-width: 1280px) {
   .infoCard {
     width: min(360px, 36vw);

@@ -288,7 +288,7 @@
 }
 
 /* ─────────────────────────────────────────────
-   Responsive — tablet (≤ 900px)
+   Responsive - tablet (≤ 900px)
 ───────────────────────────────────────────── */
 @media (max-width: 900px) {
   .ctaInner {
@@ -326,7 +326,7 @@
 }
 
 /* ─────────────────────────────────────────────
-   Responsive — mobile (≤ 600px)
+   Responsive - mobile (≤ 600px)
 ───────────────────────────────────────────── */
 @media (max-width: 600px) {
   .ctaInner {
@@ -365,7 +365,7 @@
 }
 
 /* ─────────────────────────────────────────────
-   Responsive — small mobile (≤ 380px)
+   Responsive - small mobile (≤ 380px)
 ───────────────────────────────────────────── */
 @media (max-width: 380px) {
   .navGrid {

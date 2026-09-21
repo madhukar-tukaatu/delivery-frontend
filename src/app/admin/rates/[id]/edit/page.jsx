@@ -62,7 +62,7 @@ export default function EditPricingSettingsPage() {
       form.setFieldsValue(
         toPricingFormValues({
           ...result,
-          name: `${result.name} – New Version`,
+          name: `${result.name}-New Version`,
         }),
       );
     } catch (error) {

@@ -1,12 +1,12 @@
 import Link from "next/link";
 import { ArrowRight, Building2, CheckCircle2, MapPinned, TrendingUp, Users, DollarSign, Headphones, Globe } from "lucide-react";
 
-export const metadata = { title: "Franchise Opportunity — Tukaatu Express" };
+export const metadata = { title: "Franchise Opportunity - Tukaatu Express" };
 
 const benefits = [
   { icon: MapPinned,  title: "Own your territory",       text: "Secure an exclusive delivery zone and build a local logistics business with protected coverage." },
   { icon: Building2,  title: "Backed by the network",    text: "Operate under the Tukaatu brand with full access to our technology, routes and support systems." },
-  { icon: Users,      title: "Build your team",          text: "Hire riders and staff with our operational playbook — we help you scale from day one." },
+  { icon: Users,      title: "Build your team",          text: "Hire riders and staff with our operational playbook - we help you scale from day one." },
   { icon: TrendingUp, title: "Grow with demand",         text: "Track revenue, shipment volume and delivery performance as your territory grows." },
   { icon: DollarSign, title: "Multiple revenue streams", text: "Earn from standard, express and same-day deliveries plus POD collection fees." },
   { icon: Headphones, title: "Ongoing support",          text: "Dedicated franchise support team, training resources and regular performance reviews." },
@@ -95,7 +95,7 @@ export default function FranchisePage() {
           <div>
             <p className="text-xs font-bold uppercase tracking-widest text-[#f5c518]">Application journey</p>
             <h2 className="site-display mt-3 text-4xl font-extrabold text-white">A clear path from application to launch.</h2>
-            <p className="mt-4 text-blue-100">We guide you through every step — from territory assessment to your first live delivery.</p>
+            <p className="mt-4 text-blue-100">We guide you through every step - from territory assessment to your first live delivery.</p>
             <div className="mt-8 space-y-3">
               {steps.map((step, i) => (
                 <div key={step} className="flex items-center gap-4 rounded-2xl bg-white/10 border border-white/20 p-4">

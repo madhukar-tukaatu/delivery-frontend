@@ -92,7 +92,7 @@ export default function HomeLanding() {
             <strong>Track with clarity.</strong>
           </h2>
           <p>
-            Start with a quote, track a parcel, or talk to our team — whatever
+            Start with a quote, track a parcel, or talk to our team - whatever
             you need next.
           </p>
           <div className={styles.finalActions}>

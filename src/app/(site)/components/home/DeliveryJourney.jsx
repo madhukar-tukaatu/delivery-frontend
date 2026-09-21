@@ -620,7 +620,7 @@ function Header() {
 
       <div className={styles.headerRight}>
         <span>NEPAL-WIDE DELIVERY NETWORK</span>
-        <strong>01 — 06</strong>
+        <strong>01 - 06</strong>
       </div>
     </header>
   );

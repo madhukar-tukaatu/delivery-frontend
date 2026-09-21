@@ -5,7 +5,7 @@ import styles from "./rate-admin.module.css";
 
 const RouteMapClient = dynamic(() => import("./RouteMapClient"), {
   ssr: false,
-  loading: () => <div className={styles.mapPlaceholder}>Loading route map…</div>,
+  loading: () => <div className={styles.mapPlaceholder}>Loading route map...</div>,
 });
 
 export default function RouteMap({ nodes = [], height = 420, selectedLabel }) {

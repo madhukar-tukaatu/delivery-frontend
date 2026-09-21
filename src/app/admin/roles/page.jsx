@@ -242,7 +242,7 @@ export default function RolesPage() {
           strong
           code
         >
-          {value || "ΓÇö"}
+          {value || "-"}
         </Text>
       ),
     },

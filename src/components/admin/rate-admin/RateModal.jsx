@@ -59,7 +59,7 @@ export default function RateModal({
             Cancel
           </button>
           <button type="button" className={styles.buttonPrimary} onClick={onSubmit} disabled={submitting}>
-            {submitting ? "Saving…" : submitLabel}
+            {submitting ? "Saving..." : submitLabel}
           </button>
         </div>
       </div>

@@ -209,8 +209,8 @@ export default function BranchStaffPage() {
         <Space size={12}>
           <UserAvatar name={row.name} />
           <div>
-            <div style={{ fontWeight: 600, fontSize: 13 }}>{row.name || "ΓÇö"}</div>
-            <div style={{ fontSize: 11, color: "#64748b" }}>{row.email || "ΓÇö"}</div>
+            <div style={{ fontWeight: 600, fontSize: 13 }}>{row.name || "-"}</div>
+            <div style={{ fontSize: 11, color: "#64748b" }}>{row.email || "-"}</div>
           </div>
         </Space>
       ),
@@ -219,7 +219,7 @@ export default function BranchStaffPage() {
       title: "Phone",
       dataIndex: "phone",
       width: 140,
-      render: (v) => <Text style={{ fontSize: 12 }}>{v || "ΓÇö"}</Text>,
+      render: (v) => <Text style={{ fontSize: 12 }}>{v || "-"}</Text>,
     },
     {
       title: "Role",
@@ -230,7 +230,7 @@ export default function BranchStaffPage() {
         const roleObj = staffRoles.find(r => r.value === roleName);
         return (
           <Tag color={getRoleColor(roleName)} style={{ margin: 0 }}>
-            {roleObj?.label || roleName || "ΓÇö"}
+            {roleObj?.label || roleName || "-"}
           </Tag>
         );
       },

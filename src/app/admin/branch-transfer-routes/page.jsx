@@ -734,7 +734,7 @@ export default function BranchTransferRoutesPage() {
       {/* HEADER */}
       <AdminPageHeader
         title="Transfer Routes"
-        subtitle="A route is an ordered chain of lanes with optional road checkpoints. Build KTM ΓåÆ Itahari via Bardibas from existing lanes ΓÇö no direct lane needed."
+        subtitle="A route is an ordered chain of lanes with optional road checkpoints. Build KTM ΓåÆ Itahari via Bardibas from existing lanes - no direct lane needed."
         actions={
           <>
             <Segmented
@@ -970,26 +970,26 @@ export default function BranchTransferRoutesPage() {
 
                 <Descriptions column={1} size="small" style={{ marginTop: 18 }}>
                   <Descriptions.Item label="Route">
-                    {selected?.name || "ΓÇö"}
+                    {selected?.name || "-"}
                   </Descriptions.Item>
                   <Descriptions.Item label="Code">
-                    {selected?.route_code || "ΓÇö"}
+                    {selected?.route_code || "-"}
                   </Descriptions.Item>
                   <Descriptions.Item label="Path">
-                    {selected?.path_text || "ΓÇö"}
+                    {selected?.path_text || "-"}
                   </Descriptions.Item>
                   <Descriptions.Item label="Transits">
-                    {selected ? Number(selected.transit_count) || 0 : "ΓÇö"}
+                    {selected ? Number(selected.transit_count) || 0 : "-"}
                   </Descriptions.Item>
                   <Descriptions.Item label="Distance">
                     {selected
                       ? `${Number(selected.total_distance_km || 0).toFixed(1)} km`
-                      : "ΓÇö"}
+                      : "-"}
                   </Descriptions.Item>
                   <Descriptions.Item label="ETA">
                     {selected
                       ? `${Number(selected.total_estimated_hours || 0)} hrs`
-                      : "ΓÇö"}
+                      : "-"}
                   </Descriptions.Item>
                 </Descriptions>
 
@@ -1043,7 +1043,7 @@ export default function BranchTransferRoutesPage() {
         <Alert
           type="info"
           showIcon
-          message="Pick the From and To branches, then apply the suggested lane path (or build it manually). No direct lane is needed ΓÇö routes can chain through transit branches. Checkpoints are configured per lane variant."
+          message="Pick the From and To branches, then apply the suggested lane path (or build it manually). No direct lane is needed - routes can chain through transit branches. Checkpoints are configured per lane variant."
           style={{ marginBottom: 18 }}
         />
 
@@ -1304,7 +1304,7 @@ function ConnectivityView({
             title={
               <Space>
                 <ApartmentOutlined />
-                Network Map ΓÇö {connBranch?.name}
+                Network Map - {connBranch?.name}
               </Space>
             }
             extra={

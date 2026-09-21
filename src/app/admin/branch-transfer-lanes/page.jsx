@@ -153,7 +153,7 @@ function TransportBadge({ mode }) {
     rail: { label: "RAIL", color: "orange", icon: "≡ƒÜé" },
   };
   const c = config[mode] || {
-    label: mode?.toUpperCase() || "ΓÇö",
+    label: mode?.toUpperCase() || "-",
     color: "default",
     icon: "≡ƒÜÜ",
   };
@@ -586,19 +586,19 @@ export default function BranchTransferLanesPage() {
       title: "Service",
       dataIndex: "service_type",
       width: 100,
-      render: (v) => <Tag color="blue">{v || "ΓÇö"}</Tag>,
+      render: (v) => <Tag color="blue">{v || "-"}</Tag>,
     },
     {
       title: "Transport",
       dataIndex: "transport_mode",
       width: 100,
-      render: (v) => (v ? <TransportBadge mode={v} /> : "ΓÇö"),
+      render: (v) => (v ? <TransportBadge mode={v} /> : "-"),
     },
     {
       title: "Distance",
       dataIndex: "distance_km",
       width: 100,
-      render: (v) => (v == null ? "ΓÇö" : `${Number(v).toFixed(2)} km`),
+      render: (v) => (v == null ? "-" : `${Number(v).toFixed(2)} km`),
     },
     {
       title: "ETA",
@@ -1253,7 +1253,7 @@ export default function BranchTransferLanesPage() {
                           color: "#0F172A",
                         }}
                       >
-                        {selected?.from_branch?.name || "ΓÇö"}
+                        {selected?.from_branch?.name || "-"}
                       </Text>
                     </Descriptions.Item>
                     <Descriptions.Item
@@ -1276,7 +1276,7 @@ export default function BranchTransferLanesPage() {
                           color: "#0F172A",
                         }}
                       >
-                        {selected?.to_branch?.name || "ΓÇö"}
+                        {selected?.to_branch?.name || "-"}
                       </Text>
                     </Descriptions.Item>
                     <Descriptions.Item
@@ -1293,7 +1293,7 @@ export default function BranchTransferLanesPage() {
                       }
                     >
                       <Tag style={{ fontSize: "10px" }} color="blue">
-                        {selected?.service_type || "ΓÇö"}
+                        {selected?.service_type || "-"}
                       </Tag>
                     </Descriptions.Item>
                     <Descriptions.Item
@@ -1318,9 +1318,9 @@ export default function BranchTransferLanesPage() {
                       >
                         {selected
                           ? selected.distance_km == null
-                            ? "ΓÇö"
+                            ? "-"
                             : `${Number(selected.distance_km).toFixed(1)} km`
-                          : "ΓÇö"}
+                          : "-"}
                       </Text>
                     </Descriptions.Item>
                     <Descriptions.Item
@@ -1345,7 +1345,7 @@ export default function BranchTransferLanesPage() {
                       >
                         {selected
                           ? `${Number(selected.estimated_hours || 0)} hrs`
-                          : "ΓÇö"}
+                          : "-"}
                       </Text>
                     </Descriptions.Item>
                     <Descriptions.Item
@@ -1368,7 +1368,7 @@ export default function BranchTransferLanesPage() {
                           color: "#0F172A",
                         }}
                       >
-                        {selected?.priority || "ΓÇö"}
+                        {selected?.priority || "-"}
                       </Text>
                     </Descriptions.Item>
                     <Descriptions.Item
@@ -1424,7 +1424,7 @@ export default function BranchTransferLanesPage() {
                           </Space>
                         )
                       ) : (
-                        "ΓÇö"
+                        "-"
                       )}
                     </Descriptions.Item>
                     <Descriptions.Item
@@ -1440,7 +1440,7 @@ export default function BranchTransferLanesPage() {
                         </Text>
                       }
                     >
-                      {selected ? statusTag(selected.is_active) : "ΓÇö"}
+                      {selected ? statusTag(selected.is_active) : "-"}
                     </Descriptions.Item>
                   </Descriptions>
                 ) : (

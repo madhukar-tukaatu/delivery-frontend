@@ -184,7 +184,7 @@ function StatusPill({ status }) {
     STATUS_CFG[normalized] || {
       bg: "#f3f4f6",
       text: "#374151",
-      label: status || "ΓÇö",
+      label: status || "-",
       icon: null,
     };
 
@@ -602,7 +602,7 @@ export default function MerchantApplicationsPage() {
                 lineHeight: 1.3,
               }}
             >
-              {row.name || "ΓÇö"}
+              {row.name || "-"}
             </div>
 
             <div
@@ -612,7 +612,7 @@ export default function MerchantApplicationsPage() {
                 lineHeight: 1.3,
               }}
             >
-              {row.owner_name || "ΓÇö"}
+              {row.owner_name || "-"}
             </div>
           </div>
         </Space>
@@ -632,7 +632,7 @@ export default function MerchantApplicationsPage() {
               color: "#334155",
             }}
           >
-            {row.email || "ΓÇö"}
+            {row.email || "-"}
           </div>
 
           <div
@@ -641,7 +641,7 @@ export default function MerchantApplicationsPage() {
               color: "#94a3b8",
             }}
           >
-            {row.phone || "ΓÇö"}
+            {row.phone || "-"}
           </div>
         </div>
       ),
@@ -682,7 +682,7 @@ export default function MerchantApplicationsPage() {
               fontSize: 11,
             }}
           >
-            ΓÇö
+            -
           </Text>
         ),
     },
@@ -710,7 +710,7 @@ export default function MerchantApplicationsPage() {
                 fontSize: 11,
               }}
             >
-              ΓÇö
+              -
             </Text>
           );
         }
@@ -792,7 +792,7 @@ export default function MerchantApplicationsPage() {
                   year: "2-digit",
                 },
               )
-            : "ΓÇö"}
+            : "-"}
         </Text>
       ),
     },

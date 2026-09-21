@@ -108,11 +108,11 @@ export default function PricingQuotesPage() {
         </Space>
       ),
     },
-    { title: "Store", dataIndex: "store_id", width: 90, render: (value) => value ?? "—" },
+    { title: "Store", dataIndex: "store_id", width: 90, render: (value) => value ?? "-" },
     { title: "Packets", dataIndex: "packet_count", width: 90 },
     { title: "Weight", dataIndex: "parcel_weight", width: 100, render: (value) => `${value} KG` },
     { title: "Service", dataIndex: "service_type", width: 120, render: (value) => <Tag>{value}</Tag> },
-    { title: "Payment", dataIndex: "payment_type", width: 110, render: (value) => String(value || "—").toUpperCase() },
+    { title: "Payment", dataIndex: "payment_type", width: 110, render: (value) => String(value || "-").toUpperCase() },
     { title: "Price", dataIndex: "final_price", width: 130, render: (value, record) => <Text strong>{money(value, record.currency)}</Text> },
     {
       title: "Status",

@@ -401,7 +401,7 @@ export default function PricingSettingViewPage() {
               ? new Date(
                   record.created_at,
                 ).toLocaleString()
-              : "—"}
+              : "-"}
           </Descriptions.Item>
 
           <Descriptions.Item label="Updated">
@@ -409,7 +409,7 @@ export default function PricingSettingViewPage() {
               ? new Date(
                   record.updated_at,
                 ).toLocaleString()
-              : "—"}
+              : "-"}
           </Descriptions.Item>
 
           <Descriptions.Item label="Status">

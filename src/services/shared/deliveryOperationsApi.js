@@ -598,7 +598,7 @@ export async function staffGetPickup(
  *
  * The rider calls this once every shipment on the pickup has been collected.
  * Backend requires the pickup to be in the COLLECTED state and transitions it
- * to ON_WAY_TO_BRANCH. The pickup is NOT completed here — completion happens
+ * to ON_WAY_TO_BRANCH. The pickup is NOT completed here - completion happens
  * when branch staff verify the shipments at the origin branch.
  *
  * POST /staff/pickups/{id}/start-transit

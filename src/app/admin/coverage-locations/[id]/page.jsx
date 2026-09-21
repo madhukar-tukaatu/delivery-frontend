@@ -63,7 +63,7 @@ function getRecord(response) {
 }
 
 function formatDate(val) {
-  if (!val) return "ΓÇö";
+  if (!val) return "-";
   return new Date(val).toLocaleString();
 }
 
@@ -295,12 +295,12 @@ export default function ViewCoverageLocationPage() {
               title={<Space size={6}><EnvironmentOutlined />Location</Space>}
             >
               <Descriptions column={2} size="small">
-                <Descriptions.Item label="Country">{record.country || "ΓÇö"}</Descriptions.Item>
-                <Descriptions.Item label="Province">{record.province || "ΓÇö"}</Descriptions.Item>
-                <Descriptions.Item label="District">{record.district || "ΓÇö"}</Descriptions.Item>
-                <Descriptions.Item label="City">{record.city || "ΓÇö"}</Descriptions.Item>
-                <Descriptions.Item label="Area">{record.area || "ΓÇö"}</Descriptions.Item>
-                <Descriptions.Item label="Street">{record.street || "ΓÇö"}</Descriptions.Item>
+                <Descriptions.Item label="Country">{record.country || "-"}</Descriptions.Item>
+                <Descriptions.Item label="Province">{record.province || "-"}</Descriptions.Item>
+                <Descriptions.Item label="District">{record.district || "-"}</Descriptions.Item>
+                <Descriptions.Item label="City">{record.city || "-"}</Descriptions.Item>
+                <Descriptions.Item label="Area">{record.area || "-"}</Descriptions.Item>
+                <Descriptions.Item label="Street">{record.street || "-"}</Descriptions.Item>
                 {record.landmark && (
                   <Descriptions.Item label="Landmark" span={2}>{record.landmark}</Descriptions.Item>
                 )}
@@ -332,7 +332,7 @@ export default function ViewCoverageLocationPage() {
           </Space>
         </Col>
 
-        {/* Right column ΓÇö map */}
+        {/* Right column - map */}
         <Col xs={24} xl={13}>
           <Card
             size="small"

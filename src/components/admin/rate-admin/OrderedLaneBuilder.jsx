@@ -266,7 +266,7 @@ export default function OrderedLaneBuilder({
             <div style={{ marginTop: 12 }}>
               <Text type="secondary" style={{ fontSize: 12 }}>
                 <ThunderboltOutlined /> {candidatePaths.length} available path
-                {candidatePaths.length === 1 ? "" : "s"} — choose one:
+                {candidatePaths.length === 1 ? "" : "s"} - choose one:
               </Text>
               <Space
                 direction="vertical"

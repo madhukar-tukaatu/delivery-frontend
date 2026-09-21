@@ -252,7 +252,7 @@ export default function BranchForm({
           type="info"
           showIcon
           message="Dynamic branch hierarchy"
-          description="Parent branch options are automatically limited by the logged-in userΓÇÖs role and assigned branch hierarchy."
+          description="Parent branch options are automatically limited by the logged-in users role and assigned branch hierarchy."
         />
 
         <Card title="Business Details" bordered={false}>

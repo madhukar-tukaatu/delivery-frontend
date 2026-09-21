@@ -214,11 +214,11 @@ export default function SettlementsPage() {
         description={
           <div>
             <Paragraph style={{ marginBottom: 8 }}>
-              <strong>1. POD settlement</strong> — cash collected for the merchant.
+              <strong>1. POD settlement</strong> - cash collected for the merchant.
               Listed after branch deposit. Payable = full POD cash (no delivery fee deducted).
             </Paragraph>
             <Paragraph style={{ marginBottom: 0 }}>
-              <strong>2. Delivery charge bills</strong> — merchant-owed checkout delivery fees
+              <strong>2. Delivery charge bills</strong> - merchant-owed checkout delivery fees
               (and POD service fees). Auto-created after successful delivery. Billed separately. HQ commission (branch → Tukaatu Express) is on /admin/hq-commissions.
             </Paragraph>
           </div>
@@ -240,7 +240,7 @@ export default function SettlementsPage() {
       ) : null}
 
       <Card
-        title="1. Branch deposit — cash POD from riders"
+        title="1. Branch deposit - cash POD from riders"
         extra={
           <Button type="primary" disabled={!selectedIds.length} onClick={depositSelected}>
             Deposit selected (Rs. {selectedAmount.toFixed(2)})
@@ -285,7 +285,7 @@ export default function SettlementsPage() {
       </Card>
 
       <Card
-        title="2. POD settlements — payable to merchant (full POD cash)"
+        title="2. POD settlements - payable to merchant (full POD cash)"
         extra={
           <Button onClick={openSettle}>
             Generate POD settlement (catch-up)
@@ -346,7 +346,7 @@ export default function SettlementsPage() {
       </Card>
 
       <Card
-        title="3. Delivery charge bills — merchant owes platform (checkout fees)"
+        title="3. Delivery charge bills - merchant owes platform (checkout fees)"
         loading={loading}
       >
         <Table

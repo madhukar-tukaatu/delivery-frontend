@@ -71,15 +71,15 @@ export default function SupportPage() {
       title: "Subject",
       render: (_, r) => (
         <Space direction="vertical" size={0}>
-          <Text strong style={{ fontSize: 13 }}>{r.subject || "ΓÇö"}</Text>
+          <Text strong style={{ fontSize: 13 }}>{r.subject || "-"}</Text>
           <Text type="secondary" style={{ fontSize: 11 }}>{r.merchant?.name || r.merchant_id ? `Merchant: ${r.merchant?.name || r.merchant_id}` : ""}</Text>
         </Space>
       ),
     },
-    { title: "Priority", dataIndex: "priority", render: v => <Tag color={PRIORITY_COLOR[v] || "default"}>{v || "ΓÇö"}</Tag> },
+    { title: "Priority", dataIndex: "priority", render: v => <Tag color={PRIORITY_COLOR[v] || "default"}>{v || "-"}</Tag> },
     { title: "Assigned To", render: (_, r) => r.assigned_to?.name || <Text type="secondary">Unassigned</Text> },
     { title: "Status", dataIndex: "status", render: v => <StatusTag value={v} /> },
-    { title: "Created", dataIndex: "created_at", render: v => v ? new Date(v).toLocaleDateString() : "ΓÇö" },
+    { title: "Created", dataIndex: "created_at", render: v => v ? new Date(v).toLocaleDateString() : "-" },
     {
       title: "Actions",
       render: (_, r) => (
