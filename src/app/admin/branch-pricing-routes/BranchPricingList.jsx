@@ -25,7 +25,7 @@ import {
 import {
   getBranchPricings,
   deleteBranchPricing,
-} from "@/services/branchPricingRouteService";
+} from "@/services/admin/branchPricingRouteService";
 
 const { Text } = Typography;
 
@@ -110,7 +110,7 @@ export default function BranchPricingList({
       render: (_, record) => (
         <div>
           <Text strong>
-            {record.pickup_branch.code} → {record.delivery_branch.code}
+            {record.pickup_branch.code} ΓåÆ {record.delivery_branch.code}
           </Text>
           <br />
           <Text type="secondary" style={{ fontSize: 12 }}>
@@ -164,7 +164,7 @@ export default function BranchPricingList({
                 >
                   {getServiceTypeLabel(st.service_type).substring(0, 3)}
                 </Tag>
-                ₨ {st.base_rate}
+                Γé¿ {st.base_rate}
               </Text>
             </div>
           ))}
@@ -249,7 +249,7 @@ export default function BranchPricingList({
           selectedPricing && (
             <div>
               <Text strong>
-                {selectedPricing.pickup_branch.code} →{" "}
+                {selectedPricing.pickup_branch.code} ΓåÆ{" "}
                 {selectedPricing.delivery_branch.code}
               </Text>
               <br />
@@ -330,7 +330,7 @@ export default function BranchPricingList({
                         </div>
                         <Descriptions size="small" column={1}>
                           <Descriptions.Item label="Base Rate">
-                            <Text strong>₨ {st.base_rate}</Text>
+                            <Text strong>Γé¿ {st.base_rate}</Text>
                           </Descriptions.Item>
                           <Descriptions.Item label="Delivery Time">
                             {st.route?.total_estimated_hours || "-"} hours

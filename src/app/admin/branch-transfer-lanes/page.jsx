@@ -43,9 +43,9 @@ import {
   RiseOutlined,
 } from "@ant-design/icons";
 import dynamic from "next/dynamic";
-import PermissionGate from "@/components/rate-admin/PermissionGate";
-import RouteMap from "@/components/rate-admin/RouteMap";
-import { deriveBranchConnectivity } from "@/services/adminRateManagementService";
+import PermissionGate from "@/components/admin/rate-admin/PermissionGate";
+import RouteMap from "@/components/admin/rate-admin/RouteMap";
+import { deriveBranchConnectivity } from "@/services/admin/adminRateManagementService";
 import {
   createBranchTransferLane,
   createReverseBranchTransferLane,
@@ -55,7 +55,7 @@ import {
   getRateBranches,
   updateBranchTransferLane,
   updateBranchTransferLaneStatus,
-} from "@/services/adminRateManagementService";
+} from "@/services/admin/adminRateManagementService";
 import {
   apiErrorMessage,
   branchLabel,
@@ -69,7 +69,7 @@ import {
 const { Title, Text } = Typography;
 
 const CheckpointMapPicker = dynamic(
-  () => import("@/components/rate-admin/CheckpointMapPicker"),
+  () => import("@/components/admin/rate-admin/CheckpointMapPicker"),
   {
     ssr: false,
     loading: () => (
@@ -91,7 +91,7 @@ const CheckpointMapPicker = dynamic(
 );
 
 const ArcRouteMap = dynamic(
-  () => import("@/components/rate-admin/ArcRouteMap"),
+  () => import("@/components/admin/rate-admin/ArcRouteMap"),
   {
     ssr: false,
     loading: () => (
@@ -113,7 +113,7 @@ const ArcRouteMap = dynamic(
 );
 
 const BranchNetworkMap = dynamic(
-  () => import("@/components/rate-admin/BranchNetworkMap"),
+  () => import("@/components/admin/rate-admin/BranchNetworkMap"),
   {
     ssr: false,
     loading: () => (
@@ -148,14 +148,14 @@ const TRANSPORT_MODES = [
 
 function TransportBadge({ mode }) {
   const config = {
-    road: { label: "ROAD", color: "blue", icon: "🛣️" },
-    flight: { label: "FLIGHT", color: "cyan", icon: "✈️" },
-    rail: { label: "RAIL", color: "orange", icon: "🚂" },
+    road: { label: "ROAD", color: "blue", icon: "≡ƒ¢ú∩╕Å" },
+    flight: { label: "FLIGHT", color: "cyan", icon: "Γ£ê∩╕Å" },
+    rail: { label: "RAIL", color: "orange", icon: "≡ƒÜé" },
   };
   const c = config[mode] || {
-    label: mode?.toUpperCase() || "—",
+    label: mode?.toUpperCase() || "ΓÇö",
     color: "default",
-    icon: "🚚",
+    icon: "≡ƒÜÜ",
   };
   return (
     <Tag color={c.color}>
@@ -490,7 +490,7 @@ export default function BranchTransferLanesPage() {
       setCreatingRoutes((prev) => new Set([...prev, row.id]));
       await createRouteForBranchTransferLane(row.id);
       message.success(
-        `✓ Route created for: ${row.from_branch?.name} → ${row.to_branch?.name}`,
+        `Γ£ô Route created for: ${row.from_branch?.name} ΓåÆ ${row.to_branch?.name}`,
       );
       setRows((prevRows) =>
         prevRows.map((r) =>
@@ -500,7 +500,7 @@ export default function BranchTransferLanesPage() {
     } catch (err) {
       const errorMsg =
         err?.response?.data?.message || "Could not create route.";
-      message.error(`✗ Failed: ${errorMsg}`);
+      message.error(`Γ£ù Failed: ${errorMsg}`);
     } finally {
       setCreatingRoutes((prev) => {
         const next = new Set(prev);
@@ -546,12 +546,12 @@ export default function BranchTransferLanesPage() {
       }
 
       if (failedCount === 0) {
-        message.success(`✓ Routes created for ${successCount} lane(s).`);
+        message.success(`Γ£ô Routes created for ${successCount} lane(s).`);
       } else if (successCount === 0) {
-        message.error(`✗ Failed to create routes.`);
+        message.error(`Γ£ù Failed to create routes.`);
       } else {
         message.warning(
-          `⚠ Created ${successCount} route(s), ${failedCount} failed.`,
+          `ΓÜá Created ${successCount} route(s), ${failedCount} failed.`,
         );
       }
 
@@ -573,7 +573,7 @@ export default function BranchTransferLanesPage() {
       render: (_, row) => (
         <Space direction="vertical" size={2}>
           <Text strong style={{ fontSize: "13px" }}>
-            {row.from_branch?.name || "Unknown"} →{" "}
+            {row.from_branch?.name || "Unknown"} ΓåÆ{" "}
             {row.to_branch?.name || "Unknown"}
           </Text>
           <Text type="secondary" style={{ fontSize: "11px" }}>
@@ -586,19 +586,19 @@ export default function BranchTransferLanesPage() {
       title: "Service",
       dataIndex: "service_type",
       width: 100,
-      render: (v) => <Tag color="blue">{v || "—"}</Tag>,
+      render: (v) => <Tag color="blue">{v || "ΓÇö"}</Tag>,
     },
     {
       title: "Transport",
       dataIndex: "transport_mode",
       width: 100,
-      render: (v) => (v ? <TransportBadge mode={v} /> : "—"),
+      render: (v) => (v ? <TransportBadge mode={v} /> : "ΓÇö"),
     },
     {
       title: "Distance",
       dataIndex: "distance_km",
       width: 100,
-      render: (v) => (v == null ? "—" : `${Number(v).toFixed(2)} km`),
+      render: (v) => (v == null ? "ΓÇö" : `${Number(v).toFixed(2)} km`),
     },
     {
       title: "ETA",
@@ -683,7 +683,7 @@ export default function BranchTransferLanesPage() {
                 toggleStatus(row);
               }}
             >
-              {row.is_active ? "✓" : "○"}
+              {row.is_active ? "Γ£ô" : "Γùï"}
             </Button>
           </Tooltip>
 
@@ -968,7 +968,7 @@ export default function BranchTransferLanesPage() {
               <Row justify="space-between" align="middle">
                 <Col>
                   <Text style={{ fontSize: "12px" }}>
-                    ✓ {selectedRowKeys.length} selected ·{" "}
+                    Γ£ô {selectedRowKeys.length} selected ┬╖{" "}
                     {
                       rows.filter(
                         (r) =>
@@ -1137,7 +1137,7 @@ export default function BranchTransferLanesPage() {
                       color: "#0F172A",
                     }}
                   >
-                    🗺️ Route Map
+                    ≡ƒù║∩╕Å Route Map
                   </Text>
                 }
               >
@@ -1222,7 +1222,7 @@ export default function BranchTransferLanesPage() {
                       color: "#0F172A",
                     }}
                   >
-                    📋 Details
+                    ≡ƒôï Details
                   </Text>
                 }
               >
@@ -1253,7 +1253,7 @@ export default function BranchTransferLanesPage() {
                           color: "#0F172A",
                         }}
                       >
-                        {selected?.from_branch?.name || "—"}
+                        {selected?.from_branch?.name || "ΓÇö"}
                       </Text>
                     </Descriptions.Item>
                     <Descriptions.Item
@@ -1276,7 +1276,7 @@ export default function BranchTransferLanesPage() {
                           color: "#0F172A",
                         }}
                       >
-                        {selected?.to_branch?.name || "—"}
+                        {selected?.to_branch?.name || "ΓÇö"}
                       </Text>
                     </Descriptions.Item>
                     <Descriptions.Item
@@ -1293,7 +1293,7 @@ export default function BranchTransferLanesPage() {
                       }
                     >
                       <Tag style={{ fontSize: "10px" }} color="blue">
-                        {selected?.service_type || "—"}
+                        {selected?.service_type || "ΓÇö"}
                       </Tag>
                     </Descriptions.Item>
                     <Descriptions.Item
@@ -1318,9 +1318,9 @@ export default function BranchTransferLanesPage() {
                       >
                         {selected
                           ? selected.distance_km == null
-                            ? "—"
+                            ? "ΓÇö"
                             : `${Number(selected.distance_km).toFixed(1)} km`
-                          : "—"}
+                          : "ΓÇö"}
                       </Text>
                     </Descriptions.Item>
                     <Descriptions.Item
@@ -1345,7 +1345,7 @@ export default function BranchTransferLanesPage() {
                       >
                         {selected
                           ? `${Number(selected.estimated_hours || 0)} hrs`
-                          : "—"}
+                          : "ΓÇö"}
                       </Text>
                     </Descriptions.Item>
                     <Descriptions.Item
@@ -1368,7 +1368,7 @@ export default function BranchTransferLanesPage() {
                           color: "#0F172A",
                         }}
                       >
-                        {selected?.priority || "—"}
+                        {selected?.priority || "ΓÇö"}
                       </Text>
                     </Descriptions.Item>
                     <Descriptions.Item
@@ -1424,7 +1424,7 @@ export default function BranchTransferLanesPage() {
                           </Space>
                         )
                       ) : (
-                        "—"
+                        "ΓÇö"
                       )}
                     </Descriptions.Item>
                     <Descriptions.Item
@@ -1440,7 +1440,7 @@ export default function BranchTransferLanesPage() {
                         </Text>
                       }
                     >
-                      {selected ? statusTag(selected.is_active) : "—"}
+                      {selected ? statusTag(selected.is_active) : "ΓÇö"}
                     </Descriptions.Item>
                   </Descriptions>
                 ) : (

@@ -1,0 +1,114 @@
+import api from "@/lib/api";
+
+export async function getMerchantApplication(id) {
+  const response = await api.get(`/admin/merchant-applications/${id}`);
+  return response.data?.data || response.data;
+}
+
+export async function getBranches() {
+  const response = await api.get("/admin/branches");
+  const data = response.data?.data || response.data;
+
+  if (Array.isArray(data)) return data;
+  if (Array.isArray(data?.data)) return data.data;
+
+  return [];
+}
+export async function getSubBranches() {
+  const response = await api.get("/admin/branches");
+  const data = response.data?.data || response.data;
+
+  if (Array.isArray(data)) return data;
+  if (Array.isArray(data?.data)) return data.data;
+
+  return [];
+}
+
+export async function approveMerchantApplication(id, payload) {
+  const response = await api.post(`/admin/merchant-applications/${id}/approve`, payload);
+  return response.data?.data || response.data;
+}
+
+export async function rejectMerchantApplication(id, reason) {
+  const response = await api.post(`/admin/merchant-applications/${id}/reject`, {
+    reason,
+  });
+
+  return response.data?.data || response.data;
+}
+
+export async function requestMerchantMoreInfo(id, message) {
+  const response = await api.post(`/admin/merchant-applications/${id}/request-more-info`, {
+    message,
+  });
+
+  return response.data?.data || response.data;
+}
+
+export async function retryMerchantCallback(id) {
+  const response = await api.post(`/admin/merchant-applications/${id}/retry-callback`);
+  return response.data?.data || response.data;
+}
+
+export async function updateMerchantApplication(id, payload) {
+  const response = await api.patch(`/admin/merchant-applications/${id}`, payload);
+  return response.data?.data || response.data;
+}
+
+/**
+ * Update a merchant / store partner's core record.
+ *
+ * Uses PUT /admin/merchants/{id} (MerchantController::update), which accepts
+ * the bulk pickup discount config: bulk_pickup_discount_threshold,
+ * bulk_pickup_discount_amount.
+ */
+export async function updateMerchant(id, payload) {
+  const response = await api.put(`/admin/merchants/${id}`, payload);
+  return response.data?.data || response.data;
+}
+
+export async function requestMerchantDocuments(id, payload) {
+  const response = await api.post(`/admin/merchant-applications/${id}/request-documents`, payload);
+  return response.data?.data || response.data;
+}
+
+// export async function downloadMerchantDocument(documentId) {
+//   const response = await api.get(`/merchant/documents/${documentId}/download`, {
+//     responseType: "blob",
+//   });
+
+//   return response.data;
+// }
+
+// export async function previewMerchantDocument(documentId) {
+//   const response = await api.get(`/merchant-documents/${documentId}/preview`, {
+//     responseType: "blob",
+//   });
+
+//   return response.data;
+// }
+
+// export async function downloadMerchantDocument(documentId) {
+//   const response = await api.get(`/merchant-documents/${documentId}/download`, {
+//     responseType: "blob",
+//   });
+
+//   return response.data;
+// }
+
+
+export async function previewMerchantDocument(documentId) {
+  const response = await api.get(`/merchant-documents/${documentId}/preview`, {
+    responseType: "blob",
+  });
+
+  return response.data;
+}
+
+export async function downloadMerchantDocument(documentId) {
+  const response = await api.get(`/merchant-documents/${documentId}/download`, {
+    responseType: "blob",
+  });
+
+  return response.data;
+}

@@ -59,9 +59,9 @@ import {
   resendPickupCallback,
   receivePickupShipment,
   rejectPickupShipment,
-} from "@/services/pickupService";
+} from "@/services/admin/pickupService";
 
-import AdminPageHeader from "@/components/admin/AdminPageHeader";
+import AdminPageHeader from "@/components/admin/ui/AdminPageHeader";
 
 const { Title, Text } = Typography;
 
@@ -161,14 +161,14 @@ const STATUS_META = {
     hint: "Received at origin branch",
   },
   sorted_for_delivery: {
-    label: "Sorted · Delivery",
+    label: "Sorted ┬╖ Delivery",
     color: "green",
     hex: "#52c41a",
     icon: <EnvironmentOutlined />,
     hint: "Sorted for last-mile delivery",
   },
   sorted_for_transfer: {
-    label: "Sorted · Transfer",
+    label: "Sorted ┬╖ Transfer",
     color: "orange",
     hex: "#fa8c16",
     icon: <SwapOutlined />,
@@ -257,7 +257,7 @@ const TABS = [
     hex: "#fa8c16",
     icon: <CarOutlined />,
     statuses: ["on_way_to_branch"],
-    hint: "In transit to origin branch — awaiting branch validation",
+    hint: "In transit to origin branch ΓÇö awaiting branch validation",
   },
   {
     key: "completed",
@@ -554,7 +554,7 @@ export default function AdminPickupsPage() {
 
   /*
   |--------------------------------------------------------------------------
-  | Summary / reports — one call, respects date + merchant filters.
+  | Summary / reports ΓÇö one call, respects date + merchant filters.
   |--------------------------------------------------------------------------
   */
   const loadSummary = useCallback(async () => {
@@ -881,7 +881,7 @@ export default function AdminPickupsPage() {
 
   // Branch validation phase: rider has arrived at branch, staff verifies each shipment.
   const inValidation = detailStatus === "on_way_to_branch";
-  // A shipment is "received" once the branch has accepted it — including after it
+  // A shipment is "received" once the branch has accepted it ΓÇö including after it
   // has been auto-sorted for delivery or transfer.
   const RECEIVED_STATUSES = [
     "received_at_origin_branch",
@@ -964,7 +964,7 @@ export default function AdminPickupsPage() {
             <Input
               allowClear
               prefix={<SearchOutlined style={{ color: "#bfbfbf" }} />}
-              placeholder="Search request, merchant, tracking…"
+              placeholder="Search request, merchant, trackingΓÇª"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               style={{ width: 220 }}
@@ -1032,7 +1032,7 @@ export default function AdminPickupsPage() {
                 type="secondary"
                 style={{ fontWeight: 400, marginLeft: 8, fontSize: 12 }}
               >
-                {dateFrom ?? "…"} → {dateTo ?? "…"}
+                {dateFrom ?? "ΓÇª"} ΓåÆ {dateTo ?? "ΓÇª"}
               </Text>
             ) : null}
           </Text>
@@ -1404,7 +1404,7 @@ export default function AdminPickupsPage() {
                 description={
                   pendingCount === 0
                     ? `Every shipment has been resolved (${receivedCount} received${rejectedCount ? `, ${rejectedCount} rejected` : ""}). The pickup will complete automatically.`
-                    : `Rider is at the branch. Verify each shipment — receive it or reject a discrepancy. ${resolvedCount}/${detailShipments.length} resolved, ${pendingCount} pending.`
+                    : `Rider is at the branch. Verify each shipment ΓÇö receive it or reject a discrepancy. ${resolvedCount}/${detailShipments.length} resolved, ${pendingCount} pending.`
                 }
               />
             )}
@@ -1450,7 +1450,7 @@ export default function AdminPickupsPage() {
                         <Space direction="vertical" size={2}>
                           <Space size={6}>
                             <Text strong style={{ fontSize: 13 }}>
-                              {s.tracking_number ?? "—"}
+                              {s.tracking_number ?? "ΓÇö"}
                             </Text>
                             {s.tracking_number ? (
                               <Tooltip title="Copy tracking">
@@ -1560,7 +1560,7 @@ export default function AdminPickupsPage() {
               placeholder="Select a rider"
               options={staff.map((s) => ({
                 value: s.id,
-                label: `${s.name}${s.phone ? ` · ${s.phone}` : ""}`,
+                label: `${s.name}${s.phone ? ` ┬╖ ${s.phone}` : ""}`,
               }))}
             />
           </Form.Item>
@@ -1589,7 +1589,7 @@ export default function AdminPickupsPage() {
                 .filter((s) => Number(s.id) !== Number(detailRider?.id))
                 .map((s) => ({
                   value: s.id,
-                  label: `${s.name}${s.phone ? ` · ${s.phone}` : ""}`,
+                  label: `${s.name}${s.phone ? ` ┬╖ ${s.phone}` : ""}`,
                 }))}
             />
           </Form.Item>
@@ -1625,7 +1625,7 @@ export default function AdminPickupsPage() {
           >
             <Input.TextArea
               rows={4}
-              placeholder="Shipment missing, cutoff passed, service not fulfillable…"
+              placeholder="Shipment missing, cutoff passed, service not fulfillableΓÇª"
             />
           </Form.Item>
         </Form>
@@ -1731,7 +1731,7 @@ export default function AdminPickupsPage() {
           >
             <Input.TextArea
               rows={3}
-              placeholder="Describe the discrepancy (what was expected vs. what arrived)…"
+              placeholder="Describe the discrepancy (what was expected vs. what arrived)ΓÇª"
             />
           </Form.Item>
         </Form>

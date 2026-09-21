@@ -39,7 +39,7 @@ import {
   getCoverageLocation,
   getCoverageLocations,
   updateCoverageLocation,
-} from "@/services/branchAllocationApi";
+} from "@/services/admin/branchAllocationApi";
 
 import { useAccess } from "@/hooks/useAccess";
 
@@ -1119,14 +1119,14 @@ export default function EditCoverageLocationPage() {
                 >
                   Code:{" "}
                   <Text code>
-                    {record.code || "—"}
+                    {record.code || "ΓÇö"}
                   </Text>
 
-                  {" · "}
+                  {" ┬╖ "}
 
                   ID: {record.id}
 
-                  {" · "}
+                  {" ┬╖ "}
 
                   Type:{" "}
                   <Text strong>
@@ -1137,7 +1137,7 @@ export default function EditCoverageLocationPage() {
 
                   {isSub && parentId && (
                     <>
-                      {" · "}
+                      {" ┬╖ "}
                       Parent ID:{" "}
                       <Text strong>
                         {parentId}
@@ -1612,7 +1612,7 @@ export default function EditCoverageLocationPage() {
                         }}
                       >
                         {getAddress(record) ||
-                          "—"}
+                          "ΓÇö"}
                       </Text>
 
                       <Space
@@ -2076,7 +2076,7 @@ export default function EditCoverageLocationPage() {
                       </Text>
 
                       <Text strong>
-                        {form.latitude ?? "—"}
+                        {form.latitude ?? "ΓÇö"}
                       </Text>
                     </Col>
 
@@ -2093,7 +2093,7 @@ export default function EditCoverageLocationPage() {
                       </Text>
 
                       <Text strong>
-                        {form.longitude ?? "—"}
+                        {form.longitude ?? "ΓÇö"}
                       </Text>
                     </Col>
 

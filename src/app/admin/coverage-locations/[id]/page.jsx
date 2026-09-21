@@ -33,7 +33,7 @@ import { useParams, useRouter } from "next/navigation";
 import {
   getCoverageLocation,
   updateCoverageLocation,
-} from "@/services/branchAllocationApi";
+} from "@/services/admin/branchAllocationApi";
 
 const CoverageRadiusMap = dynamic(
   () => import("@/components/maps/CoverageRadiusMap"),
@@ -63,7 +63,7 @@ function getRecord(response) {
 }
 
 function formatDate(val) {
-  if (!val) return "—";
+  if (!val) return "ΓÇö";
   return new Date(val).toLocaleString();
 }
 
@@ -191,7 +191,7 @@ export default function ViewCoverageLocationPage() {
   return (
     <Space direction="vertical" size={16} style={{ width: "100%", padding: 20 }}>
 
-      {/* ── Header ── */}
+      {/* ΓöÇΓöÇ Header ΓöÇΓöÇ */}
       <Card bordered={false} styles={{ body: { paddingBottom: 16 } }}>
         <Space direction="vertical" size={10} style={{ width: "100%" }}>
 
@@ -264,7 +264,7 @@ export default function ViewCoverageLocationPage() {
         </Space>
       </Card>
 
-      {/* ── Main content: details left, map right ── */}
+      {/* ΓöÇΓöÇ Main content: details left, map right ΓöÇΓöÇ */}
       <Row gutter={[16, 16]} align="stretch">
 
         {/* Left column */}
@@ -295,12 +295,12 @@ export default function ViewCoverageLocationPage() {
               title={<Space size={6}><EnvironmentOutlined />Location</Space>}
             >
               <Descriptions column={2} size="small">
-                <Descriptions.Item label="Country">{record.country || "—"}</Descriptions.Item>
-                <Descriptions.Item label="Province">{record.province || "—"}</Descriptions.Item>
-                <Descriptions.Item label="District">{record.district || "—"}</Descriptions.Item>
-                <Descriptions.Item label="City">{record.city || "—"}</Descriptions.Item>
-                <Descriptions.Item label="Area">{record.area || "—"}</Descriptions.Item>
-                <Descriptions.Item label="Street">{record.street || "—"}</Descriptions.Item>
+                <Descriptions.Item label="Country">{record.country || "ΓÇö"}</Descriptions.Item>
+                <Descriptions.Item label="Province">{record.province || "ΓÇö"}</Descriptions.Item>
+                <Descriptions.Item label="District">{record.district || "ΓÇö"}</Descriptions.Item>
+                <Descriptions.Item label="City">{record.city || "ΓÇö"}</Descriptions.Item>
+                <Descriptions.Item label="Area">{record.area || "ΓÇö"}</Descriptions.Item>
+                <Descriptions.Item label="Street">{record.street || "ΓÇö"}</Descriptions.Item>
                 {record.landmark && (
                   <Descriptions.Item label="Landmark" span={2}>{record.landmark}</Descriptions.Item>
                 )}
@@ -332,7 +332,7 @@ export default function ViewCoverageLocationPage() {
           </Space>
         </Col>
 
-        {/* Right column — map */}
+        {/* Right column ΓÇö map */}
         <Col xs={24} xl={13}>
           <Card
             size="small"
@@ -355,7 +355,7 @@ export default function ViewCoverageLocationPage() {
         </Col>
       </Row>
 
-      {/* ── Sub-branches (main zones only) ── */}
+      {/* ΓöÇΓöÇ Sub-branches (main zones only) ΓöÇΓöÇ */}
       {isMain && (
         <Card
           size="small"
@@ -379,7 +379,7 @@ export default function ViewCoverageLocationPage() {
         </Card>
       )}
 
-      {/* ── Assigned Franchises ── */}
+      {/* ΓöÇΓöÇ Assigned Franchises ΓöÇΓöÇ */}
       <Card
         size="small"
         title={<Space size={6}><ShopOutlined />Assigned Franchises ({record.assignedBranches?.length || 0})</Space>}

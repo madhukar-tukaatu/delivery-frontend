@@ -33,7 +33,7 @@ import {
   toggleBranchStaff,
   getBranchStaffRoles,
   normalizeStaffRoles,
-} from "@/services/branchStaffService";
+} from "@/services/admin/branchStaffService";
 
 import BranchStaffTable from "./BranchStaffTable";
 import BranchStaffForm from "./BranchStaffForm";

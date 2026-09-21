@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import api from '@/lib/api';
-import { AdminPage, AdminTable } from '@/components/admin/AdminUI';
+import { AdminPage, AdminTable } from '@/components/admin/ui/AdminUI';
 
 export default function Page() {
   const [rows, setRows] = useState([]);

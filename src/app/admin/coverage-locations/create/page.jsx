@@ -26,7 +26,7 @@ import CoverageLocationForm from "../components/CoverageLocationForm";
 import {
   createCoverageLocation,
   getCoverageLocations,
-} from "@/services/branchAllocationApi";
+} from "@/services/admin/branchAllocationApi";
 
 import { useAccess } from "@/hooks/useAccess";
 

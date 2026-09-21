@@ -47,7 +47,7 @@ import {
 
 import "./pricing-simulator.css";
 
-import adminPricingSimulatorService from "@/services/adminPricingSimulatorService";
+import adminPricingSimulatorService from "@/services/admin/adminPricingSimulatorService";
 
 /* ==========================================================================
    LEAFLET
@@ -691,7 +691,7 @@ function LocationPickerModal({
                 ? selectedPoint[0].toFixed(
                     6,
                   )
-                : "—"}
+                : "ΓÇö"}
             </Text>
           </div>
 
@@ -705,7 +705,7 @@ function LocationPickerModal({
                 ? selectedPoint[1].toFixed(
                     6,
                   )
-                : "—"}
+                : "ΓÇö"}
             </Text>
           </div>
 
@@ -815,7 +815,7 @@ function LocationCard({
         onClick={onMap}
       >
         <span className="map-button-icon">
-          ⌖
+          Γîû
         </span>
 
         Map
@@ -1184,7 +1184,7 @@ function RouteTimeline({
 
       <div className="timeline-item">
         <div className="timeline-marker delivery">
-          ✓
+          Γ£ô
         </div>
 
         <div className="timeline-content">
@@ -2175,7 +2175,7 @@ export default function PricingTestPage() {
          * Everything goes through:
          *
          * adminPricingSimulatorService
-         *        ↓
+         *        Γåô
          *      lib/api
          */
         const response =
@@ -2405,9 +2405,9 @@ export default function PricingTestPage() {
                     </Text>
 
                     <Text type="secondary">
-                      Pickup stores →
+                      Pickup stores ΓåÆ
                       configured
-                      transfer lanes →
+                      transfer lanes ΓåÆ
                       delivery
                     </Text>
                   </div>
@@ -2781,9 +2781,9 @@ export default function PricingTestPage() {
                     </Text>
 
                     <Text type="secondary">
-                      Pickup →
+                      Pickup ΓåÆ
                       configured
-                      transfers →
+                      transfers ΓåÆ
                       delivery
                     </Text>
                   </div>
@@ -2931,7 +2931,7 @@ export default function PricingTestPage() {
 
                   {result && (
                     <Badge
-                      count="✓"
+                      count="Γ£ô"
                       color="green"
                     />
                   )}

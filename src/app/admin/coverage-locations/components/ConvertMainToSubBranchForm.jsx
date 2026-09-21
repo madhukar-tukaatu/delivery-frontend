@@ -29,7 +29,7 @@ import {
   WarningOutlined,
 } from "@ant-design/icons";
 
-import { getCoverageLocationParentOptions } from "@/services/branchAllocationApi";
+import { getCoverageLocationParentOptions } from "@/services/admin/branchAllocationApi";
 
 const { Text, Title } = Typography;
 
@@ -693,7 +693,7 @@ export default function ConvertMainToSubBranchForm({
                   Convert Main to Sub-Branch
                 </Title>
 
-                <Tag color="blue">Main → Sub-Branch</Tag>
+                <Tag color="blue">Main ΓåÆ Sub-Branch</Tag>
 
                 <Text type="secondary">
                   Preserve location configuration while changing hierarchy.
@@ -1081,7 +1081,7 @@ export default function ConvertMainToSubBranchForm({
                         FULL ADDRESS
                       </Text>
 
-                      <Text strong>{getAddress(currentLocation) || "—"}</Text>
+                      <Text strong>{getAddress(currentLocation) || "ΓÇö"}</Text>
 
                       <Space
                         wrap
@@ -1100,10 +1100,10 @@ export default function ConvertMainToSubBranchForm({
 
                         <Tag>Area: {locationConfiguration.area}</Tag>
 
-                        <Tag>Street: {locationConfiguration.street || "—"}</Tag>
+                        <Tag>Street: {locationConfiguration.street || "ΓÇö"}</Tag>
 
                         <Tag>
-                          Landmark: {locationConfiguration.landmark || "—"}
+                          Landmark: {locationConfiguration.landmark || "ΓÇö"}
                         </Tag>
                       </Space>
                     </div>

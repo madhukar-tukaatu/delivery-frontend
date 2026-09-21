@@ -44,9 +44,9 @@ import {
   getBranchRouteRateMatrix,
   updateBranchRouteRate,
   updateBranchRouteRateStatus,
-} from "@/services/adminRateManagementService";
+} from "@/services/admin/adminRateManagementService";
 
-import { getPricingSettings } from "@/services/adminPricingConfigurationService";
+import { getPricingSettings } from "@/services/admin/adminPricingConfigurationService";
 
 import {
   apiErrorMessage,
@@ -56,12 +56,12 @@ import {
   normalizeBranchRate,
 } from "@/lib/rate-management-page-utils";
 
-import AdminPageHeader from "@/components/admin/AdminPageHeader";
-import StatCard, { StatCardGrid } from "@/components/admin/StatCard";
+import AdminPageHeader from "@/components/admin/ui/AdminPageHeader";
+import StatCard, { StatCardGrid } from "@/components/admin/ui/StatCard";
 
 const { Title, Text } = Typography;
 
-const RouteMapS = dynamic(() => import("@/components/rate-admin/RouteMapS"), {
+const RouteMapS = dynamic(() => import("@/components/admin/rate-admin/RouteMapS"), {
   ssr: false,
   loading: () => (
     <div
@@ -1419,7 +1419,7 @@ export default function BranchPricingPage() {
                   fontSize: 12,
                 }}
               >
-                —
+                ΓÇö
               </Text>
             )}
           </div>
@@ -2141,7 +2141,7 @@ export default function BranchPricingPage() {
                           fontSize: 18,
                         }}
                       >
-                        →
+                        ΓåÆ
                       </span>
 
                       <Text strong>

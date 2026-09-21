@@ -24,22 +24,22 @@ import {
 import {
   getPermissions,
   syncPermissions,
-} from "@/services/accessApi";
+} from "@/services/admin/accessApi";
 
 import {
   SimpleTablePageWithCRUD,
 } from "@/components/PageTools";
 
-import RoleForm from "@/components/access/roles/RoleForm";
+import RoleForm from "@/components/admin/access/roles/RoleForm";
 
-import RolePermissions from "@/components/access/roles/RolePermissions";
+import RolePermissions from "@/components/admin/access/roles/RolePermissions";
 
-import PermissionCatalog from "@/components/access/roles/PermissionCatalog";
+import PermissionCatalog from "@/components/admin/access/roles/PermissionCatalog";
 
 import {
   normalizePermissionGroups,
   prettifyLabel,
-} from "@/components/access/roles/roleUtils";
+} from "@/components/admin/access/roles/roleUtils";
 
 const {
   Text,
@@ -242,7 +242,7 @@ export default function RolesPage() {
           strong
           code
         >
-          {value || "—"}
+          {value || "ΓÇö"}
         </Text>
       ),
     },

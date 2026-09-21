@@ -30,7 +30,7 @@ import {
   convertCoverageLocationToSubBranch,
   normalizeCoverageLocations,
   normalizeBranches,
-} from "@/services/branchAllocationApi";
+} from "@/services/admin/branchAllocationApi";
 
 import { useAccess } from "@/hooks/useAccess";
 
@@ -1037,7 +1037,7 @@ export default function ConvertMainToSubBranchPage() {
         );
 
         console.log(
-          "CONVERT MAIN → SUB-BRANCH"
+          "CONVERT MAIN ΓåÆ SUB-BRANCH"
         );
 
         console.log(
