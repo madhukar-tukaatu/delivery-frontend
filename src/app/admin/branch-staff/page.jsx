@@ -2,17 +2,20 @@
 
 import { useCallback, useEffect, useState } from "react";
 import {
-  Avatar, Button, Card, Col, Divider, Empty, Form, Input, Modal, Popconfirm,
-  Row, Select, Space, Spin, Switch, Table, Tag, Tooltip, Typography, message,
+  Avatar, Breadcrumb, Button, Card, Col, Divider, Empty, Form, Input, Modal, Popconfirm,
+  Row, Select, Space, Space, Spin, Switch, Table, Tag, Tooltip, Typography, message,
 } from "antd";
 import {
   BranchesOutlined, DeleteOutlined, EditOutlined, LockOutlined, PlusOutlined,
-  ReloadOutlined, SearchOutlined, UserAddOutlined,
+  ReloadOutlined, SearchOutlined, ShopOutlined,
+  TeamOutlined,
+  UserAddOutlined,
 } from "@ant-design/icons";
 import { usePermissions } from "@/hooks/usePermission";
 import {
   createBranchStaff, getBranchStaff, updateBranchStaff, toggleBranchStaff, deleteBranchStaff, getBranchStaffRoles,
 } from "@/services/admin/branchStaffService";
+import StatCard, { StatCardGrid } from "@/components/admin/ui/StatCard";
 
 const { Text, Title } = Typography;
 
@@ -284,40 +287,132 @@ export default function BranchStaffPage() {
     },
   ];
 
-  return (
-    <div style={{ padding: 24, background: "#f7f8fa", minHeight: "100vh" }}>
-      {/* Header */}
-      <Row justify="space-between" align="middle" style={{ marginBottom: 24 }} gutter={[12, 12]}>
-        <Col>
-          <Title level={2} style={{ margin: 0 }}>
-            <UserAddOutlined /> Staff Management
-          </Title>
-          <Text type="secondary">
-            {branchName ? `Managing staff for ${branchName}` : "Manage branch staff members"}
-          </Text>
-        </Col>
-        <Col>
-          <Space>
-            {hasManagePermission && (
-              <Button type="primary" icon={<PlusOutlined />} size="large" onClick={openCreate}>
-                Add Staff
-              </Button>
-            )}
-            <Button icon={<ReloadOutlined />} size="large" onClick={() => load(1, pagination.pageSize)}>
-              Refresh
-            </Button>
-          </Space>
-        </Col>
-      </Row>
+  const activeCount = rows.filter((r) => r.is_active !== false).length;
+  const inactiveCount = rows.filter((r) => r.is_active === false).length;
+  const riderCount = rows.filter((r) => {
+    const roleName = typeof r.role === "string" ? r.role : r.role?.name;
+    return String(roleName || "").toLowerCase() === "rider";
+  }).length;
 
-      {/* Search & Filter Card */}
-      <Card style={{ marginBottom: 16, borderRadius: 14 }}>
-        <Space direction="vertical" style={{ width: "100%" }} size={12}>
-          <Space wrap>
+  return (
+    <div
+      style={{
+        minHeight: "100vh",
+        padding: "22px clamp(14px, 2vw, 28px) 40px",
+        background: "#f4f7fb",
+      }}
+    >
+      <Space direction="vertical" size={18} style={{ width: "100%" }}>
+        <Card
+          variant="borderless"
+          style={{
+            borderRadius: 22,
+            overflow: "hidden",
+            background:
+              "linear-gradient(135deg, #0f172a 0%, #172554 55%, #1d4ed8 135%)",
+            boxShadow: "0 18px 45px rgba(15, 23, 42, 0.16)",
+          }}
+          styles={{ body: { padding: "26px clamp(20px, 3vw, 34px)" } }}
+        >
+          <Space direction="vertical" size={16} style={{ width: "100%" }}>
+            <Breadcrumb
+              items={[
+                { title: <span style={{ color: "#bfdbfe" }}>Admin</span> },
+                { title: <span style={{ color: "#ffffff" }}>Branch Staff</span> },
+              ]}
+            />
+
+            <Row gutter={[20, 20]} align="middle" justify="space-between">
+              <Col xs={24} xl={15}>
+                <Space align="start" size={15}>
+                  <Avatar
+                    size={54}
+                    icon={<TeamOutlined />}
+                    style={{ background: "rgba(255,255,255,0.16)" }}
+                  />
+                  <Space direction="vertical" size={7}>
+                    <Space wrap>
+                      <Title level={2} style={{ margin: 0, color: "#ffffff" }}>
+                        Branch Staff
+                      </Title>
+                      {branchName ? (
+                        <Tag color="blue">{branchName}</Tag>
+                      ) : isSuperAdmin ? (
+                        <Tag color="geekblue">All branches</Tag>
+                      ) : null}
+                    </Space>
+                    <Text style={{ color: "#cbd5e1" }}>
+                      Manage pickup staff, delivery staff, and riders
+                      {branchName ? ` for ${branchName}` : " across your branches"}.
+                    </Text>
+                  </Space>
+                </Space>
+              </Col>
+
+              <Col xs={24} xl={9}>
+                <Space wrap style={{ width: "100%", justifyContent: "flex-end" }}>
+                  <Button
+                    icon={<ReloadOutlined />}
+                    onClick={() => load(1, pagination.pageSize)}
+                  >
+                    Refresh
+                  </Button>
+                  {hasManagePermission ? (
+                    <Button
+                      type="primary"
+                      icon={<PlusOutlined />}
+                      onClick={openCreate}
+                    >
+                      Add Staff
+                    </Button>
+                  ) : null}
+                </Space>
+              </Col>
+            </Row>
+          </Space>
+        </Card>
+
+        <StatCardGrid>
+          <StatCard
+            label="Total Staff"
+            value={pagination.total}
+            hint="All matching members"
+            variant="primary"
+            icon={<TeamOutlined />}
+          />
+          <StatCard
+            label="Active (page)"
+            value={activeCount}
+            hint="Currently listed active"
+            variant="success"
+          />
+          <StatCard
+            label="Inactive (page)"
+            value={inactiveCount}
+            hint="Currently listed inactive"
+            variant="danger"
+          />
+          <StatCard
+            label="Riders (page)"
+            value={riderCount}
+            hint="Rider role on this page"
+            variant="accent"
+            icon={<ShopOutlined />}
+          />
+        </StatCardGrid>
+
+        <Card
+          style={{
+            borderRadius: 18,
+            boxShadow: "0 8px 24px rgba(15, 23, 42, 0.06)",
+          }}
+          styles={{ body: { padding: 18 } }}
+        >
+          <Space wrap style={{ width: "100%", marginBottom: 4 }}>
             <Input
               allowClear
-              style={{ width: 260 }}
-              placeholder="Search by name or emailΓÇª"
+              style={{ width: 280 }}
+              placeholder="Search by name or email..."
               prefix={<SearchOutlined />}
               value={search}
               onChange={(e) => setSearch(e.target.value)}
@@ -345,40 +440,45 @@ export default function BranchStaffPage() {
               Reset
             </Button>
           </Space>
-          <Divider style={{ margin: 0 }} />
-          <Text type="secondary" style={{ fontSize: 12 }}>
-            Total: <strong>{pagination.total}</strong> staff member{pagination.total !== 1 ? "s" : ""}
-          </Text>
-        </Space>
-      </Card>
+        </Card>
 
-      {/* Staff List Table */}
-      <Card style={{ borderRadius: 14 }}>
-        {rows.length === 0 && !loading ? (
-          <Empty
-            image={Empty.PRESENTED_IMAGE_SIMPLE}
-            description="No staff members yet. Click 'Add Staff' to create one."
-            style={{ padding: "60px 0" }}
-          />
-        ) : (
-          <Table
-            rowKey="id"
-            loading={loading}
-            columns={columns}
-            dataSource={rows}
-            scroll={{ x: 900 }}
-            pagination={{
-              current: pagination.current,
-              pageSize: pagination.pageSize,
-              total: pagination.total,
-              showSizeChanger: true,
-              showTotal: (t) => `${t} staff member${t !== 1 ? "s" : ""}`,
-              onChange: (p, ps) => load(p, ps),
-            }}
-          />
-        )}
-      </Card>
-
+        <Card
+          title={
+            <Space>
+              <TeamOutlined style={{ color: "#1d4ed8" }} />
+              <span>Staff directory</span>
+            </Space>
+          }
+          style={{
+            borderRadius: 18,
+            boxShadow: "0 8px 24px rgba(15, 23, 42, 0.06)",
+          }}
+        >
+          {rows.length === 0 && !loading ? (
+            <Empty
+              image={Empty.PRESENTED_IMAGE_SIMPLE}
+              description="No staff members yet. Click Add Staff to create one."
+              style={{ padding: "60px 0" }}
+            />
+          ) : (
+            <Table
+              rowKey="id"
+              loading={loading}
+              columns={columns}
+              dataSource={rows}
+              scroll={{ x: 900 }}
+              pagination={{
+                current: pagination.current,
+                pageSize: pagination.pageSize,
+                total: pagination.total,
+                showSizeChanger: true,
+                showTotal: (t) => `${t} staff member${t !== 1 ? "s" : ""}`,
+                onChange: (p, ps) => load(p, ps),
+              }}
+            />
+          )}
+        </Card>
+      </Space>
       {/* Add/Edit Modal */}
       <Modal
         open={modalOpen}
