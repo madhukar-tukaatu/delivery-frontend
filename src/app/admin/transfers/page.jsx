@@ -1,5 +1,7 @@
 "use client";
 
+import AdminPageHeader from "@/components/admin/ui/AdminPageHeader";
+
 import { useCallback, useEffect, useState } from "react";
 import {
   Alert,
@@ -801,25 +803,26 @@ export default function TransfersPage() {
   return (
     <div style={{ padding: 24, background: "#f7f8fa", minHeight: "100%" }}>
       {/* Header */}
-      <Row justify="space-between" align="middle" style={{ marginBottom: 16 }} gutter={[12, 12]}>
-        <Col>
-          <Title level={3} style={{ margin: 0 }}>Transfers</Title>
-          <Text type="secondary">Branch-to-branch parcel transfers</Text>
-        </Col>
-        <Col>
-          <Space wrap>
-            <Input
-              allowClear
-              prefix={<SearchOutlined style={{ color: "#bfbfbf" }} />}
-              placeholder="Search tracking, receiver, phoneΓÇª"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              style={{ width: 260 }}
-            />
-            <Button icon={<ReloadOutlined />} onClick={refresh}>Refresh</Button>
-          </Space>
-        </Col>
-      </Row>
+      <AdminPageHeader
+        title="Transfers"
+        subtitle="Branch-to-branch parcel transfers"
+        icon={<SwapOutlined />}
+        actions={
+          <Button icon={<ReloadOutlined />} onClick={refresh}>Refresh</Button>
+        }
+      />
+      <Card className="admin-card" style={{ marginBottom: 12 }}>
+        <Space wrap>
+          <Input
+            allowClear
+            prefix={<SearchOutlined style={{ color: "#bfbfbf" }} />}
+            placeholder="Search tracking, receiver, phone"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            style={{ width: 260 }}
+          />
+        </Space>
+      </Card>
 
       {/* Filters Row */}
       <Row justify="space-between" align="middle" style={{ marginBottom: 12 }} gutter={[12, 12]}>

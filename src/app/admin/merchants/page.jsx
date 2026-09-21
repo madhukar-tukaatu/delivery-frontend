@@ -1,5 +1,7 @@
 "use client";
 
+import AdminPageHeader from "@/components/admin/ui/AdminPageHeader";
+
 import {
   useCallback,
   useEffect,
@@ -18,6 +20,7 @@ import {
 } from "antd";
 
 import {
+  ShopOutlined,
   EyeOutlined,
   ReloadOutlined,
   SearchOutlined,
@@ -709,51 +712,26 @@ export default function MerchantsPage() {
     >
       {/* Header */}
 
-      <Card>
-        <Space
-          style={{
-            justifyContent:
-              "space-between",
-            width: "100%",
-          }}
-          wrap
-        >
-          <div>
-            <Text
-              style={{
-                fontSize: 18,
-                fontWeight: 700,
-              }}
-            >
-              Merchants / Stores
-            </Text>
-
-            <br />
-
-            <Text
-              type="secondary"
-              style={{
-                fontSize: 12,
-              }}
-            >
-              {isSuperAdmin
-                ? "View all merchants and stores."
-                : "View merchants assigned to your branch."}
-            </Text>
-          </div>
-
+      <AdminPageHeader
+        title="Merchants / Stores"
+        subtitle={
+          isSuperAdmin
+            ? "View all merchants and stores."
+            : "View merchants assigned to your branch."
+        }
+        icon={<ShopOutlined />}
+        actions={
           <Button
-            icon={
-              <ReloadOutlined />
-            }
-            onClick={
-              handleRefresh
-            }
+            icon={<ReloadOutlined />}
+            onClick={handleRefresh}
             loading={loading}
           >
             Refresh
           </Button>
-        </Space>
+        }
+      />
+
+      <Card>
 
         {/* Search */}
 

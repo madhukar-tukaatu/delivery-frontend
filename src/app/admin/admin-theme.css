@@ -70,50 +70,89 @@
   color: #0891B2 !important;
 }
 
-/* ============ Page Header - Luxury Gradient ============ */
+/* ============ Page Header - compact navy bar ============ */
 .admin-page-header {
-  background:linear-gradient(135deg, #006983 0%, #074657 100%) !important;
-  border-bottom: 4px solid #FBBF24 !important;
-  padding: 14px 20px !important;
+  background: linear-gradient(135deg, #0f172a 0%, #172554 55%, #1d4ed8 135%) !important;
+  border-bottom: none !important;
+  padding: 12px 16px !important;
   border-radius: 12px !important;
-  margin-bottom: 16px !important;
-  box-shadow: 0 4px 12px rgba(8, 145, 178, 0.2) !important;
+  margin-bottom: 12px !important;
+  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.12) !important;
   display: flex !important;
   justify-content: space-between !important;
   align-items: center !important;
   position: relative !important;
   z-index: 10 !important;
   flex-wrap: wrap !important;
-  gap: 12px !important;
+  gap: 10px !important;
   width: 100% !important;
+  overflow: hidden !important;
+}
+
+.admin-page-header--compact,
+.admin-page-header--hero {
+  align-items: center !important;
+}
+
+.admin-page-header-breadcrumb {
+  margin-bottom: 4px !important;
+  font-size: 12px !important;
+}
+
+.admin-page-header-breadcrumb .ant-breadcrumb-separator {
+  color: rgba(191, 219, 254, 0.7) !important;
+}
+
+.admin-page-header-avatar {
+  background: rgba(255, 255, 255, 0.16) !important;
+  flex-shrink: 0 !important;
+}
+
+.admin-page-header-copy {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 2px !important;
+  min-width: 0 !important;
+}
+
+.admin-page-header-subtitle {
+  color: rgba(255, 255, 255, 0.82) !important;
+  font-size: 12px !important;
+  line-height: 1.35 !important;
 }
 
 .admin-page-header-left {
   display: flex !important;
   flex-direction: column !important;
-  gap: 2px !important;
+  gap: 0 !important;
   flex: 1 1 auto !important;
   min-width: 0 !important;
 }
 
 .admin-page-header h1,
 .admin-page-header h2,
-.admin-page-header h3 {
+.admin-page-header h3,
+.admin-page-header h4,
+.admin-page-header h5 {
   color: white !important;
   margin: 0 !important;
   font-weight: 700 !important;
-  letter-spacing: -0.5px !important;
+  letter-spacing: -0.3px !important;
+  line-height: 1.25 !important;
 }
 
-.admin-page-header h1 { font-size: 20px !important; }
-.admin-page-header h2 { font-size: 18px !important; }
+.admin-page-header h1 { font-size: 18px !important; }
+.admin-page-header h2 { font-size: 17px !important; }
 .admin-page-header h3 { font-size: 16px !important; }
+.admin-page-header h4 { font-size: 16px !important; }
+.admin-page-header h5 { font-size: 15px !important; }
 
 .admin-page-header p {
-  color: rgba(255, 255, 255, 0.85) !important;
+  color: rgba(255, 255, 255, 0.82) !important;
   margin: 0 !important;
   font-size: 12px !important;
   font-weight: 400 !important;
+  line-height: 1.35 !important;
 }
 
 .admin-page-header .ant-typography {
@@ -128,6 +167,17 @@
   justify-content: flex-end !important;
 }
 
+.admin-page-header-right .ant-btn-default {
+  background: rgba(255, 255, 255, 0.12) !important;
+  border-color: rgba(255, 255, 255, 0.22) !important;
+  color: #fff !important;
+}
+
+.admin-page-header-right .ant-btn-default:hover {
+  background: rgba(255, 255, 255, 0.2) !important;
+  border-color: rgba(255, 255, 255, 0.35) !important;
+  color: #fff !important;
+}
 /* ============ Cards ============ */
 .admin-layout .ant-card {
   border: none !important;
@@ -692,8 +742,10 @@
     border-radius: 8px !important;
   }
 
-  .admin-page-header h1 { font-size: 17px !important; }
+  .admin-page-header h1 { font-size: 16px !important; }
   .admin-page-header h2 { font-size: 15px !important; }
+  .admin-page-header h3 { font-size: 15px !important; }
+  .admin-page-header h4 { font-size: 15px !important; }
 
   .admin-page-header-right {
     width: 100% !important;

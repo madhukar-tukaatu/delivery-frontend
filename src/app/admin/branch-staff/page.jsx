@@ -15,6 +15,7 @@ import { usePermissions } from "@/hooks/usePermission";
 import {
   createBranchStaff, getBranchStaff, updateBranchStaff, toggleBranchStaff, deleteBranchStaff, getBranchStaffRoles,
 } from "@/services/admin/branchStaffService";
+import AdminPageHeader from "@/components/admin/ui/AdminPageHeader";
 import StatCard, { StatCardGrid } from "@/components/admin/ui/StatCard";
 
 const { Text, Title } = Typography;
@@ -303,75 +304,42 @@ export default function BranchStaffPage() {
       }}
     >
       <Space direction="vertical" size={18} style={{ width: "100%" }}>
-        <Card
-          variant="borderless"
-          style={{
-            borderRadius: 22,
-            overflow: "hidden",
-            background:
-              "linear-gradient(135deg, #0f172a 0%, #172554 55%, #1d4ed8 135%)",
-            boxShadow: "0 18px 45px rgba(15, 23, 42, 0.16)",
-          }}
-          styles={{ body: { padding: "26px clamp(20px, 3vw, 34px)" } }}
-        >
-          <Space direction="vertical" size={16} style={{ width: "100%" }}>
-            <Breadcrumb
-              items={[
-                { title: <span style={{ color: "#bfdbfe" }}>Admin</span> },
-                { title: <span style={{ color: "#ffffff" }}>Branch Staff</span> },
-              ]}
-            />
-
-            <Row gutter={[20, 20]} align="middle" justify="space-between">
-              <Col xs={24} xl={15}>
-                <Space align="start" size={15}>
-                  <Avatar
-                    size={54}
-                    icon={<TeamOutlined />}
-                    style={{ background: "rgba(255,255,255,0.16)" }}
-                  />
-                  <Space direction="vertical" size={7}>
-                    <Space wrap>
-                      <Title level={2} style={{ margin: 0, color: "#ffffff" }}>
-                        Branch Staff
-                      </Title>
-                      {branchName ? (
-                        <Tag color="blue">{branchName}</Tag>
-                      ) : isSuperAdmin ? (
-                        <Tag color="geekblue">All branches</Tag>
-                      ) : null}
-                    </Space>
-                    <Text style={{ color: "#cbd5e1" }}>
-                      Manage pickup staff, delivery staff, and riders
-                      {branchName ? ` for ${branchName}` : " across your branches"}.
-                    </Text>
-                  </Space>
-                </Space>
-              </Col>
-
-              <Col xs={24} xl={9}>
-                <Space wrap style={{ width: "100%", justifyContent: "flex-end" }}>
-                  <Button
-                    icon={<ReloadOutlined />}
-                    onClick={() => load(1, pagination.pageSize)}
-                  >
-                    Refresh
-                  </Button>
-                  {hasManagePermission ? (
-                    <Button
-                      type="primary"
-                      icon={<PlusOutlined />}
-                      onClick={openCreate}
-                    >
-                      Add Staff
-                    </Button>
-                  ) : null}
-                </Space>
-              </Col>
-            </Row>
-          </Space>
-        </Card>
-
+        <AdminPageHeader
+          title="Branch Staff"
+          subtitle={
+            branchName
+              ? `Manage pickup staff, delivery staff, and riders for ${branchName}.`
+              : "Manage pickup staff, delivery staff, and riders across your branches."
+          }
+          icon={<TeamOutlined />}
+          breadcrumb={["Admin", "Branch Staff"]}
+          tags={
+            branchName ? (
+              <Tag color="blue">{branchName}</Tag>
+            ) : isSuperAdmin ? (
+              <Tag color="geekblue">All branches</Tag>
+            ) : null
+          }
+          actions={
+            <>
+              <Button
+                icon={<ReloadOutlined />}
+                onClick={() => load(1, pagination.pageSize)}
+              >
+                Refresh
+              </Button>
+              {hasManagePermission ? (
+                <Button
+                  type="primary"
+                  icon={<PlusOutlined />}
+                  onClick={openCreate}
+                >
+                  Add Staff
+                </Button>
+              ) : null}
+            </>
+          }
+        />
         <StatCardGrid>
           <StatCard
             label="Total Staff"

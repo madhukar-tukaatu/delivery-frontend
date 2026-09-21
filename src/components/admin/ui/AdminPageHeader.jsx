@@ -1,30 +1,82 @@
 "use client";
 
-import { Typography } from "antd";
+import { Avatar, Breadcrumb, Space, Typography } from "antd";
 
-const { Title, Text } = Typography;
+const { Title } = Typography;
 
 /**
- * Common admin page header used across all admin pages.
- * Renders a luxury gradient bar with the page title, subtitle,
- * and an actions area (buttons, segmented controls, etc.).
+ * Shared compact admin page header (navy bar).
  *
- * Usage:
- *   <AdminPageHeader
- *     title="Pricing Settings"
- *     subtitle="Manage global delivery pricing rules."
- *     actions={<Button>Refresh</Button>}
- *   />
+ * <AdminPageHeader
+ *   title="Branch Offices"
+ *   subtitle="Manage branch allocation..."
+ *   icon={<ShopOutlined />}
+ *   breadcrumb={[{ title: "Admin" }, { title: "Branch Offices" }]}
+ *   tags={<Tag>Access</Tag>}
+ *   actions={<Button>Refresh</Button>}
+ * />
  */
-export default function AdminPageHeader({ title, subtitle, actions, extra }) {
+export default function AdminPageHeader({
+  title,
+  subtitle,
+  actions,
+  extra,
+  icon,
+  breadcrumb,
+  tags,
+}) {
+  const crumbItems = Array.isArray(breadcrumb)
+    ? breadcrumb.map((item, index) => {
+        const isLast = index === breadcrumb.length - 1;
+        const label = item?.title ?? item;
+        return {
+          title: (
+            <span style={{ color: isLast ? "#ffffff" : "#bfdbfe" }}>
+              {label}
+            </span>
+          ),
+        };
+      })
+    : null;
+
   return (
-    <div className="admin-page-header">
+    <div className="admin-page-header admin-page-header--compact">
       <div className="admin-page-header-left">
-        <Title level={2} style={{ margin: 0 }}>
-          {title}
-        </Title>
-        {subtitle ? <p>{subtitle}</p> : null}
-        {extra}
+        {crumbItems ? (
+          <Breadcrumb
+            className="admin-page-header-breadcrumb"
+            items={crumbItems}
+          />
+        ) : null}
+
+        <Space align="center" size={12} wrap>
+          {icon ? (
+            <Avatar
+              size={36}
+              icon={icon}
+              className="admin-page-header-avatar"
+            />
+          ) : null}
+
+          <div className="admin-page-header-copy">
+            <Space wrap size={[8, 4]} align="center">
+              <Title level={4} style={{ margin: 0 }}>
+                {title}
+              </Title>
+              {tags}
+            </Space>
+
+            {subtitle ? (
+              typeof subtitle === "string" ? (
+                <p>{subtitle}</p>
+              ) : (
+                <div className="admin-page-header-subtitle">{subtitle}</div>
+              )
+            ) : null}
+
+            {extra}
+          </div>
+        </Space>
       </div>
 
       {actions ? (

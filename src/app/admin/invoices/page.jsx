@@ -1,5 +1,9 @@
 "use client";
 
+import { FileTextOutlined } from "@ant-design/icons";
+
+import AdminPageHeader from "@/components/admin/ui/AdminPageHeader";
+
 import { useEffect, useState } from "react";
 import { Button, Card, Space, Table, Tag, message } from "antd";
 import api from "@/lib/api";
@@ -51,7 +55,14 @@ export default function AdminInvoicesPage() {
   }
 
   return (
-    <Card title="Invoices (delivery fees + others)" loading={loading}>
+    <>
+    <AdminPageHeader
+      title="Invoices"
+      subtitle="Delivery fees and other merchant invoices."
+      icon={<FileTextOutlined />}
+    />
+    
+<Card loading={loading}>
       <Table
         rowKey="id"
         dataSource={rows}
@@ -84,5 +95,6 @@ export default function AdminInvoicesPage() {
         ]}
       />
     </Card>
+    </>
   );
 }

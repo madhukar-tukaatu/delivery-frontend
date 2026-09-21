@@ -26,7 +26,21 @@ export async function getRoles(params = {}) {
     }
   );
 
-  return response.data?.data || [];
+  const payload = response.data?.data ?? response.data ?? [];
+
+  if (Array.isArray(payload)) {
+    return payload;
+  }
+
+  if (Array.isArray(payload?.data)) {
+    return payload.data;
+  }
+
+  if (Array.isArray(payload?.list)) {
+    return payload.list;
+  }
+
+  return [];
 }
 
 export async function getRole(id) {

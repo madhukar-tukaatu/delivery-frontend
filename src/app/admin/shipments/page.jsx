@@ -36,8 +36,6 @@ import {
   StopOutlined,
 } from "@ant-design/icons";
 
-import { useRouter } from "next/navigation";
-
 import {
   getShipments,
 } from "@/services/merchant/merchantShipmentService";
@@ -45,6 +43,7 @@ import {
 import WorkflowStatusTag from "@/features/workflow/components/WorkflowStatusTag";
 
 import AdminPageHeader from "@/components/admin/ui/AdminPageHeader";
+import ShipmentDetailDrawer from "@/components/admin/shipments/ShipmentDetailDrawer";
 
 const { Title, Text } = Typography;
 
@@ -122,7 +121,6 @@ function getStatusColor(status) {
 }
 
 export default function ShipmentsPage() {
-  const router = useRouter();
 
   const [loading, setLoading] =
     useState(false);
@@ -131,6 +129,8 @@ export default function ShipmentsPage() {
     useState([]);
 
   const [viewMode, setViewMode] = useState('table'); // 'table' or 'list'
+  const [detailOpen, setDetailOpen] = useState(false);
+  const [detailId, setDetailId] = useState(null);
 
   const [showFilters, setShowFilters] = useState(false);
 
@@ -253,6 +253,12 @@ export default function ShipmentsPage() {
     }, 0);
   }
 
+  
+  const openShipmentDetail = (id) => {
+    if (!id) return;
+    setDetailId(id);
+    setDetailOpen(true);
+  };
   const columns = [
     {
       title: "Tracking Number",
@@ -265,11 +271,7 @@ export default function ShipmentsPage() {
             <Button
               type="link"
               style={{ padding: 0, fontSize: "12px", fontWeight: "600" }}
-              onClick={() =>
-                router.push(
-                  `/admin/shipments/${record.id}`
-                )
-              }
+              onClick={() => openShipmentDetail(record.id)}
             >
               <CopyOutlined style={{ marginRight: "4px" }} />
               {value || "-"}
@@ -408,11 +410,7 @@ export default function ShipmentsPage() {
               type="primary"
               size="small"
               icon={<EyeOutlined />}
-              onClick={() =>
-                router.push(
-                  `/admin/shipments/${record.id}`
-                )
-              }
+              onClick={() => openShipmentDetail(record.id)}
               style={{ background: "#0891B2", borderColor: "#0891B2" }}
             >
               View
@@ -726,6 +724,15 @@ export default function ShipmentsPage() {
           />
         )}
       </Card>
+    
+      <ShipmentDetailDrawer
+        open={detailOpen}
+        shipmentId={detailId}
+        onClose={() => {
+          setDetailOpen(false);
+          setDetailId(null);
+        }}
+      />
     </Space>
   );
 }

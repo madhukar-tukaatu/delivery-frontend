@@ -538,21 +538,24 @@ export default function DeliveriesPage() {
         title="Deliveries"
         subtitle="Assign riders, track last-mile, and follow cash POD / settlement after delivery"
         actions={
-          <>
-            <Input
-              allowClear
-              prefix={<SearchOutlined style={{ color: "#bfbfbf" }} />}
-              placeholder="Search tracking, receiver, phoneΓÇª"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              style={{ width: 220 }}
-            />
-            <Button icon={<ReloadOutlined />} onClick={refresh}>
-              Refresh
-            </Button>
-          </>
+          <Button icon={<ReloadOutlined />} onClick={refresh}>
+            Refresh
+          </Button>
         }
       />
+
+      <Card className="admin-card" style={{ marginBottom: 12 }}>
+        <Space wrap>
+          <Input
+            allowClear
+            prefix={<SearchOutlined style={{ color: "#bfbfbf" }} />}
+            placeholder="Search tracking, receiver, phone"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            style={{ width: 220 }}
+          />
+        </Space>
+      </Card>
 
       <StatCardGrid>
         <StatCard

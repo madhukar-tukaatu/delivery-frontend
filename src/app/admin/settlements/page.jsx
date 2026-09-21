@@ -1,5 +1,12 @@
 "use client";
 
+import {
+  AccountBookOutlined,
+  ReloadOutlined,
+} from "@ant-design/icons";
+
+import AdminPageHeader from "@/components/admin/ui/AdminPageHeader";
+
 import { useEffect, useMemo, useState } from "react";
 import {
   Alert,
@@ -207,6 +214,15 @@ export default function SettlementsPage() {
 
   return (
     <Space direction="vertical" size={16} style={{ width: "100%" }}>
+      <AdminPageHeader
+        title="Settlements"
+        subtitle="POD deposits, merchant delivery bills, and settlement batches."
+        icon={<AccountBookOutlined />}
+        actions={
+          <Button icon={<ReloadOutlined />} onClick={load}>Refresh</Button>
+        }
+      />
+
       <Alert
         type="info"
         showIcon

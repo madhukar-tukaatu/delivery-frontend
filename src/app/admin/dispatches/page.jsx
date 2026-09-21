@@ -1,8 +1,15 @@
 "use client";
 
+import AdminPageHeader from "@/components/admin/ui/AdminPageHeader";
+
 import { useEffect, useState } from "react";
 import { Button, Card, Col, Form, Input, Modal, Row, Select, Space, Table, Typography, message } from "antd";
-import { PlusOutlined, ReloadOutlined, SearchOutlined } from "@ant-design/icons";
+import {
+  PlusOutlined,
+  ReloadOutlined,
+  SearchOutlined,
+  SendOutlined,
+} from "@ant-design/icons";
 import api from "@/lib/api";
 import { usePermissions } from "@/hooks/usePermission";
 import { StatusTag } from "@/components/PageTools";
@@ -118,22 +125,23 @@ export default function DispatchesPage() {
 
   return (
     <Space direction="vertical" size={12} style={{ width: "100%" }}>
-      <Card>
-        <Space style={{ justifyContent: "space-between", width: "100%" }} wrap>
-          <div>
-            <Text style={{ fontSize: 18, fontWeight: 700 }}>Dispatches</Text>
-            <br />
-            <Text type="secondary" style={{ fontSize: 12 }}>Manage dispatch manifests and transfers.</Text>
-          </div>
-          <Space>
+      <AdminPageHeader
+        title="Dispatches"
+        subtitle="Manage dispatch manifests and transfers."
+        icon={<SendOutlined />}
+        actions={
+          <>
             {can("dispatches.create") && (
               <Button type="primary" icon={<PlusOutlined />} onClick={() => setCreateOpen(true)}>
                 Create Manifest
               </Button>
             )}
             <Button icon={<ReloadOutlined />} onClick={() => load(pagination.current, pagination.pageSize)}>Refresh</Button>
-          </Space>
-        </Space>
+          </>
+        }
+      />
+
+      <Card>
         <Space wrap style={{ marginTop: 12 }}>
           <Input allowClear style={{ width: 220 }} placeholder="Search manifest / driver"
             prefix={<SearchOutlined />} value={search}

@@ -68,6 +68,7 @@ import {
 import BranchInvitationActions from "@/components/admin/branches/BranchInvitationActions";
 import BranchInvitationStatusTag from "@/components/admin/branches/BranchInvitationStatusTag";
 import EditableSectionCard from "@/components/admin/branches/branch-office/EditableSectionCard";
+import AdminPageHeader from "@/components/admin/ui/AdminPageHeader";
 import {
   SECTION_TITLES,
   apiErrorMessage,
@@ -1071,106 +1072,78 @@ export default function BranchOfficeWorkspacePage() {
       }}
     >
       <Space direction="vertical" size={18} style={{ width: "100%" }}>
-        <Card
-          variant="borderless"
-          style={{
-            borderRadius: 22,
-            overflow: "hidden",
-            background:
-              "linear-gradient(135deg, #0f172a 0%, #172554 55%, #1d4ed8 135%)",
-            boxShadow: "0 18px 45px rgba(15, 23, 42, 0.16)",
-          }}
-          styles={{ body: { padding: "26px clamp(20px, 3vw, 34px)" } }}
-        >
-          <Space direction="vertical" size={16} style={{ width: "100%" }}>
-            <Breadcrumb
-              items={[
-                {
-                  title: (
-                    <Link style={{ color: "#bfdbfe" }} href="/admin/branch-offices">
-                      Branch Offices
-                    </Link>
-                  ),
-                },
-                { title: <span style={{ color: "#ffffff" }}>{record.name}</span> },
-              ]}
-            />
+        <AdminPageHeader
+          title={record.name || record.legal_name}
+          icon={<ShopOutlined />}
+          breadcrumb={[
+            {
+              title: (
+                <Link href="/admin/branch-offices">Branch Offices</Link>
+              ),
+            },
+            { title: record.name || "Detail" },
+          ]}
+          tags={
+            <>
+              <Tag color={typeColor(record.type)}>
+                {typeLabel(record.type)}
+              </Tag>
+              <Tag color={currentStatus.color}>{currentStatus.label}</Tag>
+            </>
+          }
+          subtitle={
+            <Space direction="vertical" size={2}>
+              <span>
+                {record.code ? `Code: ${record.code}` : `Branch #${record.id}`}
+                {record.parent?.name ? ` - Parent: ${record.parent.name}` : ""}
+              </span>
+              <span>
+                {record.office_address ||
+                  record.address ||
+                  "Office address not completed"}
+              </span>
+            </Space>
+          }
+          actions={
+            <>
+              <Button icon={<ArrowLeftOutlined />} onClick={handleBack}>
+                Back
+              </Button>
 
-            <Row gutter={[20, 20]} align="middle" justify="space-between">
-              <Col xs={24} xl={15}>
-                <Space align="start" size={15}>
-                  <Avatar
-                    size={54}
-                    icon={<ShopOutlined />}
-                    style={{ background: "rgba(255,255,255,0.16)" }}
-                  />
-                  <Space direction="vertical" size={7}>
-                    <Space wrap>
-                      <Title level={2} style={{ margin: 0, color: "#ffffff" }}>
-                        {record.name || record.legal_name}
-                      </Title>
-                      <Tag color={typeColor(record.type)}>
-                        {typeLabel(record.type)}
-                      </Tag>
-                      <Tag color={currentStatus.color}>{currentStatus.label}</Tag>
-                    </Space>
-                    <Text style={{ color: "#cbd5e1" }}>
-                      {record.code ? `Code: ${record.code}` : `Branch #${record.id}`}
-                      {record.parent?.name ? ` ┬╖ Parent: ${record.parent.name}` : ""}
-                    </Text>
-                    <Text style={{ color: "#cbd5e1" }}>
-                      {record.office_address || record.address || "Office address not completed"}
-                    </Text>
-                  </Space>
-                </Space>
-              </Col>
+              {isMain ? (
+                <BranchInvitationActions branch={record} onChanged={loadPage} />
+              ) : null}
 
-              <Col xs={24} xl={9}>
-                <Space wrap style={{ width: "100%", justifyContent: "flex-end" }}>
-                  <Button
-                    icon={<ArrowLeftOutlined />}
-                    onClick={handleBack}
-                  >
-                    Back
-                  </Button>
+              {!isMain && !["approved", "active"].includes(record.status) ? (
+                <Button
+                  icon={<CheckCircleOutlined />}
+                  onClick={() => openAction("approve")}
+                >
+                  Approve
+                </Button>
+              ) : null}
 
-                  {isMain ? (
-                    <BranchInvitationActions branch={record} onChanged={loadPage} />
-                  ) : null}
+              {["approved", "suspended"].includes(record.status) ? (
+                <Button
+                  type="primary"
+                  icon={<ThunderboltOutlined />}
+                  onClick={() => openAction("activate")}
+                >
+                  Activate
+                </Button>
+              ) : null}
 
-                  {!isMain && !["approved", "active"].includes(record.status) ? (
-                    <Button
-                      icon={<CheckCircleOutlined />}
-                      onClick={() => openAction("approve")}
-                    >
-                      Approve
-                    </Button>
-                  ) : null}
-
-                  {["approved", "suspended"].includes(record.status) ? (
-                    <Button
-                      type="primary"
-                      icon={<ThunderboltOutlined />}
-                      onClick={() => openAction("activate")}
-                    >
-                      Activate
-                    </Button>
-                  ) : null}
-
-                  {["approved", "active"].includes(record.status) ? (
-                    <Button
-                      icon={<StopOutlined />}
-                      onClick={() => openAction("suspend")}
-                    >
-                      Suspend
-                    </Button>
-                  ) : null}
-                </Space>
-              </Col>
-            </Row>
-          </Space>
-        </Card>
-
+              {["approved", "active"].includes(record.status) ? (
+                <Button
+                  icon={<StopOutlined />}
+                  onClick={() => openAction("suspend")}
+                >
+                  Suspend
+                </Button>
+              ) : null}
+            </>
+          }
+        />
         {editingSection ? (
           <Alert
             showIcon

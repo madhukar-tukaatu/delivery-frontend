@@ -1,8 +1,15 @@
 "use client";
 
+import AdminPageHeader from "@/components/admin/ui/AdminPageHeader";
+
 import { useEffect, useState } from "react";
 import { Button, Card, Col, Form, Input, Modal, Row, Select, Space, Table, Tag, Typography, message } from "antd";
-import { PlusOutlined, ReloadOutlined, SearchOutlined } from "@ant-design/icons";
+import {
+  CustomerServiceOutlined,
+  PlusOutlined,
+  ReloadOutlined,
+  SearchOutlined,
+} from "@ant-design/icons";
 import api from "@/lib/api";
 import { usePermissions } from "@/hooks/usePermission";
 import { StatusTag } from "@/components/PageTools";
@@ -94,20 +101,21 @@ export default function SupportPage() {
 
   return (
     <Space direction="vertical" size={12} style={{ width: "100%" }}>
-      <Card>
-        <Space style={{ justifyContent: "space-between", width: "100%" }} wrap>
-          <div>
-            <Text style={{ fontSize: 18, fontWeight: 700 }}>Support Tickets</Text>
-            <br />
-            <Text type="secondary" style={{ fontSize: 12 }}>View and manage customer support tickets.</Text>
-          </div>
-          <Space>
+      <AdminPageHeader
+        title="Support Tickets"
+        subtitle="View and manage customer support tickets."
+        icon={<CustomerServiceOutlined />}
+        actions={
+          <>
             {can("support.manage") && (
               <Button type="primary" icon={<PlusOutlined />} onClick={() => setOpen(true)}>New Ticket</Button>
             )}
             <Button icon={<ReloadOutlined />} onClick={() => load(pagination.current, pagination.pageSize)}>Refresh</Button>
-          </Space>
-        </Space>
+          </>
+        }
+      />
+
+      <Card>
         <Space wrap style={{ marginTop: 12 }}>
           <Input allowClear style={{ width: 240 }} placeholder="Search subject"
             prefix={<SearchOutlined />} value={search}

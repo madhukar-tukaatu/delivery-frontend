@@ -1,5 +1,12 @@
 "use client";
 
+import {
+  PercentageOutlined,
+  ReloadOutlined,
+} from "@ant-design/icons";
+
+import AdminPageHeader from "@/components/admin/ui/AdminPageHeader";
+
 import { useEffect, useState } from "react";
 import {
   Alert,
@@ -103,6 +110,15 @@ export default function HqCommissionsPage() {
 
   return (
     <Space direction="vertical" size={16} style={{ width: "100%" }}>
+      <AdminPageHeader
+        title="HQ Commissions"
+        subtitle="Branch commission bills payable to Tukaatu Express."
+        icon={<PercentageOutlined />}
+        actions={
+          <Button icon={<ReloadOutlined />} onClick={load}>Refresh</Button>
+        }
+      />
+
       <Alert
         type="info"
         showIcon

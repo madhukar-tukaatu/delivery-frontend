@@ -960,52 +960,53 @@ export default function AdminPickupsPage() {
         title="Pickups"
         subtitle="Monitor the pickup lifecycle across every branch"
         actions={
-          <>
-            <Input
-              allowClear
-              prefix={<SearchOutlined style={{ color: "#bfbfbf" }} />}
-              placeholder="Search request, merchant, trackingΓÇª"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              style={{ width: 220 }}
-            />
-            <DatePicker.RangePicker
-              allowEmpty={[true, true]}
-              value={[
-                dateFrom ? dayjs(dateFrom) : null,
-                dateTo ? dayjs(dateTo) : null,
-              ]}
-              onChange={(range) => {
-                setDateFrom(range?.[0] ? range[0].format("YYYY-MM-DD") : null);
-                setDateTo(range?.[1] ? range[1].format("YYYY-MM-DD") : null);
-              }}
-            />
-            {(dateFrom || dateTo || merchantFilter || activeTab !== "all") && (
-              <Button
-                onClick={() => {
-                  setDateFrom(null);
-                  setDateTo(null);
-                  setMerchantFilter(null);
-                  setActiveTab("all");
-                }}
-                style={{ background: "#fff", color: "#0891B2", borderColor: "#fff" }}
-              >
-                Clear
-              </Button>
-            )}
-            <Button
-              icon={<ReloadOutlined />}
-              onClick={() => {
-                load(pagination.current, pagination.pageSize);
-                loadSummary();
-              }}
-              style={{ background: "#fff", color: "#0891B2", borderColor: "#fff" }}
-            >
-              Refresh
-            </Button>
-          </>
+          <Button
+            icon={<ReloadOutlined />}
+            onClick={() => {
+              load(pagination.current, pagination.pageSize);
+              loadSummary();
+            }}
+          >
+            Refresh
+          </Button>
         }
       />
+
+      <Card className="admin-card" style={{ marginBottom: 16 }}>
+        <Space wrap>
+          <Input
+            allowClear
+            prefix={<SearchOutlined style={{ color: "#bfbfbf" }} />}
+            placeholder="Search request, merchant, tracking"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            style={{ width: 220 }}
+          />
+          <DatePicker.RangePicker
+            allowEmpty={[true, true]}
+            value={[
+              dateFrom ? dayjs(dateFrom) : null,
+              dateTo ? dayjs(dateTo) : null,
+            ]}
+            onChange={(range) => {
+              setDateFrom(range?.[0] ? range[0].format("YYYY-MM-DD") : null);
+              setDateTo(range?.[1] ? range[1].format("YYYY-MM-DD") : null);
+            }}
+          />
+          {(dateFrom || dateTo || merchantFilter || activeTab !== "all") && (
+            <Button
+              onClick={() => {
+                setDateFrom(null);
+                setDateTo(null);
+                setMerchantFilter(null);
+                setActiveTab("all");
+              }}
+            >
+              Clear
+            </Button>
+          )}
+        </Space>
+      </Card>
 
       {/* Diagrammatic status summary */}
       <div

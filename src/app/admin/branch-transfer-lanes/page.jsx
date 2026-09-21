@@ -30,17 +30,20 @@ import {
 } from "antd";
 import {
   ApartmentOutlined,
+  CarOutlined,
+  CheckCircleOutlined,
   DeleteOutlined,
   EditOutlined,
+  ExclamationCircleOutlined,
+  LinkOutlined,
+  NodeIndexOutlined,
   PlusOutlined,
   ReloadOutlined,
+  RiseOutlined,
+  RocketOutlined,
   SendOutlined,
   SwapOutlined,
-  CheckCircleOutlined,
-  ExclamationCircleOutlined,
   TeamOutlined,
-  LinkOutlined,
-  RiseOutlined,
 } from "@ant-design/icons";
 import dynamic from "next/dynamic";
 import PermissionGate from "@/components/admin/rate-admin/PermissionGate";
@@ -148,18 +151,18 @@ const TRANSPORT_MODES = [
 
 function TransportBadge({ mode }) {
   const config = {
-    road: { label: "ROAD", color: "blue", icon: "≡ƒ¢ú∩╕Å" },
-    flight: { label: "FLIGHT", color: "cyan", icon: "Γ£ê∩╕Å" },
-    rail: { label: "RAIL", color: "orange", icon: "≡ƒÜé" },
+    road: { label: "ROAD", color: "blue", icon: <CarOutlined /> },
+    flight: { label: "FLIGHT", color: "cyan", icon: <RocketOutlined /> },
+    rail: { label: "RAIL", color: "orange", icon: <NodeIndexOutlined /> },
   };
   const c = config[mode] || {
     label: mode?.toUpperCase() || "-",
     color: "default",
-    icon: "≡ƒÜÜ",
+    icon: <CarOutlined />,
   };
   return (
-    <Tag color={c.color}>
-      {c.icon} {c.label}
+    <Tag color={c.color} icon={c.icon}>
+      {c.label}
     </Tag>
   );
 }
