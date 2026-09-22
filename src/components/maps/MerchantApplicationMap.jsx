@@ -821,7 +821,7 @@ export default function MerchantApplicationMap({
   |
   | When no admin selection exists:
   |
-  | assigned → suggested
+  | assigned -> suggested
   |
   | So your previous map behavior remains.
   |

@@ -1037,7 +1037,7 @@ export default function ConvertMainToSubBranchPage() {
         );
 
         console.log(
-          "CONVERT MAIN ΓåÆ SUB-BRANCH"
+          "CONVERT MAIN -> SUB-BRANCH"
         );
 
         console.log(

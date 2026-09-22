@@ -104,7 +104,7 @@ export default function PricingQuotesPage() {
       render: (_, record) => (
         <Space direction="vertical" size={0}>
           <Text>{record.pickup_branch?.name || "Unknown pickup"}</Text>
-          <Text type="secondary">→ {record.delivery_branch?.name || "Unknown delivery"}</Text>
+          <Text type="secondary">-> {record.delivery_branch?.name || "Unknown delivery"}</Text>
         </Space>
       ),
     },

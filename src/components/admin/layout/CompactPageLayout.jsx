@@ -233,7 +233,7 @@ export function CompactDetailPanel({
             padding: 0,
           }}
           bodyStyle={{ padding: SPACING.md, height: "100%", overflow: "auto" }}
-          title={<Text style={{ fontSize: 12, fontWeight: 600 }}>📋 Details</Text>}
+          title={<Text style={{ fontSize: 12, fontWeight: 600 }}>Details</Text>}
         >
           {details}
         </Card>

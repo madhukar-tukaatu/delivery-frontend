@@ -492,19 +492,19 @@ export default function PaymentGatewaysPage() {
               {
                 title: "Default",
                 dataIndex: "is_default",
-                render: (v) => (v ? <Tag color="blue">default</Tag> : "—"),
+                render: (v) => (v ? <Tag color="blue">default</Tag> : "-"),
               },
               {
                 title: "Credentials",
                 render: (_, r) =>
                   Object.entries(r.credentials || {})
                     .map(([k, meta]) => `${k}:${meta?.set ? (meta.masked || "set") : "-"}`)
-                    .join(", ") || "—",
+                    .join(", ") || "-",
               },
               {
                 title: "Updated",
                 dataIndex: "updated_at",
-                render: (v) => (v ? String(v).replace("T", " ").slice(0, 19) : "—"),
+                render: (v) => (v ? String(v).replace("T", " ").slice(0, 19) : "-"),
               },
             ]}
           />

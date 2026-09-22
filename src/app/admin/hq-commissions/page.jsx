@@ -207,7 +207,7 @@ export default function HqCommissionsPage() {
         />
       </Card>
 
-      <Card title="HQ commission settlements (branch → company)" loading={loading}>
+      <Card title="HQ commission settlements (branch -> company)" loading={loading}>
         <Table
           rowKey="id"
           dataSource={settlements}

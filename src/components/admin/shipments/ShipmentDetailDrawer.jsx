@@ -791,7 +791,7 @@ export default function ShipmentDetailDrawer({
 
                     <Text type="secondary">
                       {event.location_text
-                        ? `${event.location_text} • `
+                        ? `${event.location_text} - `
                         : ""}
 
                       {formatDateTime(

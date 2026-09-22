@@ -161,14 +161,14 @@ const STATUS_META = {
     hint: "Received at origin branch",
   },
   sorted_for_delivery: {
-    label: "Sorted ┬╖ Delivery",
+    label: "Sorted | Delivery",
     color: "green",
     hex: "#52c41a",
     icon: <EnvironmentOutlined />,
     hint: "Sorted for last-mile delivery",
   },
   sorted_for_transfer: {
-    label: "Sorted ┬╖ Transfer",
+    label: "Sorted | Transfer",
     color: "orange",
     hex: "#fa8c16",
     icon: <SwapOutlined />,
@@ -1033,7 +1033,7 @@ export default function AdminPickupsPage() {
                 type="secondary"
                 style={{ fontWeight: 400, marginLeft: 8, fontSize: 12 }}
               >
-                {dateFrom ?? "ΓÇª"} ΓåÆ {dateTo ?? "ΓÇª"}
+                {dateFrom ?? "..."} -> {dateTo ?? "..."}
               </Text>
             ) : null}
           </Text>
@@ -1561,7 +1561,7 @@ export default function AdminPickupsPage() {
               placeholder="Select a rider"
               options={staff.map((s) => ({
                 value: s.id,
-                label: `${s.name}${s.phone ? ` ┬╖ ${s.phone}` : ""}`,
+                label: `${s.name}${s.phone ? ` | ${s.phone}` : ""}`,
               }))}
             />
           </Form.Item>
@@ -1590,7 +1590,7 @@ export default function AdminPickupsPage() {
                 .filter((s) => Number(s.id) !== Number(detailRider?.id))
                 .map((s) => ({
                   value: s.id,
-                  label: `${s.name}${s.phone ? ` ┬╖ ${s.phone}` : ""}`,
+                  label: `${s.name}${s.phone ? ` | ${s.phone}` : ""}`,
                 }))}
             />
           </Form.Item>
@@ -1626,7 +1626,7 @@ export default function AdminPickupsPage() {
           >
             <Input.TextArea
               rows={4}
-              placeholder="Shipment missing, cutoff passed, service not fulfillableΓÇª"
+              placeholder="Shipment missing, cutoff passed, service not fulfillable..."
             />
           </Form.Item>
         </Form>
@@ -1732,7 +1732,7 @@ export default function AdminPickupsPage() {
           >
             <Input.TextArea
               rows={3}
-              placeholder="Describe the discrepancy (what was expected vs. what arrived)ΓÇª"
+              placeholder="Describe the discrepancy (what was expected vs. what arrived)..."
             />
           </Form.Item>
         </Form>

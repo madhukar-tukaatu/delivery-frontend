@@ -191,7 +191,7 @@ export default function ViewCoverageLocationPage() {
   return (
     <Space direction="vertical" size={16} style={{ width: "100%", padding: 20 }}>
 
-      {/* ΓöÇΓöÇ Header ΓöÇΓöÇ */}
+      {/*  Header  */}
       <Card bordered={false} styles={{ body: { paddingBottom: 16 } }}>
         <Space direction="vertical" size={10} style={{ width: "100%" }}>
 
@@ -264,7 +264,7 @@ export default function ViewCoverageLocationPage() {
         </Space>
       </Card>
 
-      {/* ΓöÇΓöÇ Main content: details left, map right ΓöÇΓöÇ */}
+      {/*  Main content: details left, map right  */}
       <Row gutter={[16, 16]} align="stretch">
 
         {/* Left column */}
@@ -355,7 +355,7 @@ export default function ViewCoverageLocationPage() {
         </Col>
       </Row>
 
-      {/* ΓöÇΓöÇ Sub-branches (main zones only) ΓöÇΓöÇ */}
+      {/*  Sub-branches (main zones only)  */}
       {isMain && (
         <Card
           size="small"
@@ -379,7 +379,7 @@ export default function ViewCoverageLocationPage() {
         </Card>
       )}
 
-      {/* ΓöÇΓöÇ Assigned Franchises ΓöÇΓöÇ */}
+      {/*  Assigned Franchises  */}
       <Card
         size="small"
         title={<Space size={6}><ShopOutlined />Assigned Franchises ({record.assignedBranches?.length || 0})</Space>}

@@ -49,7 +49,7 @@ function EffectiveRates({ pricingSettings, isSameBranch, expressEnabled, sameDay
             }}
           >
             <Text style={{ fontSize: 10, color: enabled ? color : "#8c8c8c", fontWeight: 700, display: "block" }}>
-              {label} {enabled ? `×${multiplier}` : "(disabled for this route)"}
+              {label} {enabled ? `x${multiplier}` : "(disabled for this route)"}
             </Text>
           </div>
         ))}

@@ -339,7 +339,7 @@ export default function BranchTransferRoutesPage() {
       if (!groups.has(key)) {
         groups.set(key, {
           key,
-          label: `${originName} ΓåÆ ${destName}`,
+          label: `${originName} -> ${destName}`,
           service: row.service_type,
           routes: [],
         });
@@ -734,7 +734,7 @@ export default function BranchTransferRoutesPage() {
       {/* HEADER */}
       <AdminPageHeader
         title="Transfer Routes"
-        subtitle="A route is an ordered chain of lanes with optional road checkpoints. Build KTM ΓåÆ Itahari via Bardibas from existing lanes - no direct lane needed."
+        subtitle="A route is an ordered chain of lanes with optional road checkpoints. Build KTM -> Itahari via Bardibas from existing lanes - no direct lane needed."
         actions={
           <>
             <Segmented
@@ -794,7 +794,7 @@ export default function BranchTransferRoutesPage() {
                 <Input.Search
                   allowClear
                   size="large"
-                  placeholder="≡ƒöì Search route code or name..."
+                  placeholder="code or name..."
                   value={filters.search}
                   onChange={(e) =>
                     setFilters((c) => ({ ...c, search: e.target.value }))
@@ -806,7 +806,7 @@ export default function BranchTransferRoutesPage() {
               <Col xs={24} sm={12} lg={5}>
                 <Select
                   allowClear
-                  placeholder="≡ƒôì Route Type"
+                  placeholder="Route type"
                   style={{ width: "100%", borderRadius: "8px" }}
                   options={[
                     { label: "Direct Only", value: false },
@@ -821,7 +821,7 @@ export default function BranchTransferRoutesPage() {
               <Col xs={24} sm={12} lg={5}>
                 <Select
                   allowClear
-                  placeholder="≡ƒôª Service"
+                  placeholder="Service"
                   style={{ width: "100%", borderRadius: "8px" }}
                   options={SERVICE_TYPES}
                   value={filters.service_type}
@@ -833,7 +833,7 @@ export default function BranchTransferRoutesPage() {
               <Col xs={24} sm={12} lg={4}>
                 <Select
                   allowClear
-                  placeholder="≡ƒöî Status"
+                  placeholder="Status"
                   style={{ width: "100%", borderRadius: "8px" }}
                   options={[
                     { label: "Active", value: true },
@@ -863,7 +863,7 @@ export default function BranchTransferRoutesPage() {
           {groupedRoutes.some((g) => g.routes.length > 1) ? (
             <Card
               bordered={false}
-              title="Alternative Routes (same origin ΓåÆ destination)"
+              title="Alternative Routes (same origin -> destination)"
               size="small"
             >
               <Collapse
@@ -916,7 +916,7 @@ export default function BranchTransferRoutesPage() {
                                 {statusTag(r.is_active)}
                               </Space>
                               <Text type="secondary" style={{ fontSize: 12 }}>
-                                {Number(r.total_distance_km || 0).toFixed(1)} km ┬╖
+                                {Number(r.total_distance_km || 0).toFixed(1)} km |
                                 priority {r.priority}
                               </Text>
                             </Space>
@@ -1249,14 +1249,14 @@ function ConnectivityView({
         <Space direction="vertical" size={0}>
           <Space size={6}>
             <Tag color={direction === "out" ? "geekblue" : "cyan"}>
-              {direction === "out" ? "ΓåÆ" : "ΓåÉ"}
+              {direction === "out" ? "->" : "<-"}
             </Tag>
             <Text strong>{other?.name || "Branch"}</Text>
             <Tag color="blue">{lane.service_type}</Tag>
             {lane.is_active ? null : <Tag>inactive</Tag>}
           </Space>
           <Text type="secondary" style={{ fontSize: 12 }}>
-            {Number(lane.distance_km || 0)} km ┬╖ ~
+            {Number(lane.distance_km || 0)} km | ~
             {Number(lane.estimated_hours || 0)} hrs
           </Text>
         </Space>

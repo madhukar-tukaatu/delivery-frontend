@@ -416,7 +416,7 @@ export default function TransferDashboardPage() {
             <Text strong style={{ fontSize: 13 }}>{s.tracking_number || `#${s.id}`}</Text>
             {!isCrossBranch && (
               <Tag color="red" style={{ margin: 0 }}>
-                ΓÜá Same-branch (should not show)
+                ! Same-branch (should not show)
               </Tag>
             )}
             <Tag color="orange" style={{ margin: 0 }}>
@@ -697,7 +697,7 @@ export default function TransferDashboardPage() {
             <Input
               allowClear
               prefix={<SearchOutlined style={{ color: "#bfbfbf" }} />}
-              placeholder="Search tracking, receiver, phoneΓÇª"
+              placeholder="Search tracking, receiver, phone..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               style={{ width: 260 }}

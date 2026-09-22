@@ -24,7 +24,7 @@ function StatCard({ title, value, prefix, color, link, loading, isMoney }) {
         title={
           <Space style={{ justifyContent: "space-between", width: "100%" }}>
             <Text type="secondary" style={{ fontSize: 12, fontWeight: 600, color: "#64748B" }}>{title}</Text>
-            {link && <Link href={link}><Button type="link" size="small" style={{ padding: 0, fontSize: 11, color: "#0891B2" }}>View →</Button></Link>}
+            {link && <Link href={link}><Button type="link" size="small" style={{ padding: 0, fontSize: 11, color: "#0891B2" }}>View -></Button></Link>}
           </Space>
         }
         value={isMoney ? undefined : (value ?? 0)}

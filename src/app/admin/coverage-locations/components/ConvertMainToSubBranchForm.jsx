@@ -693,7 +693,7 @@ export default function ConvertMainToSubBranchForm({
                   Convert Main to Sub-Branch
                 </Title>
 
-                <Tag color="blue">Main ΓåÆ Sub-Branch</Tag>
+                <Tag color="blue">Main -> Sub-Branch</Tag>
 
                 <Text type="secondary">
                   Preserve location configuration while changing hierarchy.

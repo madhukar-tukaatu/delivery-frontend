@@ -173,7 +173,7 @@ export default function TransferRoutePricingSection({
                 </Descriptions.Item>
 
                 <Descriptions.Item label="Fragile">
-                  ×
+                  x
                   {Number(
                     globalPricing.fragile_multiplier ||
                       1,
@@ -181,7 +181,7 @@ export default function TransferRoutePricingSection({
                 </Descriptions.Item>
 
                 <Descriptions.Item label="Same Day">
-                  ×
+                  x
                   {Number(
                     globalPricing.transfer_same_day_multiplier ??
                       globalPricing.same_day_transfer_branch_multiplier ??
@@ -358,7 +358,7 @@ export default function TransferRoutePricingSection({
                 <InputNumber
                   min={1}
                   precision={4}
-                  addonBefore="×"
+                  addonBefore="x"
                   style={fullWidth}
                 />
               </Form.Item>
@@ -382,7 +382,7 @@ export default function TransferRoutePricingSection({
                 <InputNumber
                   min={1}
                   precision={4}
-                  addonBefore="×"
+                  addonBefore="x"
                   style={fullWidth}
                 />
               </Form.Item>

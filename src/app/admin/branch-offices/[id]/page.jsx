@@ -360,7 +360,7 @@ export default function BranchOfficeWorkspacePage() {
         label:
           Number(item.id) === Number(record?.coverage_location_id)
             ? `${item.name} (${item.code}) - Current allocation`
-            : `${item.name} (${item.code}) - Inactive ┬╖ Unassigned`,
+            : `${item.name} (${item.code}) - Inactive | Unassigned`,
       }));
   }, [
     coverageLocations,

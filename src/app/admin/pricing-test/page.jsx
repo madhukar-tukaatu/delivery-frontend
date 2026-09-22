@@ -815,7 +815,7 @@ function LocationCard({
         onClick={onMap}
       >
         <span className="map-button-icon">
-          Γîû
+          
         </span>
 
         Map
@@ -1184,7 +1184,7 @@ function RouteTimeline({
 
       <div className="timeline-item">
         <div className="timeline-marker delivery">
-          Γ£ô
+          OK
         </div>
 
         <div className="timeline-content">
@@ -2175,7 +2175,7 @@ export default function PricingTestPage() {
          * Everything goes through:
          *
          * adminPricingSimulatorService
-         *        Γåô
+         *        v
          *      lib/api
          */
         const response =
@@ -2405,9 +2405,9 @@ export default function PricingTestPage() {
                     </Text>
 
                     <Text type="secondary">
-                      Pickup stores ΓåÆ
+                      Pickup stores ->
                       configured
-                      transfer lanes ΓåÆ
+                      transfer lanes ->
                       delivery
                     </Text>
                   </div>
@@ -2781,9 +2781,9 @@ export default function PricingTestPage() {
                     </Text>
 
                     <Text type="secondary">
-                      Pickup ΓåÆ
+                      Pickup ->
                       configured
-                      transfers ΓåÆ
+                      transfers ->
                       delivery
                     </Text>
                   </div>
@@ -2931,7 +2931,7 @@ export default function PricingTestPage() {
 
                   {result && (
                     <Badge
-                      count="Γ£ô"
+                      count="OK"
                       color="green"
                     />
                   )}

@@ -998,7 +998,7 @@ export default function MerchantApplicationsPage() {
         >
           <Input
             size="small"
-            placeholder="Search name, email, phoneΓÇª"
+            placeholder="Search name, email, phone..."
             allowClear
             prefix={
               <SearchOutlined
@@ -1171,7 +1171,7 @@ export default function MerchantApplicationsPage() {
             ],
 
             showTotal: (count, range) =>
-              `${range[0]}ΓÇô${range[1]} of ${count}`,
+              `${range[0]}-${range[1]} of ${count}`,
 
             onChange: (
               nextPage,

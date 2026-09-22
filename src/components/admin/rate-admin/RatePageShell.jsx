@@ -43,7 +43,7 @@ export function PathView({ nodes = [] }) {
       {nodes.map((node, index) => (
         <span key={`${node.id ?? node.name ?? index}-${index}`} className={styles.path}>
           <span className={styles.pathNode}>{node.name ?? node.label ?? `Branch ${node.id}`}</span>
-          {index < nodes.length - 1 ? <span className={styles.pathArrow}>→</span> : null}
+          {index < nodes.length - 1 ? <span className={styles.pathArrow}>-></span> : null}
         </span>
       ))}
     </div>
@@ -58,7 +58,7 @@ export function Pagination({ page, totalPages, total, onPageChange }) {
   return (
     <div className={styles.pagination}>
       <span>
-        Page {page} of {totalPages} · {total} records
+        Page {page} of {totalPages} | {total} records
       </span>
       <div className={styles.inlineActions}>
         <button

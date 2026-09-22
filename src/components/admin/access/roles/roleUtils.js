@@ -2,7 +2,7 @@
  * Convert technical names into readable labels.
  *
  * branches.sub_offices
- *      ↓
+ *      v
  * Branches Sub Offices
  */
 export function prettifyLabel(
@@ -20,7 +20,7 @@ export function prettifyLabel(
  * Convert permission name into readable label.
  *
  * branches.sub_offices.create
- *      ↓
+ *      v
  * Create Branches Sub Offices
  */
 export function prettifyPermission(

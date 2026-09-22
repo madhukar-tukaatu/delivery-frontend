@@ -206,7 +206,7 @@ export default function PricingSettingsListPage() {
         <Space wrap size={[4, 4]}>
           {toBoolean(row.fragile_enabled) ? (
             <Tag color="orange">
-              Fragile ├ù{Number(row.fragile_multiplier).toFixed(2)}
+              Fragile x{Number(row.fragile_multiplier).toFixed(2)}
             </Tag>
           ) : null}
 

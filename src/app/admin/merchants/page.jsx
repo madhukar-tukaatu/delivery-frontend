@@ -823,7 +823,7 @@ export default function MerchantsPage() {
               total,
               range,
             ) =>
-              `${range[0]}ΓÇô${range[1]} of ${total} merchants`,
+              `${range[0]}-${range[1]} of ${total} merchants`,
 
             onChange: (
               page,

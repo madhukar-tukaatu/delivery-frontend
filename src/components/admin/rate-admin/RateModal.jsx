@@ -48,7 +48,7 @@ export default function RateModal({
             {subtitle ? <p className={styles.modalSubtitle}>{subtitle}</p> : null}
           </div>
           <button type="button" className={styles.iconButton} onClick={onClose} aria-label="Close">
-            ✕
+            x
           </button>
         </div>
 

@@ -37,8 +37,8 @@ function laneTo(lane) {
 }
 
 function laneLabel(lane) {
-  const dist = lane?.distance_km != null ? ` · ${Number(lane.distance_km)}km` : "";
-  return `${laneFrom(lane)} → ${laneTo(lane)}${dist}`;
+  const dist = lane?.distance_km != null ? ` | ${Number(lane.distance_km)}km` : "";
+  return `${laneFrom(lane)} -> ${laneTo(lane)}${dist}`;
 }
 
 /**
@@ -94,7 +94,7 @@ function pathLabel(path) {
   const dist = path.reduce((s, l) => s + Number(l.distance_km || 0), 0);
   const hops = path.length - 1;
   const via = hops === 0 ? "Direct" : `${hops} transit${hops === 1 ? "" : "s"}`;
-  return `${names.join(" → ")}  ·  ${via}  ·  ${dist.toFixed(0)} km`;
+  return `${names.join(" -> ")}  |  ${via}  |  ${dist.toFixed(0)} km`;
 }
 
 /**
@@ -160,12 +160,12 @@ export default function OrderedLaneBuilder({
     for (let i = 0; i < selectedLanes.length; i++) {
       const lane = selectedLanes[i];
       if (String(lane.service_type) !== String(serviceType)) {
-        errors.push(`Lane ${laneFrom(lane)} → ${laneTo(lane)} is ${lane.service_type}.`);
+        errors.push(`Lane ${laneFrom(lane)} -> ${laneTo(lane)} is ${lane.service_type}.`);
       }
       if (i > 0) {
         const prev = selectedLanes[i - 1];
         if (Number(prev.to_branch_id) !== Number(lane.from_branch_id)) {
-          errors.push(`Not connected: ${laneTo(prev)} ✕ ${laneFrom(lane)}.`);
+          errors.push(`Not connected: ${laneTo(prev)} x ${laneFrom(lane)}.`);
         }
       }
     }
@@ -363,8 +363,8 @@ export default function OrderedLaneBuilder({
             </Space>
             <div style={{ marginTop: 6 }}>
               <Text type="secondary" style={{ fontSize: 12 }}>
-                {selectedLanes.length} lane{selectedLanes.length === 1 ? "" : "s"} ·{" "}
-                {totals.distance.toFixed(1)} km · ~{Math.round(totals.hours)} hrs ·{" "}
+                {selectedLanes.length} lane{selectedLanes.length === 1 ? "" : "s"} |{" "}
+                {totals.distance.toFixed(1)} km | ~{Math.round(totals.hours)} hrs |{" "}
                 {Math.max(0, pathBranches.length - 2)} transit branch
                 {pathBranches.length - 2 === 1 ? "" : "es"}
               </Text>
@@ -416,7 +416,7 @@ export default function OrderedLaneBuilder({
                   </Text>
                   <Tag color="blue">{lane.service_type}</Tag>
                   <Text type="secondary" style={{ fontSize: 12 }}>
-                    {Number(lane.distance_km || 0)} km · ~
+                    {Number(lane.distance_km || 0)} km | ~
                     {Number(lane.estimated_hours || 0)} hrs
                   </Text>
                 </Space>
@@ -487,7 +487,7 @@ export default function OrderedLaneBuilder({
             type="success"
             showIcon
             icon={<CheckCircleFilled />}
-            message={`Valid route: ${pathBranches.join(" → ")}`}
+            message={`Valid route: ${pathBranches.join(" -> ")}`}
           />
         ) : (
           <Alert

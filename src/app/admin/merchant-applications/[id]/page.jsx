@@ -2594,7 +2594,7 @@ export default function AdminMerchantApplicationDetailPage() {
             >
               {previewDoc
                 ?.document_type}{" "}
-              ·{" "}
+              |{" "}
               {
                 previewDoc
                   ?.mime_type

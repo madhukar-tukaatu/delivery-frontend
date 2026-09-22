@@ -46,7 +46,7 @@ export default function AdminInvoicesPage() {
   async function payHamro(id) {
     try {
       const res = await api.post(`/admin/invoices/${id}/pay-hamropay`, {});
-      message.success("HamroPay session created (merchant → branch)");
+      message.success("HamroPay session created (merchant -> branch)");
       console.info(unwrap(res));
       load();
     } catch (e) {
@@ -83,7 +83,7 @@ export default function AdminInvoicesPage() {
               <Space>
                 {r.type === "delivery_charges" && r.status !== "paid" ? (
                   <Button size="small" type="primary" onClick={() => payHamro(r.id)}>
-                    Pay via HamroPay → branch
+                    Pay via HamroPay -> branch
                   </Button>
                 ) : null}
                 <Button size="small" disabled={r.status === "paid"} onClick={() => markPaid(r.id)}>

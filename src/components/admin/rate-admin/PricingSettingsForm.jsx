@@ -179,7 +179,7 @@ export default function PricingSettingsForm({
               label="Fragile multiplier"
               rules={[{ required: true }, { type: "number", min: 1 }]}
             >
-              <InputNumber min={1} precision={4} addonBefore="×" style={fullWidth} />
+              <InputNumber min={1} precision={4} addonBefore="x" style={fullWidth} />
             </Form.Item>
           </Col>
         </Row>
@@ -189,17 +189,17 @@ export default function PricingSettingsForm({
         {/* EXPRESS */}
         <SectionTitle
           title="Express multipliers"
-          description="Applied to the base rate when service type is Express. Express price = base rate × multiplier."
+          description="Applied to the base rate when service type is Express. Express price = base rate x multiplier."
         />
         <Row gutter={[12, 0]}>
           <Col xs={24} sm={12} lg={6}>
             <Form.Item name="local_express_multiplier" label="Local express" rules={[{ required: true }, { type: "number", min: 1 }]}>
-              <InputNumber min={1} precision={4} addonBefore="×" style={fullWidth} />
+              <InputNumber min={1} precision={4} addonBefore="x" style={fullWidth} />
             </Form.Item>
           </Col>
           <Col xs={24} sm={12} lg={6}>
             <Form.Item name="transfer_express_multiplier" label="Transfer express" rules={[{ required: true }, { type: "number", min: 1 }]}>
-              <InputNumber min={1} precision={4} addonBefore="×" style={fullWidth} />
+              <InputNumber min={1} precision={4} addonBefore="x" style={fullWidth} />
             </Form.Item>
           </Col>
           <Col xs={12} sm={6} lg={3}>
@@ -214,17 +214,17 @@ export default function PricingSettingsForm({
         {/* SAME DAY + PICKUP */}
         <SectionTitle
           title="Same-day multipliers and pickup charges"
-          description="Applied to the base rate when service type is Same Day. Same Day price = base rate × multiplier."
+          description="Applied to the base rate when service type is Same Day. Same Day price = base rate x multiplier."
         />
         <Row gutter={[12, 0]}>
           <Col xs={24} sm={12} lg={5}>
             <Form.Item name="local_same_day_multiplier" label="Local same day" rules={[{ required: true }]}>
-              <InputNumber min={1} precision={4} addonBefore="×" style={fullWidth} />
+              <InputNumber min={1} precision={4} addonBefore="x" style={fullWidth} />
             </Form.Item>
           </Col>
           <Col xs={24} sm={12} lg={5}>
             <Form.Item name="transfer_same_day_multiplier" label="Transfer same day" rules={[{ required: true }]}>
-              <InputNumber min={1} precision={4} addonBefore="×" style={fullWidth} />
+              <InputNumber min={1} precision={4} addonBefore="x" style={fullWidth} />
             </Form.Item>
           </Col>
           <Col xs={24} sm={12} lg={4}>

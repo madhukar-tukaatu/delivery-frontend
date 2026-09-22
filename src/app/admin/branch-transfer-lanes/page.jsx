@@ -493,7 +493,7 @@ export default function BranchTransferLanesPage() {
       setCreatingRoutes((prev) => new Set([...prev, row.id]));
       await createRouteForBranchTransferLane(row.id);
       message.success(
-        `Γ£ô Route created for: ${row.from_branch?.name} ΓåÆ ${row.to_branch?.name}`,
+        `Route created for: ${row.from_branch?.name} -> ${row.to_branch?.name}`,
       );
       setRows((prevRows) =>
         prevRows.map((r) =>
@@ -503,7 +503,7 @@ export default function BranchTransferLanesPage() {
     } catch (err) {
       const errorMsg =
         err?.response?.data?.message || "Could not create route.";
-      message.error(`Γ£ù Failed: ${errorMsg}`);
+      message.error(`Failed: ${errorMsg}`);
     } finally {
       setCreatingRoutes((prev) => {
         const next = new Set(prev);
@@ -549,12 +549,12 @@ export default function BranchTransferLanesPage() {
       }
 
       if (failedCount === 0) {
-        message.success(`Γ£ô Routes created for ${successCount} lane(s).`);
+        message.success(`Routes created for ${successCount} lane(s).`);
       } else if (successCount === 0) {
-        message.error(`Γ£ù Failed to create routes.`);
+        message.error(`Failed to create routes.`);
       } else {
         message.warning(
-          `ΓÜá Created ${successCount} route(s), ${failedCount} failed.`,
+          `! Created ${successCount} route(s), ${failedCount} failed.`,
         );
       }
 
@@ -576,7 +576,7 @@ export default function BranchTransferLanesPage() {
       render: (_, row) => (
         <Space direction="vertical" size={2}>
           <Text strong style={{ fontSize: "13px" }}>
-            {row.from_branch?.name || "Unknown"} ΓåÆ{" "}
+            {row.from_branch?.name || "Unknown"} ->{" "}
             {row.to_branch?.name || "Unknown"}
           </Text>
           <Text type="secondary" style={{ fontSize: "11px" }}>
@@ -686,7 +686,7 @@ export default function BranchTransferLanesPage() {
                 toggleStatus(row);
               }}
             >
-              {row.is_active ? "Γ£ô" : "Γùï"}
+              {row.is_active ? "Active" : "Inactive"}
             </Button>
           </Tooltip>
 
@@ -971,7 +971,7 @@ export default function BranchTransferLanesPage() {
               <Row justify="space-between" align="middle">
                 <Col>
                   <Text style={{ fontSize: "12px" }}>
-                    Γ£ô {selectedRowKeys.length} selected ┬╖{" "}
+                    {selectedRowKeys.length} selected |{" "}
                     {
                       rows.filter(
                         (r) =>
@@ -1140,7 +1140,7 @@ export default function BranchTransferLanesPage() {
                       color: "#0F172A",
                     }}
                   >
-                    ≡ƒù║∩╕Å Route Map
+                    
                   </Text>
                 }
               >
@@ -1225,7 +1225,7 @@ export default function BranchTransferLanesPage() {
                       color: "#0F172A",
                     }}
                   >
-                    ≡ƒôï Details
+                    
                   </Text>
                 }
               >

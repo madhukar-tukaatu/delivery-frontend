@@ -1122,11 +1122,11 @@ export default function EditCoverageLocationPage() {
                     {record.code || "-"}
                   </Text>
 
-                  {" ┬╖ "}
+                  {" | "}
 
                   ID: {record.id}
 
-                  {" ┬╖ "}
+                  {" | "}
 
                   Type:{" "}
                   <Text strong>
@@ -1137,7 +1137,7 @@ export default function EditCoverageLocationPage() {
 
                   {isSub && parentId && (
                     <>
-                      {" ┬╖ "}
+                      {" | "}
                       Parent ID:{" "}
                       <Text strong>
                         {parentId}

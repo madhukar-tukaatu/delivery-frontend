@@ -131,7 +131,7 @@ export async function getCoverageLocationMap(
 
 /*
 |--------------------------------------------------------------------------
-| Main → Sub-Branch Conversion Options
+| Main -> Sub-Branch Conversion Options
 |--------------------------------------------------------------------------
 */
 
@@ -147,7 +147,7 @@ export async function getCoverageConversionOptions(
 
 /*
 |--------------------------------------------------------------------------
-| Main → Sub-Branch Conversion
+| Main -> Sub-Branch Conversion
 |--------------------------------------------------------------------------
 |
 | Backend expects:

@@ -61,7 +61,7 @@ export default function ReportsPage() {
     setTimeout(() => loadTab(activeTab), 0);
   };
 
-  // ΓöÇΓöÇ Tab renderers ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+  //  Tab renderers 
 
   const renderShipments = (d) => !d ? null : (
     <Space direction="vertical" size={16} style={{ width: "100%" }}>

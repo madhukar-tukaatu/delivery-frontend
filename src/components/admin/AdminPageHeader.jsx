@@ -5,7 +5,7 @@ import { Avatar, Breadcrumb, Space, Typography } from "antd";
 const { Title, Text } = Typography;
 
 /**
- * Shared admin page header — same navy hero used on Staff and Franchise detail.
+ * Shared admin page header - same navy hero used on Staff and Franchise detail.
  *
  * <AdminPageHeader
  *   title="Branch Offices"

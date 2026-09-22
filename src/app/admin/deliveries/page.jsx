@@ -338,7 +338,7 @@ export default function DeliveriesPage() {
       content: (
         <Input.TextArea
           rows={3}
-          placeholder="Reason (customer unreachable, address wrong, refusedΓÇª)"
+          placeholder="Reason (customer unreachable, address wrong, refused...)"
           onChange={(e) => {
             reason = e.target.value;
           }}
@@ -754,9 +754,9 @@ export default function DeliveriesPage() {
                 onChange={setSelectedRider}
                 options={riders.map((r) => ({
                   value: r.id,
-                  label: `${r.name}${r.phone ? ` ┬╖ ${r.phone}` : ""} - ${r.active_deliveries_count ?? 0} active`,
+                  label: `${r.name}${r.phone ? ` | ${r.phone}` : ""} - ${r.active_deliveries_count ?? 0} active`,
                 }))}
-                notFoundContent={ridersLoading ? "LoadingΓÇª" : "No riders at this branch"}
+                notFoundContent={ridersLoading ? "Loading..." : "No riders at this branch"}
               />
             </div>
             <Text type="secondary" style={{ fontSize: 11 }}>
@@ -796,9 +796,9 @@ export default function DeliveriesPage() {
                 onChange={setSelectedRider}
                 options={riders.map((r) => ({
                   value: r.id,
-                  label: `${r.name}${r.phone ? ` ┬╖ ${r.phone}` : ""} - ${r.active_deliveries_count ?? 0} active`,
+                  label: `${r.name}${r.phone ? ` | ${r.phone}` : ""} - ${r.active_deliveries_count ?? 0} active`,
                 }))}
-                notFoundContent={ridersLoading ? "LoadingΓÇª" : "No riders at this branch"}
+                notFoundContent={ridersLoading ? "Loading..." : "No riders at this branch"}
               />
             </div>
           </Space>

@@ -17,7 +17,7 @@ import { MapContainer, Marker, Polyline, Popup, TileLayer, useMap } from "react-
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 
-// ─── helpers ────────────────────────────────────────────────────────────────
+// - helpers -
 
 function toNum(v) {
   const n = Number(v);
@@ -76,7 +76,7 @@ function midpoint(arc) {
   return arc[Math.floor(arc.length / 2)];
 }
 
-// ─── custom icons ───────────────────────────────────────────────────────────
+// - custom icons -
 
 function makeIcon(emoji, rotateDeg = 0, size = 32) {
   return L.divIcon({
@@ -114,7 +114,7 @@ function endpointIcon(label, bg) {
   });
 }
 
-// ─── FitBounds helper ───────────────────────────────────────────────────────
+// - FitBounds helper -
 
 function FitBounds({ points }) {
   const map = useMap();
@@ -126,7 +126,7 @@ function FitBounds({ points }) {
   return null;
 }
 
-// ─── Main component ─────────────────────────────────────────────────────────
+// - Main component -
 
 export default function ArcRouteMap({ fromNode, toNode, mode = "flight", height = 300 }) {
   const lat1 = toNum(fromNode?.latitude);
@@ -149,7 +149,7 @@ export default function ArcRouteMap({ fromNode, toNode, mode = "flight", height 
   const mid = useMemo(() => (arc.length ? midpoint(arc) : null), [arc]);
 
   const isFlight = mode === "flight";
-  const emoji = isFlight ? "✈️" : "🚂";
+  const emoji = isFlight ? "FLIGHT" : "RAIL";
   const arcColor = isFlight ? "#1677ff" : "#fa8c16";
   const bgFrom = "#52c41a";
   const bgTo   = "#f5222d";
@@ -217,7 +217,7 @@ export default function ArcRouteMap({ fromNode, toNode, mode = "flight", height 
           <Popup>
             <strong>{isFlight ? "Flight" : "Rail"}</strong>
             <br />
-            {fromNode?.name} → {toNode?.name}
+            {fromNode?.name} -> {toNode?.name}
           </Popup>
         </Marker>
       )}

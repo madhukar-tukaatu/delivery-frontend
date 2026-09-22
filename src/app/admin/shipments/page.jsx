@@ -391,7 +391,7 @@ export default function ShipmentsPage() {
           />
           {record?.is_transfer ? (
             <Tag color="orange" style={{ margin: 0, fontSize: "10px" }}>
-              Transfer{record?.transfer_stage_label ? ` ┬╖ ${record.transfer_stage_label}` : ""}
+              Transfer{record?.transfer_stage_label ? ` | ${record.transfer_stage_label}` : ""}
             </Tag>
           ) : null}
         </Space>

@@ -325,7 +325,7 @@ export default function PricingSettingViewPage() {
                 {toBoolean(
                   record.fragile_enabled,
                 )
-                  ? `Enabled × ${Number(
+                  ? `Enabled x ${Number(
                       record.fragile_multiplier,
                     ).toFixed(4)}`
                   : "Disabled"}
@@ -335,7 +335,7 @@ export default function PricingSettingViewPage() {
                 {toBoolean(
                   record.same_day_enabled,
                 )
-                  ? `× ${Number(
+                  ? `x ${Number(
                       record.local_same_day_multiplier,
                     ).toFixed(4)}`
                   : "Disabled"}
@@ -345,7 +345,7 @@ export default function PricingSettingViewPage() {
                 {toBoolean(
                   record.same_day_enabled,
                 )
-                  ? `× ${Number(
+                  ? `x ${Number(
                       record.transfer_same_day_multiplier,
                     ).toFixed(4)}`
                   : "Disabled"}
