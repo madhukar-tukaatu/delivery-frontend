@@ -100,7 +100,7 @@ export default function DispatchesPage() {
       render: (_, r) => (
         <Space direction="vertical" size={0}>
           <Text style={{ fontSize: 12 }}>{r.from_branch?.name || "-"}</Text>
-          <Text type="secondary" style={{ fontSize: 11 }}>-> {r.to_branch?.name || "-"}</Text>
+          <Text type="secondary" style={{ fontSize: 11 }}>{"-> "}{r.to_branch?.name || "-"}</Text>
         </Space>
       ),
     },

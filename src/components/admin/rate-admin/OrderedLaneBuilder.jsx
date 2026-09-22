@@ -38,7 +38,7 @@ function laneTo(lane) {
 
 function laneLabel(lane) {
   const dist = lane?.distance_km != null ? ` | ${Number(lane.distance_km)}km` : "";
-  return `${laneFrom(lane)} -> ${laneTo(lane)}${dist}`;
+  return `${laneFrom(lane)}{" -> "}${laneTo(lane)}${dist}`;
 }
 
 /**
@@ -160,7 +160,7 @@ export default function OrderedLaneBuilder({
     for (let i = 0; i < selectedLanes.length; i++) {
       const lane = selectedLanes[i];
       if (String(lane.service_type) !== String(serviceType)) {
-        errors.push(`Lane ${laneFrom(lane)} -> ${laneTo(lane)} is ${lane.service_type}.`);
+        errors.push(`Lane ${laneFrom(lane)}{" -> "}${laneTo(lane)} is ${lane.service_type}.`);
       }
       if (i > 0) {
         const prev = selectedLanes[i - 1];

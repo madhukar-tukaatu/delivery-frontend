@@ -43,7 +43,7 @@ export function PathView({ nodes = [] }) {
       {nodes.map((node, index) => (
         <span key={`${node.id ?? node.name ?? index}-${index}`} className={styles.path}>
           <span className={styles.pathNode}>{node.name ?? node.label ?? `Branch ${node.id}`}</span>
-          {index < nodes.length - 1 ? <span className={styles.pathArrow}>-></span> : null}
+          {index < nodes.length - 1 ? <span className={styles.pathArrow}>{"->"}</span> : null}
         </span>
       ))}
     </div>

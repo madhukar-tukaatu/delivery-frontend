@@ -256,7 +256,7 @@ export default function BranchNetworkMap({
                 }}
               >
                 <LeafletTooltip sticky>
-                  {d.lane.from_branch?.name} -> {d.lane.to_branch?.name}
+                  {d.lane.from_branch?.name}{" -> "}{d.lane.to_branch?.name}
                   {" | "}
                   {SERVICE_LABELS[d.lane.service_type] || d.lane.service_type}
                   {" | "}

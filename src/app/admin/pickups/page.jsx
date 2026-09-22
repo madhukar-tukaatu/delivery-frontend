@@ -1033,7 +1033,7 @@ export default function AdminPickupsPage() {
                 type="secondary"
                 style={{ fontWeight: 400, marginLeft: 8, fontSize: 12 }}
               >
-                {dateFrom ?? "..."} -> {dateTo ?? "..."}
+                {dateFrom ?? "..."}{" -> "}{dateTo ?? "..."}
               </Text>
             ) : null}
           </Text>

@@ -493,7 +493,7 @@ export default function BranchTransferLanesPage() {
       setCreatingRoutes((prev) => new Set([...prev, row.id]));
       await createRouteForBranchTransferLane(row.id);
       message.success(
-        `Route created for: ${row.from_branch?.name} -> ${row.to_branch?.name}`,
+        `Route created for: ${row.from_branch?.name}{" -> "}${row.to_branch?.name}`,
       );
       setRows((prevRows) =>
         prevRows.map((r) =>
@@ -576,7 +576,7 @@ export default function BranchTransferLanesPage() {
       render: (_, row) => (
         <Space direction="vertical" size={2}>
           <Text strong style={{ fontSize: "13px" }}>
-            {row.from_branch?.name || "Unknown"} ->{" "}
+            {row.from_branch?.name || "Unknown"}{" ->"}{" "}
             {row.to_branch?.name || "Unknown"}
           </Text>
           <Text type="secondary" style={{ fontSize: "11px" }}>

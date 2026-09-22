@@ -2141,7 +2141,7 @@ export default function BranchPricingPage() {
                           fontSize: 18,
                         }}
                       >
-                        ->
+                        {"->"}
                       </span>
 
                       <Text strong>

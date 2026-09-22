@@ -217,7 +217,7 @@ export default function ArcRouteMap({ fromNode, toNode, mode = "flight", height 
           <Popup>
             <strong>{isFlight ? "Flight" : "Rail"}</strong>
             <br />
-            {fromNode?.name} -> {toNode?.name}
+            {fromNode?.name}{" -> "}{toNode?.name}
           </Popup>
         </Marker>
       )}

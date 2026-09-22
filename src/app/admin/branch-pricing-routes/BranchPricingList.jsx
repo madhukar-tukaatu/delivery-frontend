@@ -110,7 +110,7 @@ export default function BranchPricingList({
       render: (_, record) => (
         <div>
           <Text strong>
-            {record.pickup_branch.code} -> {record.delivery_branch.code}
+            {record.pickup_branch.code}{" -> "}{record.delivery_branch.code}
           </Text>
           <br />
           <Text type="secondary" style={{ fontSize: 12 }}>
@@ -249,7 +249,7 @@ export default function BranchPricingList({
           selectedPricing && (
             <div>
               <Text strong>
-                {selectedPricing.pickup_branch.code} ->{" "}
+                {selectedPricing.pickup_branch.code}{" -> "}
                 {selectedPricing.delivery_branch.code}
               </Text>
               <br />

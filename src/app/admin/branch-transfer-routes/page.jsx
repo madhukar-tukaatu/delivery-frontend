@@ -339,7 +339,7 @@ export default function BranchTransferRoutesPage() {
       if (!groups.has(key)) {
         groups.set(key, {
           key,
-          label: `${originName} -> ${destName}`,
+          label: `${originName}{" -> "}${destName}`,
           service: row.service_type,
           routes: [],
         });

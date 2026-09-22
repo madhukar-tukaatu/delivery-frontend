@@ -412,8 +412,7 @@ export default function CheckpointMapPicker({
     <Space direction="vertical" size={12} style={{ width: "100%" }}>
       <Text type="secondary">
         <EnvironmentOutlined /> Click the map to drop a road checkpoint (e.g.
-        Mugling, Gorkha). The blue line follows the real road through origin ->
-        checkpoints -> transit branches -> destination.
+        Mugling, Gorkha). The blue line follows the real road through origin{" -> "}checkpoints{" -> "}transit branches{" -> "}destination.
       </Text>
 
       <Space wrap size={14} style={{ fontSize: 12 }}>

@@ -235,7 +235,7 @@ export default function SettlementsPage() {
             </Paragraph>
             <Paragraph style={{ marginBottom: 0 }}>
               <strong>2. Delivery charge bills</strong> - merchant-owed checkout delivery fees
-              (and POD service fees). Auto-created after successful delivery. Billed separately. HQ commission (branch -> Tukaatu Express) is on /admin/hq-commissions.
+              (and POD service fees). Auto-created after successful delivery. Billed separately. HQ commission (branch{" -> "}Tukaatu Express) is on /admin/hq-commissions.
             </Paragraph>
           </div>
         }

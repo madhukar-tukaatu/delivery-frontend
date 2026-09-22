@@ -2405,10 +2405,7 @@ export default function PricingTestPage() {
                     </Text>
 
                     <Text type="secondary">
-                      Pickup stores ->
-                      configured
-                      transfer lanes ->
-                      delivery
+                      Pickup stores{" -> "}configured{" -> "}transfer lanes{" -> "}delivery
                     </Text>
                   </div>
                 </div>
@@ -2781,10 +2778,7 @@ export default function PricingTestPage() {
                     </Text>
 
                     <Text type="secondary">
-                      Pickup ->
-                      configured
-                      transfers ->
-                      delivery
+                      Pickup{" -> "}configured{" -> "}transfers{" -> "}delivery
                     </Text>
                   </div>
                 </div>
