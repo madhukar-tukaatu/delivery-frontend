@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import AdminPageHeader from "@/components/admin/ui/AdminPageHeader";
 
@@ -42,6 +42,7 @@ import { usePermissions } from "@/hooks/usePermission";
 import {
   getTransfers,
   getTransferStats,
+  getAvailableTransferRoutes,
   dispatchTransfers,
   receiveTransfer,
   getReceivedTransfers,
@@ -52,6 +53,31 @@ import {
 const { Text, Title } = Typography;
 const { RangePicker } = DatePicker;
 const { Option } = Select;
+
+const SERVICE_TYPE_META = {
+  standard: { color: "default", label: "STANDARD" },
+  express: { color: "orange", label: "EXPRESS" },
+  same_day: { color: "magenta", label: "SAME DAY" },
+  flight: { color: "purple", label: "FLIGHT" },
+};
+
+function ServiceTypeTag({ value }) {
+  if (!value) return null;
+  const key = String(value).toLowerCase();
+  const meta = SERVICE_TYPE_META[key] || { color: "default", label: String(value).toUpperCase() };
+  return <Tag color={meta.color}>{meta.label}</Tag>;
+}
+
+function hopLabel(shipment) {
+  const hop = shipment?.hop_meta;
+  if (!hop) return null;
+  const bits = [];
+  if (hop.path_text) bits.push(hop.path_text);
+  if (hop.next_hop_name) bits.push(`Next: ${hop.next_hop_name}`);
+  if (hop.transfer_leg_index != null) bits.push(`Leg ${(Number(hop.transfer_leg_index) || 0) + 1}`);
+  return bits.length ? bits.join(" | ") : null;
+}
+
 
 function money(v) {
   const n = Number(v || 0);
@@ -170,15 +196,59 @@ function TimelineModal({ open, shipment, onClose }) {
               <div>
                 <Text type="secondary">Origin</Text>
                 <br />
-                <Text strong>{shipment.transfer_route?.origin || "Unknown"}</Text>
+                <Text strong>
+                  {shipment.transfer_summary?.origin
+                    || shipment.hop_meta?.origin_name
+                    || shipment.origin_branch?.name
+                    || shipment.originBranch?.name
+                    || "Unknown"}
+                </Text>
               </div>
               <ArrowRightOutlined style={{ fontSize: 20, color: "#bfbfbf" }} />
               <div>
                 <Text type="secondary">Destination</Text>
                 <br />
-                <Text strong>{shipment.transfer_route?.destination || "Unknown"}</Text>
+                <Text strong>
+                  {shipment.transfer_summary?.destination
+                    || shipment.hop_meta?.destination_name
+                    || shipment.destination_branch?.name
+                    || shipment.destinationBranch?.name
+                    || "Unknown"}
+                </Text>
               </div>
+              {(shipment.hop_meta?.next_hop_name || shipment.transfer_summary?.next_hop) ? (
+                <>
+                  <ArrowRightOutlined style={{ fontSize: 20, color: "#bfbfbf" }} />
+                  <div>
+                    <Text type="secondary">Next hop</Text>
+                    <br />
+                    <Text strong>
+                      {shipment.hop_meta?.next_hop_name || shipment.transfer_summary?.next_hop}
+                    </Text>
+                  </div>
+                </>
+              ) : null}
             </Space>
+            {(shipment.hop_meta?.path_text || shipment.transfer_summary?.path_text || shipment.hop_meta?.in_transit_label) ? (
+              <div style={{ marginTop: 12 }}>
+                {shipment.hop_meta?.path_text || shipment.transfer_summary?.path_text ? (
+                  <Text type="secondary" style={{ display: "block", fontSize: 12 }}>
+                    Path: {shipment.hop_meta?.path_text || shipment.transfer_summary?.path_text}
+                  </Text>
+                ) : null}
+                {shipment.hop_meta?.in_transit_label ? (
+                  <Text type="secondary" style={{ display: "block", fontSize: 12 }}>
+                    {shipment.hop_meta.in_transit_label}
+                  </Text>
+                ) : null}
+                {shipment.hop_meta?.route_code ? (
+                  <Text type="secondary" style={{ display: "block", fontSize: 12 }}>
+                    Route {shipment.hop_meta.route_code}
+                    {shipment.hop_meta.route_name ? ` · ${shipment.hop_meta.route_name}` : ""}
+                  </Text>
+                ) : null}
+              </div>
+            ) : null}
           </Card>
         </Col>
         <Col span={24}>
@@ -192,6 +262,16 @@ function TimelineModal({ open, shipment, onClose }) {
                 children: (
                   <div>
                     <Text strong>{event.description}</Text>
+                    {(event.next_hop || event.path_text || event.branch_name) ? (
+                      <>
+                        <br />
+                        <Text type="secondary" style={{ fontSize: 12 }}>
+                          {[event.branch_name, event.next_hop ? `Next: ${event.next_hop}` : null, event.path_text]
+                            .filter(Boolean)
+                            .join(" · ")}
+                        </Text>
+                      </>
+                    ) : null}
                     <br />
                     <Text type="secondary" style={{ fontSize: 12 }}>
                       {formatDate(event.at)}
@@ -218,6 +298,7 @@ export default function TransfersPage() {
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [dateRange, setDateRange] = useState([]);
   const [statusFilter, setStatusFilter] = useState("all");
+  const [serviceTypeFilter, setServiceTypeFilter] = useState("all");
 
   // Data states
   const [stats, setStats] = useState({
@@ -242,6 +323,11 @@ export default function TransfersPage() {
 
   // Selection states
   const [selectedRowKeys, setSelectedRowKeys] = useState([]);
+
+  // Configured transfer route selection (required for outbound dispatch)
+  const [availableRoutes, setAvailableRoutes] = useState([]);
+  const [routesLoading, setRoutesLoading] = useState(false);
+  const [selectedTransferRouteId, setSelectedTransferRouteId] = useState(null);
 
   // Pagination
   const [pagination, setPagination] = useState({ current: 1, pageSize: 20, total: 0 });
@@ -268,11 +354,48 @@ export default function TransfersPage() {
     }
   }, []);
 
-  // Load outbound
+  // Load configured transfer routes for this branch
+  const loadAvailableRoutes = useCallback(async () => {
+    setRoutesLoading(true);
+    try {
+      const params = {};
+      if (serviceTypeFilter && serviceTypeFilter !== "all") {
+        params.service_type = serviceTypeFilter;
+      }
+      const res = await getAvailableTransferRoutes(params);
+      const routes = res.routes || [];
+      setAvailableRoutes(routes);
+      setSelectedTransferRouteId((prev) => {
+        if (prev && routes.some((r) => Number(r.route_id || r.id) === Number(prev))) {
+          return prev;
+        }
+        return null;
+      });
+    } catch (e) {
+      message.error(e?.response?.data?.message || "Failed to load transfer routes");
+      setAvailableRoutes([]);
+    } finally {
+      setRoutesLoading(false);
+    }
+  }, [serviceTypeFilter]);
+
+  // Load outbound (optionally filtered by selected transfer route)
   const loadOutbound = useCallback(async (page = 1, pageSize = 20) => {
     setLoading(true);
     try {
-      const res = await getTransfers({ page, per_page: pageSize, direction: "outbound", search: debouncedSearch || undefined });
+      const params = {
+        page,
+        per_page: pageSize,
+        direction: "outbound",
+        search: debouncedSearch || undefined,
+      };
+      if (selectedTransferRouteId) {
+        params.transfer_route_id = selectedTransferRouteId;
+      }
+      if (serviceTypeFilter && serviceTypeFilter !== "all") {
+        params.service_type = serviceTypeFilter;
+      }
+      const res = await getTransfers(params);
       setOutboundRows(res.list);
       setPagination((p) => ({ ...p, current: res.currentPage, total: res.total }));
     } catch (e) {
@@ -280,33 +403,37 @@ export default function TransfersPage() {
     } finally {
       setLoading(false);
     }
-  }, [debouncedSearch]);
+  }, [debouncedSearch, selectedTransferRouteId, serviceTypeFilter]);
 
   // Load inbound
   const loadInbound = useCallback(async (page = 1, pageSize = 20) => {
     setLoading(true);
     try {
-      const res = await getTransfers({ page, per_page: pageSize, direction: "inbound", search: debouncedSearch || undefined });
+      const inboundParams = { page, per_page: pageSize, direction: "inbound", search: debouncedSearch || undefined };
+      if (serviceTypeFilter && serviceTypeFilter !== "all") inboundParams.service_type = serviceTypeFilter;
+      const res = await getTransfers(inboundParams);
       setInboundRows(res.list);
     } catch (e) {
       message.error(e?.response?.data?.message || "Failed to load inbound transfers");
     } finally {
       setLoading(false);
     }
-  }, [debouncedSearch]);
+  }, [debouncedSearch, serviceTypeFilter]);
 
   // Load received
   const loadReceived = useCallback(async (page = 1, pageSize = 20) => {
     setLoading(true);
     try {
-      const res = await getReceivedTransfers({ page, per_page: pageSize, search: debouncedSearch || undefined });
+      const receivedParams = { page, per_page: pageSize, search: debouncedSearch || undefined };
+      if (serviceTypeFilter && serviceTypeFilter !== "all") receivedParams.service_type = serviceTypeFilter;
+      const res = await getReceivedTransfers(receivedParams);
       setReceivedRows(res.list);
     } catch (e) {
       message.error(e?.response?.data?.message || "Failed to load received transfers");
     } finally {
       setLoading(false);
     }
-  }, [debouncedSearch]);
+  }, [debouncedSearch, serviceTypeFilter]);
 
   // Load completed
   const loadCompleted = useCallback(async (page = 1, pageSize = 20) => {
@@ -373,10 +500,29 @@ export default function TransfersPage() {
     }
   }, [activeTab, pagination.current, pagination.pageSize, loadOutbound, loadInbound, loadReceived, loadCompleted, loadHistory]);
 
-  // Load stats on mount
+  // Load stats + configured routes on mount / when service type filter changes
   useEffect(() => {
     loadStats();
-  }, [loadStats]);
+    loadAvailableRoutes();
+  }, [loadStats, loadAvailableRoutes]);
+
+  // Reload lists when service type filter changes
+  useEffect(() => {
+    setPagination((p) => ({ ...p, current: 1 }));
+    setSelectedRowKeys([]);
+    // loadData runs via activeTab/debouncedSearch effect; trigger explicitly
+    loadData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [serviceTypeFilter]);
+
+  // Reload outbound when the selected transfer route changes
+  useEffect(() => {
+    if (activeTab !== "outbound") return;
+    setPagination((p) => ({ ...p, current: 1 }));
+    loadOutbound(1, pagination.pageSize);
+    setSelectedRowKeys([]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedTransferRouteId]);
 
   // Reload data when tab or search changes
   useEffect(() => {
@@ -389,19 +535,25 @@ export default function TransfersPage() {
     await Promise.all([loadStats(), loadData()]);
   }, [loadStats, loadData]);
 
-  // Bulk dispatch
+  // Bulk dispatch (requires a configured transfer route)
   const handleBulkDispatch = async () => {
     if (selectedRowKeys.length === 0) return;
+    if (!selectedTransferRouteId) {
+      message.warning("Select a transfer route before dispatching.");
+      return;
+    }
     setSubmitting(true);
     try {
-      const res = await dispatchTransfers(selectedRowKeys);
+      const res = await dispatchTransfers(selectedRowKeys, selectedTransferRouteId);
       const ok = res?.dispatched?.length ?? 0;
       const skip = res?.skipped ? Object.keys(res.skipped).length : 0;
-      message.success(skip === 0 ? `${ok} dispatched.` : `${ok} dispatched, ${skip} skipped.`);
+      message.success(skip === 0 ? `${ok} dispatched on selected route.` : `${ok} dispatched, ${skip} skipped.`);
       setSelectedRowKeys([]);
       await refresh();
     } catch (e) {
-      message.error(e?.response?.data?.message || "Failed to dispatch.");
+      const errors = e?.response?.data?.errors;
+      const firstError = errors ? Object.values(errors).flat()?.[0] : null;
+      message.error(firstError || e?.response?.data?.message || "Failed to dispatch.");
     } finally {
       setSubmitting(false);
     }
@@ -412,7 +564,7 @@ export default function TransfersPage() {
     setReceivingId(shipmentId);
     try {
       await receiveTransfer(shipmentId);
-      message.success("Received. Queued for last-mile delivery at destination.");
+      message.success("Received at this hop. Transit parcels go to Outbound for onward dispatch; final destination goes to Received for last-mile.");
       await refresh();
     } catch (e) {
       message.error(e?.response?.data?.message || "Failed to receive.");
@@ -433,7 +585,10 @@ export default function TransfersPage() {
     render: (_, s) => (
       <Space direction="vertical" size={2}>
         <Text strong style={{ fontSize: 13 }}>{s.tracking_number || `#${s.id}`}</Text>
-        <TransferStageTag shipment={s} />
+        <Space size={4} wrap>
+          <TransferStageTag shipment={s} />
+          <ServiceTypeTag value={s.hop_meta?.service_type || s.service_type} />
+        </Space>
       </Space>
     ),
   };
@@ -447,9 +602,11 @@ export default function TransfersPage() {
       const current = routeLabel(s.current_branch, s.current_sub_branch, origin);
 
       // Prefer the backend-computed transfer stage so every tab/view agrees.
+      const nextHop = s.hop_meta?.next_hop_name;
+      const pathText = s.hop_meta?.path_text;
       const stageHint = {
-        ready_to_dispatch: `Ready at ${current}`,
-        in_transit: `In transit to ${destination}`,
+        ready_to_dispatch: nextHop ? `Ready at ${current} -> next ${nextHop}` : `Ready at ${current}`,
+        in_transit: nextHop ? `In transit to ${nextHop}` : `In transit to ${destination}`,
         received: `Arrived at ${destination}`,
         out_for_delivery: `Out for delivery at ${destination}`,
         delivered: `Delivered to ${destination}`,
@@ -465,6 +622,9 @@ export default function TransfersPage() {
             <ArrowRightOutlined style={{ color: "#bfbfbf" }} />
             <Tag color="blue" style={{ margin: 0, maxWidth: 180 }}>{destination}</Tag>
           </Space>
+          {pathText ? (
+            <Text type="secondary" style={{ fontSize: 11 }}>{pathText}</Text>
+          ) : null}
           <Text type="secondary" style={{ fontSize: 11 }}>
             {hint}
           </Text>
@@ -638,8 +798,69 @@ export default function TransfersPage() {
         <Card styles={{ body: { padding: 0 } }} style={{ borderRadius: 14 }}>
           <TabGuide
             type="warning"
-            message="Cross-branch parcels ready to leave this branch. Select parcels and click Dispatch to send them to their destination branch."
+            message="Hop-by-hop: pick Transfer Route (+ service type), select parcels, Dispatch to the NEXT hop only. Transit hubs receive then re-dispatch onward; destination receives for last-mile."
           />
+          <Card size="small" style={{ margin: 12, borderRadius: 12 }}>
+            <Space wrap style={{ width: "100%", justifyContent: "space-between" }}>
+              <Space wrap>
+                <Text strong>Transfer Route</Text>
+                <Select
+                  showSearch
+                  allowClear
+                  placeholder={
+                    availableRoutes.length
+                      ? "Select a configured transfer route"
+                      : "No active transfer routes from this branch"
+                  }
+                  style={{ minWidth: 360 }}
+                  loading={routesLoading}
+                  value={selectedTransferRouteId}
+                  optionFilterProp="label"
+                  onChange={(value) => setSelectedTransferRouteId(value || null)}
+                  optionLabelProp="label"
+                  options={(() => {
+                    const groups = {};
+                    availableRoutes.forEach((route) => {
+                      const svc = String(route.service_type || "standard").toLowerCase();
+                      if (!groups[svc]) groups[svc] = [];
+                      const id = Number(route.route_id || route.id);
+                      const code = route.route_code || `#${id}`;
+                      const pathText = route.path_text || route.route_name || route.name || "";
+                      const nextHop = route.next_hop_name ? ` -> next ${route.next_hop_name}` : "";
+                      groups[svc].push({
+                        value: id,
+                        label: `${code} | ${pathText}${nextHop}`,
+                      });
+                    });
+                    return Object.keys(groups).sort().map((svc) => ({
+                      label: (SERVICE_TYPE_META[svc]?.label || svc.toUpperCase()),
+                      options: groups[svc],
+                    }));
+                  })()}
+                />
+                <Button
+                  icon={<ReloadOutlined />}
+                  onClick={loadAvailableRoutes}
+                  loading={routesLoading}
+                >
+                  Refresh routes
+                </Button>
+              </Space>
+              {selectedTransferRouteId ? (
+                <Tag color="blue">Filtering outbound to selected route</Tag>
+              ) : (
+                <Tag color="orange">Select a route to filter and dispatch</Tag>
+              )}
+            </Space>
+            {!routesLoading && availableRoutes.length === 0 && (
+              <Alert
+                style={{ marginTop: 12 }}
+                type="warning"
+                showIcon
+                message="No active transfer routes start from your branch. Configure them under Admin -> Transfer Routes before dispatching."
+              />
+            )}
+          </Card>
           <Table
             rowKey="id"
             size="middle"
@@ -677,7 +898,7 @@ export default function TransfersPage() {
         <Card styles={{ body: { padding: 0 } }} style={{ borderRadius: 14 }}>
           <TabGuide
             type="info"
-            message="Parcels on their way to this branch. When a parcel physically arrives, click Receive to accept it and queue it for last-mile delivery."
+            message="Parcels whose NEXT hop is this branch. Receive them here. If this is a transit hub, they move to Outbound for onward dispatch; if final destination, they go to Received for last-mile."
           />
           <Table
             rowKey="id"
@@ -805,7 +1026,7 @@ export default function TransfersPage() {
       {/* Header */}
       <AdminPageHeader
         title="Transfers"
-        subtitle="Branch-to-branch parcel transfers"
+        subtitle="Hop-by-hop branch handoffs - organized by service type"
         icon={<SwapOutlined />}
         actions={
           <Button icon={<ReloadOutlined />} onClick={refresh}>Refresh</Button>
@@ -820,6 +1041,18 @@ export default function TransfersPage() {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             style={{ width: 260 }}
+          />
+          <Select
+            value={serviceTypeFilter}
+            onChange={setServiceTypeFilter}
+            style={{ width: 180 }}
+            options={[
+              { value: "all", label: "All service types" },
+              { value: "standard", label: "STANDARD" },
+              { value: "express", label: "EXPRESS" },
+              { value: "same_day", label: "SAME DAY" },
+              { value: "flight", label: "FLIGHT" },
+            ]}
           />
         </Space>
       </Card>
@@ -873,7 +1106,7 @@ export default function TransfersPage() {
             <Badge count={selectedRowKeys.length} style={{ background: "#fa8c16" }} />
             <Text strong>{selectedRowKeys.length} selected</Text>
             <Text type="secondary" style={{ fontSize: 12 }}>
-              Dispatch these to their destination branch
+              Dispatch on selected transfer route
             </Text>
           </Space>
           <Space>
@@ -883,6 +1116,7 @@ export default function TransfersPage() {
               icon={<SendOutlined />}
               loading={submitting}
               onClick={handleBulkDispatch}
+              disabled={!selectedTransferRouteId}
             >
               Dispatch selected
             </Button>
@@ -906,3 +1140,5 @@ export default function TransfersPage() {
     </div>
   );
 }
+
+

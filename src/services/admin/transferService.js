@@ -101,23 +101,44 @@ export async function getTransferHistory(params = {}) {
   return normalizeList(response, params);
 }
 
+
+/**
+ * Configured transfer routes available for dispatch from the current branch.
+ *
+ * GET /admin/transfers/available-routes
+ * optional params: service_type, shipment_ids[]
+ */
+export async function getAvailableTransferRoutes(params = {}) {
+  const response = await api.get("/admin/transfers/available-routes", { params });
+  const payload = unwrap(response) ?? {};
+  return {
+    routes: Array.isArray(payload.routes) ? payload.routes : [],
+    routes_by_service_type: payload.routes_by_service_type ?? {},
+    branch_id: payload.branch_id ?? null,
+  };
+}
+
 /**
  * Dispatch one or many transfer shipments.
  *
  * POST /admin/transfers/dispatch  { shipment_ids: [] }
  */
-export async function dispatchTransfers(shipmentIds) {
+export async function dispatchTransfers(shipmentIds, transferRouteId) {
   if (!Array.isArray(shipmentIds) || shipmentIds.length === 0) {
     throw new Error("Select at least one shipment.");
   }
+  if (!transferRouteId) {
+    throw new Error("Select a transfer route before dispatching.");
+  }
   const response = await api.post("/admin/transfers/dispatch", {
     shipment_ids: shipmentIds,
+    transfer_route_id: Number(transferRouteId),
   });
   return unwrap(response);
 }
 
 /**
- * Receive an in-transit transfer at the destination branch.
+ * Receive an in-transit transfer at the expected next hop (transit or final destination).
  *
  * POST /admin/transfers/{shipmentId}/receive
  */

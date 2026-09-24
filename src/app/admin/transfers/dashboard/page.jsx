@@ -39,6 +39,7 @@ import { usePermissions } from "@/hooks/usePermission";
 import {
   getTransfers,
   getTransferStats,
+  getAvailableTransferRoutes,
   dispatchTransfers,
   receiveTransfer,
   getReceivedTransfers,
@@ -50,6 +51,20 @@ const { Text, Title, Paragraph } = Typography;
 const { RangePicker } = DatePicker;
 const { Option } = Select;
 const BRAND = "#027196";
+
+const SERVICE_TYPE_META = {
+  standard: { color: "default", label: "STANDARD" },
+  express: { color: "orange", label: "EXPRESS" },
+  same_day: { color: "magenta", label: "SAME DAY" },
+  flight: { color: "purple", label: "FLIGHT" },
+};
+
+function ServiceTypeTag({ value }) {
+  if (!value) return null;
+  const key = String(value).toLowerCase();
+  const meta = SERVICE_TYPE_META[key] || { color: "default", label: String(value).toUpperCase() };
+  return <Tag color={meta.color}>{meta.label}</Tag>;
+}
 
 function money(v) {
   const n = Number(v || 0);
@@ -87,6 +102,7 @@ export default function TransferDashboardPage() {
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [dateRange, setDateRange] = useState([]);
   const [statusFilter, setStatusFilter] = useState("all");
+  const [serviceTypeFilter, setServiceTypeFilter] = useState("all");
 
   // Data states
   const [stats, setStats] = useState({
@@ -112,6 +128,10 @@ export default function TransferDashboardPage() {
   // Selection states
   const [selectedRowKeys, setSelectedRowKeys] = useState([]);
 
+  const [availableRoutes, setAvailableRoutes] = useState([]);
+  const [routesLoading, setRoutesLoading] = useState(false);
+  const [selectedTransferRouteId, setSelectedTransferRouteId] = useState(null);
+
   // Pagination
   const [pagination, setPagination] = useState({ current: 1, pageSize: 20, total: 0 });
 
@@ -135,10 +155,38 @@ export default function TransferDashboardPage() {
   }, []);
 
   // Load outbound
+  const loadAvailableRoutes = useCallback(async () => {
+    setRoutesLoading(true);
+    try {
+      const params = {};
+      if (serviceTypeFilter && serviceTypeFilter !== "all") params.service_type = serviceTypeFilter;
+      const res = await getAvailableTransferRoutes(params);
+      const routes = res.routes || [];
+      setAvailableRoutes(routes);
+      setSelectedTransferRouteId((prev) => {
+        if (prev && routes.some((r) => Number(r.route_id || r.id) === Number(prev))) return prev;
+        return null;
+      });
+    } catch (e) {
+      message.error(e?.response?.data?.message || "Failed to load transfer routes");
+      setAvailableRoutes([]);
+    } finally {
+      setRoutesLoading(false);
+    }
+  }, [serviceTypeFilter]);
+
   const loadOutbound = useCallback(async (page = 1, pageSize = 20) => {
     setLoading(true);
     try {
-      const res = await getTransfers({ page, per_page: pageSize, direction: "outbound", search: debouncedSearch || undefined });
+      const params = {
+        page,
+        per_page: pageSize,
+        direction: "outbound",
+        search: debouncedSearch || undefined,
+      };
+      if (selectedTransferRouteId) params.transfer_route_id = selectedTransferRouteId;
+      if (serviceTypeFilter && serviceTypeFilter !== "all") params.service_type = serviceTypeFilter;
+      const res = await getTransfers(params);
       setOutboundRows(res.list);
       setPagination((p) => ({ ...p, current: res.currentPage, total: res.total }));
     } catch (e) {
@@ -146,20 +194,22 @@ export default function TransferDashboardPage() {
     } finally {
       setLoading(false);
     }
-  }, [debouncedSearch]);
+  }, [debouncedSearch, selectedTransferRouteId, serviceTypeFilter]);
 
   // Load inbound
   const loadInbound = useCallback(async (page = 1, pageSize = 20) => {
     setLoading(true);
     try {
-      const res = await getTransfers({ page, per_page: pageSize, direction: "inbound", search: debouncedSearch || undefined });
+      const inboundParams = { page, per_page: pageSize, direction: "inbound", search: debouncedSearch || undefined };
+      if (serviceTypeFilter && serviceTypeFilter !== "all") inboundParams.service_type = serviceTypeFilter;
+      const res = await getTransfers(inboundParams);
       setInboundRows(res.list);
     } catch (e) {
       message.error(e?.response?.data?.message || "Failed to load inbound transfers");
     } finally {
       setLoading(false);
     }
-  }, [debouncedSearch]);
+  }, [debouncedSearch, serviceTypeFilter]);
 
   // Load received (cross-branch only)
   const loadReceived = useCallback(async (page = 1, pageSize = 20) => {
@@ -240,7 +290,23 @@ export default function TransferDashboardPage() {
   // Load stats on mount
   useEffect(() => {
     loadStats();
-  }, [loadStats]);
+    loadAvailableRoutes();
+  }, [loadStats, loadAvailableRoutes]);
+
+  useEffect(() => {
+    setPagination((p) => ({ ...p, current: 1 }));
+    setSelectedRowKeys([]);
+    loadData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [serviceTypeFilter]);
+
+  useEffect(() => {
+    if (activeTab !== "outbound") return;
+    setPagination((p) => ({ ...p, current: 1 }));
+    loadOutbound(1, pagination.pageSize);
+    setSelectedRowKeys([]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedTransferRouteId]);
 
   // Reload data when tab or search changes
   useEffect(() => {
@@ -256,9 +322,13 @@ export default function TransferDashboardPage() {
   // Bulk dispatch
   const handleBulkDispatch = async () => {
     if (selectedRowKeys.length === 0) return;
+    if (!selectedTransferRouteId) {
+      message.warning("Select a transfer route before dispatching.");
+      return;
+    }
     setSubmitting(true);
     try {
-      const res = await dispatchTransfers(selectedRowKeys);
+      const res = await dispatchTransfers(selectedRowKeys, selectedTransferRouteId);
       const ok = res?.dispatched?.length ?? 0;
       const skip = res?.skipped ? Object.keys(res.skipped).length : 0;
       message.success(skip === 0 ? `${ok} dispatched.` : `${ok} dispatched, ${skip} skipped.`);
@@ -276,7 +346,7 @@ export default function TransferDashboardPage() {
     setReceivingId(shipmentId);
     try {
       await receiveTransfer(shipmentId);
-      message.success("Received. Queued for last-mile delivery at destination.");
+      message.success("Received at this hop. Transit parcels go to Outbound for onward dispatch; final destination goes to Received for last-mile.");
       await refresh();
     } catch (e) {
       message.error(e?.response?.data?.message || "Failed to receive.");
@@ -292,9 +362,12 @@ export default function TransferDashboardPage() {
     render: (_, s) => (
       <Space direction="vertical" size={2}>
         <Text strong style={{ fontSize: 13 }}>{s.tracking_number || `#${s.id}`}</Text>
-        <Tag color="orange" style={{ margin: 0 }}>
-          <SwapOutlined /> Transfer
-        </Tag>
+        <Space size={4} wrap>
+          <Tag color="orange" style={{ margin: 0 }}>
+            <SwapOutlined /> Transfer
+          </Tag>
+          <ServiceTypeTag value={s.hop_meta?.service_type || s.service_type} />
+        </Space>
       </Space>
     ),
   };
@@ -307,9 +380,11 @@ export default function TransferDashboardPage() {
       const destination = routeLabel(s.destination_branch, s.destination_sub_branch, "Destination");
       const current = routeLabel(s.current_branch, s.current_sub_branch, origin);
 
+      const nextHop = s.hop_meta?.next_hop_name;
+      const pathText = s.hop_meta?.path_text;
       const statusLabels = {
-        outbound: `Ready at ${current}`,
-        inbound: `In transit to ${destination}`,
+        outbound: nextHop ? `Ready at ${current} -> next ${nextHop}` : `Ready at ${current}`,
+        inbound: nextHop ? `In transit to ${nextHop}` : `In transit to ${destination}`,
         received: `Arrived at ${destination}`,
         completed: `Delivered to ${destination}`,
       };
@@ -321,6 +396,9 @@ export default function TransferDashboardPage() {
             <ArrowRightOutlined style={{ color: "#bfbfbf" }} />
             <Tag color="blue" style={{ margin: 0, maxWidth: 180 }}>{destination}</Tag>
           </Space>
+          {pathText ? (
+            <Text type="secondary" style={{ fontSize: 11 }}>{pathText}</Text>
+          ) : null}
           <Text type="secondary" style={{ fontSize: 11 }}>
             {statusLabels[activeTab] || `Current: ${current}`}
           </Text>
@@ -533,6 +611,51 @@ export default function TransferDashboardPage() {
       ),
       children: (
         <Card styles={{ body: { padding: 0 } }} style={{ borderRadius: 14 }}>
+          <Card size="small" style={{ margin: 12, borderRadius: 12 }}>
+            <Space wrap style={{ width: "100%", justifyContent: "space-between" }}>
+              <Space wrap>
+                <Text strong>Transfer Route</Text>
+                <Select
+                  showSearch
+                  allowClear
+                  placeholder={availableRoutes.length ? "Select a configured transfer route" : "No active transfer routes from this branch"}
+                  style={{ minWidth: 360 }}
+                  loading={routesLoading}
+                  value={selectedTransferRouteId}
+                  optionFilterProp="label"
+                  onChange={(value) => setSelectedTransferRouteId(value || null)}
+                  optionLabelProp="label"
+                  options={(() => {
+                    const groups = {};
+                    availableRoutes.forEach((route) => {
+                      const svc = String(route.service_type || "standard").toLowerCase();
+                      if (!groups[svc]) groups[svc] = [];
+                      const id = Number(route.route_id || route.id);
+                      const code = route.route_code || `#${id}`;
+                      const pathText = route.path_text || route.route_name || route.name || "";
+                      const nextHop = route.next_hop_name ? ` -> next ${route.next_hop_name}` : "";
+                      groups[svc].push({
+                        value: id,
+                        label: `${code} | ${pathText}${nextHop}`,
+                      });
+                    });
+                    return Object.keys(groups).sort().map((svc) => ({
+                      label: (SERVICE_TYPE_META[svc]?.label || svc.toUpperCase()),
+                      options: groups[svc],
+                    }));
+                  })()}
+                />
+                <Button icon={<ReloadOutlined />} onClick={loadAvailableRoutes} loading={routesLoading}>
+                  Refresh routes
+                </Button>
+              </Space>
+              {selectedTransferRouteId ? (
+                <Tag color="blue">Filtering outbound to selected route</Tag>
+              ) : (
+                <Tag color="orange">Select a route to filter and dispatch</Tag>
+              )}
+            </Space>
+          </Card>
           <Table
             rowKey="id"
             size="middle"
@@ -690,7 +813,7 @@ export default function TransferDashboardPage() {
       <Row justify="space-between" align="middle" style={{ marginBottom: 16 }} gutter={[12, 12]}>
         <Col>
           <Title level={3} style={{ margin: 0 }}>Transfer Dashboard</Title>
-          <Text type="secondary">Branch-to-branch transfer management</Text>
+          <Text type="secondary">Hop-by-hop handoffs - organized by service type</Text>
         </Col>
         <Col>
           <Space wrap>
@@ -701,6 +824,18 @@ export default function TransferDashboardPage() {
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               style={{ width: 260 }}
+            />
+            <Select
+              value={serviceTypeFilter}
+              onChange={setServiceTypeFilter}
+              style={{ width: 170 }}
+              options={[
+                { value: "all", label: "All service types" },
+                { value: "standard", label: "STANDARD" },
+                { value: "express", label: "EXPRESS" },
+                { value: "same_day", label: "SAME DAY" },
+                { value: "flight", label: "FLIGHT" },
+              ]}
             />
             <Button icon={<ReloadOutlined />} onClick={refresh}>Refresh</Button>
           </Space>
@@ -796,7 +931,7 @@ export default function TransferDashboardPage() {
             <Badge count={selectedRowKeys.length} style={{ background: "#fa8c16" }} />
             <Text strong>{selectedRowKeys.length} selected</Text>
             <Text type="secondary" style={{ fontSize: 12 }}>
-              Dispatch these to their destination branch
+              Dispatch on selected transfer route
             </Text>
           </Space>
           <Space>
@@ -806,6 +941,7 @@ export default function TransferDashboardPage() {
               icon={<SendOutlined />}
               loading={submitting}
               onClick={handleBulkDispatch}
+              disabled={!selectedTransferRouteId}
             >
               Dispatch selected
             </Button>
