@@ -4,6 +4,7 @@ import { Button, Card, Form, Input, Table, Space, Popconfirm, Typography, messag
 import { DownloadOutlined, DeleteOutlined, ReloadOutlined, MailOutlined, ExclamationCircleOutlined, ScheduleOutlined, PlayCircleOutlined } from '@ant-design/icons';
 import api from '@/lib/api';
 import dayjs from 'dayjs';
+import { InputNumber } from '@/components/PageTools';
 
 const { Title, Text } = Typography;
 const { TabPane } = Tabs;
