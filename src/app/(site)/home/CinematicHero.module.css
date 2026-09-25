@@ -84,8 +84,7 @@
   .compactFooter nav { justify-content: flex-start; gap: 0 16px; }
 }
 @media (max-width: 760px) {
-  .compactFooter { padding: 10px 16px; gap: 4px; }
-  .compactFooter p { font-size: 10px; }
-  .compactFooter nav { gap: 0 14px; }
-  .compactFooter a { min-height: 32px; }
+  .compactFooter {
+    display: none !important;
+  }
 }
