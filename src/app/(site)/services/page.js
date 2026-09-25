@@ -1,95 +1,33 @@
 import PublicHero from "../components/PublicHero";
 import Link from "next/link";
-import { ArrowRight, Clock3, Package, ShieldCheck, Zap, CheckCircle2, Star } from "lucide-react";
+import { ArrowRight, Star } from "lucide-react";
 
 export const metadata = { title: "Delivery Services" };
-
-const services = [
-  {
-    id: "standard", icon: Package, color: "blue",
-    title: "Standard Delivery", tag: "Everyday shipping",
-    text: "Reliable door-to-door delivery across Nepal. The backbone of our network - consistent, trackable and built for volume.",
-    points: ["Door-to-door delivery", "Live shipment tracking", "Nationwide coverage", "POD available"],
-    cta: "Start shipping",
-  },
-  {
-    id: "express", icon: Zap, color: "yellow",
-    title: "Express Delivery", tag: "Priority movement",
-    text: "When speed matters. Express moves your shipment to the front of the queue with priority handling at every stage.",
-    points: ["Priority queue handling", "Faster transit times", "Real-time tracking", "Dedicated support"],
-    cta: "Get express rates",
-  },
-  {
-    id: "same-day", icon: Clock3, color: "teal",
-    title: "Same Day Delivery", tag: "Selected locations",
-    text: "Same-day service for urgent local shipments. Available in select coverage zones - ideal for time-critical deliveries.",
-    points: ["Same-day dispatch", "Scheduled pickup", "Proof of delivery", "Customer SMS alerts"],
-    cta: "Check availability",
-  },
-  {
-    id: "pod", icon: ShieldCheck, color: "blue-dark",
-    title: "POD & Settlement", tag: "Built for commerce",
-    text: "Collect payment on delivery and keep every transaction tied to its shipment. Full settlement visibility for your business.",
-    points: ["Payment on delivery", "Transaction records", "Settlement tracking", "Business reporting"],
-    cta: "Learn more",
-  },
-];
-
-const colorMap = {
-  blue:       { bg: "bg-[#027196]/12",  text: "text-[#027196]",   badge: "bg-[#027196]/15 text-[#01547a]" },
-  yellow:     { bg: "bg-[#f5c518]/12",  text: "text-[#c9a000]",   badge: "bg-[#f5c518]/15 text-[#8a6e00]" },
-  teal:       { bg: "bg-teal-50",       text: "text-teal-600",    badge: "bg-teal-100 text-teal-700" },
-  "blue-dark": { bg: "bg-blue-50",      text: "text-blue-600",    badge: "bg-blue-100 text-blue-700" },
-};
 
 export default function ServicesPage() {
   return (
     <main className="public-page bg-white">
       {/* Hero */}
-      <PublicHero backgroundImage="/images/experience/cinematic/pickup.webp" eyebrow="Delivery services" title="Every parcel." accent="The right service." description="From everyday orders to time-sensitive parcels, find a delivery service that fits your business and your customer." note="A better journey for every parcel." primary={{"href": "/pricing", "label": "Get a quote"}} secondary={{"href": "/contact", "label": "Book a pickup"}} />
-
-      {/* Services */}
-      <section className="px-4 py-16 sm:px-6 lg:px-8 lg:py-24 bg-gray-50">
-        <div className="mx-auto max-w-7xl space-y-8">
-          {services.map((service, i) => {
-            const Icon = service.icon;
-            const c = colorMap[service.color];
-            return (
-              <div key={service.id} id={service.id}
-                className="group grid gap-0 overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm transition-all hover:shadow-lg lg:grid-cols-2">
-                <div className={`p-8 sm:p-10 ${i % 2 ? "lg:order-2" : ""}`}>
-                  <span className={`inline-block rounded-full px-3 py-1 text-xs font-bold ${c.badge}`}>{service.tag}</span>
-                  <div className={`mt-5 flex h-14 w-14 items-center justify-center rounded-2xl ${c.bg} ${c.text}`}>
-                    <Icon className="h-7 w-7" />
-                  </div>
-                  <h2 className="site-display mt-5 text-3xl font-extrabold text-gray-900">{service.title}</h2>
-                  <p className="mt-3 leading-7 text-gray-600">{service.text}</p>
-                  <Link href="/contact" className={`mt-6 inline-flex items-center gap-2 text-sm font-bold ${c.text} hover:underline`}>
-                    {service.cta} <ArrowRight className="h-4 w-4" />
-                  </Link>
-                </div>
-                <div className={`bg-gray-50 p-8 sm:p-10 border-l border-gray-200 ${i % 2 ? "lg:order-1" : ""}`}>
-                  <p className="text-xs font-bold uppercase tracking-widest text-gray-500">What's included</p>
-                  <ul className="mt-5 space-y-3">
-                    {service.points.map((pt) => (
-                      <li key={pt} className="flex items-center gap-3 text-sm font-semibold text-gray-700">
-                        <CheckCircle2 className={`h-5 w-5 shrink-0 ${c.text}`} />
-                        {pt}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </section>
+      <PublicHero
+        backgroundImage="/images/experience/cinematic/pickup.webp"
+        eyebrow="Delivery services"
+        title="Every parcel."
+        accent="The right service."
+        description="From everyday orders to time-sensitive parcels, find a delivery service that fits your business and your customer."
+        note="A better journey for every parcel."
+        primary={{ href: "/pricing", label: "Get a quote" }}
+        secondary={{ href: "/contact", label: "Book a pickup" }}
+      />
 
       {/* Stats strip */}
       <section className="border-y border-gray-200 bg-white px-4 py-12 sm:px-6 lg:px-8">
         <div className="mx-auto max-w-7xl">
           <div className="grid gap-8 text-center sm:grid-cols-3">
-            {[["Connected", "Nepal-wide network"], ["Trackable", "Delivery updates"], ["Visible", "Proof of delivery"]].map(([stat, label]) => (
+            {[
+              ["Connected", "Nepal-wide network"],
+              ["Trackable", "Delivery updates"],
+              ["Visible", "Proof of delivery"],
+            ].map(([stat, label]) => (
               <div key={stat}>
                 <p className="site-display text-4xl font-extrabold text-[#027196]">{stat}</p>
                 <p className="mt-2 text-sm font-semibold text-gray-600">{label}</p>
@@ -106,10 +44,16 @@ export default function ServicesPage() {
           <h2 className="site-display text-4xl font-extrabold">Ready to start shipping?</h2>
           <p className="max-w-xl text-blue-100">Give your customers a dependable delivery experience with Tukaatu Express.</p>
           <div className="flex flex-wrap justify-center gap-3 pt-4">
-            <Link href="/franchise" className="inline-flex items-center gap-2 rounded-xl bg-[#f5c518] px-7 py-3.5 text-sm font-bold text-[#0a0a0a] hover:bg-[#ffd740] transition-colors">
+            <Link
+              href="/franchise"
+              className="inline-flex items-center gap-2 rounded-xl bg-[#f5c518] px-7 py-3.5 text-sm font-bold text-[#0a0a0a] hover:bg-[#ffd740] transition-colors"
+            >
               Apply as Partner <ArrowRight className="h-4 w-4" />
             </Link>
-            <Link href="/contact" className="inline-flex items-center gap-2 rounded-xl border border-white/20 px-7 py-3.5 text-sm font-bold text-white hover:bg-white/10 transition-colors">
+            <Link
+              href="/contact"
+              className="inline-flex items-center gap-2 rounded-xl border border-white/20 px-7 py-3.5 text-sm font-bold text-white hover:bg-white/10 transition-colors"
+            >
               Enquiry
             </Link>
           </div>
