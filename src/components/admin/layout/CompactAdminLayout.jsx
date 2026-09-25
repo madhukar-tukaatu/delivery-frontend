@@ -17,7 +17,6 @@ export default function CompactAdminLayout({
 }) {
   return (
     <div
-      className="workspace-split"
       style={{
         display: "flex",
         height: "calc(100vh - 120px)",
