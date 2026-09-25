@@ -150,3 +150,41 @@
     padding: 20px 16px;
   }
 }
+
+/* ── Fullscreen Fit for Hero-Only Pages ── */
+.public-site--hero-only {
+  min-height: 100svh;
+  display: flex;
+  flex-direction: column;
+}
+
+.public-site--hero-only main.public-page {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.public-site--hero-only .public-hero {
+  flex: 1;
+  min-height: calc(100svh - 80px);
+  display: flex;
+  align-items: center;
+  border-bottom: none;
+  padding-block: clamp(24px, 5vh, 60px);
+  box-sizing: border-box;
+}
+
+@media (max-width: 768px) {
+  .public-site--hero-only {
+    padding-bottom: calc(64px + env(safe-area-inset-bottom, 12px));
+  }
+
+  .public-site--hero-only .public-hero,
+  .public-site--hero-only .public-hero--photographic {
+    min-height: calc(100svh - 76px - 64px - env(safe-area-inset-bottom, 12px));
+    padding-top: 24px;
+    padding-bottom: 24px;
+    align-items: center;
+  }
+}
