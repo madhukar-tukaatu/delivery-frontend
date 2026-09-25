@@ -10,11 +10,11 @@ export function money(value, currency = "NPR") {
 
 export function formatDateTime(value) {
   if (!value) {
-    return "—";
+    return "-";
   }
 
   const parsed = dayjs(value);
-  return parsed.isValid() ? parsed.format("DD MMM YYYY, hh:mm A") : "—";
+  return parsed.isValid() ? parsed.format("DD MMM YYYY, hh:mm A") : "-";
 }
 
 export function booleanText(value) {

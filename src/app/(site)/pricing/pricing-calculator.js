@@ -136,7 +136,7 @@ function MapPickerModal({ label, initial, onConfirm, onClose }) {
           <div className="map-coords-display">
             <Navigation className="h-3.5 w-3.5 text-blue-500 shrink-0" />
             <span>{coords.lat.toFixed(5)}, {coords.lng.toFixed(5)}</span>
-            {address && <span className="map-addr-preview">— {address.split(",").slice(0, 2).join(", ")}</span>}
+            {address && <span className="map-addr-preview">- {address.split(",").slice(0, 2).join(", ")}</span>}
           </div>
           <button
             type="button"
@@ -309,7 +309,7 @@ export default function PricingCalculator() {
                     type="number" min="0.1" step="0.1"
                     value={dims[k]}
                     onChange={(e) => updateDim(k, e.target.value)}
-                    placeholder="—"
+                    placeholder="-"
                     className="field-input dim-input"
                   />
                   <span className="dim-label">{k.charAt(0).toUpperCase() + k.slice(1)}</span>
@@ -336,7 +336,7 @@ export default function PricingCalculator() {
           )}
 
           <button disabled={loading} className="calc-btn">
-            {loading ? <><Loader2 className="h-4 w-4 animate-spin" />Calculating…</> : "Calculate Delivery Price"}
+            {loading ? <><Loader2 className="h-4 w-4 animate-spin" />Calculating...</> : "Calculate Delivery Price"}
           </button>
         </form>
 
@@ -358,7 +358,7 @@ function ResultDisplay({ result, loading }) {
     return (
       <div className="result-empty">
         <Loader2 className="h-8 w-8 animate-spin text-blue-400" />
-        <p className="result-empty-title">Calculating your price…</p>
+        <p className="result-empty-title">Calculating your price...</p>
       </div>
     );
   }
@@ -388,7 +388,7 @@ function ResultDisplay({ result, loading }) {
         </div>
         <div className="result-sla-block">
           <p className="result-price-label">Estimated Delivery</p>
-          <p className="result-sla">{result.estimated_delivery_label || "—"}</p>
+          <p className="result-sla">{result.estimated_delivery_label || "-"}</p>
         </div>
       </div>
 

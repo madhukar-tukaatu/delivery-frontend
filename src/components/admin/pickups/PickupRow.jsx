@@ -23,7 +23,7 @@ function getInitials(name) {
 
 function formatDate(value) {
   if (!value) {
-    return "—";
+    return "-";
   }
 
   const date = new Date(value);
@@ -84,7 +84,7 @@ export default function PickupRow({
           {merchant?.business_name ||
             merchant?.name ||
             pickup.pickup_name ||
-            "—"}
+            "-"}
         </p>
 
         {merchant?.email && (
@@ -102,7 +102,7 @@ export default function PickupRow({
             <p className="line-clamp-2 text-sm text-gray-700">
               {location?.name ||
                 pickup.pickup_address ||
-                "—"}
+                "-"}
             </p>
 
             {(pickup.pickup_city ||

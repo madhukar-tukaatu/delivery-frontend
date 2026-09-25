@@ -59,12 +59,12 @@ import {
   getCoverageLocations,
   rejectBranch,
   suspendBranch,
-} from "@/services/branchAllocationApi";
+} from "@/services/admin/branchAllocationApi";
 
-import BranchInvitationStatusTag from "@/components/branches/BranchInvitationStatusTag";
-import BranchInvitationActions from "@/components/branches/BranchInvitationActions";
-import AdminPageHeader from "@/components/admin/AdminPageHeader";
-import StatCard, { StatCardGrid } from "@/components/admin/StatCard";
+import BranchInvitationStatusTag from "@/components/admin/branches/BranchInvitationStatusTag";
+import BranchInvitationActions from "@/components/admin/branches/BranchInvitationActions";
+import AdminPageHeader from "@/components/admin/ui/AdminPageHeader";
+import StatCard, { StatCardGrid } from "@/components/admin/ui/StatCard";
 
 const CoverageRadiusMapFull = dynamic(
   () => import("@/components/maps/CoverageRadiusMapFull"),

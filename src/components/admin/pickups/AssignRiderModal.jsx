@@ -62,7 +62,7 @@ export default function AssignRiderModal({
                     rider.full_name ||
                     `Rider #${rider.id}`}
                   {rider.phone
-                    ? ` — ${rider.phone}`
+                    ? ` - ${rider.phone}`
                     : ""}
                 </option>
               ))}

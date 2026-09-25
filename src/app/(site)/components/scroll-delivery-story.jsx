@@ -200,7 +200,7 @@ export default function ScrollDeliveryStory() {
         })
 
         /*
-         * STAGE 1 — PICKUP
+         * STAGE 1 - PICKUP
          */
         .to(nodes[0], {
           scale: 1.15,
@@ -274,7 +274,7 @@ export default function ScrollDeliveryStory() {
         )
 
         /*
-         * STAGE 2 — ORIGIN
+         * STAGE 2 - ORIGIN
          */
         .to(nodes[1], {
           scale: 1.15,
@@ -328,7 +328,7 @@ export default function ScrollDeliveryStory() {
         })
 
         /*
-         * STAGE 3 — TRANSFER
+         * STAGE 3 - TRANSFER
          */
         .to(
           camera,
@@ -428,7 +428,7 @@ export default function ScrollDeliveryStory() {
         )
 
         /*
-         * STAGE 4 — DESTINATION
+         * STAGE 4 - DESTINATION
          */
         .to(nodes[3], {
           scale: 1.2,
@@ -502,7 +502,7 @@ export default function ScrollDeliveryStory() {
         )
 
         /*
-         * STAGE 5 — FINAL DELIVERY
+         * STAGE 5 - FINAL DELIVERY
          */
         .to(nodes[4], {
           scale: 1.25,

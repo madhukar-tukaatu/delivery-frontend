@@ -8,7 +8,7 @@ const services = [
   {
     id: "standard", icon: Package, color: "blue",
     title: "Standard Delivery", tag: "Everyday shipping",
-    text: "Reliable door-to-door delivery across Nepal. The backbone of our network — consistent, trackable and built for volume.",
+    text: "Reliable door-to-door delivery across Nepal. The backbone of our network - consistent, trackable and built for volume.",
     points: ["Door-to-door delivery", "Live shipment tracking", "Nationwide coverage", "POD available"],
     cta: "Start shipping",
   },
@@ -22,7 +22,7 @@ const services = [
   {
     id: "same-day", icon: Clock3, color: "teal",
     title: "Same Day Delivery", tag: "Selected locations",
-    text: "Same-day service for urgent local shipments. Available in select coverage zones — ideal for time-critical deliveries.",
+    text: "Same-day service for urgent local shipments. Available in select coverage zones - ideal for time-critical deliveries.",
     points: ["Same-day dispatch", "Scheduled pickup", "Proof of delivery", "Customer SMS alerts"],
     cta: "Check availability",
   },

@@ -1,6 +1,2 @@
-import api from '@/lib/api';
+export * from "./merchant/merchantSignupService";
 
-export async function signupMerchant(payload) {
-  const response = await api.post('/merchant/signup', payload);
-  return response.data?.data || response.data;
-}

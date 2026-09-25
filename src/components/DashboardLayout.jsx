@@ -75,15 +75,45 @@ function getIcon(icon) {
 
 function buildMenuItems(menus = []) {
   return menus
-    .filter((item) => item?.path && item?.label)
+    .filter((item) => {
+      if (!item?.label) return false;
+      if (item?.path) return true;
+      // Pathless parents are kept when they have children
+      return Array.isArray(item.children) && item.children.length > 0;
+    })
     .map((item) => {
       const children = item.children?.length
         ? buildMenuItems(item.children)
         : undefined;
-      return { key: item.path, icon: getIcon(item.icon), label: item.label, children };
-    });
+      const hasChildren = !!(children && children.length);
+      const key = item.path
+        ? item.path
+        : `group-${item.id ?? item.key ?? item.label}`;
+      return {
+        key,
+        icon: getIcon(item.icon),
+        label: item.label,
+        children: hasChildren ? children : undefined,
+      };
+    })
+    // Drop pathless parents whose children were all filtered out
+    .filter((item) => item.children?.length || !String(item.key).startsWith("group-"));
 }
 
+
+function collectOpenKeys(items = []) {
+  const keys = [];
+  function walk(list = []) {
+    list.forEach((item) => {
+      if (item?.children?.length) {
+        keys.push(item.key);
+        walk(item.children);
+      }
+    });
+  }
+  walk(items);
+  return keys;
+}
 function findSelectedKey(pathname, menus = []) {
   const flat = [];
   function collect(items = []) {
@@ -131,6 +161,7 @@ export default function DashboardLayout({ section: propsSection = "admin", child
   const [menus, setMenus] = useState([]);
   const [loadingMenus, setLoadingMenus] = useState(true);
   const [collapsed, setCollapsed] = useState(false);
+  const [openKeys, setOpenKeys] = useState([]);
 
   useEffect(() => {
     let active = true;
@@ -150,6 +181,10 @@ export default function DashboardLayout({ section: propsSection = "admin", child
   }, [section]);
 
   const items = useMemo(() => buildMenuItems(menus), [menus]);
+
+  useEffect(() => {
+    setOpenKeys(collectOpenKeys(items));
+  }, [items]);
   const selectedKey = useMemo(() => findSelectedKey(pathname, menus), [pathname, menus]);
 
   function logout() {
@@ -159,7 +194,10 @@ export default function DashboardLayout({ section: propsSection = "admin", child
 
   function handleMenuClick({ key }) {
     setMobileOpen(false);
-    if (key && key !== pathname) router.push(key);
+    // Pathless parent groups use keys like group-123 — only navigate real paths
+    if (key && key.startsWith("/") && key !== pathname) {
+      router.push(key);
+    }
   }
 
   const userDropdownItems = {

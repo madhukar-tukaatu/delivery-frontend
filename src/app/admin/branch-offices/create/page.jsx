@@ -24,14 +24,14 @@ import {
   ShopOutlined,
 } from "@ant-design/icons";
 
-import * as adminBranchService from "@/services/adminBranchService";
-import { getCoverageLocations } from "@/services/coverageLocationApi";
-import BranchAssignmentForm from "@/components/branches/BranchAssignmentForm";
+import * as adminBranchService from "@/services/admin/adminBranchService";
+import { getCoverageLocations } from "@/services/admin/coverageLocationApi";
+import BranchAssignmentForm from "@/components/admin/branches/BranchAssignmentForm";
 
 import {
   apiErrorMessage,
   normalizeRows,
-} from "@/components/branches/branch-office/branchOfficeUtils";
+} from "@/components/admin/branches/branch-office/branchOfficeUtils";
 
 const { Text, Title } = Typography;
 

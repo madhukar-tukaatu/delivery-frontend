@@ -25,7 +25,7 @@ const pickupIcon = new L.DivIcon({
   className: "custom-map-marker",
   html: `
     <div class="marker-pin marker-pickup">
-      <span>●</span>
+      <span>*</span>
     </div>
   `,
   iconSize: [32, 42],
@@ -37,7 +37,7 @@ const deliveryIcon = new L.DivIcon({
   className: "custom-map-marker",
   html: `
     <div class="marker-pin marker-delivery">
-      <span>●</span>
+      <span>*</span>
     </div>
   `,
   iconSize: [32, 42],
@@ -49,7 +49,7 @@ const transferIcon = new L.DivIcon({
   className: "custom-map-marker",
   html: `
     <div class="marker-pin marker-transfer">
-      <span>●</span>
+      <span>*</span>
     </div>
   `,
   iconSize: [32, 42],

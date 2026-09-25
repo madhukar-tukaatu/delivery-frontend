@@ -672,7 +672,7 @@ export default function SiteClient() {
       </header>
 
       {/* --------------------------------------------------------------------
-         BOTTOM NAV BAR — nav links + dot indicators merged
+         BOTTOM NAV BAR - nav links + dot indicators merged
          -------------------------------------------------------------------- */}
       <div className={styles.bottomNav}>
         {/* Prev arrow */}
@@ -1146,7 +1146,7 @@ export default function SiteClient() {
                               />
                             </div>
                             {/* <div className="tukaatu-weight-help" style={{ color: mc }}>
-                              Volumetric weight: {volumetricWeightPreview !== null ? `${volumetricWeightPreview} kg` : "enter dimensions"}. Chargeable weight: {chargeableWeightPreview !== null ? `${chargeableWeightPreview} kg` : "—"}. The higher of actual and volumetric weight is used.
+                              Volumetric weight: {volumetricWeightPreview !== null ? `${volumetricWeightPreview} kg` : "enter dimensions"}. Chargeable weight: {chargeableWeightPreview !== null ? `${chargeableWeightPreview} kg` : "-"}. The higher of actual and volumetric weight is used.
                             </div> */}
                           </div>
 
@@ -1244,7 +1244,7 @@ export default function SiteClient() {
                                   minimumFractionDigits: 2,
                                   maximumFractionDigits: 2,
                                 })}`
-                              : "—"}
+                              : "-"}
                           </div>
 
                           {rateEstimate && (
@@ -1266,7 +1266,7 @@ export default function SiteClient() {
                             {rateEstimate?.estimated_delivery_label ||
                               (rateEstimate?.estimated_delivery_hours
                                 ? `${rateEstimate.estimated_delivery_hours} Hours`
-                                : "—")}
+                                : "-")}
                           </div>
                         </div>
                       </div>
@@ -1520,7 +1520,7 @@ export default function SiteClient() {
                 <Link href="/public/merchant-register" className={`${styles.pricingBtn} ${styles.pricingBtnSecondary}`}>Get Started</Link>
               </div>
 
-              {/* Card 2 — Featured */}
+              {/* Card 2 - Featured */}
               <div className={`${styles.pricingCard} ${styles.pricingCardFeatured}`}>
                 <div className={styles.pricingBadge}>MOST POPULAR</div>
                 <div className={styles.pricingCardTag} style={{ color: '#FFD026' }}>Inter-District</div>
@@ -1528,7 +1528,7 @@ export default function SiteClient() {
                 <div className={styles.pricingPrice}>NPR 180</div>
                 <ul className={styles.pricingFeatureList}>
                   <li className={styles.pricingFeatureItem}><span style={{ color: '#FFD026' }}>✓</span> All 77 Districts Covered</li>
-                  <li className={styles.pricingFeatureItem}><span style={{ color: '#FFD026' }}>✓</span> 24–48 Hours Delivery SLA</li>
+                  <li className={styles.pricingFeatureItem}><span style={{ color: '#FFD026' }}>✓</span> 24-48 Hours Delivery SLA</li>
                   <li className={styles.pricingFeatureItem}><span style={{ color: '#FFD026' }}>✓</span> Same-Day POD Settlement</li>
                   <li className={styles.pricingFeatureItem}><span style={{ color: '#FFD026' }}>✓</span> Barcode Hub Sorting</li>
                 </ul>
@@ -1558,7 +1558,7 @@ export default function SiteClient() {
          -------------------------------------------------------------------- */}
       <div className={styles.slideItem} style={{ background: isDark ? '#060D14' : '#F0F4F8', padding: 0, flexDirection: 'column', justifyContent: 'space-between', overflowY: 'auto' }}>
 
-        {/* CTA — full width hero section */}
+        {/* CTA - full width hero section */}
         <section id="cta" style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '48px 48px 36px', boxSizing: 'border-box', position: 'relative', overflow: 'hidden' }}>
           {/* Background glow orbs */}
           <div style={{ position: 'absolute', top: '10%', left: '25%', width: 400, height: 400, borderRadius: '50%', background: 'radial-gradient(circle, rgba(2,113,150,0.15) 0%, transparent 65%)', pointerEvents: 'none' }} />

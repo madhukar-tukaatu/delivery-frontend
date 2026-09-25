@@ -57,17 +57,18 @@ import {
   UploadOutlined,
 } from "@ant-design/icons";
 
-import * as branchApi from "@/services/branchAllocationApi";
+import * as branchApi from "@/services/admin/branchAllocationApi";
 import {
   deleteBranchDocument,
   downloadBranchDocument,
   previewBranchDocument,
   updateBranchDocument,
   uploadBranchDocument,
-} from "@/services/adminBranchService";
-import BranchInvitationActions from "@/components/branches/BranchInvitationActions";
-import BranchInvitationStatusTag from "@/components/branches/BranchInvitationStatusTag";
-import EditableSectionCard from "@/components/branches/branch-office/EditableSectionCard";
+} from "@/services/admin/adminBranchService";
+import BranchInvitationActions from "@/components/admin/branches/BranchInvitationActions";
+import BranchInvitationStatusTag from "@/components/admin/branches/BranchInvitationStatusTag";
+import EditableSectionCard from "@/components/admin/branches/branch-office/EditableSectionCard";
+import AdminPageHeader from "@/components/admin/ui/AdminPageHeader";
 import {
   SECTION_TITLES,
   apiErrorMessage,
@@ -79,7 +80,7 @@ import {
   typeColor,
   typeLabel,
   unwrapRecord,
-} from "@/components/branches/branch-office/branchOfficeUtils";
+} from "@/components/admin/branches/branch-office/branchOfficeUtils";
 
 const CoverageRadiusMap = dynamic(
   () => import("@/components/maps/CoverageRadiusMap"),
@@ -358,8 +359,8 @@ export default function BranchOfficeWorkspacePage() {
         value: item.id,
         label:
           Number(item.id) === Number(record?.coverage_location_id)
-            ? `${item.name} (${item.code}) — Current allocation`
-            : `${item.name} (${item.code}) — Inactive · Unassigned`,
+            ? `${item.name} (${item.code}) - Current allocation`
+            : `${item.name} (${item.code}) - Inactive | Unassigned`,
       }));
   }, [
     coverageLocations,
@@ -870,7 +871,7 @@ export default function BranchOfficeWorkspacePage() {
     {
       title: "Office",
       render: (_, row) =>
-        [row.office_area, row.office_city].filter(Boolean).join(", ") || "—",
+        [row.office_area, row.office_city].filter(Boolean).join(", ") || "-",
     },
     {
       title: "Status",
@@ -903,12 +904,12 @@ export default function BranchOfficeWorkspacePage() {
       render: (value) =>
         DOCUMENT_TYPE_OPTIONS.find((option) => option.value === value)?.label ||
         value ||
-        "—",
+        "-",
     },
     {
       title: "Remarks",
       dataIndex: "remarks",
-      render: (value) => value || "—",
+      render: (value) => value || "-",
     },
     {
       title: "Status",
@@ -931,7 +932,7 @@ export default function BranchOfficeWorkspacePage() {
       dataIndex: "size_bytes",
       width: 100,
       render: (value) =>
-        value ? `${(Number(value) / 1024).toFixed(1)} KB` : "—",
+        value ? `${(Number(value) / 1024).toFixed(1)} KB` : "-",
     },
     {
       title: "Actions",
@@ -1061,106 +1062,78 @@ export default function BranchOfficeWorkspacePage() {
       }}
     >
       <Space direction="vertical" size={18} style={{ width: "100%" }}>
-        <Card
-          variant="borderless"
-          style={{
-            borderRadius: 22,
-            overflow: "hidden",
-            background:
-              "linear-gradient(135deg, #0f172a 0%, #172554 55%, #1d4ed8 135%)",
-            boxShadow: "0 18px 45px rgba(15, 23, 42, 0.16)",
-          }}
-          styles={{ body: { padding: "26px clamp(20px, 3vw, 34px)" } }}
-        >
-          <Space direction="vertical" size={16} style={{ width: "100%" }}>
-            <Breadcrumb
-              items={[
-                {
-                  title: (
-                    <Link style={{ color: "#bfdbfe" }} href="/admin/branch-offices">
-                      Branch Offices
-                    </Link>
-                  ),
-                },
-                { title: <span style={{ color: "#ffffff" }}>{record.name}</span> },
-              ]}
-            />
+        <AdminPageHeader
+          title={record.name || record.legal_name}
+          icon={<ShopOutlined />}
+          breadcrumb={[
+            {
+              title: (
+                <Link href="/admin/branch-offices">Branch Offices</Link>
+              ),
+            },
+            { title: record.name || "Detail" },
+          ]}
+          tags={
+            <>
+              <Tag color={typeColor(record.type)}>
+                {typeLabel(record.type)}
+              </Tag>
+              <Tag color={currentStatus.color}>{currentStatus.label}</Tag>
+            </>
+          }
+          subtitle={
+            <Space direction="vertical" size={2}>
+              <span>
+                {record.code ? `Code: ${record.code}` : `Branch #${record.id}`}
+                {record.parent?.name ? ` - Parent: ${record.parent.name}` : ""}
+              </span>
+              <span>
+                {record.office_address ||
+                  record.address ||
+                  "Office address not completed"}
+              </span>
+            </Space>
+          }
+          actions={
+            <>
+              <Button icon={<ArrowLeftOutlined />} onClick={handleBack}>
+                Back
+              </Button>
 
-            <Row gutter={[20, 20]} align="middle" justify="space-between">
-              <Col xs={24} xl={15}>
-                <Space align="start" size={15}>
-                  <Avatar
-                    size={54}
-                    icon={<ShopOutlined />}
-                    style={{ background: "rgba(255,255,255,0.16)" }}
-                  />
-                  <Space direction="vertical" size={7}>
-                    <Space wrap>
-                      <Title level={2} style={{ margin: 0, color: "#ffffff" }}>
-                        {record.name || record.legal_name}
-                      </Title>
-                      <Tag color={typeColor(record.type)}>
-                        {typeLabel(record.type)}
-                      </Tag>
-                      <Tag color={currentStatus.color}>{currentStatus.label}</Tag>
-                    </Space>
-                    <Text style={{ color: "#cbd5e1" }}>
-                      {record.code ? `Code: ${record.code}` : `Branch #${record.id}`}
-                      {record.parent?.name ? ` · Parent: ${record.parent.name}` : ""}
-                    </Text>
-                    <Text style={{ color: "#cbd5e1" }}>
-                      {record.office_address || record.address || "Office address not completed"}
-                    </Text>
-                  </Space>
-                </Space>
-              </Col>
+              {isMain ? (
+                <BranchInvitationActions branch={record} onChanged={loadPage} />
+              ) : null}
 
-              <Col xs={24} xl={9}>
-                <Space wrap style={{ width: "100%", justifyContent: "flex-end" }}>
-                  <Button
-                    icon={<ArrowLeftOutlined />}
-                    onClick={handleBack}
-                  >
-                    Back
-                  </Button>
+              {!isMain && !["approved", "active"].includes(record.status) ? (
+                <Button
+                  icon={<CheckCircleOutlined />}
+                  onClick={() => openAction("approve")}
+                >
+                  Approve
+                </Button>
+              ) : null}
 
-                  {isMain ? (
-                    <BranchInvitationActions branch={record} onChanged={loadPage} />
-                  ) : null}
+              {["approved", "suspended"].includes(record.status) ? (
+                <Button
+                  type="primary"
+                  icon={<ThunderboltOutlined />}
+                  onClick={() => openAction("activate")}
+                >
+                  Activate
+                </Button>
+              ) : null}
 
-                  {!isMain && !["approved", "active"].includes(record.status) ? (
-                    <Button
-                      icon={<CheckCircleOutlined />}
-                      onClick={() => openAction("approve")}
-                    >
-                      Approve
-                    </Button>
-                  ) : null}
-
-                  {["approved", "suspended"].includes(record.status) ? (
-                    <Button
-                      type="primary"
-                      icon={<ThunderboltOutlined />}
-                      onClick={() => openAction("activate")}
-                    >
-                      Activate
-                    </Button>
-                  ) : null}
-
-                  {["approved", "active"].includes(record.status) ? (
-                    <Button
-                      icon={<StopOutlined />}
-                      onClick={() => openAction("suspend")}
-                    >
-                      Suspend
-                    </Button>
-                  ) : null}
-                </Space>
-              </Col>
-            </Row>
-          </Space>
-        </Card>
-
+              {["approved", "active"].includes(record.status) ? (
+                <Button
+                  icon={<StopOutlined />}
+                  onClick={() => openAction("suspend")}
+                >
+                  Suspend
+                </Button>
+              ) : null}
+            </>
+          }
+        />
         {editingSection ? (
           <Alert
             showIcon
@@ -1274,13 +1247,13 @@ export default function BranchOfficeWorkspacePage() {
                 ) : (
                   <Descriptions size="small" column={{ xs: 1, sm: 2 }}>
                     <Descriptions.Item label="Branch name">
-                      {record.name || "—"}
+                      {record.name || "-"}
                     </Descriptions.Item>
                     <Descriptions.Item label="Legal name">
-                      {record.legal_name || "—"}
+                      {record.legal_name || "-"}
                     </Descriptions.Item>
                     <Descriptions.Item label="Code">
-                      {record.code || "—"}
+                      {record.code || "-"}
                     </Descriptions.Item>
                     <Descriptions.Item label="Type">
                       <Tag color={typeColor(record.type)}>{typeLabel(record.type)}</Tag>
@@ -1291,7 +1264,7 @@ export default function BranchOfficeWorkspacePage() {
                           {record.parent.name}
                         </Link>
                       ) : (
-                        "—"
+                        "-"
                       )}
                     </Descriptions.Item>
                     <Descriptions.Item label="Coverage allocation">
@@ -1390,28 +1363,28 @@ export default function BranchOfficeWorkspacePage() {
                 ) : (
                   <Descriptions size="small" column={{ xs: 1, sm: 2 }}>
                     <Descriptions.Item label="Owner / manager">
-                      {record.owner_name || record.manager?.name || "—"}
+                      {record.owner_name || record.manager?.name || "-"}
                     </Descriptions.Item>
                     <Descriptions.Item label="Contact person">
-                      {record.contact_person || "—"}
+                      {record.contact_person || "-"}
                     </Descriptions.Item>
                     <Descriptions.Item label="Manager email">
-                      {getManagerEmail(record) || "—"}
+                      {getManagerEmail(record) || "-"}
                     </Descriptions.Item>
                     <Descriptions.Item label="Primary phone">
-                      {record.phone || record.manager?.phone || "—"}
+                      {record.phone || record.manager?.phone || "-"}
                     </Descriptions.Item>
                     <Descriptions.Item label="Alternative phone">
-                      {record.alternative_phone || "—"}
+                      {record.alternative_phone || "-"}
                     </Descriptions.Item>
                     <Descriptions.Item label="Business type">
-                      {record.business_type || "—"}
+                      {record.business_type || "-"}
                     </Descriptions.Item>
                     <Descriptions.Item label="PAN / VAT">
-                      {record.pan_vat_number || "—"}
+                      {record.pan_vat_number || "-"}
                     </Descriptions.Item>
                     <Descriptions.Item label="Registration number">
-                      {record.registration_number || "—"}
+                      {record.registration_number || "-"}
                     </Descriptions.Item>
                     {isMain ? (
                       <Descriptions.Item label="Account invitation" span={2}>
@@ -1508,25 +1481,25 @@ export default function BranchOfficeWorkspacePage() {
                 ) : (
                   <Descriptions size="small" column={{ xs: 1, sm: 2 }}>
                     <Descriptions.Item label="Address" span={2}>
-                      {record.office_address || "—"}
+                      {record.office_address || "-"}
                     </Descriptions.Item>
                     <Descriptions.Item label="City">
-                      {record.office_city || "—"}
+                      {record.office_city || "-"}
                     </Descriptions.Item>
                     <Descriptions.Item label="Area">
-                      {record.office_area || "—"}
+                      {record.office_area || "-"}
                     </Descriptions.Item>
                     <Descriptions.Item label="Street">
-                      {record.office_street || "—"}
+                      {record.office_street || "-"}
                     </Descriptions.Item>
                     <Descriptions.Item label="Landmark">
-                      {record.office_landmark || "—"}
+                      {record.office_landmark || "-"}
                     </Descriptions.Item>
                     <Descriptions.Item label="Latitude">
-                      {record.office_latitude || "—"}
+                      {record.office_latitude || "-"}
                     </Descriptions.Item>
                     <Descriptions.Item label="Longitude">
-                      {record.office_longitude || "—"}
+                      {record.office_longitude || "-"}
                     </Descriptions.Item>
                   </Descriptions>
                 )}
@@ -1619,18 +1592,18 @@ export default function BranchOfficeWorkspacePage() {
                 ) : (
                   <Descriptions size="small" column={{ xs: 1, sm: 2 }}>
                     <Descriptions.Item label="Opening time">
-                      {record.opening_time || "—"}
+                      {record.opening_time || "-"}
                     </Descriptions.Item>
                     <Descriptions.Item label="Closing time">
-                      {record.closing_time || "—"}
+                      {record.closing_time || "-"}
                     </Descriptions.Item>
                     <Descriptions.Item label="Operating days" span={2}>
                       {record.operating_days?.length
                         ? record.operating_days.join(", ")
-                        : "—"}
+                        : "-"}
                     </Descriptions.Item>
                     <Descriptions.Item label="Daily capacity">
-                      {record.daily_shipment_capacity || "—"}
+                      {record.daily_shipment_capacity || "-"}
                     </Descriptions.Item>
                     <Descriptions.Item label="Services">
                       {services.length ? (

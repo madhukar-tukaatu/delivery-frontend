@@ -50,12 +50,12 @@ import {
   deleteCoverageLocation,
   getCoverageLocations,
   updateCoverageLocation,
-} from "@/services/branchAllocationApi";
+} from "@/services/admin/branchAllocationApi";
 
 import { useAccess } from "@/hooks/useAccess";
 
-import AdminPageHeader from "@/components/admin/AdminPageHeader";
-import StatCard, { StatCardGrid } from "@/components/admin/StatCard";
+import AdminPageHeader from "@/components/admin/ui/AdminPageHeader";
+import StatCard, { StatCardGrid } from "@/components/admin/ui/StatCard";
 
 const CoverageRadiusMapFull = dynamic(
   () =>
@@ -905,7 +905,7 @@ export default function CoverageLocationsPage() {
             record.branch?.name ||
             (
               <Text type="secondary">
-                —
+                -
               </Text>
             ),
         },
@@ -1010,7 +1010,7 @@ export default function CoverageLocationsPage() {
             record.parent?.name ||
             (
               <Text type="secondary">
-                —
+                -
               </Text>
             ),
         },
@@ -1049,7 +1049,7 @@ export default function CoverageLocationsPage() {
             record.branch?.name ||
             (
               <Text type="secondary">
-                —
+                -
               </Text>
             ),
         },

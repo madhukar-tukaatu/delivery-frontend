@@ -1218,7 +1218,7 @@ export default function StaffDeliveriesPage() {
         style={{ marginBottom: "24px", borderRadius: 12 }}
         title={
           <div>
-            <h2 style={{ margin: 0 }}>ðŸ“¦ Deliveries</h2>
+            <h2 style={{ margin: 0 }}>Deliveries</h2>
             <p style={{ margin: "4px 0 0 0", color: "#666", fontSize: "12px" }}>
               {statusCounts.all} {statusCounts.all === 1 ? "delivery" : "deliveries"} in your assigned history
             </p>

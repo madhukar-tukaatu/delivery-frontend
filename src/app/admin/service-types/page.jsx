@@ -1,5 +1,7 @@
 "use client";
 
+import AdminPageHeader from "@/components/admin/ui/AdminPageHeader";
+
 import { useCallback, useEffect, useState } from "react";
 import {
   Button,
@@ -17,6 +19,7 @@ import {
   message,
 } from "antd";
 import {
+  AppstoreOutlined,
   DeleteOutlined,
   EditOutlined,
   PlusOutlined,
@@ -152,22 +155,21 @@ export default function ServiceTypesPage() {
   return (
     <div style={{ padding: 24 }}>
       {contextHolder}
-      <Row justify="space-between" align="middle" gutter={[16, 16]} style={{ marginBottom: 20 }}>
-        <Col>
-          <Title level={2} style={{ margin: 0 }}>Service Types</Title>
-          <Text type="secondary">Manage standard, express and same-day delivery services.</Text>
-        </Col>
-        <Col>
-          <Space>
+      <AdminPageHeader
+        title="Service Types"
+        subtitle="Manage standard, express and same-day delivery services."
+        icon={<AppstoreOutlined />}
+        actions={
+          <>
             <Button icon={<ReloadOutlined />} onClick={() => load(pagination.current, pagination.pageSize, filters)} loading={loading}>
               Refresh
             </Button>
             <Button type="primary" icon={<PlusOutlined />} onClick={() => setModal({ open: true, record: null })}>
               Add Service Type
             </Button>
-          </Space>
-        </Col>
-      </Row>
+          </>
+        }
+      />
 
       <Card>
         <Row gutter={[12, 12]} style={{ marginBottom: 16 }}>

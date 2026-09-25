@@ -481,7 +481,7 @@ export default function StaffPickupDetailPage() {
         />
         <Form form={cancelForm} layout="vertical">
           <Form.Item name="reason" label="Reason" rules={[{ required: true, message: "Enter a reason" }]}>
-            <Input.TextArea rows={4} placeholder="Describe why this pickup is being cancelled…" />
+            <Input.TextArea rows={4} placeholder="Describe why this pickup is being cancelled..." />
           </Form.Item>
         </Form>
       </Modal>

@@ -19,7 +19,7 @@ import {
   message,
 } from "antd";
 import { SaveOutlined } from "@ant-design/icons";
-import { getBranchParentOptions } from "@/services/adminBranchService";
+import { getBranchParentOptions } from "@/services/admin/adminBranchService";
 
 const BranchCoordinatePicker = dynamic(
   () => import("@/components/maps/BranchCoordinatePicker"),
@@ -252,7 +252,7 @@ export default function BranchForm({
           type="info"
           showIcon
           message="Dynamic branch hierarchy"
-          description="Parent branch options are automatically limited by the logged-in user’s role and assigned branch hierarchy."
+          description="Parent branch options are automatically limited by the logged-in users role and assigned branch hierarchy."
         />
 
         <Card title="Business Details" bordered={false}>

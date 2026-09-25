@@ -26,8 +26,8 @@ import {
   updateBranchPricing,
   buildServiceTypesPayload,
   extractFormData,
-} from "@/services/branchPricingRouteService";
-import { getBranches } from "@/services/adminBranchService";
+} from "@/services/admin/branchPricingRouteService";
+import { getBranches } from "@/services/admin/adminBranchService";
 
 const { Text, Title } = Typography;
 

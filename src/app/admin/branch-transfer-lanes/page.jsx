@@ -30,22 +30,25 @@ import {
 } from "antd";
 import {
   ApartmentOutlined,
+  CarOutlined,
+  CheckCircleOutlined,
   DeleteOutlined,
   EditOutlined,
+  ExclamationCircleOutlined,
+  LinkOutlined,
+  NodeIndexOutlined,
   PlusOutlined,
   ReloadOutlined,
+  RiseOutlined,
+  RocketOutlined,
   SendOutlined,
   SwapOutlined,
-  CheckCircleOutlined,
-  ExclamationCircleOutlined,
   TeamOutlined,
-  LinkOutlined,
-  RiseOutlined,
 } from "@ant-design/icons";
 import dynamic from "next/dynamic";
-import PermissionGate from "@/components/rate-admin/PermissionGate";
-import RouteMap from "@/components/rate-admin/RouteMap";
-import { deriveBranchConnectivity } from "@/services/adminRateManagementService";
+import PermissionGate from "@/components/admin/rate-admin/PermissionGate";
+import RouteMap from "@/components/admin/rate-admin/RouteMap";
+import { deriveBranchConnectivity } from "@/services/admin/adminRateManagementService";
 import {
   createBranchTransferLane,
   createReverseBranchTransferLane,
@@ -55,7 +58,7 @@ import {
   getRateBranches,
   updateBranchTransferLane,
   updateBranchTransferLaneStatus,
-} from "@/services/adminRateManagementService";
+} from "@/services/admin/adminRateManagementService";
 import {
   apiErrorMessage,
   branchLabel,
@@ -69,7 +72,7 @@ import {
 const { Title, Text } = Typography;
 
 const CheckpointMapPicker = dynamic(
-  () => import("@/components/rate-admin/CheckpointMapPicker"),
+  () => import("@/components/admin/rate-admin/CheckpointMapPicker"),
   {
     ssr: false,
     loading: () => (
@@ -91,7 +94,7 @@ const CheckpointMapPicker = dynamic(
 );
 
 const ArcRouteMap = dynamic(
-  () => import("@/components/rate-admin/ArcRouteMap"),
+  () => import("@/components/admin/rate-admin/ArcRouteMap"),
   {
     ssr: false,
     loading: () => (
@@ -113,7 +116,7 @@ const ArcRouteMap = dynamic(
 );
 
 const BranchNetworkMap = dynamic(
-  () => import("@/components/rate-admin/BranchNetworkMap"),
+  () => import("@/components/admin/rate-admin/BranchNetworkMap"),
   {
     ssr: false,
     loading: () => (
@@ -148,18 +151,18 @@ const TRANSPORT_MODES = [
 
 function TransportBadge({ mode }) {
   const config = {
-    road: { label: "ROAD", color: "blue", icon: "🛣️" },
-    flight: { label: "FLIGHT", color: "cyan", icon: "✈️" },
-    rail: { label: "RAIL", color: "orange", icon: "🚂" },
+    road: { label: "ROAD", color: "blue", icon: <CarOutlined /> },
+    flight: { label: "FLIGHT", color: "cyan", icon: <RocketOutlined /> },
+    rail: { label: "RAIL", color: "orange", icon: <NodeIndexOutlined /> },
   };
   const c = config[mode] || {
-    label: mode?.toUpperCase() || "—",
+    label: mode?.toUpperCase() || "-",
     color: "default",
-    icon: "🚚",
+    icon: <CarOutlined />,
   };
   return (
-    <Tag color={c.color}>
-      {c.icon} {c.label}
+    <Tag color={c.color} icon={c.icon}>
+      {c.label}
     </Tag>
   );
 }
@@ -490,7 +493,7 @@ export default function BranchTransferLanesPage() {
       setCreatingRoutes((prev) => new Set([...prev, row.id]));
       await createRouteForBranchTransferLane(row.id);
       message.success(
-        `✓ Route created for: ${row.from_branch?.name} → ${row.to_branch?.name}`,
+        `Route created for: ${row.from_branch?.name}{" -> "}${row.to_branch?.name}`,
       );
       setRows((prevRows) =>
         prevRows.map((r) =>
@@ -500,7 +503,7 @@ export default function BranchTransferLanesPage() {
     } catch (err) {
       const errorMsg =
         err?.response?.data?.message || "Could not create route.";
-      message.error(`✗ Failed: ${errorMsg}`);
+      message.error(`Failed: ${errorMsg}`);
     } finally {
       setCreatingRoutes((prev) => {
         const next = new Set(prev);
@@ -546,12 +549,12 @@ export default function BranchTransferLanesPage() {
       }
 
       if (failedCount === 0) {
-        message.success(`✓ Routes created for ${successCount} lane(s).`);
+        message.success(`Routes created for ${successCount} lane(s).`);
       } else if (successCount === 0) {
-        message.error(`✗ Failed to create routes.`);
+        message.error(`Failed to create routes.`);
       } else {
         message.warning(
-          `⚠ Created ${successCount} route(s), ${failedCount} failed.`,
+          `! Created ${successCount} route(s), ${failedCount} failed.`,
         );
       }
 
@@ -573,7 +576,7 @@ export default function BranchTransferLanesPage() {
       render: (_, row) => (
         <Space direction="vertical" size={2}>
           <Text strong style={{ fontSize: "13px" }}>
-            {row.from_branch?.name || "Unknown"} →{" "}
+            {row.from_branch?.name || "Unknown"}{" ->"}{" "}
             {row.to_branch?.name || "Unknown"}
           </Text>
           <Text type="secondary" style={{ fontSize: "11px" }}>
@@ -586,19 +589,19 @@ export default function BranchTransferLanesPage() {
       title: "Service",
       dataIndex: "service_type",
       width: 100,
-      render: (v) => <Tag color="blue">{v || "—"}</Tag>,
+      render: (v) => <Tag color="blue">{v || "-"}</Tag>,
     },
     {
       title: "Transport",
       dataIndex: "transport_mode",
       width: 100,
-      render: (v) => (v ? <TransportBadge mode={v} /> : "—"),
+      render: (v) => (v ? <TransportBadge mode={v} /> : "-"),
     },
     {
       title: "Distance",
       dataIndex: "distance_km",
       width: 100,
-      render: (v) => (v == null ? "—" : `${Number(v).toFixed(2)} km`),
+      render: (v) => (v == null ? "-" : `${Number(v).toFixed(2)} km`),
     },
     {
       title: "ETA",
@@ -683,7 +686,7 @@ export default function BranchTransferLanesPage() {
                 toggleStatus(row);
               }}
             >
-              {row.is_active ? "✓" : "○"}
+              {row.is_active ? "Active" : "Inactive"}
             </Button>
           </Tooltip>
 
@@ -968,7 +971,7 @@ export default function BranchTransferLanesPage() {
               <Row justify="space-between" align="middle">
                 <Col>
                   <Text style={{ fontSize: "12px" }}>
-                    ✓ {selectedRowKeys.length} selected ·{" "}
+                    {selectedRowKeys.length} selected |{" "}
                     {
                       rows.filter(
                         (r) =>
@@ -1137,7 +1140,7 @@ export default function BranchTransferLanesPage() {
                       color: "#0F172A",
                     }}
                   >
-                    🗺️ Route Map
+                    
                   </Text>
                 }
               >
@@ -1222,7 +1225,7 @@ export default function BranchTransferLanesPage() {
                       color: "#0F172A",
                     }}
                   >
-                    📋 Details
+                    
                   </Text>
                 }
               >
@@ -1253,7 +1256,7 @@ export default function BranchTransferLanesPage() {
                           color: "#0F172A",
                         }}
                       >
-                        {selected?.from_branch?.name || "—"}
+                        {selected?.from_branch?.name || "-"}
                       </Text>
                     </Descriptions.Item>
                     <Descriptions.Item
@@ -1276,7 +1279,7 @@ export default function BranchTransferLanesPage() {
                           color: "#0F172A",
                         }}
                       >
-                        {selected?.to_branch?.name || "—"}
+                        {selected?.to_branch?.name || "-"}
                       </Text>
                     </Descriptions.Item>
                     <Descriptions.Item
@@ -1293,7 +1296,7 @@ export default function BranchTransferLanesPage() {
                       }
                     >
                       <Tag style={{ fontSize: "10px" }} color="blue">
-                        {selected?.service_type || "—"}
+                        {selected?.service_type || "-"}
                       </Tag>
                     </Descriptions.Item>
                     <Descriptions.Item
@@ -1318,9 +1321,9 @@ export default function BranchTransferLanesPage() {
                       >
                         {selected
                           ? selected.distance_km == null
-                            ? "—"
+                            ? "-"
                             : `${Number(selected.distance_km).toFixed(1)} km`
-                          : "—"}
+                          : "-"}
                       </Text>
                     </Descriptions.Item>
                     <Descriptions.Item
@@ -1345,7 +1348,7 @@ export default function BranchTransferLanesPage() {
                       >
                         {selected
                           ? `${Number(selected.estimated_hours || 0)} hrs`
-                          : "—"}
+                          : "-"}
                       </Text>
                     </Descriptions.Item>
                     <Descriptions.Item
@@ -1368,7 +1371,7 @@ export default function BranchTransferLanesPage() {
                           color: "#0F172A",
                         }}
                       >
-                        {selected?.priority || "—"}
+                        {selected?.priority || "-"}
                       </Text>
                     </Descriptions.Item>
                     <Descriptions.Item
@@ -1424,7 +1427,7 @@ export default function BranchTransferLanesPage() {
                           </Space>
                         )
                       ) : (
-                        "—"
+                        "-"
                       )}
                     </Descriptions.Item>
                     <Descriptions.Item
@@ -1440,7 +1443,7 @@ export default function BranchTransferLanesPage() {
                         </Text>
                       }
                     >
-                      {selected ? statusTag(selected.is_active) : "—"}
+                      {selected ? statusTag(selected.is_active) : "-"}
                     </Descriptions.Item>
                   </Descriptions>
                 ) : (

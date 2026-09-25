@@ -41,10 +41,10 @@ export default function ShipmentWorkflowActions({ shipment, onReceiveOrigin, onD
           <Descriptions.Item label="Current Branch">{shipment.current_branch?.name || shipment.currentBranch?.name || '-'}</Descriptions.Item>
           <Descriptions.Item label="Current Sub-Branch">{shipment.current_sub_branch?.name || shipment.currentSubBranch?.name || '-'}</Descriptions.Item>
           <Descriptions.Item label="Next Route Step">
-            {nextStep ? `${nextStep.from_branch?.name || nextStep.fromBranch?.name || '-'} → ${nextStep.to_branch?.name || nextStep.toBranch?.name || '-'}` : 'No pending step'}
+            {nextStep ? `${nextStep.from_branch?.name || nextStep.fromBranch?.name || '-'}{" -> "}${nextStep.to_branch?.name || nextStep.toBranch?.name || '-'}` : 'No pending step'}
           </Descriptions.Item>
           <Descriptions.Item label="In Transit Step">
-            {inTransit ? `${inTransit.from_branch?.name || inTransit.fromBranch?.name || '-'} → ${inTransit.to_branch?.name || inTransit.toBranch?.name || '-'}` : 'None'}
+            {inTransit ? `${inTransit.from_branch?.name || inTransit.fromBranch?.name || '-'}{" -> "}${inTransit.to_branch?.name || inTransit.toBranch?.name || '-'}` : 'None'}
           </Descriptions.Item>
         </Descriptions>
 

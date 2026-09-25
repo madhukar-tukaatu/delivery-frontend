@@ -20,7 +20,7 @@ import {
 } from "lucide-react";
 
 export const metadata = {
-  title: "Sell More. Deliver Better — Tukaatu Express for Merchants",
+  title: "Sell More. Deliver Better - Tukaatu Express for Merchants",
   description:
     "Join Tukaatu Express as a merchant. Get reliable delivery, live tracking, POD collection and full settlement visibility across Nepal.",
 };
@@ -34,7 +34,7 @@ const capabilities = [
   {
     icon: PackageCheck,
     title: "Live shipment tracking",
-    text: "Every parcel tracked in real time — your team and your customers always know exactly where their order is.",
+    text: "Every parcel tracked in real time - your team and your customers always know exactly where their order is.",
   },
   {
     icon: Wallet,
@@ -54,7 +54,7 @@ const capabilities = [
   {
     icon: FileText,
     title: "Invoicing & billing",
-    text: "Automated invoices, reconciled settlement records and exportable delivery activity — all in one place.",
+    text: "Automated invoices, reconciled settlement records and exportable delivery activity - all in one place.",
   },
   {
     icon: Headphones,
@@ -77,7 +77,7 @@ const steps = [
   {
     n: "02",
     title: "Get verified & approved",
-    text: "Our team reviews your application and activates your account — usually within 24 hours.",
+    text: "Our team reviews your application and activates your account - usually within 24 hours.",
   },
   {
     n: "03",

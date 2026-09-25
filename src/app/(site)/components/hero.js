@@ -21,7 +21,7 @@ export default function Hero() {
           </h1>
 
           <p className="mt-7 max-w-xl text-lg leading-8 text-slate-600">
-            A modern delivery network for individuals and growing businesses —
+            A modern delivery network for individuals and growing businesses -
             from pickup to doorstep, with visibility at every step.
           </p>
 
