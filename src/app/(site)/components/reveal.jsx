@@ -1,70 +1,38 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 
-export default function Reveal({
-  children,
-  className = "",
-  delay = 0,
-  direction = "up",
-}) {
+// Content remains visible without JavaScript; motion is progressive enhancement.
+export default function Reveal({ children, className = "", delay = 0, direction = "up" }) {
   const ref = useRef(null);
-  const [visible, setVisible] = useState(false);
-  const [reducedMotion, setReducedMotion] = useState(false);
-
-  useEffect(() => {
-    const media = window.matchMedia("(prefers-reduced-motion: reduce)");
-    const sync = () => setReducedMotion(media.matches);
-    sync();
-    media.addEventListener?.("change", sync);
-    return () => media.removeEventListener?.("change", sync);
-  }, []);
 
   useEffect(() => {
     const element = ref.current;
-    if (!element) return undefined;
-
-    if (reducedMotion) {
-      setVisible(true);
-      return undefined;
-    }
-
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        if (entry.isIntersecting) {
-          setVisible(true);
-          observer.unobserve(element);
-        }
-      },
-      { threshold: 0.12, rootMargin: "0px 0px -8% 0px" }
-    );
-
+    const media = window.matchMedia("(prefers-reduced-motion: reduce)");
+    if (!element || !window.IntersectionObserver || !element.animate) return;
+    let animation;
+    const transforms = {
+      up: "translateY(16px)", down: "translateY(-16px)",
+      left: "translateX(16px)", right: "translateX(-16px)", none: "none",
+    };
+    const observer = new IntersectionObserver(([entry]) => {
+      if (!entry.isIntersecting) return;
+      observer.disconnect();
+      if (media.matches) return;
+      animation = element.animate([
+        { opacity: 0.65, transform: transforms[direction] || transforms.up },
+        { opacity: 1, transform: "none" },
+      ], { duration: 450, delay, easing: "cubic-bezier(.22,1,.36,1)" });
+    }, { threshold: 0.08 });
+    const cancelMotion = () => { if (media.matches) animation?.cancel(); };
+    media.addEventListener?.("change", cancelMotion);
     observer.observe(element);
-    return () => observer.disconnect();
-  }, [reducedMotion]);
+    return () => {
+      observer.disconnect();
+      animation?.cancel();
+      media.removeEventListener?.("change", cancelMotion);
+    };
+  }, [delay, direction]);
 
-  const transforms = {
-    up: "translateY(28px)",
-    down: "translateY(-28px)",
-    left: "translateX(28px)",
-    right: "translateX(-28px)",
-    none: "none",
-  };
-
-  return (
-    <div
-      ref={ref}
-      className={className}
-      style={{
-        opacity: visible ? 1 : 0,
-        transform: visible ? "none" : transforms[direction] || transforms.up,
-        transition: reducedMotion
-          ? "none"
-          : `opacity 0.85s cubic-bezier(0.22, 1, 0.36, 1) ${delay}ms, transform 0.85s cubic-bezier(0.22, 1, 0.36, 1) ${delay}ms`,
-        willChange: reducedMotion ? undefined : "opacity, transform",
-      }}
-    >
-      {children}
-    </div>
-  );
+  return <div ref={ref} className={className}>{children}</div>;
 }

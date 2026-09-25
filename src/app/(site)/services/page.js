@@ -1,3 +1,4 @@
+import PublicHero from "../components/PublicHero";
 import Link from "next/link";
 import { ArrowRight, Clock3, Package, ShieldCheck, Zap, CheckCircle2, Star } from "lucide-react";
 
@@ -43,35 +44,13 @@ const colorMap = {
 
 export default function ServicesPage() {
   return (
-    <main className="bg-white">
+    <main className="public-page bg-white">
       {/* Hero */}
-      <section className="relative overflow-hidden bg-gradient-to-br from-[#01547a] via-[#013f5c] to-[#002d42] px-6 py-24 text-white lg:px-8 lg:py-36">
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_70%_0%,rgba(245,197,24,0.15),transparent_60%)]" />
-        <div className="absolute inset-0 opacity-[0.05] bg-[linear-gradient(rgba(255,255,255,0.1)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.1)_1px,transparent_1px)] bg-[size:60px_60px]" />
-        <div className="relative mx-auto max-w-4xl text-center">
-          <div className="inline-flex items-center gap-2 rounded-full border border-[#f5c518]/30 bg-[#f5c518]/12 px-4 py-1.5 text-xs font-bold uppercase tracking-widest text-[#f5c518]">
-            Our Services
-          </div>
-          <h1 className="site-display mt-6 text-5xl font-extrabold tracking-tight sm:text-6xl lg:text-7xl">
-            One network.<br /><span className="text-[#f5c518]">Every delivery.</span>
-          </h1>
-          <p className="mx-auto mt-6 max-w-2xl text-lg leading-8 text-blue-100">
-            From everyday parcels to same-day urgent shipments - choose the service that fits your customer promise and business workflow.
-          </p>
-          <div className="mt-8 flex flex-wrap justify-center gap-3">
-            <Link href="/pricing" className="inline-flex items-center gap-2 rounded-xl bg-[#f5c518] px-6 py-3 text-sm font-bold text-[#0a0a0a] hover:bg-[#ffd740] transition-colors">
-              Calculate price <ArrowRight className="h-4 w-4" />
-            </Link>
-            <Link href="/contact" className="inline-flex items-center gap-2 rounded-xl border border-white/20 px-6 py-3 text-sm font-bold text-white hover:bg-white/10 transition-colors">
-              Talk to our team
-            </Link>
-          </div>
-        </div>
-      </section>
+      <PublicHero backgroundImage="/images/experience/cinematic/pickup.webp" eyebrow="Delivery services" title="Every parcel." accent="The right service." description="From everyday orders to time-sensitive parcels, find a delivery service that fits your business and your customer." note="A better journey for every parcel." primary={{"href": "/pricing", "label": "Get a quote"}} secondary={{"href": "/contact", "label": "Book a pickup"}} />
 
       {/* Services */}
-      <section className="px-6 py-20 lg:px-8 lg:py-28 bg-gray-50">
-        <div className="mx-auto max-w-6xl space-y-8">
+      <section className="px-4 py-16 sm:px-6 lg:px-8 lg:py-24 bg-gray-50">
+        <div className="mx-auto max-w-7xl space-y-8">
           {services.map((service, i) => {
             const Icon = service.icon;
             const c = colorMap[service.color];
@@ -107,10 +86,10 @@ export default function ServicesPage() {
       </section>
 
       {/* Stats strip */}
-      <section className="border-y border-gray-200 bg-white px-6 py-14 lg:px-8">
-        <div className="mx-auto max-w-5xl">
+      <section className="border-y border-gray-200 bg-white px-4 py-12 sm:px-6 lg:px-8">
+        <div className="mx-auto max-w-7xl">
           <div className="grid gap-8 text-center sm:grid-cols-3">
-            {[["10,000+", "Parcels delivered monthly"], ["7 Provinces", "Nationwide coverage"], ["99.2%", "On-time delivery rate"]].map(([stat, label]) => (
+            {[["Connected", "Nepal-wide network"], ["Trackable", "Delivery updates"], ["Visible", "Proof of delivery"]].map(([stat, label]) => (
               <div key={stat}>
                 <p className="site-display text-4xl font-extrabold text-[#027196]">{stat}</p>
                 <p className="mt-2 text-sm font-semibold text-gray-600">{label}</p>
@@ -121,11 +100,11 @@ export default function ServicesPage() {
       </section>
 
       {/* CTA */}
-      <section className="bg-gradient-to-br from-[#01547a] via-[#013f5c] to-[#002d42] px-6 py-20 text-white lg:px-8">
+      <section className="public-panel px-4 py-16 sm:px-6 lg:px-8 text-white">
         <div className="mx-auto flex max-w-5xl flex-col items-center gap-6 text-center">
           <Star className="h-8 w-8 text-[#f5c518]" />
           <h2 className="site-display text-4xl font-extrabold">Ready to start shipping?</h2>
-          <p className="max-w-xl text-blue-100">Join hundreds of businesses already using Tukaatu Express to deliver across Nepal.</p>
+          <p className="max-w-xl text-blue-100">Give your customers a dependable delivery experience with Tukaatu Express.</p>
           <div className="flex flex-wrap justify-center gap-3 pt-4">
             <Link href="/franchise" className="inline-flex items-center gap-2 rounded-xl bg-[#f5c518] px-7 py-3.5 text-sm font-bold text-[#0a0a0a] hover:bg-[#ffd740] transition-colors">
               Apply as Partner <ArrowRight className="h-4 w-4" />

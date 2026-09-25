@@ -1,3 +1,4 @@
+import PublicHero from "../components/PublicHero";
 import PricingCalculator from "./pricing-calculator";
 
 export const metadata = {
@@ -7,32 +8,18 @@ export const metadata = {
 
 export default function PricingPage() {
   return (
-    <main className="bg-white">
+    <main className="public-page bg-white">
       {/* Hero Section */}
-      <section className="relative overflow-hidden bg-gradient-to-br from-[#01547a] via-[#013f5c] to-[#002d42] px-6 py-24 text-white lg:px-8 lg:py-32">
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_60%_0%,rgba(245,197,24,0.12),transparent_55%)]" />
-        <div className="absolute inset-0 opacity-[0.05] bg-[linear-gradient(rgba(255,255,255,0.1)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.1)_1px,transparent_1px)] bg-[size:60px_60px]" />
-        <div className="relative mx-auto max-w-4xl text-center">
-          <div className="inline-flex items-center gap-2 rounded-full border border-[#f5c518]/30 bg-[#f5c518]/12 px-4 py-1.5 text-xs font-bold uppercase tracking-widest text-[#f5c518]">
-            Transparent Pricing
-          </div>
-          <h1 className="site-display mt-6 text-5xl font-extrabold tracking-tight sm:text-6xl lg:text-7xl">
-            Know the price<br /><span className="text-[#f5c518]">before you ship.</span>
-          </h1>
-          <p className="mx-auto mt-6 max-w-2xl text-lg leading-8 text-blue-100">
-            Get instant delivery estimates based on route, service type, weight and parcel dimensions. Our pricing is fair, transparent, and calculated in real-time.
-          </p>
-        </div>
-      </section>
+      <PublicHero backgroundImage="/images/experience/cinematic/store.webp" eyebrow="Pricing & calculator" title="Know the price." accent="Then make your move." description="Choose your route, service and parcel details for a delivery estimate in NPR." note="Clear pricing. Confident sending." primary={{"href": "#calculator", "label": "Calculate delivery"}} secondary={{"href": "/contact", "label": "Talk to our team"}} />
 
       {/* Pricing Calculator */}
-      <section className="px-6 py-16 lg:px-8 lg:py-20" id="calculator">
+      <section className="px-4 py-12 sm:px-6 lg:px-8 lg:py-16" id="calculator">
         <PricingCalculator />
       </section>
 
       {/* Why Choose Section */}
-      <section className="bg-gray-50 px-6 py-20 lg:px-8 lg:py-28">
-        <div className="mx-auto max-w-6xl">
+      <section className="bg-gray-50 px-4 py-16 sm:px-6 lg:px-8 lg:py-24">
+        <div className="mx-auto max-w-7xl">
           <div className="mb-14 text-center">
             <h2 className="site-display text-3xl font-extrabold text-gray-900 sm:text-4xl">How our pricing works</h2>
             <p className="mt-4 text-lg text-gray-600">Simple factors that determine your delivery cost</p>
@@ -71,8 +58,8 @@ export default function PricingPage() {
       </section>
 
       {/* FAQ Section */}
-      <section className="px-6 py-20 lg:px-8 lg:py-28">
-        <div className="mx-auto max-w-4xl">
+      <section className="px-4 py-16 sm:px-6 lg:px-8 lg:py-24">
+        <div className="mx-auto max-w-5xl">
           <h2 className="site-display text-3xl font-extrabold text-gray-900 sm:text-4xl">Frequently asked questions</h2>
           <div className="mt-12 space-y-6">
             {[
@@ -107,8 +94,8 @@ export default function PricingPage() {
       </section>
 
       {/* CTA Section */}
-      <section className="bg-gradient-to-br from-[#01547a] via-[#013f5c] to-[#002d42] px-6 py-20 text-white lg:px-8">
-        <div className="mx-auto max-w-4xl text-center">
+      <section className="public-panel px-4 py-16 sm:px-6 lg:px-8 text-white">
+        <div className="mx-auto max-w-5xl text-center">
           <h2 className="site-display text-4xl font-extrabold">Ready to start shipping?</h2>
           <p className="mt-4 text-blue-100">Get instant quotes and reliable delivery across Nepal</p>
           <div className="mt-8 flex flex-wrap justify-center gap-3">

@@ -22,18 +22,52 @@ async function reverseGeocode(lat, lng) {
 }
 
 async function searchPlaces(query) {
-  const res = await fetch(
-    `${NOMINATIM}/search?q=${encodeURIComponent(query + " Nepal")}&format=json&limit=5&countrycodes=np`,
-    { headers: { "Accept-Language": "en" } }
-  );
-  return res.json();
+  try {
+    const cleanQuery = query.trim();
+    if (!cleanQuery) return [];
+    const q = cleanQuery.toLowerCase().includes("nepal") ? cleanQuery : `${cleanQuery} Nepal`;
+    const res = await fetch(
+      `${NOMINATIM}/search?q=${encodeURIComponent(q)}&format=json&limit=6&countrycodes=np`,
+      { headers: { "Accept-Language": "en" } }
+    );
+    if (!res.ok) return [];
+    const data = await res.json();
+    return Array.isArray(data) ? data : [];
+  } catch {
+    return [];
+  }
 }
 
 /* ── Leaflet map (SSR-safe via dynamic import) ───────────────────────── */
 const LeafletMap = dynamic(() => import("./LeafletMapPicker"), { ssr: false, loading: () => <div className="map-container map-loading"><Loader2 className="h-6 w-6 animate-spin text-slate-400" /></div> });
 
 /* ── Map picker modal ────────────────────────────────────────────────── */
+function useDialogFocus(onClose) {
+  const dialogRef = useRef(null);
+  const closeRef = useRef(onClose);
+  closeRef.current = onClose;
+  useEffect(() => {
+    const previous = document.activeElement;
+    const dialog = dialogRef.current;
+    const focusable = () => Array.from(dialog.querySelectorAll('button:not(:disabled), input:not(:disabled), a[href], [tabindex="0"]')).filter(el => el.getClientRects().length);
+    focusable()[0]?.focus();
+    function onKeyDown(event) {
+      if (event.key === "Escape") { event.preventDefault(); closeRef.current(); }
+      if (event.key === "Tab") {
+        const items = focusable();
+        const first = items[0], last = items[items.length - 1];
+        if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus(); }
+        else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); }
+      }
+    }
+    dialog.addEventListener("keydown", onKeyDown);
+    return () => { dialog.removeEventListener("keydown", onKeyDown); previous?.focus(); };
+  }, []);
+  return dialogRef;
+}
+
 function MapPickerModal({ label, initial, onConfirm, onClose }) {
+  const dialogRef = useDialogFocus(onClose);
   const [coords, setCoords] = useState(initial || { lat: 27.7172, lng: 85.3240 });
   const [address, setAddress] = useState("");
   const [search, setSearch] = useState("");
@@ -72,24 +106,25 @@ function MapPickerModal({ label, initial, onConfirm, onClose }) {
 
   return (
     <div className="map-overlay" onClick={(e) => e.target === e.currentTarget && onClose()}>
-      <div className="map-modal">
+      <div className="map-modal" ref={dialogRef} role="dialog" aria-modal="true" aria-label={label}>
         <div className="map-modal-header">
           <span className="map-modal-title"><MapPin className="h-4 w-4" />{label}</span>
-          <button type="button" onClick={onClose} className="map-close"><X className="h-4 w-4" /></button>
+          <button type="button" onClick={onClose} className="map-close" aria-label="Close location picker"><X className="h-4 w-4" /></button>
         </div>
 
         <div className="map-search-wrap">
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search location in Nepal..."
+            placeholder="Search location in Nepal…"
+            aria-label="Search location in Nepal"
             className="map-search-input"
           />
           {searching && <Loader2 className="map-search-spinner h-4 w-4 animate-spin" />}
           {suggestions.length > 0 && (
             <ul className="map-suggestions">
               {suggestions.map((s) => (
-                <li key={s.place_id} onClick={() => pickSuggestion(s)}>{s.display_name}</li>
+                <li key={s.place_id}><button type="button" onClick={() => pickSuggestion(s)} style={{ width: "100%", textAlign: "left" }}>{s.display_name}</button></li>
               ))}
             </ul>
           )}
@@ -335,7 +370,7 @@ function ResultDisplay({ result, loading }) {
         <p className="result-empty-title">Your estimate will appear here</p>
         <p className="result-empty-sub">Select pickup and delivery on the map, enter weight, then calculate.</p>
         <div className="result-features">
-          {["Live backend pricing", "No hidden fees", "NPR currency"].map((f) => (
+          {["Current delivery rates", "No hidden fees", "NPR currency"].map((f) => (
             <span key={f} className="result-feature-tag">{f}</span>
           ))}
         </div>
@@ -408,12 +443,13 @@ function ResultDisplay({ result, loading }) {
 
 /* ── Details Modal ──────────────────────────────────────────────────── */
 function DetailsModal({ result, onClose }) {
+  const dialogRef = useDialogFocus(onClose);
   return (
     <div className="details-modal-overlay" onClick={(e) => e.target === e.currentTarget && onClose()}>
-      <div className="details-modal">
+      <div className="details-modal" ref={dialogRef} role="dialog" aria-modal="true" aria-label="Delivery estimate details">
         <div className="details-modal-header">
           <h2 className="details-modal-title">Delivery Estimate Details</h2>
-          <button className="details-modal-close" onClick={onClose}>
+          <button className="details-modal-close" aria-label="Close delivery estimate" onClick={onClose}>
             <X className="h-4 w-4" />
           </button>
         </div>

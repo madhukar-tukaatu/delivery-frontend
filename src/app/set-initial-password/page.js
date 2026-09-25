@@ -1,4 +1,5 @@
 "use client";
+import "../auth-pages.css";
 
 import {
   Suspense,
@@ -126,9 +127,7 @@ function SetInitialPasswordContent() {
   };
 
   return (
-    <div
-      style={{
-        minHeight: "100vh",
+    <div className="auth-recovery" style={{ minHeight: "100vh",
         display: "grid",
         placeItems: "center",
         padding: 20,
@@ -289,9 +288,7 @@ function SetInitialPasswordContent() {
 
 function LoadingView() {
   return (
-    <div
-      style={{
-        minHeight: "100vh",
+    <div className="auth-recovery" style={{ minHeight: "100vh",
         display: "grid",
         placeItems: "center",
       }}

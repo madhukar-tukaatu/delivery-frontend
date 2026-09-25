@@ -1,24 +1,9 @@
-import Header from "../../components/Header";
-import Footer from "../../components/Footer";
 import FranchiseForm from "./franchise-form";
-
-export const metadata = {
-  title: "Apply for a Franchise",
-};
-
+import PublicHero from "../../components/PublicHero";
+export const metadata = { title: "Apply for a Franchise" };
 export default function FranchiseApplyPage() {
-  return (
-    <div className="site-shell">
-      <main className="site-grid bg-slate-50 px-6 py-16 lg:px-8 lg:py-24">
-        <div className="mx-auto max-w-5xl">
-          <div className="max-w-2xl">
-            <p className="text-xs font-extrabold uppercase tracking-[0.22em] text-blue-600">Franchise application</p>
-            <h1 className="site-display mt-4 text-4xl font-extrabold tracking-tight sm:text-5xl">Tell us where you want to build.</h1>
-            <p className="mt-4 text-lg leading-8 text-slate-600">Submit your details and preferred territory. The application will be sent to the connected Tukaatu backend for review.</p>
-          </div>
-          <FranchiseForm />
-        </div>
-      </main>
-    </div>
-  );
+  return <main className="public-page">
+    <PublicHero compact eyebrow="Franchise application" title="Your community." accent="Your next opportunity." description="Tell us about yourself and the area you’d like to serve. Our franchise team will review your application and contact you about the next steps." />
+    <section className="public-form-section"><div><p className="public-eyebrow">Start the conversation</p><h2 className="text-2xl font-bold">Your details & preferred territory</h2><p className="mt-3 text-slate-600">Fields marked with an asterisk are required.</p><FranchiseForm /></div></section>
+  </main>;
 }
