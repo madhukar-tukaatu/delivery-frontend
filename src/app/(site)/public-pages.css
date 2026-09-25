@@ -97,3 +97,56 @@
   .public-hero-actions { flex-direction: column; }
   .public-hero-actions > a { width: 100%; }
 }
+
+/* ── Mobile App Layout & Touch Polish ── */
+@media (max-width: 768px) {
+  .public-site,
+  .public-page {
+    padding-bottom: calc(72px + env(safe-area-inset-bottom, 12px));
+  }
+
+  .public-page :is(.contact-input, .form-input, .field-input, input, select, textarea) {
+    font-size: 16px !important;
+    min-height: 46px;
+    border-radius: 12px;
+  }
+
+  .public-button {
+    min-height: 46px;
+    border-radius: 12px;
+    font-size: 13.5px;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .public-button:active {
+    transform: scale(0.97);
+  }
+
+  .public-hero {
+    padding: 28px 16px 36px;
+  }
+
+  .public-hero-description {
+    font-size: 15px;
+    line-height: 1.6;
+    margin-top: 14px;
+  }
+
+  .public-hero--compact {
+    padding: 24px 16px 28px;
+  }
+
+  .public-hero--photographic {
+    min-height: 480px;
+    align-items: flex-start;
+    padding-bottom: 40px;
+  }
+
+  .public-page .site-card,
+  .public-contact-info,
+  .public-page .calc-form,
+  .public-page .result-panel {
+    border-radius: 18px;
+    padding: 20px 16px;
+  }
+}
