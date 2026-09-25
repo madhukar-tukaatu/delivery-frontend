@@ -106,15 +106,21 @@ export async function getTransferHistory(params = {}) {
  * Configured transfer routes available for dispatch from the current branch.
  *
  * GET /admin/transfers/available-routes
- * optional params: service_type, shipment_ids[]
+ * optional params: service_type, branch_id (for admin users)
  */
 export async function getAvailableTransferRoutes(params = {}) {
   const response = await api.get("/admin/transfers/available-routes", { params });
   const payload = unwrap(response) ?? {};
+  
+  // Handle both response formats:
+  // 1. Branch-scoped: { routes, routes_by_destination, branch_id }
+  // 2. Admin (no branch_id): { routes, routes_by_origin, branch_id: null }
   return {
     routes: Array.isArray(payload.routes) ? payload.routes : [],
-    routes_by_service_type: payload.routes_by_service_type ?? {},
+    routes_by_destination: payload.routes_by_destination ?? [],
+    routes_by_origin: payload.routes_by_origin ?? [],
     branch_id: payload.branch_id ?? null,
+    service_type: payload.service_type ?? 'standard',
   };
 }
 
@@ -145,5 +151,47 @@ export async function dispatchTransfers(shipmentIds, transferRouteId) {
 export async function receiveTransfer(shipmentId) {
   if (!shipmentId) throw new Error("Shipment ID is required.");
   const response = await api.post(`/admin/transfers/${shipmentId}/receive`);
+  return unwrap(response);
+}
+
+/**
+ * Receive transfer at a transit hub (intermediate branch) and optionally re-dispatch to next hop.
+ *
+ * POST /admin/transfers/{shipmentId}/receive-transit
+ */
+export async function receiveAtTransitHub(shipmentId, data = {}) {
+  if (!shipmentId) throw new Error("Shipment ID is required.");
+  const response = await api.post(`/admin/transfers/${shipmentId}/receive-transit`, data);
+  return unwrap(response);
+}
+
+/**
+ * Get outbound transfers grouped by route for dispatch planning.
+ *
+ * GET /admin/transfers?group_by_route=true
+ */
+export async function getOutboundGroupedByRoute(params = {}) {
+  const response = await api.get("/admin/transfers", {
+    params: { per_page: 20, direction: "outbound", group_by_route: true, ...params },
+  });
+  return unwrap(response);
+}
+
+/**
+ * Dispatch transfers with route-based manifest creation.
+ *
+ * POST /admin/transfers/dispatch
+ * { shipment_ids: [], transfer_route_id?, vehicle_number?, driver_name?, driver_phone?, seal_number?, notes? }
+ */
+export async function dispatchTransfersWithManifest(data) {
+  const { shipment_ids, transfer_route_id, ...rest } = data;
+  if (!Array.isArray(shipment_ids) || shipment_ids.length === 0) {
+    throw new Error("Select at least one shipment.");
+  }
+  const response = await api.post("/admin/transfers/dispatch", {
+    shipment_ids,
+    transfer_route_id: transfer_route_id ? Number(transfer_route_id) : undefined,
+    ...rest,
+  });
   return unwrap(response);
 }
