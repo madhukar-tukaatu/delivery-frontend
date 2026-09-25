@@ -70,14 +70,14 @@ export default function TrackingClient({ initialTracking }) {
   }, [result]);
 
   return (
-    <section className="px-6 py-14 lg:px-8 lg:py-20">
-      <div className="mx-auto max-w-5xl">
+    <section className="px-4 py-12 sm:px-6 lg:px-8 lg:py-16">
+      <div className="mx-auto max-w-6xl">
         <form
           onSubmit={(event) => {
             event.preventDefault();
             lookup();
           }}
-          className="site-card rounded-3xl p-3 sm:p-4"
+          className="tracking-form site-card rounded-3xl p-3 sm:p-4"
         >
           <div className="flex flex-col gap-3 sm:flex-row">
             <div className="relative flex-1">
@@ -85,7 +85,8 @@ export default function TrackingClient({ initialTracking }) {
               <input
                 value={tracking}
                 onChange={(event) => setTracking(event.target.value)}
-                placeholder="TKT-2026-849251"
+                aria-label="Tracking number"
+                placeholder="Enter tracking number"
                 className="h-14 w-full rounded-2xl border border-slate-200 bg-slate-50 pl-12 pr-4 text-sm font-semibold outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10"
               />
             </div>

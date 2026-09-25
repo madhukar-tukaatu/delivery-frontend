@@ -1,3 +1,4 @@
+import PublicHero from "../components/PublicHero";
 import Link from "next/link";
 import {
   ArrowRight,
@@ -147,57 +148,9 @@ const plans = [
 
 export default function BusinessPage() {
   return (
-    <main>
+    <main className="public-page">
       {/* ── Hero ── */}
-      <section className="relative overflow-hidden bg-[#050d1a] px-6 py-24 text-white lg:px-8 lg:py-36">
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_75%_20%,rgba(245,197,24,0.14),transparent_55%)]" />
-        <div className="absolute inset-0 opacity-[0.035] bg-[linear-gradient(rgba(255,255,255,0.1)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.1)_1px,transparent_1px)] bg-[size:60px_60px]" />
-        <div className="relative mx-auto max-w-7xl">
-          <div className="inline-flex items-center gap-2 rounded-full border border-[#f5c518]/20 bg-[#f5c518]/8 px-4 py-1.5 text-xs font-bold uppercase tracking-widest text-[#f5c518]">
-            <Store className="h-3.5 w-3.5" /> For Merchants
-          </div>
-          <h1 className="site-display mt-6 max-w-4xl text-5xl font-extrabold tracking-tight sm:text-6xl lg:text-7xl">
-            Sell more.
-            <br />
-            <span className="text-[#f5c518]">Deliver better.</span>
-          </h1>
-          <p className="mt-6 max-w-2xl text-lg leading-8 text-slate-400">
-            Tukaatu Express gives merchants across Nepal a complete delivery
-            infrastructure - live tracking, POD collection, settlement reporting
-            and a nationwide network - all from one platform.
-          </p>
-          <div className="mt-9 flex flex-wrap gap-3">
-            <Link
-              href="/public/merchant-register"
-              className="inline-flex items-center gap-2 rounded-xl bg-[#f5c518] px-7 py-3.5 text-sm font-bold text-[#0a0a0a] hover:bg-[#ffd740] transition-colors"
-            >
-              Register as merchant <ArrowRight className="h-4 w-4" />
-            </Link>
-            <Link
-              href="/contact"
-              className="inline-flex items-center gap-2 rounded-xl border border-white/15 px-7 py-3.5 text-sm font-bold text-white hover:bg-white/5 transition-colors"
-            >
-              Talk to our team
-            </Link>
-          </div>
-          <div className="mt-12 flex flex-wrap gap-6">
-            {[
-              [Zap, "Express delivery available"],
-              [Shield, "Insured shipments"],
-              [Clock, "Real-time tracking"],
-              [TrendingUp, "Automatic settlement"],
-            ].map(([Icon, label]) => (
-              <div
-                key={label}
-                className="flex items-center gap-2 text-sm font-semibold text-slate-400"
-              >
-                <Icon className="h-4 w-4 text-[#f5c518]" />
-                {label}
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
+      <PublicHero eyebrow="For merchants" title="Deliver more." accent="Worry less." description="Keep orders, delivery updates, COD collections and settlements in one clear view—so your team can focus on growing." note="Your next chapter, delivered." primary={{"href": "/public/merchant-register", "label": "Register as a merchant"}} secondary={{"href": "/contact", "label": "Talk to our merchant team"}} />
 
       {/* ── Stats bar ── */}
       {/* <section className="border-b border-slate-100 bg-white px-6 py-14 lg:px-8">
@@ -217,7 +170,7 @@ export default function BusinessPage() {
       </section> */}
 
       {/* ── Capabilities ── */}
-      <section className="px-6 py-20 lg:px-8 lg:py-28">
+      <section className="px-4 py-16 sm:px-6 lg:px-8 lg:py-24">
         <div className="mx-auto max-w-7xl">
           <div className="mx-auto max-w-2xl text-center">
             <p className="text-xs font-bold uppercase tracking-widest text-[#c9a000]">
@@ -249,8 +202,8 @@ export default function BusinessPage() {
       </section>
 
       {/* ── How it works ── */}
-      <section className="bg-[#050d1a] px-6 py-20 lg:px-8">
-        <div className="mx-auto max-w-5xl">
+      <section className="public-panel px-4 py-16 sm:px-6 lg:px-8 lg:py-24">
+        <div className="mx-auto max-w-7xl">
           <div className="text-center">
             <p className="text-xs font-bold uppercase tracking-widest text-[#f5c518]">
               Getting started
@@ -293,14 +246,14 @@ export default function BusinessPage() {
       </section>
 
       {/* ── Final CTA ── */}
-      <section className="bg-[#050d1a] px-6 py-20 lg:px-8">
-        <div className="mx-auto max-w-4xl text-center text-white">
+      <section className="public-panel px-4 py-16 sm:px-6 lg:px-8">
+        <div className="mx-auto max-w-5xl text-center text-white">
           <Store className="mx-auto h-10 w-10 text-[#f5c518]" />
           <h2 className="site-display mt-5 text-4xl font-extrabold">
             Ready to grow your business?
           </h2>
           <p className="mx-auto mt-4 max-w-xl text-slate-400">
-            Join hundreds of merchants already delivering across Nepal with Tukaatu Express.
+            Bring your delivery operations together with Tukaatu Express.
           </p>
           <div className="mt-8 flex flex-wrap justify-center gap-3">
             <Link

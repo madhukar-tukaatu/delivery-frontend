@@ -1,3 +1,4 @@
+import BrandTheme from '@/components/BrandTheme';
 import { AntdRegistry } from '@ant-design/nextjs-registry';
 import 'leaflet/dist/leaflet.css';
 import './globals.css';
@@ -20,30 +21,7 @@ export default function RootLayout({ children }) {
   return (
     <html lang="en" suppressHydrationWarning>
       <body>
-        <AntdRegistry
-          theme={{
-            token: {
-              colorPrimary: '#027196',
-              colorLink: '#027196',
-              borderRadius: 10,
-              fontFamily: "Inter, ui-sans-serif, system-ui, -apple-system, sans-serif",
-            },
-            components: {
-              Menu: {
-                darkItemBg: '#071722',
-                darkSubMenuItemBg: '#0a1f2e',
-                darkItemSelectedBg: '#027196',
-                darkItemHoverBg: 'rgba(2,113,150,0.18)',
-              },
-              Layout: {
-                siderBg: '#071722',
-                headerBg: '#ffffff',
-              },
-            },
-          }}
-        >
-          {children}
-        </AntdRegistry>
+        <AntdRegistry><BrandTheme>{children}</BrandTheme></AntdRegistry>
       </body>
     </html>
   );

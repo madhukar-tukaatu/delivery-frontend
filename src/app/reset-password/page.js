@@ -1,4 +1,5 @@
 'use client';
+import "../auth-pages.css";
 
 import { useState, useEffect, Suspense } from 'react';
 import { Button, Card, Form, Input, Typography, message, Space, Progress, Alert, Checkbox } from 'antd';
@@ -11,10 +12,10 @@ const { Title, Text } = Typography;
 function ResetPasswordContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  
+
   const email = searchParams?.get('email') || '';
   const token = searchParams?.get('token') || '';
-  
+
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
   const [passwordStrength, setPasswordStrength] = useState(0);
@@ -31,14 +32,14 @@ function ResetPasswordContent() {
   // Calculate password strength
   const calculatePasswordStrength = (password) => {
     let strength = 0;
-    
+
     if (password.length >= 8) strength += 25;
     if (password.length >= 12) strength += 25;
     if (/[A-Z]/.test(password)) strength += 25;
     if (/[a-z]/.test(password)) strength += 25;
     if (/[0-9]/.test(password)) strength += 25;
     if (/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(password)) strength += 25;
-    
+
     return Math.min(strength, 100);
   };
 
@@ -62,9 +63,9 @@ function ResetPasswordContent() {
         password_confirmation: values.password_confirmation,
         logout_all_devices: values.logout_all_devices === true,
       });
-      
+
       const result = response?.data || {};
-      
+
       // If logout_all_devices is false, stay logged in on this device
       if (values.logout_all_devices === false && result?.data?.token) {
         localStorage.setItem('token', result.data.token);
@@ -72,10 +73,10 @@ function ResetPasswordContent() {
           localStorage.setItem('user', JSON.stringify(result.data.user));
         }
       }
-      
+
       setSuccess(true);
       message.success('Password reset successfully!');
-      
+
       // Redirect after 2 seconds
       setTimeout(() => {
         if (values.logout_all_devices === true) {
@@ -87,7 +88,7 @@ function ResetPasswordContent() {
           if (user) {
             const role = user.role?.toLowerCase() || '';
             const roles = user.roles || [];
-            
+
             if (roles.includes('merchant') || role.includes('merchant')) {
               router.push('/merchant/dashboard');
             } else if (roles.includes('rider') || role.includes('rider')) {
@@ -101,7 +102,7 @@ function ResetPasswordContent() {
         }
       }, 2000);
     } catch (error) {
-      const errorMsg = error?.response?.data?.message || 
+      const errorMsg = error?.response?.data?.message ||
                       error?.response?.data?.errors?.password?.join(', ') ||
                       'Failed to reset password. Please try again.';
       message.error(errorMsg);
@@ -128,20 +129,18 @@ function ResetPasswordContent() {
 
   if (success) {
     return (
-      <div 
-        style={{ 
-          minHeight: '100vh', 
-          display: 'flex', 
-          alignItems: 'center', 
-          justifyContent: 'center', 
+      <div className="auth-recovery" style={{ minHeight: '100vh',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
           padding: '20px',
           background: 'linear-gradient(135deg, #f3f7fb 0%, #eef3f8 100%)'
         }}
       >
-        <Card 
-          style={{ 
-            maxWidth: 450, 
-            width: '100%', 
+        <Card
+          style={{
+            maxWidth: 450,
+            width: '100%',
             textAlign: 'center',
             borderRadius: '12px',
             boxShadow: '0 4px 16px rgba(0, 0, 0, 0.08)'
@@ -150,29 +149,29 @@ function ResetPasswordContent() {
           <div style={{ marginBottom: '20px' }}>
             <CheckCircleOutlined style={{ fontSize: 64, color: '#52c41a' }} />
           </div>
-          
+
           <Title level={3} style={{ marginBottom: '12px' }}>
             Password Reset Successful!
           </Title>
-          
+
           <Text type="secondary" style={{ fontSize: '15px', lineHeight: '1.6', display: 'block' }}>
-            Your password has been updated successfully. 
+            Your password has been updated successfully.
             <br />
             <br />
-            {form.getFieldValue('logout_all_devices') 
-              ? 'You have been logged out from all devices. Please login with your new password.' 
+            {form.getFieldValue('logout_all_devices')
+              ? 'You have been logged out from all devices. Please login with your new password.'
               : 'You are logged in on this device. You have been logged out from other devices.'}
           </Text>
 
-          <Button 
-            type="primary" 
+          <Button
+            type="primary"
             onClick={() => {
               if (form.getFieldValue('logout_all_devices')) {
                 router.push('/login');
               } else {
                 router.push('/admin/dashboard');
               }
-            }} 
+            }}
             style={{ marginTop: '24px', borderRadius: '8px', height: '44px', fontWeight: 600 }}
             size="large"
             block
@@ -185,28 +184,26 @@ function ResetPasswordContent() {
   }
 
   return (
-    <div 
-      style={{ 
-        minHeight: '100vh', 
-        display: 'flex', 
-        alignItems: 'center', 
-        justifyContent: 'center', 
+    <div className="auth-recovery" style={{ minHeight: '100vh',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
         padding: '20px',
         background: 'linear-gradient(135deg, #f3f7fb 0%, #eef3f8 100%)'
       }}
     >
-      <Card 
-        style={{ 
-          maxWidth: 450, 
+      <Card
+        style={{
+          maxWidth: 450,
           width: '100%',
           borderRadius: '12px',
           boxShadow: '0 4px 16px rgba(0, 0, 0, 0.08)'
         }}
       >
         <Space direction="vertical" style={{ width: '100%', marginBottom: '20px' }}>
-          <Button 
-            icon={<ArrowLeftOutlined />} 
-            onClick={() => router.push('/forgot-password')} 
+          <Button
+            icon={<ArrowLeftOutlined />}
+            onClick={() => router.push('/forgot-password')}
             type="text"
             style={{ padding: '0', width: 'auto', color: '#015472' }}
           >
@@ -221,11 +218,11 @@ function ResetPasswordContent() {
               Reset Password
             </Title>
           </div>
-          
-          <Text 
-            type="secondary" 
-            style={{ 
-              display: 'block', 
+
+          <Text
+            type="secondary"
+            style={{
+              display: 'block',
               marginBottom: '8px',
               fontSize: '14px',
               lineHeight: '1.6'
@@ -246,19 +243,19 @@ function ResetPasswordContent() {
             name="password"
             label="New Password"
             rules={[
-              { 
-                required: true, 
-                message: 'Please enter a new password' 
+              {
+                required: true,
+                message: 'Please enter a new password'
               },
-              { 
-                min: 8, 
-                message: 'Password must be at least 8 characters' 
+              {
+                min: 8,
+                message: 'Password must be at least 8 characters'
               },
             ]}
             hasFeedback
           >
-            <Input.Password 
-              placeholder="Enter new password" 
+            <Input.Password
+              placeholder="Enter new password"
               prefix={<LockOutlined />}
               onChange={handlePasswordChange}
               disabled={loading}
@@ -267,16 +264,16 @@ function ResetPasswordContent() {
 
           {passwordStrength > 0 && (
             <div style={{ marginBottom: '16px' }}>
-              <Progress 
-                percent={passwordStrength} 
+              <Progress
+                percent={passwordStrength}
                 strokeColor={getPasswordStrengthColor()}
                 status={passwordStrength < 50 ? 'exception' : 'success'}
                 size="small"
               />
-              <Text 
-                style={{ 
-                  fontSize: '12px', 
-                  marginTop: '4px', 
+              <Text
+                style={{
+                  fontSize: '12px',
+                  marginTop: '4px',
                   color: getPasswordStrengthColor(),
                   fontWeight: 600
                 }}
@@ -290,9 +287,9 @@ function ResetPasswordContent() {
             name="password_confirmation"
             label="Confirm New Password"
             rules={[
-              { 
-                required: true, 
-                message: 'Please confirm your new password' 
+              {
+                required: true,
+                message: 'Please confirm your new password'
               },
               ({ getFieldValue }) => ({
                 validator(_, value) {
@@ -306,8 +303,8 @@ function ResetPasswordContent() {
             dependencies={['password']}
             hasFeedback
           >
-            <Input.Password 
-              placeholder="Confirm new password" 
+            <Input.Password
+              placeholder="Confirm new password"
               prefix={<LockOutlined />}
               disabled={loading}
             />
@@ -332,10 +329,10 @@ function ResetPasswordContent() {
               loading={loading}
               size="large"
               block
-              style={{ 
-                borderRadius: '8px', 
-                height: '44px', 
-                fontWeight: 600 
+              style={{
+                borderRadius: '8px',
+                height: '44px',
+                fontWeight: 600
               }}
             >
               Reset Password
@@ -360,14 +357,14 @@ function ResetPasswordContent() {
         />
 
         <div style={{ marginTop: '20px', textAlign: 'center' }}>
-          <Text 
-            type="secondary" 
-            style={{ 
-              fontSize: '13px' 
+          <Text
+            type="secondary"
+            style={{
+              fontSize: '13px'
             }}
           >
             Remember your password?{' '}
-            <a 
+            <a
               href="/login"
               style={{ color: '#015472', fontWeight: 600 }}
             >
@@ -382,13 +379,11 @@ function ResetPasswordContent() {
 
 export default function ResetPasswordPage() {
   return (
-    <Suspense 
+    <Suspense
       fallback={
-        <div 
-          style={{ 
-            minHeight: '100vh', 
-            display: 'flex', 
-            alignItems: 'center', 
+        <div className="auth-recovery" style={{ minHeight: '100vh',
+            display: 'flex',
+            alignItems: 'center',
             justifyContent: 'center',
             background: 'linear-gradient(135deg, #f3f7fb 0%, #eef3f8 100%)'
           }}

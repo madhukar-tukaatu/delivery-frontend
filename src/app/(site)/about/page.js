@@ -1,3 +1,4 @@
+import PublicHero from "../components/PublicHero";
 import Link from "next/link";
 import { ArrowRight, Eye, HeartHandshake, Target, Users, Zap } from "lucide-react";
 
@@ -5,28 +6,14 @@ export const metadata = { title: "About Tukaatu Express" };
 
 export default function AboutPage() {
   return (
-    <main className="bg-white">
+    <main className="public-page bg-white">
       {/* Hero */}
-      <section className="relative overflow-hidden bg-gradient-to-br from-[#01547a] via-[#013f5c] to-[#002d42] px-6 py-24 text-white lg:px-8 lg:py-36">
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_60%_0%,rgba(245,197,24,0.12),transparent_55%)]" />
-        <div className="absolute inset-0 opacity-[0.05] bg-[linear-gradient(rgba(255,255,255,0.1)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.1)_1px,transparent_1px)] bg-[size:60px_60px]" />
-        <div className="relative mx-auto max-w-4xl text-center">
-          <div className="inline-flex items-center gap-2 rounded-full border border-[#f5c518]/30 bg-[#f5c518]/12 px-4 py-1.5 text-xs font-bold uppercase tracking-widest text-[#f5c518]">
-            About Tukaatu Express
-          </div>
-          <h1 className="site-display mt-6 text-5xl font-extrabold tracking-tight sm:text-6xl lg:text-7xl">
-            Making delivery<br /><span className="text-[#f5c518]">feel simple.</span>
-          </h1>
-          <p className="mx-auto mt-6 max-w-2xl text-lg leading-8 text-blue-100">
-            Tukaatu Express is built around one idea: logistics should be easier to understand, easier to operate and easier to trust.
-          </p>
-        </div>
-      </section>
+      <PublicHero backgroundImage="/images/experience/cinematic/door.webp" eyebrow="About Tukaatu" title="Built in Nepal." accent="Built around people." description="We connect people, local businesses and delivery teams through a dependable, technology-enabled logistics network." note="People first. Parcels always." primary={{"href": "/services", "label": "Explore our services"}} secondary={{"href": "/contact", "label": "Meet your delivery partner"}} />
 
       {/* Mission + Promise */}
-      <section className="px-6 py-20 lg:px-8 lg:py-28 bg-gray-50">
-        <div className="mx-auto grid max-w-6xl gap-6 lg:grid-cols-2">
-          <div className="rounded-2xl bg-gradient-to-br from-[#01547a] via-[#013f5c] to-[#002d42] p-10 text-white">
+      <section className="px-4 py-16 sm:px-6 lg:px-8 lg:py-24 bg-gray-50">
+        <div className="mx-auto grid max-w-7xl gap-6 lg:grid-cols-2">
+          <div className="rounded-2xl public-panel p-8 sm:p-10 text-white">
             <p className="text-xs font-bold uppercase tracking-widest text-[#f5c518]">Our mission</p>
             <h2 className="site-display mt-4 text-3xl font-extrabold">Connect Nepal through dependable delivery.</h2>
             <p className="mt-5 leading-8 text-blue-100">
@@ -36,7 +23,7 @@ export default function AboutPage() {
               See our services <ArrowRight className="h-4 w-4" />
             </Link>
           </div>
-          <div className="rounded-2xl border border-gray-200 bg-white p-10 shadow-sm">
+          <div className="rounded-2xl border border-gray-200 bg-white p-8 sm:p-10 shadow-sm">
             <p className="text-xs font-bold uppercase tracking-widest text-[#027196]">Our promise</p>
             <h2 className="site-display mt-4 text-3xl font-extrabold text-gray-900">Visibility without complexity.</h2>
             <p className="mt-5 leading-8 text-gray-600">
@@ -50,7 +37,7 @@ export default function AboutPage() {
       </section>
 
       {/* Principles */}
-      <section className="bg-white px-6 py-20 lg:px-8">
+      <section className="bg-white px-4 py-16 sm:px-6 lg:px-8 lg:py-24">
         <div className="mx-auto max-w-7xl">
           <div className="mx-auto max-w-2xl text-center">
             <p className="text-xs font-bold uppercase tracking-widest text-[#027196]">What guides us</p>
@@ -76,9 +63,9 @@ export default function AboutPage() {
       </section>
 
       {/* Stats */}
-      <section className="border-y border-gray-200 bg-gray-50 px-6 py-14 lg:px-8">
-        <div className="mx-auto max-w-5xl grid gap-8 text-center sm:grid-cols-3">
-          {[["2020", "Founded in Nepal"], ["7 Provinces", "Nationwide coverage"], ["10,000+", "Parcels delivered monthly"]].map(([n, l]) => (
+      <section className="border-y border-gray-200 bg-gray-50 px-4 py-12 sm:px-6 lg:px-8">
+        <div className="mx-auto max-w-7xl grid gap-8 text-center sm:grid-cols-3">
+          {[["Nepal", "Locally built"], ["Connected", "Growing network"], ["People", "At the heart of delivery"]].map(([n, l]) => (
             <div key={n}>
               <p className="site-display text-4xl font-extrabold text-[#027196]">{n}</p>
               <p className="mt-2 text-sm font-semibold text-gray-600">{l}</p>
@@ -88,8 +75,8 @@ export default function AboutPage() {
       </section>
 
       {/* CTA */}
-      <section className="px-6 py-20 lg:px-8">
-        <div className="mx-auto max-w-4xl rounded-2xl bg-gradient-to-br from-[#01547a] via-[#013f5c] to-[#002d42] p-12 text-center text-white">
+      <section className="px-4 py-16 sm:px-6 lg:px-8">
+        <div className="mx-auto max-w-5xl rounded-2xl public-panel p-10 sm:p-12 text-center text-white">
           <Zap className="mx-auto h-10 w-10 text-[#f5c518]" />
           <h2 className="site-display mt-5 text-4xl font-extrabold">Nepal delivered. Simply.</h2>
           <p className="mx-auto mt-4 max-w-xl text-blue-100">A clear promise for customers and a clear operating principle for the team behind every shipment.</p>

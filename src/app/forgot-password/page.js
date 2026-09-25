@@ -1,4 +1,5 @@
 'use client';
+import "../auth-pages.css";
 
 import { useState, useEffect, Suspense } from 'react';
 import { Button, Card, Form, Input, Typography, message, Space, Alert, Spin } from 'antd';
@@ -40,12 +41,12 @@ function ForgotPasswordContent() {
       const response = await api.post('/auth/forgot-password', {
         email: values.email.trim(),
       });
-      
+
       setEmailInput(values.email.trim());
       setSubmitted(true);
       message.success('Password reset link sent to your email.');
     } catch (error) {
-      const errorMessage = error?.response?.data?.message || 
+      const errorMessage = error?.response?.data?.message ||
                           error?.response?.data?.errors?.email?.join(', ') ||
                           'Failed to send reset link. Please check your email and try again.';
       message.error(errorMessage);
@@ -61,10 +62,10 @@ function ForgotPasswordContent() {
       const response = await api.post('/auth/forgot-password', {
         email: emailInput,
       });
-      
+
       message.success('New password reset link sent to your email!');
     } catch (error) {
-      const errorMessage = error?.response?.data?.message || 
+      const errorMessage = error?.response?.data?.message ||
                           error?.response?.data?.errors?.email?.join(', ') ||
                           'Failed to resend link. Please try again.';
       message.error(errorMessage);
@@ -75,7 +76,7 @@ function ForgotPasswordContent() {
 
   if (checking) {
     return (
-      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <div className="auth-recovery" style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
         <Spin size="large" />
       </div>
     );
@@ -83,20 +84,18 @@ function ForgotPasswordContent() {
 
   if (submitted) {
     return (
-      <div 
-        style={{ 
-          minHeight: '100vh', 
-          display: 'flex', 
-          alignItems: 'center', 
-          justifyContent: 'center', 
+      <div className="auth-recovery" style={{ minHeight: '100vh',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
           padding: '20px',
           background: 'linear-gradient(135deg, #f3f7fb 0%, #eef3f8 100%)'
         }}
       >
-        <Card 
-          style={{ 
-            maxWidth: 450, 
-            width: '100%', 
+        <Card
+          style={{
+            maxWidth: 450,
+            width: '100%',
             textAlign: 'center',
             borderRadius: '12px',
             boxShadow: '0 4px 16px rgba(0, 0, 0, 0.08)'
@@ -105,16 +104,16 @@ function ForgotPasswordContent() {
           <div style={{ marginBottom: '20px' }}>
             <CheckCircleOutlined style={{ fontSize: 64, color: '#52c41a' }} />
           </div>
-          
+
           <Title level={3} style={{ marginBottom: '12px' }}>
             Check Your Email
           </Title>
-          
+
           <Text type="secondary" style={{ fontSize: '15px', lineHeight: '1.6' }}>
-            We've sent a password reset link to <strong>{emailInput}</strong>. 
+            We've sent a password reset link to <strong>{emailInput}</strong>.
             <br />
             <br />
-            Please check your inbox and click the link to reset your password. 
+            Please check your inbox and click the link to reset your password.
             The link will expire in 60 minutes.
           </Text>
 
@@ -127,18 +126,18 @@ function ForgotPasswordContent() {
           />
 
           <Space direction="vertical" style={{ marginTop: 24, width: '100%' }} size="middle">
-            <Button 
-              type="primary" 
-              onClick={() => router.push('/login')} 
+            <Button
+              type="primary"
+              onClick={() => router.push('/login')}
               block
               size="large"
               style={{ borderRadius: '8px', height: '44px', fontWeight: 600 }}
             >
               Back to Login
             </Button>
-            
+
             {/* ✅ RESEND LINK - STAYS ON THIS PAGE, SENDS FROM HERE */}
-            <Button 
+            <Button
               onClick={handleResendLink}
               loading={resendLoading}
               size="large"
@@ -149,7 +148,7 @@ function ForgotPasswordContent() {
             </Button>
 
             {/* Change email option */}
-            <Button 
+            <Button
               type="text"
               onClick={() => setSubmitted(false)}
               size="large"
@@ -159,12 +158,12 @@ function ForgotPasswordContent() {
             </Button>
           </Space>
 
-          <Text 
-            type="secondary" 
-            style={{ 
-              fontSize: '12px', 
-              marginTop: '20px', 
-              display: 'block' 
+          <Text
+            type="secondary"
+            style={{
+              fontSize: '12px',
+              marginTop: '20px',
+              display: 'block'
             }}
           >
             Contact support if you need further assistance
@@ -175,28 +174,26 @@ function ForgotPasswordContent() {
   }
 
   return (
-    <div 
-      style={{ 
-        minHeight: '100vh', 
-        display: 'flex', 
-        alignItems: 'center', 
-        justifyContent: 'center', 
+    <div className="auth-recovery" style={{ minHeight: '100vh',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
         padding: '20px',
         background: 'linear-gradient(135deg, #f3f7fb 0%, #eef3f8 100%)'
       }}
     >
-      <Card 
-        style={{ 
-          maxWidth: 450, 
+      <Card
+        style={{
+          maxWidth: 450,
           width: '100%',
           borderRadius: '12px',
           boxShadow: '0 4px 16px rgba(0, 0, 0, 0.08)'
         }}
       >
         <Space direction="vertical" style={{ width: '100%', marginBottom: '20px' }}>
-          <Button 
-            icon={<ArrowLeftOutlined />} 
-            onClick={() => router.push('/login')} 
+          <Button
+            icon={<ArrowLeftOutlined />}
+            onClick={() => router.push('/login')}
             type="text"
             style={{ padding: '0', width: 'auto', color: '#015472' }}
           >
@@ -211,11 +208,11 @@ function ForgotPasswordContent() {
               Forgot Password?
             </Title>
           </div>
-          
-          <Text 
-            type="secondary" 
-            style={{ 
-              display: 'block', 
+
+          <Text
+            type="secondary"
+            style={{
+              display: 'block',
               marginBottom: '16px',
               fontSize: '14px',
               lineHeight: '1.6'
@@ -237,13 +234,13 @@ function ForgotPasswordContent() {
             name="email"
             label="Email Address"
             rules={[
-              { 
-                required: true, 
-                message: 'Please enter your email address' 
+              {
+                required: true,
+                message: 'Please enter your email address'
               },
-              { 
-                type: 'email', 
-                message: 'Please enter a valid email address' 
+              {
+                type: 'email',
+                message: 'Please enter a valid email address'
               },
             ]}
           >
@@ -263,10 +260,10 @@ function ForgotPasswordContent() {
               size="large"
               block
               icon={<SendOutlined />}
-              style={{ 
-                borderRadius: '8px', 
-                height: '44px', 
-                fontWeight: 600 
+              style={{
+                borderRadius: '8px',
+                height: '44px',
+                fontWeight: 600
               }}
             >
               Send Reset Link
@@ -275,14 +272,14 @@ function ForgotPasswordContent() {
         </Form>
 
         <div style={{ marginTop: '20px', textAlign: 'center' }}>
-          <Text 
-            type="secondary" 
-            style={{ 
-              fontSize: '13px' 
+          <Text
+            type="secondary"
+            style={{
+              fontSize: '13px'
             }}
           >
             Remember your password?{' '}
-            <a 
+            <a
               href="/login"
               style={{ color: '#015472', fontWeight: 600 }}
             >
@@ -306,7 +303,7 @@ function ForgotPasswordContent() {
 export default function ForgotPasswordPage() {
   return (
     <Suspense fallback={
-      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <div className="auth-recovery" style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
         <Spin size="large" />
       </div>
     }>
