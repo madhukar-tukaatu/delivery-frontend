@@ -2,7 +2,7 @@
 
 import AdminPageHeader from "@/components/admin/ui/AdminPageHeader";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, useMemo } from "react";
 import {
   Alert,
   Badge,
@@ -22,6 +22,10 @@ import {
   message,
   Tabs,
   Select,
+  Collapse,
+  Divider,
+  Tooltip,
+  Pagination,
 } from "antd";
 import {
   ReloadOutlined,
@@ -37,6 +41,9 @@ import {
   CarOutlined,
   HomeOutlined,
   HistoryOutlined,
+  FilterOutlined,
+  GlobalOutlined,
+  OrderedListOutlined,
 } from "@ant-design/icons";
 import { usePermissions } from "@/hooks/usePermission";
 import {
@@ -48,11 +55,13 @@ import {
   getReceivedTransfers,
   getCompletedTransfers,
   getTransferHistory,
+  getOutboundGroupedByRoute,
 } from "@/services/admin/transferService";
 
 const { Text, Title } = Typography;
 const { RangePicker } = DatePicker;
 const { Option } = Select;
+const { Panel } = Collapse;
 
 const SERVICE_TYPE_META = {
   standard: { color: "default", label: "STANDARD" },
@@ -104,6 +113,71 @@ function routeLabel(branch, subBranch, fallback) {
   }
 
   return subBranchName || branchName || fallback;
+}
+
+/**
+ * Get the origin/destination key for a shipment
+ * Used for grouping shipments by route
+ */
+function getRouteKey(shipment) {
+  const originId = shipment.origin_sub_branch_id || shipment.origin_branch_id;
+  const destId = shipment.destination_sub_branch_id || shipment.destination_branch_id;
+  return `${originId}-${destId}`;
+}
+
+/**
+ * Get route display name for a shipment
+ */
+function getRouteDisplayName(shipment) {
+  const origin = routeLabel(shipment.origin_branch, shipment.origin_sub_branch, "Origin");
+  const destination = routeLabel(shipment.destination_branch, shipment.destination_sub_branch, "Destination");
+  return `${origin} → ${destination}`;
+}
+
+/**
+ * Filter available routes to only show those matching selected shipments
+ */
+function filterRoutesForShipments(availableRoutes, selectedShipments) {
+  if (!selectedShipments.length) return availableRoutes;
+  
+  // Get unique origin-destination pairs from selected shipments
+  const routeKeys = new Set();
+  selectedShipments.forEach(s => {
+    const key = getRouteKey(s);
+    routeKeys.add(key);
+  });
+  
+  // Filter routes that match any of the selected route keys
+  return availableRoutes.filter(route => {
+    const routeOriginId = route.origin_branch_id;
+    const routeDestId = route.destination_branch_id;
+    const routeKey = `${routeOriginId}-${routeDestId}`;
+    return routeKeys.has(routeKey);
+  });
+}
+
+/**
+ * Group shipments by origin-destination route
+ */
+function groupShipmentsByRoute(shipments) {
+  const groups = {};
+  shipments.forEach(shipment => {
+    const key = getRouteKey(shipment);
+    if (!groups[key]) {
+      groups[key] = {
+        key,
+        origin: routeLabel(shipment.origin_branch, shipment.origin_sub_branch, "Origin"),
+        destination: routeLabel(shipment.destination_branch, shipment.destination_sub_branch, "Destination"),
+        originId: shipment.origin_sub_branch_id || shipment.origin_branch_id,
+        destinationId: shipment.destination_sub_branch_id || shipment.destination_branch_id,
+        shipments: [],
+        count: 0,
+      };
+    }
+    groups[key].shipments.push(shipment);
+    groups[key].count++;
+  });
+  return Object.values(groups);
 }
 
 const TRANSFER_STAGE_META = {
@@ -289,6 +363,147 @@ function TimelineModal({ open, shipment, onClose }) {
   );
 }
 
+/**
+ * Grouped Outbound View - Shows shipments grouped by origin-destination route
+ * with expandable sections for each route group
+ */
+function GroupedOutboundView({ rows, selectedRowKeys, onSelectionChange, loading, pagination }) {
+  const groups = useMemo(() => groupShipmentsByRoute(rows), [rows]);
+  
+  // Flatten selected keys for the parent component
+  const handleGroupSelectionChange = (groupKey, selectedKeys) => {
+    const newSelected = new Set(selectedRowKeys);
+    selectedKeys.forEach(key => newSelected.add(key));
+    // Remove keys from other groups that are not in this group's selection
+    groups.forEach(g => {
+      if (g.key !== groupKey) {
+        g.shipments.forEach(s => newSelected.delete(s.id));
+      }
+    });
+    onSelectionChange(Array.from(newSelected));
+  };
+
+  return (
+    <div style={{ padding: 12 }}>
+      {groups.length === 0 ? (
+        <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Nothing to dispatch" />
+      ) : (
+        <Collapse
+          activeKey={groups.map(g => g.key)}
+          bordered={false}
+          ghost
+        >
+          {groups.map((group, index) => (
+            <Panel
+              key={group.key}
+              header={
+                <Space size={12} style={{ width: "100%", justifyContent: "space-between" }}>
+                  <Space>
+                    <OrderedListOutlined />
+                    <Text strong>{group.origin}</Text>
+                    <ArrowRightOutlined style={{ color: "#bfbfbf", fontSize: 16 }} />
+                    <Text strong style={{ color: "#1677ff" }}>{group.destination}</Text>
+                  </Space>
+                  <Space size={8}>
+                    <Badge count={group.count} color="blue" />
+                    <Tag color="green">{group.shipments[0]?.hop_meta?.service_type?.toUpperCase() || "STANDARD"}</Tag>
+                    {group.shipments[0]?.hop_meta?.path_text && (
+                      <Tooltip title={group.shipments[0].hop_meta.path_text}>
+                        <Tag color="orange"><GlobalOutlined /> {group.shipments[0].hop_meta.path_text.substring(0, 30)}...</Tag>
+                      </Tooltip>
+                    )}
+                  </Space>
+                </Space>
+              }
+              showArrow={false}
+            >
+              <div style={{ padding: "8px 0" }}>
+                <Table
+                  rowKey="id"
+                  size="small"
+                  rowSelection={{
+                    selectedRowKeys: selectedRowKeys.filter(key => 
+                      group.shipments.some(s => s.id === key)
+                    ),
+                    onChange: (keys) => handleGroupSelectionChange(group.key, keys),
+                    columnWidth: "40px",
+                  }}
+                  columns={[
+                    {
+                      title: "Shipment",
+                      key: "shipment",
+                      render: (_, s) => (
+                        <Space direction="vertical" size={2}>
+                          <Text strong style={{ fontSize: 12 }}>{s.tracking_number || `#${s.id}`}</Text>
+                          <Space size={4} wrap>
+                            <TransferStageTag shipment={s} />
+                            <ServiceTypeTag value={s.hop_meta?.service_type || s.service_type} />
+                          </Space>
+                        </Space>
+                      ),
+                    },
+                    {
+                      title: "Receiver",
+                      key: "receiver",
+                      render: (_, s) => (
+                        <Space direction="vertical" size={0}>
+                          <Text style={{ fontSize: 12 }}>{s.receiver_name || "-"}</Text>
+                          <Text type="secondary" style={{ fontSize: 10 }}>
+                            {s.receiver_phone ? <Space size={4}><PhoneOutlined />{s.receiver_phone}</Space> : "-"}
+                          </Text>
+                        </Space>
+                      ),
+                    },
+                    {
+                      title: "Payment",
+                      key: "payment",
+                      render: (_, s) =>
+                        ["pod", "cod", "to_pay"].includes(String(s.payment_type || "").toLowerCase()) ? (
+                          <Space direction="vertical" size={0}>
+                            <Tag color="volcano" style={{ margin: 0 }}><DollarOutlined /> POD</Tag>
+                            <Text strong style={{ fontSize: 11 }}>{money(s.total_collectable_amount || s.pod_amount)}</Text>
+                          </Space>
+                        ) : (
+                          <Tag color="green" style={{ margin: 0 }}>Prepaid</Tag>
+                        ),
+                    },
+                    {
+                      title: "Next Hop",
+                      key: "next_hop",
+                      render: (_, s) => (
+                        <Text type="secondary" style={{ fontSize: 11 }}>
+                          {s.hop_meta?.next_hop_name || s.hop_meta?.path_text || "Final Destination"}
+                        </Text>
+                      ),
+                    },
+                  ]}
+                  dataSource={group.shipments}
+                  scroll={{ x: 800 }}
+                  locale={{
+                    emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="No shipments in this group" />,
+                  }}
+                  pagination={false}
+                />
+              </div>
+            </Panel>
+          ))}
+        </Collapse>
+      )}
+      {/* Pagination at bottom */}
+      <div style={{ marginTop: 16, display: "flex", justifyContent: "center" }}>
+        <Pagination
+          current={pagination.current}
+          pageSize={pagination.pageSize}
+          total={pagination.total}
+          showSizeChanger={true}
+          showTotal={(t) => `${t} shipment${t === 1 ? "" : "s"}`}
+          onChange={(p, ps) => pagination.onChange(p, ps)}
+        />
+      </div>
+    </div>
+  );
+}
+
 export default function TransfersPage() {
   const { can } = usePermissions();
 
@@ -335,6 +550,9 @@ export default function TransfersPage() {
   // Timeline modal state
   const [timelineModal, setTimelineModal] = useState({ open: false, shipment: null });
 
+  // View mode for outbound tab (flat vs grouped)
+  const [viewMode, setViewMode] = useState("flat");
+
   // Debounce search
   useEffect(() => {
     const t = setTimeout(() => setDebouncedSearch(search.trim()), 400);
@@ -378,6 +596,34 @@ export default function TransfersPage() {
       setRoutesLoading(false);
     }
   }, [serviceTypeFilter]);
+
+  // Computed: Filter routes that match selected shipments
+  const filteredRoutesForSelection = useMemo(() => {
+    if (!selectedRowKeys.length) return availableRoutes;
+    
+    // Get selected shipments
+    const selectedShipments = outboundRows.filter(s => selectedRowKeys.includes(s.id));
+    if (!selectedShipments.length) return availableRoutes;
+    
+    // Get unique origin-destination pairs from selected shipments
+    const routeKeys = new Set();
+    selectedShipments.forEach(s => {
+      const originId = s.origin_sub_branch_id || s.origin_branch_id;
+      const destId = s.destination_sub_branch_id || s.destination_branch_id;
+      if (originId && destId) {
+        routeKeys.add(`${originId}-${destId}`);
+      }
+    });
+    
+    // Filter routes that match any of the selected route keys
+    return availableRoutes.filter(route => {
+      const routeOriginId = route.origin_branch_id;
+      const routeDestId = route.destination_branch_id;
+      if (!routeOriginId || !routeDestId) return false;
+      const routeKey = `${routeOriginId}-${routeDestId}`;
+      return routeKeys.has(routeKey);
+    });
+  }, [availableRoutes, selectedRowKeys, outboundRows]);
 
   // Load outbound (optionally filtered by selected transfer route)
   const loadOutbound = useCallback(async (page = 1, pageSize = 20) => {
@@ -800,10 +1046,25 @@ export default function TransfersPage() {
             type="warning"
             message="Hop-by-hop: pick Transfer Route (+ service type), select parcels, Dispatch to the NEXT hop only. Transit hubs receive then re-dispatch onward; destination receives for last-mile."
           />
+          
+          {/* Enhanced Route Selection & Grouped View */}
           <Card size="small" style={{ margin: 12, borderRadius: 12 }}>
             <Space wrap style={{ width: "100%", justifyContent: "space-between" }}>
               <Space wrap>
                 <Text strong>Transfer Route</Text>
+                
+                {/* Smart Route Suggestions based on selected shipments */}
+                {selectedRowKeys.length > 0 && (
+                  <Tooltip
+                    title="Routes matching your selected shipments"
+                    placement="top"
+                  >
+                    <Badge count={filteredRoutesForSelection.length} color="blue" style={{ marginLeft: 8, cursor: "help" }}>
+                      <FilterOutlined /> {filteredRoutesForSelection.length} matching routes
+                    </Badge>
+                  </Tooltip>
+                )}
+                
                 <Select
                   showSearch
                   allowClear
@@ -819,17 +1080,24 @@ export default function TransfersPage() {
                   onChange={(value) => setSelectedTransferRouteId(value || null)}
                   optionLabelProp="label"
                   options={(() => {
+                    // Prioritize routes matching selected shipments
+                    const routesToShow = selectedRowKeys.length > 0 
+                      ? filteredRoutesForSelection 
+                      : availableRoutes;
+                    
                     const groups = {};
-                    availableRoutes.forEach((route) => {
+                    routesToShow.forEach((route) => {
                       const svc = String(route.service_type || "standard").toLowerCase();
                       if (!groups[svc]) groups[svc] = [];
                       const id = Number(route.route_id || route.id);
                       const code = route.route_code || `#${id}`;
                       const pathText = route.path_text || route.route_name || route.name || "";
                       const nextHop = route.next_hop_name ? ` -> next ${route.next_hop_name}` : "";
+                      const isMatching = selectedRowKeys.length > 0 && 
+                        filteredRoutesForSelection.some(r => Number(r.route_id || r.id) === id);
                       groups[svc].push({
                         value: id,
-                        label: `${code} | ${pathText}${nextHop}`,
+                        label: `${code} | ${pathText}${nextHop}${isMatching ? ' ✓' : ''}`,
                       });
                     });
                     return Object.keys(groups).sort().map((svc) => ({
@@ -846,11 +1114,16 @@ export default function TransfersPage() {
                   Refresh routes
                 </Button>
               </Space>
-              {selectedTransferRouteId ? (
-                <Tag color="blue">Filtering outbound to selected route</Tag>
-              ) : (
-                <Tag color="orange">Select a route to filter and dispatch</Tag>
-              )}
+              <Space>
+                {selectedTransferRouteId ? (
+                  <Tag color="blue">Filtering outbound to selected route</Tag>
+                ) : (
+                  <Tag color="orange">Select a route to filter and dispatch</Tag>
+                )}
+                {selectedRowKeys.length > 0 && filteredRoutesForSelection.length > 0 && (
+                  <Tag color="green">✓ {filteredRoutesForSelection.length} routes match selection</Tag>
+                )}
+              </Space>
             </Space>
             {!routesLoading && availableRoutes.length === 0 && (
               <Alert
@@ -861,29 +1134,74 @@ export default function TransfersPage() {
               />
             )}
           </Card>
-          <Table
-            rowKey="id"
-            size="middle"
-            loading={loading && activeTab === "outbound"}
-            rowSelection={rowSelection}
-            columns={currentColumns}
-            dataSource={currentRows}
-            scroll={{ x: 900 }}
-            locale={{
-              emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Nothing to dispatch" />,
-            }}
-            pagination={{
-              current: pagination.current,
-              pageSize: pagination.pageSize,
-              total: currentCount,
-              showSizeChanger: true,
-              showTotal: (t) => `${t} shipment${t === 1 ? "" : "s"}`,
-              onChange: (p, ps) => {
-                setPagination((prev) => ({ ...prev, current: p, pageSize: ps }));
-                loadOutbound(p, ps);
-              },
-            }}
-          />
+
+          {/* View Mode Toggle: Flat List vs Grouped by Route */}
+          <Card size="small" style={{ margin: "0 12 12 12", borderRadius: 12 }}>
+            <Space wrap style={{ width: "100%", justifyContent: "space-between" }}>
+              <Space wrap>
+                <Text strong>View Mode</Text>
+                <Select
+                  value={viewMode}
+                  onChange={setViewMode}
+                  style={{ minWidth: 200 }}
+                  options={[
+                    { value: "flat", label: "Flat List" },
+                    { value: "grouped", label: "Grouped by Route" },
+                  ]}
+                />
+              </Space>
+              <Space>
+                {viewMode === "grouped" && (
+                  <Tooltip title="Grouped view shows shipments organized by origin-destination route">
+                    <Tag color="blue"><OrderedListOutlined /> Grouped by Route</Tag>
+                  </Tooltip>
+                )}
+              </Space>
+            </Space>
+          </Card>
+
+          {/* Outbound Table - Flat or Grouped */}
+          {viewMode === "flat" ? (
+            <Table
+              rowKey="id"
+              size="middle"
+              loading={loading && activeTab === "outbound"}
+              rowSelection={rowSelection}
+              columns={currentColumns}
+              dataSource={currentRows}
+              scroll={{ x: 900 }}
+              locale={{
+                emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Nothing to dispatch" />,
+              }}
+              pagination={{
+                current: pagination.current,
+                pageSize: pagination.pageSize,
+                total: currentCount,
+                showSizeChanger: true,
+                showTotal: (t) => `${t} shipment${t === 1 ? "" : "s"}`,
+                onChange: (p, ps) => {
+                  setPagination((prev) => ({ ...prev, current: p, pageSize: ps }));
+                  loadOutbound(p, ps);
+                },
+              }}
+            />
+          ) : (
+            <GroupedOutboundView
+              rows={currentRows}
+              selectedRowKeys={selectedRowKeys}
+              onSelectionChange={setSelectedRowKeys}
+              loading={loading && activeTab === "outbound"}
+              pagination={{
+                current: pagination.current,
+                pageSize: pagination.pageSize,
+                total: currentCount,
+                onChange: (p, ps) => {
+                  setPagination((prev) => ({ ...prev, current: p, pageSize: ps }));
+                  loadOutbound(p, ps);
+                },
+              }}
+            />
+          )}
         </Card>
       ),
     },

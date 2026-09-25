@@ -87,12 +87,21 @@ function buildMenuItems(menus = []) {
       const key = item.path
         ? item.path
         : `group-${item.id ?? item.key ?? item.label}`;
-      return {
+      
+      const menuItem = {
         key,
         icon: getIcon(item.icon),
         label: item.label,
         children: hasChildren ? children : undefined,
       };
+      
+      // Add href for items with paths so they render as <a> tags
+      // This enables right-click "Open in new tab", middle-click, Ctrl+Click
+      if (item.path) {
+        menuItem.href = item.path;
+      }
+      
+      return menuItem;
     })
     // Drop pathless parents whose children were all filtered out
     .filter((item) => item.children?.length || !String(item.key).startsWith("group-"));
@@ -187,7 +196,13 @@ export default function DashboardLayout({ section: propsSection = "admin", child
     router.replace("/login");
   }
 
-  function handleMenuClick({ key }) {
+function handleMenuClick({ key, item }) {
+  // If the item has an href, let the browser handle navigation natively
+  // This enables right-click "Open in new tab", middle-click, Ctrl+Click
+  if (item?.href) {
+    return; // Let native <a> tag handle it
+  }
+  
     // Pathless parent groups use keys like group-123 — only navigate real paths
     if (key && key.startsWith("/") && key !== pathname) {
       router.push(key);
