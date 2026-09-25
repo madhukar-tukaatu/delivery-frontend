@@ -5,7 +5,7 @@ import Header from "./components/Header";
 import Footer from "./components/Footer";
 import MobileBottomNav from "./components/MobileBottomNav";
 
-const HERO_ONLY_PAGES = ["/about", "/services", "/franchise"];
+const HERO_ONLY_PAGES = ["/about", "/services", "/franchise", "/pricing"];
 
 export default function SiteShell({ children }) {
   const pathname = usePathname();

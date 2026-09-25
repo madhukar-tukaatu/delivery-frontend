@@ -188,3 +188,19 @@
     align-items: center;
   }
 }
+
+.public-hero--full-height {
+  min-height: calc(100svh - 80px) !important;
+  display: flex !important;
+  align-items: center !important;
+  box-sizing: border-box;
+}
+
+@media (max-width: 768px) {
+  .public-hero--full-height {
+    min-height: calc(100svh - 76px - 64px - env(safe-area-inset-bottom, 12px)) !important;
+    padding-top: 24px;
+    padding-bottom: 24px;
+    align-items: center !important;
+  }
+}
