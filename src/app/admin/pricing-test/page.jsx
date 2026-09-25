@@ -36,7 +36,6 @@ import {
   GlobalOutlined,
   InboxOutlined,
   LoadingOutlined,
-  MapOutlined,
   PlusOutlined,
   ReloadOutlined,
   ShopOutlined,
@@ -2803,7 +2802,7 @@ export default function PricingTestPage() {
 
                 {!mapPoints.length && (
                   <div className="map-overlay-empty">
-                    <MapOutlined />
+                    <EnvironmentOutlined />
 
                     <Text strong>
                       Select locations

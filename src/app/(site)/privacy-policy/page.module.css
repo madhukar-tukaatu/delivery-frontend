@@ -484,3 +484,18 @@
     grid-template-columns: 1fr;
   }
 }
+
+/* Public website design system. Legal wording remains unchanged. */
+.container { --primary:#1677b8; --secondary:#f4c542; --text:#0b1f33; --text-light:#526879; --light:#f7f8fa; font-family:Inter,system-ui,sans-serif; }
+.header { background:#eff7fb; color:#0b1f33; border-bottom:1px solid #dbe7ee; padding:56px max(16px,calc((100vw - 1360px)/2)); }
+.header h1 { font-size:clamp(36px,5vw,64px); letter-spacing:-.045em; line-height:1.1; }
+.subtitle, .date { color:#526879; line-height:1.7; }
+.mainContent { max-width:1360px; padding:40px 16px; grid-template-columns:240px minmax(0,1fr); gap:40px; }
+.main { background:#fff; border:1px solid #e0e8ee; border-radius:22px; padding:36px; min-width:0; box-shadow:none; }
+.main section { scroll-margin-top:100px; }
+.main section p, .main section li { font-size:15px; line-height:1.9; color:#435b6e; }
+.main section h2 { letter-spacing:-.025em; color:#0b1f33; }
+.toc { background:#fff; border:1px solid #e0e8ee; border-radius:18px; padding:22px; }
+.toc a { min-height:40px; display:block; line-height:1.5; padding:10px 0; }
+.container a:focus-visible { outline:3px solid #1677b8; outline-offset:4px; }
+@media(max-width:800px) { .mainContent { grid-template-columns:1fr; gap:24px; padding:20px 12px; } .sidebar { position:static; } .main { padding:20px; } .header { padding:36px 16px; } }

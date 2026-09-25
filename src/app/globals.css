@@ -25,13 +25,13 @@ a {
 
 /* Design System Colors - Tukaatu Express */
 :root {
-  --primary: #0891B2;
-  --primary-accent: #FBBF24;
-  --dark-navy: #0F172A;
-  --page-bg: #F8FAFC;
+  --primary: #1677B8;
+  --primary-accent: #F4C542;
+  --dark-navy: #0B1F33;
+  --page-bg: #F7F8FA;
   --card-bg: #FFFFFF;
   --border: #E2E8F0;
-  --text-primary: #0F172A;
+  --text-primary: #0B1F33;
   --text-secondary: #64748B;
   --success: #10B981;
   --warning: #F59E0B;

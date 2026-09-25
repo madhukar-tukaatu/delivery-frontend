@@ -1,117 +1,26 @@
 import Link from "next/link";
-import Image from "next/image";
 import styles from "./Footer.module.css";
 
-const nav = [
-  {
-    heading: "Company",
-    links: [
-      { label: "About us",  href: "/about" },
-      { label: "Services",  href: "/services" },
-      { label: "Contact",   href: "/contact" },
-    ],
-  },
-  {
-    heading: "Merchants",
-    links: [
-      { label: "Pricing",            href: "/pricing" },
-      { label: "Franchise",          href: "/franchise" },
-      { label: "Enquiry",            href: "/contact" },
-    ],
-  },
-  {
-    heading: "Support",
-    links: [
-      { label: "Merchant login",    href: "/login" },
-      { label: "Help centre",       href: "/contact" },
-      { label: "Contact support",   href: "/contact" },
-    ],
-  },
+const links = [
+  ["Merchant login", "/login"],
+  ["Services", "/services"],
+  ["Pricing", "/pricing"],
+  ["Franchise", "/franchise"],
+  ["Terms of Use", "/terms-conditions"],
+  ["Privacy", "/privacy-policy"],
+  ["About", "/about"],
+  ["Support", "/contact"],
 ];
 
 export default function Footer() {
   return (
-    <footer className={styles.footer}>
-
-      {/* ── CTA band ── */}
-      <div className={styles.cta}>
-        <div className={styles.ctaInner}>
-          <div className={styles.ctaText}>
-            <p className={styles.ctaEyebrow}>Sell more. Deliver better.</p>
-            <h2 className={styles.ctaHeading}>Grow your business with Tukaatu.</h2>
-            <p className={styles.ctaSub}>
-              Join hundreds of stores already delivering across Nepal with live tracking, POD collection and full settlement visibility.
-            </p>
-          </div>
-          <div className={styles.ctaActions}>
-            <Link href="/contact" className={styles.ctaPrimary}>
-              Get in Touch
-            </Link>
-          </div>
-        </div>
+    <footer className={styles.footer} aria-label="Tukaatu Express footer">
+      <div className={styles.inner}>
+        <p>© {new Date().getFullYear()} Tukaatu Express. All rights reserved.</p>
+        <nav aria-label="Footer links">
+          {links.map(([label, href]) => <Link key={href} href={href}>{label}</Link>)}
+        </nav>
       </div>
-
-      {/* ── Main footer body ── */}
-      <div className={styles.body}>
-        <div className={styles.bodyInner}>
-
-          {/* Brand column */}
-          <div className={styles.brand}>
-            <Link href="/" className={styles.logoWrap}>
-              <Image
-                src="/images/logo.png"
-                alt="Tukaatu Express"
-                width={130}
-                height={36}
-                className={styles.logoImg}
-              />
-            </Link>
-            <p className={styles.tagline}>
-              A technology-enabled logistics network connecting people and businesses across Nepal through one intelligent delivery platform.
-            </p>
-            <div className={styles.badges}>
-              <span className={styles.badge}>🇳🇵 Nepal</span>
-              <span className={styles.badge}>7 Provinces</span>
-              <span className={styles.badge}>Live tracking</span>
-            </div>
-          </div>
-
-          {/* Nav columns */}
-          <div className={styles.navGrid}>
-            {nav.map((col) => (
-              <div key={col.heading} className={styles.navCol}>
-                <p className={styles.navHeading}>{col.heading}</p>
-                <ul className={styles.navList}>
-                  {col.links.map((l) => (
-                    <li key={l.href}>
-                      <Link href={l.href} className={styles.navLink}>{l.label}</Link>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            ))}
-          </div>
-
-        </div>
-      </div>
-
-      {/* ── Bottom bar ── */}
-      <div className={styles.bottom}>
-        <div className={styles.bottomInner}>
-          <span className={styles.copy}>
-            © {new Date().getFullYear()} Tukaatu Express Pvt. Ltd. All rights reserved.
-          </span>
-          <div className={styles.bottomLinks}>
-            <Link href="/privacy-policy" className={styles.bottomLink}>Privacy Policy</Link>
-            <span className={styles.dot} />
-            <Link href="/terms-conditions" className={styles.bottomLink}>Terms & Conditions</Link>
-            <span className={styles.dot} />
-            <Link href="/contact" className={styles.bottomLink}>Contact</Link>
-          </div>
-          <span className={styles.madeIn}>Made for Nepal 🇳🇵</span>
-        </div>
-      </div>
-
     </footer>
   );
 }

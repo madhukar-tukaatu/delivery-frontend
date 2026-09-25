@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   Layout, Menu, Typography, Button, Space, Spin, Empty,
-  Avatar, Dropdown, Badge, Tooltip,
+  Avatar, Dropdown, Badge, Tooltip, Drawer, Grid,
 } from "antd";
 import {
   AppstoreOutlined, ShopOutlined, NodeIndexOutlined, InboxOutlined,
@@ -16,6 +16,8 @@ import {
 } from "@ant-design/icons";
 import { usePathname, useRouter } from "next/navigation";
 import Image from "next/image";
+import Link from "next/link";
+import "./workspace.css";
 import { clearAuth, getUser } from "@/lib/auth";
 import { getMyMenus } from "@/services/menuService";
 
@@ -108,6 +110,9 @@ function avatarColor(name = "") {
 }
 
 export default function DashboardLayout({ section: propsSection = "admin", children }) {
+  const screens = Grid.useBreakpoint();
+  const mobile = !screens.lg;
+  const [mobileOpen, setMobileOpen] = useState(false);
   const router = useRouter();
   const pathname = usePathname();
   const user = getUser();
@@ -153,13 +158,14 @@ export default function DashboardLayout({ section: propsSection = "admin", child
   }
 
   function handleMenuClick({ key }) {
+    setMobileOpen(false);
     if (key && key !== pathname) router.push(key);
   }
 
   const userDropdownItems = {
     items: [
-      { key: "profile", icon: <UserOutlined />, label: "Profile" },
-      { key: "settings", icon: <SettingOutlined />, label: "Settings" },
+      ...(section !== "merchant" ? [{ key: "profile", icon: <UserOutlined />, label: "Profile" }] : []),
+      ...(section === "admin" ? [{ key: "settings", icon: <SettingOutlined />, label: "Settings" }] : []),
       { type: "divider" },
       { key: "logout", icon: <LogoutOutlined />, label: "Sign out", danger: true },
     ],
@@ -173,191 +179,46 @@ export default function DashboardLayout({ section: propsSection = "admin", child
   const userName = user?.name || "User";
   const userRole = (user?.roles || [user?.role]).filter(Boolean).join(", ");
 
+
+  const workspaceName = { admin: "Operations", merchant: "Merchant", staff: "Team" }[section] || "Operations";
+  const navigation = (
+    <div className="workspace-sidebar-inner">
+      <Link href="/" className="workspace-brand" aria-label="Tukaatu Express home">
+        <Image src={collapsed && !mobile ? "/logo-icon.png" : "/images/logo.png"} alt="Tukaatu Express" width={collapsed && !mobile ? 32 : 146} height={44} style={{objectFit:"contain",width:"auto",maxWidth:"100%"}} priority />
+      </Link>
+      {(!collapsed || mobile) && <p className="workspace-eyebrow">{workspaceName} workspace</p>}
+      <nav id="workspace-navigation" aria-label={`${workspaceName} navigation`} className="workspace-navigation">
+        {loadingMenus ? <div className="workspace-loading"><Spin size="small" /><span>Loading your workspace</span></div> : items.length ?
+          <Menu theme="light" mode="inline" selectedKeys={[selectedKey]} items={items} onClick={handleMenuClick} /> :
+          <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Your menu is unavailable. Please reload or contact support." />}
+      </nav>
+      {(!collapsed || mobile) && <div className="workspace-sidebar-note"><SafetyCertificateOutlined /><div><strong>Connected delivery.</strong><span>Made for Nepal.</span></div></div>}
+    </div>
+  );
+
   return (
-    <Layout style={{ minHeight: "100vh" }}>
-
-      {/* ── Sidebar ── */}
-      <Sider
-        collapsible
-        collapsed={collapsed}
-        onCollapse={setCollapsed}
-        trigger={null}
-        breakpoint="lg"
-        collapsedWidth={64}
-        width={240}
-        style={{
-          background: "#0f172a",
-          boxShadow: "2px 0 12px rgba(0,0,0,.18)",
-          overflow: "auto",
-          height: "100vh",
-          position: "sticky",
-          top: 0,
-          left: 0,
-          display: "flex",
-          flexDirection: "column",
-        }}
-      >
-        {/* Logo */}
-        <div style={{
-          height: 64,
-          display: "flex",
-          alignItems: "center",
-          gap: 10,
-          padding: collapsed ? "0 18px" : "0 20px",
-          borderBottom: "1px solid rgba(255,255,255,.07)",
-          overflow: "hidden",
-          flexShrink: 0,
-        }}>
-          <div style={{
-            width: "100%", height: 34, borderRadius: 8, overflow: "hidden",
-            flexShrink: 0, background: "#1e293b",
-            display: "flex", alignItems: "center", justifyContent: "center",
-          }}>
-            <Image src="/images/logo.png" alt="logo" width={120} height={150} style={{ objectFit: "contain" }} />
+    <Layout className="workspace">
+      <a href="#workspace-content" className="workspace-skip">Skip to workspace</a>
+      {!mobile && <Sider className="workspace-sidebar" width={248} collapsedWidth={80} collapsed={collapsed} trigger={null} collapsible>{navigation}</Sider>}
+      <Drawer title="Your workspace" placement="left" width={Math.min(320, typeof window !== "undefined" ? window.innerWidth - 24 : 320)} open={mobile && mobileOpen} onClose={() => setMobileOpen(false)} className="workspace-drawer" styles={{body:{padding:0}}}>{mobile && navigation}</Drawer>
+      <Layout className="workspace-main">
+        <Header className="workspace-header">
+          <div className="workspace-header-left">
+            <Button type="text" aria-label={mobile ? "Open workspace navigation" : collapsed ? "Expand sidebar" : "Collapse sidebar"} aria-controls="workspace-navigation" aria-expanded={mobile ? mobileOpen : !collapsed} icon={mobile || collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />} onClick={() => mobile ? setMobileOpen(true) : setCollapsed(!collapsed)} />
+            <div><span className="workspace-overline">TUKAATU EXPRESS</span><strong>{workspaceName} workspace</strong></div>
           </div>
-          {/* {!collapsed && (
-            <div style={{ overflow: "hidden" }}>
-              <div style={{ color: "#fff", fontWeight: 700, fontSize: 14, lineHeight: 1.2, whiteSpace: "nowrap" }}>
-                Tukaatu Express
-              </div>
-              <div style={{ color: "rgba(255,255,255,.4)", fontSize: 11, whiteSpace: "nowrap" }}>
-                Delivery Management
-              </div>
-            </div>
-          )} */}
-        </div>
-
-        {/* Nav */}
-        <div style={{ flex: 1, overflowY: "auto", overflowX: "hidden", paddingTop: 8 }}>
-          {loadingMenus ? (
-            <div style={{ display: "flex", justifyContent: "center", padding: 24 }}>
-              <Spin size="small" />
-            </div>
-          ) : items.length ? (
-            <Menu
-              theme="dark"
-              mode="inline"
-              selectedKeys={[selectedKey]}
-              items={items}
-              onClick={handleMenuClick}
-              style={{ background: "transparent", border: "none" }}
-            />
-          ) : (
-            <div style={{ padding: 16 }}>
-              <Empty
-                image={Empty.PRESENTED_IMAGE_SIMPLE}
-                description={<span style={{ color: "rgba(255,255,255,.4)", fontSize: 12 }}>No menus</span>}
-              />
-            </div>
-          )}
-        </div>
-
-        {/* Sidebar user strip */}
-        {!collapsed && (
-          <div style={{
-            padding: "12px 16px",
-            borderTop: "1px solid rgba(255,255,255,.07)",
-            display: "flex",
-            alignItems: "center",
-            gap: 10,
-            flexShrink: 0,
-          }}>
-            <Avatar size={32} style={{ background: avatarColor(userName), flexShrink: 0, fontSize: 12, fontWeight: 700 }}>
-              {getInitials(userName)}
-            </Avatar>
-            <div style={{ overflow: "hidden", flex: 1 }}>
-              <div style={{ color: "#fff", fontSize: 12, fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                {userName}
-              </div>
-              <div style={{ color: "rgba(255,255,255,.4)", fontSize: 11, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", textTransform: "capitalize" }}>
-                {userRole}
-              </div>
-            </div>
-          </div>
-        )}
-      </Sider>
-
-      <Layout style={{ background: "#f8fafc" }}>
-
-        {/* ── Header ── */}
-        <Header style={{
-          background: "#fff",
-          padding: "0 20px",
-          height: 64,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          borderBottom: "1px solid #e2e8f0",
-          boxShadow: "0 1px 4px rgba(0,0,0,.06)",
-          position: "sticky",
-          top: 0,
-          zIndex: 100,
-          gap: 12,
-        }}>
-
-          {/* Left: collapse toggle + breadcrumb */}
-          <Space size={12} style={{ minWidth: 0 }}>
-            <Button
-              type="text"
-              icon={collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
-              onClick={() => setCollapsed(!collapsed)}
-              style={{ color: "#64748b", fontSize: 16, width: 36, height: 36, padding: 0 }}
-            />
-            <div style={{ display: "flex", flexDirection: "column", lineHeight: 1.3 }}>
-              <Typography.Text style={{ fontWeight: 600, fontSize: 14, color: "#0f172a" }}>
-                {userName}
-              </Typography.Text>
-              <Typography.Text style={{ fontSize: 12, color: "#94a3b8", textTransform: "capitalize" }}>
-                {userRole}
-              </Typography.Text>
-            </div>
-          </Space>
-
-          {/* Right: actions */}
-          <Space size={4}>
-            <Tooltip title="Public Tracker">
-              <Button
-                type="text"
-                icon={<GlobalOutlined />}
-                onClick={() => router.push("/track")}
-                style={{ color: "#64748b", width: 36, height: 36, padding: 0 }}
-              />
-            </Tooltip>
-
-            <Tooltip title="Notifications">
-              <Badge count={0} size="small">
-                <Button
-                  type="text"
-                  icon={<BellOutlined />}
-                  style={{ color: "#64748b", width: 36, height: 36, padding: 0 }}
-                />
-              </Badge>
-            </Tooltip>
-
-            <div style={{ width: 1, height: 24, background: "#e2e8f0", margin: "0 4px" }} />
-
+          <div className="workspace-header-actions">
+            <Link href="/track" className="workspace-track" aria-label="Track parcel"><GlobalOutlined /><span>Track parcel</span></Link>
+            {section === "admin" && <Tooltip title="Notifications"><Button type="text" aria-label="Notifications" icon={<BellOutlined />} onClick={() => router.push("/admin/notifications")} /></Tooltip>}
             <Dropdown menu={userDropdownItems} placement="bottomRight" trigger={["click"]}>
-              <Space style={{ cursor: "pointer", padding: "4px 8px", borderRadius: 8, transition: "background .15s" }}
-                onMouseEnter={e => e.currentTarget.style.background = "#f1f5f9"}
-                onMouseLeave={e => e.currentTarget.style.background = "transparent"}
-              >
-                <Avatar size={32} style={{ background: avatarColor(userName), fontSize: 12, fontWeight: 700 }}>
-                  {getInitials(userName)}
-                </Avatar>
-                <div style={{ display: "flex", flexDirection: "column", lineHeight: 1.3 }}>
-                  <Typography.Text style={{ fontSize: 13, fontWeight: 600, color: "#0f172a" }}>
-                    {userName}
-                  </Typography.Text>
-                  <Typography.Text style={{ fontSize: 11, color: "#94a3b8", textTransform: "capitalize" }}>
-                    {userRole}
-                  </Typography.Text>
-                </div>
-              </Space>
+              <button className="workspace-account" aria-label={`Account menu for ${userName}`}>
+                <Avatar size={36} style={{background:"#e7f2f9",color:"#125f93",fontWeight:700}}>{getInitials(userName)}</Avatar>
+                <span><strong>{userName}</strong><small>{userRole || workspaceName}</small></span>
+              </button>
             </Dropdown>
-          </Space>
+          </div>
         </Header>
-
-        <Content style={{ margin: 20 }}>{children}</Content>
+        <Content className="workspace-content"><main id="workspace-content" tabIndex={-1}>{children}</main><footer className="workspace-footer">Tukaatu Express <span>Built for the people moving Nepal.</span></footer></Content>
       </Layout>
     </Layout>
   );

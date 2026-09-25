@@ -531,17 +531,7 @@ export default function BranchOfficeWorkspacePage() {
 
   const saveSection = useCallback(
     async (section, values) => {
-      const updateRequest =
-        branchApi.updateBranch ||
-        branchApi.updateBranchOffice ||
-        branchApi.saveBranch;
-
-      if (typeof updateRequest !== "function") {
-        message.error(
-          "branchAllocationApi must export updateBranch, updateBranchOffice, or saveBranch.",
-        );
-        return;
-      }
+      const updateRequest = branchApi.updateBranch;
 
       const payload = buildChangedPayload(section, record, values);
       const updatedFields = Object.keys(payload);

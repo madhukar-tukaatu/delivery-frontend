@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import styles from "./Header.module.css";
@@ -8,10 +8,24 @@ import styles from "./Header.module.css";
 export default function Header({ transparent = false }) {
   const [scrolled, setScrolled] = useState(false);
   const [open, setOpen] = useState(false);
+  const menuRef = useRef(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const closeOnEscape = (event) => {
+      if (event.key === "Escape") {
+        setOpen(false);
+        menuRef.current?.focus();
+      }
+    };
+    window.addEventListener("keydown", closeOnEscape);
+    return () => window.removeEventListener("keydown", closeOnEscape);
+  }, [open]);
 
   useEffect(() => {
     if (!transparent) return;
     const onScroll = () => setScrolled(window.scrollY > 60);
+    onScroll();
     window.addEventListener("scroll", onScroll, { passive: true });
     return () => window.removeEventListener("scroll", onScroll);
   }, [transparent]);
@@ -37,23 +51,26 @@ export default function Header({ transparent = false }) {
         />
       </Link>
 
-      <nav className={`${styles.nav} ${open ? styles.open : ""}`}>
+      <nav id="primary-navigation" aria-label="Main navigation" className={`${styles.nav} ${open ? styles.open : ""}`}>
         <Link href="/services" onClick={() => setOpen(false)}>Services</Link>
         <Link href="/pricing" onClick={() => setOpen(false)}>Pricing</Link>
         <Link href="/franchise" onClick={() => setOpen(false)}>Franchise</Link>
         <Link href="/about" onClick={() => setOpen(false)}>About</Link>
+        <Link href="/contact" onClick={() => setOpen(false)}>Contact</Link>
       </nav>
 
       <div className={styles.actions}>
-        <Link href="/login" className={styles.login}>Login</Link>
-        <Link href="/contact" className={styles.track}>Contact →</Link>
+        <Link href="/login" className={styles.track}>Login →</Link>
       </div>
 
       <button
         type="button"
         className={styles.menu}
         onClick={() => setOpen((v) => !v)}
-        aria-label="Toggle navigation"
+        ref={menuRef}
+        aria-expanded={open}
+        aria-controls="primary-navigation"
+        aria-label={open ? "Close navigation" : "Open navigation"}
       >
         <span className={open ? styles.bar1open : ""} />
         <span className={open ? styles.bar2open : ""} />

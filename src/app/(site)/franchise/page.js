@@ -1,3 +1,4 @@
+import PublicHero from "../components/PublicHero";
 import Link from "next/link";
 import { ArrowRight, Building2, CheckCircle2, MapPinned, TrendingUp, Users, DollarSign, Headphones, Globe } from "lucide-react";
 
@@ -22,42 +23,13 @@ const steps = [
 
 export default function FranchisePage() {
   return (
-    <main className="bg-white">
+    <main className="public-page bg-white">
       {/* Hero */}
-      <section className="relative overflow-hidden bg-gradient-to-br from-[#01547a] via-[#013f5c] to-[#002d42] px-6 py-24 text-white lg:px-8 lg:py-36">
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_30%_0%,rgba(245,197,24,0.12),transparent_55%)]" />
-        <div className="absolute inset-0 opacity-[0.05] bg-[linear-gradient(rgba(255,255,255,0.1)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.1)_1px,transparent_1px)] bg-[size:60px_60px]" />
-        <div className="relative mx-auto max-w-7xl">
-          <div className="inline-flex items-center gap-2 rounded-full border border-[#f5c518]/30 bg-[#f5c518]/12 px-4 py-1.5 text-xs font-bold uppercase tracking-widest text-[#f5c518]">
-            Franchise with Tukaatu
-          </div>
-          <h1 className="site-display mt-6 max-w-4xl text-5xl font-extrabold tracking-tight sm:text-6xl lg:text-7xl">
-            Build the delivery network<br /><span className="text-[#f5c518]">in your community.</span>
-          </h1>
-          <p className="mt-6 max-w-2xl text-lg leading-8 text-blue-100">
-            Bring Tukaatu Express to your territory. Own a local logistics business backed by a nationwide brand, proven technology and a growing delivery network.
-          </p>
-          <div className="mt-9 flex flex-wrap gap-3">
-            <Link href="/franchise/apply" className="inline-flex items-center gap-2 rounded-xl bg-[#f5c518] px-7 py-3.5 text-sm font-bold text-[#0a0a0a] hover:bg-[#ffd740] transition-colors">
-              Apply now <ArrowRight className="h-4 w-4" />
-            </Link>
-            <Link href="/contact" className="inline-flex items-center gap-2 rounded-xl border border-white/20 px-7 py-3.5 text-sm font-bold text-white hover:bg-white/10 transition-colors">
-              Ask a question
-            </Link>
-          </div>
-          <div className="mt-12 flex flex-wrap gap-6">
-            {[[Globe, "7 provinces open"], [Building2, "Branch + hub model"], [TrendingUp, "Growing network"]].map(([Icon, label]) => (
-              <div key={label} className="flex items-center gap-2 text-sm font-semibold text-blue-100">
-                <Icon className="h-4 w-4 text-[#f5c518]" />{label}
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
+      <PublicHero backgroundImage="/images/experience/cinematic/origin.webp" eyebrow="Partner with Tukaatu" title="Local knowledge." accent="Nationwide ambition." description="Build a delivery business in your community, supported by Tukaatu’s technology, operations and growing network." note="Your community. Our network." primary={{"href": "/franchise/apply", "label": "Apply for a franchise"}} secondary={{"href": "/contact", "label": "Ask a question"}} />
 
       {/* Stats */}
-      <section className="border-b border-gray-200 bg-white px-6 py-14 lg:px-8">
-        <div className="mx-auto max-w-5xl grid gap-8 text-center sm:grid-cols-3">
+      <section className="border-b border-gray-200 bg-white px-4 py-12 sm:px-6 lg:px-8">
+        <div className="mx-auto max-w-7xl grid gap-8 text-center sm:grid-cols-3">
           {[["7 Provinces", "Open for franchise"], ["Branch + Hub", "Proven model"], ["Full support", "From day one"]].map(([n, l]) => (
             <div key={n}>
               <p className="site-display text-4xl font-extrabold text-[#027196]">{n}</p>
@@ -68,7 +40,7 @@ export default function FranchisePage() {
       </section>
 
       {/* Why Tukaatu */}
-      <section className="px-6 py-20 lg:px-8 lg:py-28 bg-gray-50">
+      <section className="px-4 py-16 sm:px-6 lg:px-8 lg:py-24 bg-gray-50">
         <div className="mx-auto max-w-7xl">
           <div className="mx-auto max-w-2xl text-center">
             <p className="text-xs font-bold uppercase tracking-widest text-[#027196]">Why Tukaatu</p>
@@ -90,8 +62,8 @@ export default function FranchisePage() {
       </section>
 
       {/* Application journey */}
-      <section className="bg-gradient-to-br from-[#01547a] via-[#013f5c] to-[#002d42] px-6 py-20 lg:px-8">
-        <div className="mx-auto grid max-w-6xl gap-12 lg:grid-cols-[1fr_0.85fr]">
+      <section className="public-panel px-4 py-16 sm:px-6 lg:px-8 lg:py-24">
+        <div className="mx-auto grid max-w-7xl gap-12 lg:grid-cols-[1fr_0.85fr]">
           <div>
             <p className="text-xs font-bold uppercase tracking-widest text-[#f5c518]">Application journey</p>
             <h2 className="site-display mt-3 text-4xl font-extrabold text-white">A clear path from application to launch.</h2>

@@ -3,7 +3,7 @@ const API_URL = (process.env.NEXT_PUBLIC_API_URL || "").replace(/\/$/, "");
 export async function publicApi(path, options = {}) {
   if (!API_URL) {
     throw new Error(
-      "NEXT_PUBLIC_API_URL is not configured. Add your backend API URL to .env.local."
+      "Online delivery services are temporarily unavailable. Please contact hello@tukaatuexpress.com for help."
     );
   }
 

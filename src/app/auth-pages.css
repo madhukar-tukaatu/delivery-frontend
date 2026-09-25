@@ -1,0 +1,36 @@
+.auth-page { --primary:#1677b8; min-height:100dvh; color:#0b1f33; font-family:Inter,system-ui,sans-serif; }
+.auth-login { display:grid; grid-template-columns:1fr 1fr; }
+.auth-story { background:#edf6fb; padding:48px clamp(28px,5vw,80px); }
+.auth-eyebrow { color:#125f93; font-size:11px; text-transform:uppercase; letter-spacing:.14em; font-weight:750; margin:0 0 16px; }
+.auth-story > .auth-eyebrow { margin-top:52px; }
+.auth-story h1 { font-size:clamp(38px,4.5vw,62px); font-weight:800; line-height:1.05; letter-spacing:-.055em; margin:0 0 24px; }
+.auth-story h1 span { color:#1677b8; }
+.auth-story > p:not(.auth-eyebrow) { color:#526879; font-size:16px; line-height:1.8; max-width:490px; }
+.auth-story-image { border-radius:20px; overflow:hidden; margin-top:32px; max-width:500px; }
+.auth-story-image img { width:100%; height:230px; object-fit:cover; object-position:center 45%; }
+.auth-trust { display:flex; gap:10px; align-items:center; color:#435e71; font-size:12px; margin-top:22px; }
+.auth-trust > span:last-child { margin-left:auto; }
+.auth-form-region { display:flex; flex-direction:column; justify-content:center; padding:40px clamp(24px,5vw,80px); background:#fff; }
+.auth-back { color:#526879; font-size:13px; margin-bottom:40px; }
+.auth-form-card { max-width:470px; width:100%; margin:auto; }
+.auth-form-card h2 { font-size:36px; font-weight:750; line-height:1.15; letter-spacing:-.04em; margin:0 0 16px; }
+.auth-description { font-size:15px; line-height:1.8; color:#526879; margin-bottom:30px; }
+.auth-form-card .ant-form-item-label label { font-weight:650; color:#0b1f33; }
+.auth-form-card .ant-input-affix-wrapper { padding:12px; border-radius:11px; border-color:#c8d9e4; background:#fbfcfd; }
+.auth-form-card .ant-input { background:transparent; font-size:16px; }
+.auth-page .ant-btn-primary { background:#f4c542 !important; border-color:#f4c542 !important; color:#0b1f33 !important; box-shadow:none !important; }
+.auth-page .ant-btn-primary:hover { background:#f9d25c !important; }
+.auth-forgot { padding:0; font-weight:600; color:#125f93; margin-top:8px; }
+.auth-register { border-top:1px solid #e2eaf0; margin-top:28px; padding-top:24px; color:#526879; font-size:14px; line-height:1.8; }
+.auth-register a { display:block; font-weight:700; color:#125f93; }
+.auth-footnote { margin-top:24px; color:#526879; font-size:12px; line-height:1.7; }
+.auth-legal { display:flex; justify-content:center; gap:14px; font-size:12px; color:#526879; margin-top:40px; }
+.auth-page :is(a,button,input):focus-visible,.auth-recovery :is(a,button,input):focus-visible { outline:3px solid #1677b8; outline-offset:3px; }
+.auth-recovery { background:#eff6fa !important; --primary:#1677b8; font-family:Inter,system-ui,sans-serif; padding:28px 16px !important; }
+.auth-recovery .ant-card { border:1px solid #dbe7ee !important; border-radius:24px !important; box-shadow:0 16px 50px #0b1f3308 !important; max-width:520px !important; }
+.auth-recovery .ant-card-body { padding:36px; }
+.auth-recovery h2 { font-size:32px; letter-spacing:-.04em; color:#0b1f33 !important; }
+.auth-recovery .ant-input-affix-wrapper { min-height:48px; border-radius:10px; }
+.auth-recovery .ant-btn-primary { min-height:46px; background:#1677b8 !important; border-color:#1677b8 !important; }
+@media(max-width:900px) { .auth-login { grid-template-columns:1fr; } .auth-story { display:none; } .auth-form-region { min-height:100dvh; padding:28px 24px; } .auth-form-card h2 { font-size:32px; } }
+@media(prefers-reduced-motion:reduce) { .auth-page *, .auth-recovery * { transition:none !important; animation:none !important; } }
