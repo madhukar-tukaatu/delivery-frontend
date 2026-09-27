@@ -100,7 +100,14 @@ export default function Header({ transparent = false }) {
         </nav>
 
         <div className={styles.actions}>
-          <Link href="/login" className={styles.track}>Login →</Link>
+          <a
+            href="https://store.tukaatu.com"
+            target="_blank"
+            rel="noopener noreferrer"
+            className={styles.track}
+          >
+            Want to deliver with us ?
+          </a>
         </div>
 
         {/* Mobile Hamburger Trigger */}
@@ -192,16 +199,18 @@ export default function Header({ transparent = false }) {
 
         {/* Merchant Card */}
         <div className={styles.drawerMerchant}>
-          <div className={styles.drawerMerchantBadge}>MERCHANT PORTAL</div>
-          <h4>Partner with Tukaatu</h4>
+          <div className={styles.drawerMerchantBadge}>STORE PORTAL</div>
+          <h4>Want to deliver with us ?</h4>
           <p>Next-day settlement, automated pickups and live shipment dashboard.</p>
-          <Link
-            href="/login"
+          <a
+            href="https://store.tukaatu.com"
+            target="_blank"
+            rel="noopener noreferrer"
             onClick={() => setOpen(false)}
             className={styles.drawerMerchantBtn}
           >
-            Merchant Login <ArrowRight size={15} />
-          </Link>
+            Go to store.tukaatu.com <ArrowRight size={15} />
+          </a>
         </div>
 
         {/* Direct Contact Shortcuts */}
