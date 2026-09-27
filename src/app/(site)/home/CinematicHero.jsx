@@ -89,18 +89,6 @@ export default function CinematicHero() {
           </form>
           <div className={styles.sendActions}><span>SENDING SOMETHING?</span><div className={styles.links}><Link href="/pricing">Get a quote <ArrowRight size={16}/></Link><Link href="/contact"><Truck size={17}/> Book a pickup</Link></div></div>
         </div>
-        <footer className={styles.compactFooter} aria-label="Tukaatu Express footer">
-          <p>© {new Date().getFullYear()} Tukaatu Express. All rights reserved.</p>
-          <nav aria-label="Footer links">
-            <Link href="/login">Merchant login</Link>
-            <Link href="/services">Services</Link>
-            <Link href="/franchise">Franchise</Link>
-            <Link href="/terms-conditions">Terms of Use</Link>
-            <Link href="/privacy-policy">Privacy</Link>
-            <Link href="/about">About</Link>
-            <Link href="/contact">Support</Link>
-          </nav>
-        </footer>
       </div>
     </div>
   </section>;

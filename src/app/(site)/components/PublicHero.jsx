@@ -2,9 +2,9 @@ import Link from "next/link";
 import Image from "next/image";
 import { ArrowRight, PackageCheck, MapPin, Truck, ShieldCheck } from "lucide-react";
 
-export default function PublicHero({ eyebrow, title, accent, description, primary, secondary, note = "Every handover. Connected.", compact = false, backgroundImage }) {
+export default function PublicHero({ eyebrow, title, accent, description, primary, secondary, note = "Every handover. Connected.", compact = false, backgroundImage, fullHeight = false }) {
   return (
-    <section className={`public-hero ${compact ? "public-hero--compact" : ""} ${backgroundImage ? "public-hero--photographic" : ""}`}>
+    <section className={`public-hero ${compact ? "public-hero--compact" : ""} ${backgroundImage ? "public-hero--photographic" : ""} ${fullHeight ? "public-hero--full-height" : ""}`}>
       {backgroundImage && <div className="public-hero-photo" aria-hidden="true"><Image src={backgroundImage} alt="" fill priority sizes="100vw" quality={85} /></div>}
       <div className="public-hero-inner">
         <div className="public-hero-copy">
@@ -13,8 +13,20 @@ export default function PublicHero({ eyebrow, title, accent, description, primar
           <h1>{title}<br /><span>{accent}</span></h1>
           <p className="public-hero-description">{description}</p>
           {(primary || secondary) && <div className="public-hero-actions">
-            {primary && <Link className="public-button" href={primary.href}>{primary.label}<ArrowRight size={18} /></Link>}
-            {secondary && <Link className="public-button public-button--outline" href={secondary.href}>{secondary.label}</Link>}
+            {primary && (primary.onClick ? (
+              <button type="button" className="public-button" onClick={primary.onClick} style={{ cursor: "pointer", fontFamily: "inherit" }}>
+                {primary.label}<ArrowRight size={18} />
+              </button>
+            ) : (
+              <Link className="public-button" href={primary.href}>{primary.label}<ArrowRight size={18} /></Link>
+            ))}
+            {secondary && (secondary.onClick ? (
+              <button type="button" className="public-button public-button--outline" onClick={secondary.onClick} style={{ cursor: "pointer", fontFamily: "inherit" }}>
+                {secondary.label}
+              </button>
+            ) : (
+              <Link className="public-button public-button--outline" href={secondary.href}>{secondary.label}</Link>
+            ))}
           </div>}
         </div>
         {!compact && !backgroundImage && <div className="public-route-card" aria-hidden="true">

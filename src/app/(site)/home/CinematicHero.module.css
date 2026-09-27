@@ -65,26 +65,3 @@
   .actions { padding: 12px; }
   .journeyControl { padding-inline: 12px; }
 }
-.compactFooter {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px 28px;
-  padding: 14px 24px;
-  border-top: 1px solid #e2e9ee;
-  background: #f8fafc;
-  color: #526879;
-}
-.compactFooter p { margin: 0; font-size: 11px; line-height: 1.6; }
-.compactFooter nav { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 0 20px; }
-.compactFooter a { display: inline-flex; align-items: center; min-height: 36px; font-size: 11px; font-weight: 500; color: #435e71; text-decoration: none; }
-.compactFooter a:hover { color: #1677b8; text-decoration: underline; text-underline-offset: 4px; }
-@media (max-width: 1000px) {
-  .compactFooter { flex-direction: column; align-items: flex-start; gap: 6px; }
-  .compactFooter nav { justify-content: flex-start; gap: 0 16px; }
-}
-@media (max-width: 760px) {
-  .compactFooter {
-    display: none !important;
-  }
-}
