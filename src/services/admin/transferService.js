@@ -32,6 +32,29 @@ export async function getTransfers(params = {}) {
   const response = await api.get("/admin/transfers", {
     params: { per_page: 20, direction: "outbound", ...params },
   });
+
+  // Grouped outbound board returns { routes|next_hops, unmatched, total_shipments }
+  // (not a Laravel paginator). Preserve that shape so route/next-hop cards get parcels.
+  const grouped = unwrap(response);
+  if (
+    (params.group_by_route || params.group_by_next_hop) &&
+    grouped &&
+    typeof grouped === "object" &&
+    (Array.isArray(grouped.routes) || Array.isArray(grouped.next_hops))
+  ) {
+    const total = Number(grouped.total_shipments ?? 0);
+    return {
+      routes: Array.isArray(grouped.routes) ? grouped.routes : [],
+      next_hops: Array.isArray(grouped.next_hops) ? grouped.next_hops : [],
+      unmatched: Array.isArray(grouped.unmatched) ? grouped.unmatched : [],
+      total_shipments: total,
+      list: [],
+      currentPage: 1,
+      pageSize: Number(params.per_page ?? 20),
+      total,
+    };
+  }
+
   return normalizeList(response, params);
 }
 
@@ -39,9 +62,11 @@ export async function getTransfers(params = {}) {
  * Get comprehensive transfer statistics (cross-branch only).
  *
  * GET /admin/transfers/stats -> { outbound, in_transit, received, completed, total_value, pod_amount }
+ * Optional: branch_id to view stats for a specific branch (admin only)
  */
-export async function getTransferStats() {
-  const response = await api.get("/admin/transfers/stats");
+export async function getTransferStats(branchId = null) {
+  const params = branchId ? { branch_id: branchId } : {};
+  const response = await api.get("/admin/transfers/stats", { params });
   const payload = unwrap(response) ?? {};
   return {
     outbound: Number(payload.outbound ?? 0),
@@ -55,9 +80,11 @@ export async function getTransferStats() {
 
 /**
  * GET /admin/transfers/summary -> { outbound, inbound }
+ * Optional: branch_id to view summary for a specific branch (admin only)
  */
-export async function getTransferSummary() {
-  const response = await api.get("/admin/transfers/summary");
+export async function getTransferSummary(branchId = null) {
+  const params = branchId ? { branch_id: branchId } : {};
+  const response = await api.get("/admin/transfers/summary", { params });
   const payload = unwrap(response) ?? {};
   return {
     outbound: Number(payload.outbound ?? 0),
@@ -68,7 +95,8 @@ export async function getTransferSummary() {
 /**
  * Get received transfers (cross-branch only).
  *
- * GET /admin/transfers/received params: search, per_page
+ * GET /admin/transfers/received params: search, per_page, branch_id
+ * Optional: branch_id to view received transfers for a specific branch (admin only)
  */
 export async function getReceivedTransfers(params = {}) {
   const response = await api.get("/admin/transfers/received", {
@@ -80,7 +108,8 @@ export async function getReceivedTransfers(params = {}) {
 /**
  * Get completed transfers (cross-branch only - delivered to this branch).
  *
- * GET /admin/transfers/completed params: search, date_from, date_to, per_page
+ * GET /admin/transfers/completed params: search, date_from, date_to, per_page, branch_id
+ * Optional: branch_id to view completed transfers for a specific branch (admin only)
  */
 export async function getCompletedTransfers(params = {}) {
   const response = await api.get("/admin/transfers/completed", {
@@ -92,7 +121,8 @@ export async function getCompletedTransfers(params = {}) {
 /**
  * Get complete transfer history with timeline (cross-branch only).
  *
- * GET /admin/transfers/history params: search, date_from, date_to, status, per_page
+ * GET /admin/transfers/history params: search, date_from, date_to, status, per_page, branch_id
+ * Optional: branch_id to view history for a specific branch (admin only)
  */
 export async function getTransferHistory(params = {}) {
   const response = await api.get("/admin/transfers/history", {
@@ -192,6 +222,39 @@ export async function dispatchTransfersWithManifest(data) {
     shipment_ids,
     transfer_route_id: transfer_route_id ? Number(transfer_route_id) : undefined,
     ...rest,
+  });
+  return unwrap(response);
+}
+
+/**
+ * Hub bagging: dispatch many shipments that share the same NEXT hop
+ * (even when they belong to different transfer routes / final destinations).
+ *
+ * POST /admin/transfers/dispatch
+ * { shipment_ids: [], next_hop_branch_id }
+ */
+export async function dispatchToNextHop(shipmentIds, nextHopBranchId, extra = {}) {
+  if (!Array.isArray(shipmentIds) || shipmentIds.length === 0) {
+    throw new Error("Select at least one shipment.");
+  }
+  if (!nextHopBranchId) {
+    throw new Error("Select a next hop before dispatching.");
+  }
+  const response = await api.post("/admin/transfers/dispatch", {
+    shipment_ids: shipmentIds,
+    next_hop_branch_id: Number(nextHopBranchId),
+    ...extra,
+  });
+  return unwrap(response);
+}
+
+/**
+ * GET /admin/transfers?group_by_next_hop=true
+ * Hub-bagging board: groups outbound parcels by NEXT HOP.
+ */
+export async function getOutboundGroupedByNextHop(params = {}) {
+  const response = await api.get("/admin/transfers", {
+    params: { per_page: 20, direction: "outbound", group_by_next_hop: true, ...params },
   });
   return unwrap(response);
 }

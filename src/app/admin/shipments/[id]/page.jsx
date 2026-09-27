@@ -16,6 +16,7 @@ import {
   Spin,
   Statistic,
   Table,
+  Tag,
   Timeline,
   Typography,
   message,
@@ -473,6 +474,45 @@ export default function AdminShipmentDetailPage() {
           </Descriptions.Item>
         </Descriptions>
       </Card>
+
+{/* Transfer route progress (multi-hop) */}
+      {shipment?.route_progress?.hops?.length ? (
+        <Card title="Transfer Route Progress" size="small">
+          <Space direction="vertical" size={8} style={{ width: "100%" }}>
+            <Text type="secondary">
+              {shipment.route_progress.path_text
+                || shipment.hop_meta?.path_text
+                || shipment.route_progress.route_code
+                || "Assigned transfer route"}
+            </Text>
+            <Space wrap size={[6, 6]}>
+              {shipment.route_progress.hops.map((hop) => {
+                let color = "default";
+                if (hop.is_current) color = "blue";
+                else if (hop.is_next_hop) color = "processing";
+                else if (hop.completed || hop.is_origin) color = "success";
+                else if (hop.is_destination) color = "purple";
+                const label = [
+                  hop.name || `Hop ${hop.sequence}`,
+                  hop.is_current ? "(here)" : null,
+                  hop.is_next_hop ? "(next)" : null,
+                  hop.is_destination ? "(final)" : null,
+                ].filter(Boolean).join(" ");
+                return (
+                  <Tag key={`${hop.sequence}-${hop.coverage_id || hop.branch_id}`} color={color}>
+                    {label}
+                  </Tag>
+                );
+              })}
+            </Space>
+            {shipment.route_progress.ready_for_last_mile ? (
+              <Tag color="green">Ready for last-mile delivery</Tag>
+            ) : shipment.route_progress.next_hop_name ? (
+              <Tag color="processing">Next hop: {shipment.route_progress.next_hop_name}</Tag>
+            ) : null}
+          </Space>
+        </Card>
+      ) : null}
 
       {/* Sender / Receiver */}
 
