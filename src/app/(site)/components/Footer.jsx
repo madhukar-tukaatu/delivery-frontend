@@ -32,7 +32,9 @@ export default function Footer() {
   } else if (pathname === "/tracking") {
     pageInfo = { label: "Tracking Info", href: "/services/info" };
   } else if (pathname === "/contact") {
-    pageInfo = { label: "Contact Info", href: "/about/info" };
+    pageInfo = { label: "Contact Info", href: "/contact/info" };
+  } else if (pathname === "/contact/info") {
+    pageInfo = { label: "← Back to Contact", href: "/contact" };
   } else if (pathname.startsWith("/franchise/")) {
     pageInfo = { label: "Franchise Info", href: "/franchise/info" };
   } else {

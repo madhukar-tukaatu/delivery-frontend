@@ -116,7 +116,7 @@ export default function ContactForm() {
         <Field label="Message" required className="sm:col-span-2">
           <textarea
             required
-            rows={7}
+            rows={5}
             value={form.message}
             onChange={(e) => update("message", e.target.value)}
             className="contact-input py-3"
