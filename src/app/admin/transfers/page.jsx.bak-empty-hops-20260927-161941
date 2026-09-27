@@ -352,7 +352,7 @@ function resolveShipmentNextHop(shipment, availableRoutes = []) {
   return { id: 0, name: null, service: String(shipment?.service_type || "standard").toLowerCase(), route: null };
 }
 
-function buildNextHopGroups(routes, shipments, { includeEmptyFromRoutes = false } = {}) {
+function buildNextHopGroups(routes, shipments) {
   const map = {};
   const ensureGroup = (key, seed) => {
     if (!map[key]) {
@@ -371,28 +371,22 @@ function buildNextHopGroups(routes, shipments, { includeEmptyFromRoutes = false 
     return map[key];
   };
 
-  // Master-detail board must NOT seed from the full availableRoutes catalog by
-  // default — that repopulates empty bags after Outbound↔In Transit tab switches.
-  // Seed only from outbound shipments / group_by_next_hop; routes are still used
-  // by resolveShipmentNextHop for matching. Opt in via includeEmptyFromRoutes.
-  if (includeEmptyFromRoutes) {
-    (routes || []).forEach((route) => {
-      const hopId = Number(route.next_hop_branch_id || 0);
-      if (!hopId) return;
-      const svc = String(route.service_type || "standard").toLowerCase();
-      const key = `${hopId}::${svc}`;
-      const g = ensureGroup(key, {
-        nextHopId: hopId,
-        nextHopName: route.next_hop_name || `Branch #${hopId}`,
-        serviceType: svc,
-      });
-      const id = Number(route.route_id ?? route.id);
-      if (!g.routeIds.has(id)) {
-        g.routeIds.add(id);
-        g.routes.push(route);
-      }
+  (routes || []).forEach((route) => {
+    const hopId = Number(route.next_hop_branch_id || 0);
+    if (!hopId) return;
+    const svc = String(route.service_type || "standard").toLowerCase();
+    const key = `${hopId}::${svc}`;
+    const g = ensureGroup(key, {
+      nextHopId: hopId,
+      nextHopName: route.next_hop_name || `Branch #${hopId}`,
+      serviceType: svc,
     });
-  }
+    const id = Number(route.route_id ?? route.id);
+    if (!g.routeIds.has(id)) {
+      g.routeIds.add(id);
+      g.routes.push(route);
+    }
+  });
 
   (shipments || []).forEach((s) => {
     const hop = resolveShipmentNextHop(s, routes);
@@ -436,7 +430,6 @@ function buildNextHopGroups(routes, shipments, { includeEmptyFromRoutes = false 
         routeCodes: (g.routes || []).map((r) => r.route_code || r.route_name).filter(Boolean),
       };
     })
-    .filter((g) => includeEmptyFromRoutes || g.count > 0)
     .sort((a, b) => b.count - a.count || String(a.nextHopName).localeCompare(String(b.nextHopName)));
 }
 
@@ -641,17 +634,7 @@ function NextHopMasterDetail({
 }) {
   const [hopSearch, setHopSearch] = useState("");
   const [listPage, setListPage] = useState(1);
-  // Default: hide empty hops. Only seed catalog empties when user toggles show.
-  const [showEmptyHops, setShowEmptyHops] = useState(false);
-  const groups = useMemo(
-    () => buildNextHopGroups(routes, shipments, { includeEmptyFromRoutes: showEmptyHops }),
-    [routes, shipments, showEmptyHops]
-  );
-  const emptyHopCount = useMemo(() => {
-    if (showEmptyHops) return 0;
-    const all = buildNextHopGroups(routes, shipments, { includeEmptyFromRoutes: true });
-    return all.filter((g) => !(g.count > 0)).length;
-  }, [routes, shipments, showEmptyHops]);
+  const groups = useMemo(() => buildNextHopGroups(routes, shipments), [routes, shipments]);
 
   const filteredGroups = useMemo(() => {
     const q = hopSearch.trim().toLowerCase();
@@ -801,32 +784,17 @@ function NextHopMasterDetail({
   }
 
   if (!groups.length) {
-    const hasRoutes = (routes || []).some((r) => Number(r.next_hop_branch_id || 0) > 0);
     return (
       <Alert
-        type={hasRoutes ? "info" : "warning"}
+        type="warning"
         showIcon
         style={{ borderRadius: 8, padding: "6px 10px" }}
-        message={hasRoutes ? "No ready parcels to dispatch" : "No next-hop bags available"}
+        message="No next-hop bags available"
         description={
-          hasRoutes ? (
-            <Space direction="vertical" size={4}>
-              <span>
-                Outbound next hops appear here only when there are shipments ready to
-                dispatch.
-              </span>
-              {!showEmptyHops ? (
-                <Button type="link" size="small" onClick={() => setShowEmptyHops(true)} style={{ paddingInline: 0 }}>
-                  Show empty hops (configured routes with zero bags)
-                </Button>
-              ) : null}
-            </Space>
-          ) : (
-            <span>
-              Configure active routes under{" "}
-              <Link href="/admin/branch-transfer-routes">Transfer Routes</Link>.
-            </span>
-          )
+          <span>
+            Configure active routes under{" "}
+            <Link href="/admin/branch-transfer-routes">Transfer Routes</Link>.
+          </span>
         }
       />
     );
@@ -855,7 +823,7 @@ function NextHopMasterDetail({
                 count={groups.length}
                 overflowCount={999}
                 style={{ backgroundColor: "#1677ff" }}
-                title={showEmptyHops ? "All next-hop destinations (incl. empty)" : "Next hops with ready parcels"}
+                title="Total next-hop destinations"
               />
             </Space>
           }
@@ -879,26 +847,6 @@ function NextHopMasterDetail({
             value={hopSearch}
             onChange={(e) => setHopSearch(e.target.value)}
           />
-          {emptyHopCount > 0 && !showEmptyHops ? (
-            <Button
-              type="link"
-              size="small"
-              onClick={() => setShowEmptyHops(true)}
-              style={{ paddingInline: 0, height: "auto", alignSelf: "flex-start" }}
-            >
-              Showing hops with ready parcels — show {emptyHopCount} empty
-            </Button>
-          ) : null}
-          {showEmptyHops ? (
-            <Button
-              type="link"
-              size="small"
-              onClick={() => setShowEmptyHops(false)}
-              style={{ paddingInline: 0, height: "auto", alignSelf: "flex-start" }}
-            >
-              Hide empty hops
-            </Button>
-          ) : null}
           <div
             style={{
               flex: 1,
@@ -1766,8 +1714,6 @@ export default function TransfersPage() {
   // Also refresh the selected hop object after outbound reload.
   useEffect(() => {
     if (viewMode !== "next_hop" || activeTab !== "outbound") return;
-    // Shipment-driven groups only (no empty catalog seeds) so tab switches
-    // cannot reselect / re-show empty hops.
     const groups = buildNextHopGroups(availableRoutes, outboundRows);
     if (!groups.length) {
       if (selectedNextHopKey) {
@@ -1777,7 +1723,7 @@ export default function TransfersPage() {
       return;
     }
     if (selectedNextHopKey) {
-      const match = groups.find((g) => g.key === selectedNextHopKey && g.count > 0);
+      const match = groups.find((g) => g.key === selectedNextHopKey);
       if (match) {
         setSelectedNextHop(match);
         setSelectedRowKeys((prev) => {
@@ -1787,7 +1733,7 @@ export default function TransfersPage() {
         });
         return;
       }
-      // Previous selection gone or emptied — fall through to auto-pick
+      // Previous selection gone — fall through to auto-pick
     }
     if (!outboundRows.length) return;
     const first = groups.find((g) => g.count > 0);

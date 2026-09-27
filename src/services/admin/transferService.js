@@ -145,8 +145,14 @@ export async function getAvailableTransferRoutes(params = {}) {
   // Handle both response formats:
   // 1. Branch-scoped: { routes, routes_by_destination, branch_id }
   // 2. Admin (no branch_id): { routes, routes_by_origin, branch_id: null }
+  const rawRoutes = Array.isArray(payload.routes) ? payload.routes : [];
+  // Defend against legacy nested origin-group payloads in `routes`.
+  const routes = rawRoutes.some((r) => Array.isArray(r?.routes))
+    ? rawRoutes.flatMap((g) => (Array.isArray(g.routes) ? g.routes : []))
+    : rawRoutes;
+
   return {
-    routes: Array.isArray(payload.routes) ? payload.routes : [],
+    routes,
     routes_by_destination: payload.routes_by_destination ?? [],
     routes_by_origin: payload.routes_by_origin ?? [],
     branch_id: payload.branch_id ?? null,
