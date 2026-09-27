@@ -189,7 +189,7 @@ export default function FranchiseInfoPage() {
               ))}
             </ul>
             <Link
-              href="/franchise/apply"
+              href="/contact?subject=Franchise%20Application#contact-form"
               className="mt-8 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-[#f4c542] px-6 py-3.5 text-sm font-bold text-[#0b1f33] hover:bg-[#ffda62] transition-colors"
             >
               Start your application <ArrowRight className="h-4 w-4" />

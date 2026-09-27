@@ -13,7 +13,10 @@ export default function FranchisePage() {
         accent="Nationwide ambition."
         description="Build a delivery business in your community, supported by Tukaatu’s technology, operations and growing network."
         note="Your community. Our network."
-        primary={{ href: "/franchise/apply", label: "Apply for a franchise" }}
+        primary={{
+          href: "/contact?subject=Franchise%20Application#contact-form",
+          label: "Apply for a franchise",
+        }}
         secondary={{ href: "/franchise/info", label: "Franchise Info" }}
       />
     </main>
