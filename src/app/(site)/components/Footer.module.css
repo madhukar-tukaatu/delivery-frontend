@@ -1,207 +1,94 @@
-/* ─────────────────────────────────────────────
-   Tukaatu Style Footer
-───────────────────────────────────────────── */
 .footer {
+  border-top: 1px solid #e4e9ec;
+  background: #ffffff;
   width: 100%;
-  background: #0b1f33;
-  color: #94a3b8;
-  font-family: "Inter", system-ui, sans-serif;
-  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  position: relative;
+  z-index: 20;
 }
 
 .inner {
   max-width: 1360px;
   margin: 0 auto;
-  padding: 56px 24px 28px;
+  padding: 13px 24px;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
   box-sizing: border-box;
 }
 
-.footerGrid {
-  display: grid;
-  grid-template-columns: 1.4fr 1fr 1fr 1fr;
-  gap: 40px;
-  padding-bottom: 40px;
-}
-
-/* ── Brand Column ── */
-.brandCol {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
-
-.logoWrap {
-  display: inline-flex;
-  align-items: center;
-  line-height: 0;
-}
-
-.logoImg {
-  height: 36px;
-  width: auto;
-  object-fit: contain;
-}
-
-.brandDesc {
-  font-size: 13.5px;
-  color: #94a3b8;
-  line-height: 1.7;
-  max-width: 320px;
-  margin: 0;
-}
-
-.statusBadge {
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  padding: 6px 12px;
-  border-radius: 999px;
-  background: rgba(34, 197, 94, 0.12);
-  border: 1px solid rgba(34, 197, 94, 0.25);
-  font-size: 11.5px;
-  font-weight: 700;
-  color: #4ade80;
-  width: fit-content;
-}
-
-.statusDot {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: #22c55e;
-  box-shadow: 0 0 8px rgba(34, 197, 94, 0.7);
-}
-
-/* ── Navigation & Service Columns ── */
-.navCol {
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-}
-
-.colTitle {
+.copyright {
   font-size: 11px;
-  font-weight: 900;
-  color: #ffffff;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  margin: 0 0 4px;
+  font-weight: 500;
+  color: #64748b;
+  white-space: nowrap;
+  letter-spacing: -0.01em;
 }
 
-.linkList {
+.links {
   display: flex;
-  flex-direction: column;
-  gap: 10px;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 16px;
 }
 
 .link {
-  color: #cbd5e1;
+  color: #64748b;
+  font-size: 11px;
+  font-weight: 600;
   text-decoration: none;
-  font-size: 13.5px;
-  font-weight: 500;
-  line-height: 1.4;
-  transition: color 0.18s ease, transform 0.18s ease;
-  display: inline-block;
-  width: fit-content;
+  transition: color 150ms ease;
+  white-space: nowrap;
 }
 
 .link:hover {
-  color: #f4c542;
-  transform: translateX(3px);
+  color: #013451;
 }
 
-.link:focus-visible {
-  outline: 2px solid #f4c542;
-  outline-offset: 3px;
-  border-radius: 4px;
-}
-
-/* ── Bottom Bar ── */
-.bottomBar {
-  border-top: 1px solid rgba(255, 255, 255, 0.08);
-  padding-top: 24px;
-  display: flex;
+.infoLink {
+  display: inline-flex;
   align-items: center;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 16px;
-  font-size: 12px;
-  color: #64748b;
-}
-
-.copyright {
-  font-size: 12px;
-  color: #94a3b8;
-}
-
-.bottomLinks {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  flex-wrap: wrap;
-}
-
-.bottomLink {
-  color: #94a3b8;
+  gap: 6px;
+  color: #027196;
+  font-size: 11.5px;
+  font-weight: 700;
   text-decoration: none;
-  font-size: 12px;
-  transition: color 0.18s ease;
+  background: rgba(2, 113, 150, 0.08);
+  padding: 4px 10px;
+  border-radius: 6px;
+  border: 1px solid rgba(2, 113, 150, 0.2);
+  transition: all 150ms ease;
+  white-space: nowrap;
 }
 
-.bottomLink:hover {
-  color: #f4c542;
-}
-
-.dot {
-  width: 3px;
-  height: 3px;
+.infoDot {
+  width: 6px;
+  height: 6px;
   border-radius: 50%;
-  background: rgba(255, 255, 255, 0.2);
-  flex-shrink: 0;
+  background: #027196;
+  display: inline-block;
 }
 
-.madeIn {
-  color: #cbd5e1;
-  font-size: 12px;
-  font-weight: 600;
+.infoLink:hover {
+  background: #027196;
+  color: #ffffff;
+  border-color: #027196;
 }
 
-/* ── Tablet (≤ 950px) ── */
-@media (max-width: 950px) {
-  .footerGrid {
-    grid-template-columns: 1fr 1fr;
-    gap: 36px 24px;
-  }
-
-  .brandCol {
-    grid-column: span 2;
-  }
-
-  .brandDesc {
-    max-width: 100%;
-  }
+.infoLink:hover .infoDot {
+  background: #ffffff;
 }
 
-/* ── Mobile (≤ 768px) ── */
 @media (max-width: 768px) {
   .inner {
-    padding: 40px 16px 20px;
-  }
-
-  .footerGrid {
-    grid-template-columns: 1fr;
-    gap: 30px;
-  }
-
-  .brandCol {
-    grid-column: span 1;
-  }
-
-  .bottomBar {
-    /* Safe area clearance for mobile app dock */
-    padding-bottom: calc(64px + env(safe-area-inset-bottom, 12px));
     flex-direction: column;
     align-items: flex-start;
+    padding: 14px 16px calc(14px + 64px + env(safe-area-inset-bottom, 0px));
+    gap: 10px;
+  }
+
+  .links {
     gap: 12px;
   }
 }

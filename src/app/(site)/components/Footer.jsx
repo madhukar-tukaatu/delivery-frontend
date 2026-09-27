@@ -1,83 +1,82 @@
+"use client";
+
 import Link from "next/link";
-import Image from "next/image";
+import { usePathname } from "next/navigation";
 import styles from "./Footer.module.css";
 
 export default function Footer() {
+  const pathname = usePathname() || "";
+
+  // Never render on home (story / film reel page)
+  if (pathname === "/") return null;
+
+  // Determine {page_name} Info dynamically based on current page
+  let pageInfo = null;
+
+  if (pathname === "/services") {
+    pageInfo = { label: "Services Info", href: "/services/info" };
+  } else if (pathname === "/services/info") {
+    pageInfo = { label: "← Back to Services", href: "/services" };
+  } else if (pathname === "/about") {
+    pageInfo = { label: "About Info", href: "/about/info" };
+  } else if (pathname === "/about/info") {
+    pageInfo = { label: "← Back to About", href: "/about" };
+  } else if (pathname === "/franchise") {
+    pageInfo = { label: "Franchise Info", href: "/franchise/info" };
+  } else if (pathname === "/franchise/info") {
+    pageInfo = { label: "← Back to Franchise", href: "/franchise" };
+  } else if (pathname === "/pricing") {
+    pageInfo = { label: "Pricing Info", href: "/pricing/info" };
+  } else if (pathname === "/pricing/info") {
+    pageInfo = { label: "← Back to Pricing", href: "/pricing" };
+  } else if (pathname === "/tracking") {
+    pageInfo = { label: "Tracking Info", href: "/services/info" };
+  } else if (pathname === "/contact") {
+    pageInfo = { label: "Contact Info", href: "/about/info" };
+  } else if (pathname.startsWith("/franchise/")) {
+    pageInfo = { label: "Franchise Info", href: "/franchise/info" };
+  } else {
+    // Dynamic fallback for any nested or other routes
+    const segment = pathname.split("/").filter(Boolean)[0];
+    if (segment) {
+      const formatted =
+        segment.charAt(0).toUpperCase() +
+        segment.slice(1).replace(/-/g, " ");
+      pageInfo = { label: `${formatted} Info`, href: `/${segment}/info` };
+    }
+  }
+
   return (
-    <footer className={styles.footer} aria-label="Tukaatu Express footer">
+    <footer className={styles.footer} aria-label="Tukaatu Express Footer">
       <div className={styles.inner}>
-        <div className={styles.footerGrid}>
-          {/* Column 1: Brand */}
-          <div className={styles.brandCol}>
-            <Link href="/" className={styles.logoWrap}>
-              <Image
-                src="/images/logo.png"
-                alt="Tukaatu Express"
-                width={135}
-                height={38}
-                className={styles.logoImg}
-              />
+        <span className={styles.copyright}>
+          &copy; {new Date().getFullYear()} Tukaatu Express. All Rights Reserved.
+        </span>
+
+        <div className={styles.links}>
+          {pageInfo && (
+            <Link href={pageInfo.href} className={styles.infoLink}>
+              <span className={styles.infoDot} />
+              {pageInfo.label}
             </Link>
-            <p className={styles.brandDesc}>
-              Nepal's Next-Generation Logistics Network. Unifying live parcel
-              tracking, same-day POD cash settlement, and nationwide door-to-door
-              delivery into one platform.
-            </p>
-            <div className={styles.statusBadge}>
-              <span className={styles.statusDot} /> System Status: 100% Operational
-            </div>
-          </div>
-
-          {/* Column 2: Navigation */}
-          <div className={styles.navCol}>
-            <p className={styles.colTitle}>Navigation</p>
-            <div className={styles.linkList}>
-              <Link href="/about" className={styles.link}>About Tukaatu</Link>
-              <Link href="/services" className={styles.link}>Delivery Services</Link>
-              <Link href="/pricing" className={styles.link}>Pricing Calculator</Link>
-              <Link href="/franchise" className={styles.link}>Franchise Network</Link>
-              <Link href="/contact" className={styles.link}>Contact Us</Link>
-            </div>
-          </div>
-
-          {/* Column 3: Services (links directly to service details on the services page) */}
-          <div className={styles.navCol}>
-            <p className={styles.colTitle}>Services</p>
-            <div className={styles.linkList}>
-              <Link href="/services#standard" className={styles.link}>Standard Delivery</Link>
-              <Link href="/services#express" className={styles.link}>Express Delivery</Link>
-              <Link href="/services#same-day" className={styles.link}>Same Day Delivery</Link>
-              <Link href="/services#pod" className={styles.link}>POD & Cash Settlement</Link>
-              <Link href="/tracking" className={styles.link}>Smart Parcel Tracking</Link>
-            </div>
-          </div>
-
-          {/* Column 4: Portals & Access */}
-          <div className={styles.navCol}>
-            <p className={styles.colTitle}>Portals & Access</p>
-            <div className={styles.linkList}>
-              <Link href="/login" className={styles.link}>Merchant Portal →</Link>
-              <Link href="/public/merchant-register" className={styles.link}>Register New Store</Link>
-              <Link href="/franchise/apply" className={styles.link}>Franchise Application</Link>
-              <Link href="/contact" className={styles.link}>Help & Support</Link>
-            </div>
-          </div>
-        </div>
-
-        {/* Bottom Bar */}
-        <div className={styles.bottomBar}>
-          <div className={styles.copyright}>
-            © {new Date().getFullYear()} Tukaatu Express. All rights reserved.
-          </div>
-          <div className={styles.bottomLinks}>
-            <Link href="/privacy-policy" className={styles.bottomLink}>Privacy Policy</Link>
-            <span className={styles.dot} />
-            <Link href="/terms-conditions" className={styles.bottomLink}>Terms of Service</Link>
-            <span className={styles.dot} />
-            <Link href="/contact" className={styles.bottomLink}>Contact</Link>
-            <span className={styles.dot} />
-            <span className={styles.madeIn}>Made for Nepal 🇳🇵</span>
-          </div>
+          )}
+          <a
+            href="https://store.tukaatu.com/login"
+            target="_blank"
+            rel="noopener noreferrer"
+            className={styles.link}
+          >
+            Store Manager
+          </a>
+          <Link href="/terms-conditions" className={styles.link}>
+            Terms
+          </Link>
+          <Link href="/privacy-policy" className={styles.link}>
+            Privacy
+          </Link>
+          <Link href="/contact" className={styles.link}>
+            Support
+          </Link>
         </div>
       </div>
     </footer>

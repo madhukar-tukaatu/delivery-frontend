@@ -1,0 +1,154 @@
+import Link from "next/link";
+import {
+  ArrowLeft,
+  ArrowRight,
+  Eye,
+  HeartHandshake,
+  Target,
+  Users,
+} from "lucide-react";
+
+export const metadata = {
+  title: "About Tukaatu Express Information - Mission & Vision",
+  description:
+    "Learn about Tukaatu Express, our mission, core principles, and the nationwide delivery network we are building in Nepal.",
+};
+
+export default function AboutInfoPage() {
+  return (
+    <main className="public-page bg-white min-h-screen">
+      {/* Header Bar */}
+      <section className="border-b border-gray-200 bg-gray-50 px-4 py-8 sm:px-6 lg:px-8">
+        <div className="mx-auto max-w-7xl">
+          <Link
+            href="/about"
+            className="inline-flex items-center gap-2 text-sm font-bold text-[#1677b8] hover:underline mb-4"
+          >
+            <ArrowLeft className="h-4 w-4" /> Back to About Overview
+          </Link>
+          <span className="block text-xs font-bold uppercase tracking-widest text-[#1677b8]">
+            Company Information
+          </span>
+          <h1 className="site-display mt-2 text-3xl sm:text-4xl font-extrabold text-[#0b1f33]">
+            Our Mission, Promise & Values
+          </h1>
+          <p className="mt-3 max-w-3xl text-base text-slate-600">
+            Connecting communities, local enterprises, and dispatch riders across
+            every district of Nepal with complete transparency.
+          </p>
+        </div>
+      </section>
+
+      {/* Mission + Promise */}
+      <section className="px-4 py-12 sm:px-6 lg:px-8 lg:py-16">
+        <div className="mx-auto grid max-w-7xl gap-6 lg:grid-cols-2">
+          <div className="rounded-2xl public-panel p-8 sm:p-10 text-white">
+            <p className="text-xs font-bold uppercase tracking-widest text-[#f4c542]">
+              Our mission
+            </p>
+            <h2 className="site-display mt-4 text-3xl font-extrabold">
+              Connect Nepal through dependable delivery.
+            </h2>
+            <p className="mt-5 leading-8 text-blue-100">
+              We are building a technology-enabled logistics network that
+              connects people, businesses, branches, hubs and riders around one
+              clear shipment journey.
+            </p>
+            <Link
+              href="/services"
+              className="mt-8 inline-flex items-center gap-2 text-sm font-bold text-[#f4c542] hover:text-[#ffd740] transition-colors"
+            >
+              See our services <ArrowRight className="h-4 w-4" />
+            </Link>
+          </div>
+          <div className="rounded-2xl border border-gray-200 bg-white p-8 sm:p-10 shadow-sm">
+            <p className="text-xs font-bold uppercase tracking-widest text-[#1677b8]">
+              Our promise
+            </p>
+            <h2 className="site-display mt-4 text-3xl font-extrabold text-gray-900">
+              Visibility without complexity.
+            </h2>
+            <p className="mt-5 leading-8 text-gray-600">
+              Every part of the customer experience should answer the same
+              question: what happens next? From pricing and tracking to delivery
+              and settlement, we keep it straightforward.
+            </p>
+            <Link
+              href="/contact"
+              className="mt-8 inline-flex items-center gap-2 text-sm font-bold text-[#1677b8] hover:text-[#0284c7] transition-colors"
+            >
+              Get in touch <ArrowRight className="h-4 w-4" />
+            </Link>
+          </div>
+        </div>
+      </section>
+
+      {/* Principles */}
+      <section className="bg-gray-50 px-4 py-12 sm:px-6 lg:px-8 lg:py-16">
+        <div className="mx-auto max-w-7xl">
+          <div className="mx-auto max-w-2xl text-center">
+            <p className="text-xs font-bold uppercase tracking-widest text-[#1677b8]">
+              What guides us
+            </p>
+            <h2 className="site-display mt-3 text-3xl sm:text-4xl font-extrabold text-gray-900">
+              Principles behind the network.
+            </h2>
+          </div>
+          <div className="mt-12 grid gap-5 md:grid-cols-2 lg:grid-cols-4">
+            {[
+              [
+                Target,
+                "Reliability",
+                "Do the basics exceptionally well, every single day.",
+              ],
+              [
+                Eye,
+                "Visibility",
+                "Make shipment progress clear and understandable.",
+              ],
+              [
+                HeartHandshake,
+                "Trust",
+                "Treat every parcel and customer interaction with care.",
+              ],
+              [
+                Users,
+                "Community",
+                "Build local operations that strengthen the wider network.",
+              ],
+            ].map(([Icon, title, text]) => (
+              <div
+                key={title}
+                className="rounded-2xl border border-gray-200 bg-white p-7 shadow-sm"
+              >
+                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#1677b8]/12 text-[#1677b8]">
+                  <Icon className="h-6 w-6" />
+                </div>
+                <h3 className="mt-5 font-extrabold text-gray-900">{title}</h3>
+                <p className="mt-2 text-sm leading-6 text-gray-600">{text}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Stats */}
+      <section className="border-y border-gray-200 bg-white px-4 py-12 sm:px-6 lg:px-8">
+        <div className="mx-auto max-w-7xl grid gap-8 text-center sm:grid-cols-3">
+          {[
+            ["77 Districts", "Nationwide vision"],
+            ["100% Trackable", "Growing network"],
+            ["People First", "At the heart of delivery"],
+          ].map(([n, l]) => (
+            <div key={n}>
+              <p className="site-display text-4xl font-extrabold text-[#1677b8]">
+                {n}
+              </p>
+              <p className="mt-2 text-sm font-semibold text-gray-600">{l}</p>
+            </div>
+          ))}
+        </div>
+      </section>
+    </main>
+  );
+}
