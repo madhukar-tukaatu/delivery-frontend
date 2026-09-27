@@ -372,7 +372,6 @@ export default function LoginClient() {
             </Button>
           </Form>
         <Button type="link" onClick={() => router.push("/forgot-password")} className="auth-forgot">Forgot your password?</Button>
-        <div className="auth-register">New to Tukaatu? <Link href="/public/merchant-register">Create a merchant account →</Link></div>
         <p className="auth-footnote">Franchise managers: complete the password setup sent to your registered email before signing in.</p>
       </div>
       <p className="auth-legal"><Link href="/privacy-policy">Privacy policy</Link><span>·</span><Link href="/terms-conditions">Terms & conditions</Link></p>
