@@ -1366,14 +1366,14 @@ export default function StaffDeliveriesPage() {
               {paymentMethod === "online" && (
                 <Card
                   size="small"
-                  title="Store Manager payment"
+                  title="POD online payment (HamroPay)"
                   style={{ marginBottom: 16 }}
                 >
                   {paymentSessionLoading && (
                     <div style={{ textAlign: "center", padding: "16px 0" }}>
                       <Spin />
                       <div style={{ marginTop: 8 }}>
-                        Creating the shipment payment QR...
+                        Creating HamroPay POD payment QR...
                       </div>
                     </div>
                   )}
@@ -1397,7 +1397,7 @@ export default function StaffDeliveriesPage() {
                       type="warning"
                       showIcon
                       message="Waiting for payment confirmation"
-                      description="Ask the customer to scan this QR and complete the exact amount. This screen checks Store Manager until the payment is confirmed."
+                      description="Ask the customer to scan this QR and complete the exact amount. This screen checks HamroPay until the payment is confirmed."
                       style={{ marginBottom: 12 }}
                     />
                   )}
@@ -1407,7 +1407,7 @@ export default function StaffDeliveriesPage() {
                       type="success"
                       showIcon
                       message="Payment verified"
-                      description="Store Manager confirmed that the merchant received the payment."
+                      description="HamroPay confirmed that the merchant received the payment."
                       style={{ marginBottom: 12 }}
                     />
                   )}
@@ -1473,7 +1473,7 @@ export default function StaffDeliveriesPage() {
                         target="_blank"
                         rel="noreferrer"
                       >
-                        Open Store Manager checkout
+                        Open HamroPay checkout
                       </a>
                     </div>
                   )}
