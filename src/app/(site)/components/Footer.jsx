@@ -58,6 +58,9 @@ export default function Footer() {
             <Link href={pageInfo.href} className={styles.infoLink}>
               <span className={styles.infoDot} />
               {pageInfo.label}
+              {!pageInfo.label.startsWith("←") && (
+                <span aria-hidden="true" style={{ fontSize: "11px", fontWeight: 800 }}>→</span>
+              )}
             </Link>
           )}
           <a
