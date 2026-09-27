@@ -19,7 +19,7 @@ import {
 } from "lucide-react";
 import ContactForm from "./contact-form";
 import drawerStyles from "./ContactDrawer.module.css";
-import heroStyles from "./ContactHero.module.css";
+import heroStyles from "../components/HeroSummaryCard.module.css";
 
 export default function ContactClient() {
   const [open, setOpen] = useState(false);
@@ -100,9 +100,10 @@ export default function ContactClient() {
                 </button>
                 <Link
                   className="public-button public-button--outline"
-                  href="/contact/info"
+                  href="/tracking"
                 >
-                  Contact Info
+                  <PackageSearch size={18} />
+                  Track parcel
                   <ArrowRight size={18} />
                 </Link>
               </div>
