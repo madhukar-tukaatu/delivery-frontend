@@ -5,18 +5,15 @@ import Header from "./components/Header";
 import Footer from "./components/Footer";
 import MobileBottomNav from "./components/MobileBottomNav";
 
-const HERO_ONLY_PAGES = ["/about", "/services", "/franchise", "/pricing"];
-
 export default function SiteShell({ children }) {
   const pathname = usePathname();
   const isHome = pathname === "/";
-  const isHeroOnly = HERO_ONLY_PAGES.includes(pathname);
 
   return (
-    <div className={isHome ? undefined : `public-site ${isHeroOnly ? "public-site--hero-only" : ""}`}>
+    <div className={isHome ? undefined : "public-site"}>
       {!isHome && <Header />}
       {children}
-      {!isHome && <Footer showCta={true} />}
+      {!isHome && <Footer />}
       <MobileBottomNav />
     </div>
   );

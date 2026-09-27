@@ -2,127 +2,82 @@ import Link from "next/link";
 import Image from "next/image";
 import styles from "./Footer.module.css";
 
-const navGroups = [
-  {
-    heading: "Company",
-    links: [
-      { label: "About us", href: "/about" },
-      { label: "Delivery Services", href: "/services" },
-      { label: "Pricing Calculator", href: "/pricing" },
-      { label: "Contact Us", href: "/contact" },
-    ],
-  },
-  {
-    heading: "Merchants & Partners",
-    links: [
-      { label: "Join as Partner", href: "/public/merchant-register" },
-      { label: "Business Logistics", href: "/business" },
-      { label: "Franchise Network", href: "/franchise" },
-      { label: "Apply for Franchise", href: "/franchise/apply" },
-      { label: "Merchant Sign In", href: "/login" },
-    ],
-  },
-  {
-    heading: "Support & Legal",
-    links: [
-      { label: "Track a Parcel", href: "/tracking" },
-      { label: "Help & Support", href: "/contact" },
-      { label: "Privacy Policy", href: "/privacy-policy" },
-      { label: "Terms & Conditions", href: "/terms-conditions" },
-    ],
-  },
-];
-
-export default function Footer({ showCta = true } = {}) {
+export default function Footer() {
   return (
     <footer className={styles.footer} aria-label="Tukaatu Express footer">
-      {/* ── CTA Band ── */}
-      {showCta && (
-        <div className={styles.cta}>
-          <div className={styles.ctaInner}>
-            <div className={styles.ctaText}>
-              <p className={styles.ctaEyebrow}>Sell more. Deliver better.</p>
-              <h2 className={styles.ctaHeading}>Grow your business with Tukaatu.</h2>
-              <p className={styles.ctaSub}>
-                Join hundreds of stores already delivering across Nepal with live tracking, POD collection and full settlement visibility.
-              </p>
-            </div>
-            <div className={styles.ctaActions}>
-              <Link href="/public/merchant-register" className={styles.ctaPrimary}>
-                Join as Store Partner →
-              </Link>
-              <Link href="/contact" className={styles.ctaSecondary}>
-                Get in Touch
-              </Link>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ── Main Footer Body ── */}
-      <div className={styles.body}>
-        <div className={styles.bodyInner}>
-          {/* Brand Column */}
-          <div className={styles.brand}>
+      <div className={styles.inner}>
+        <div className={styles.footerGrid}>
+          {/* Column 1: Brand */}
+          <div className={styles.brandCol}>
             <Link href="/" className={styles.logoWrap}>
               <Image
                 src="/images/logo.png"
                 alt="Tukaatu Express"
-                width={140}
-                height={40}
+                width={135}
+                height={38}
                 className={styles.logoImg}
               />
             </Link>
-            <p className={styles.tagline}>
-              A technology-enabled logistics network connecting people and businesses across Nepal through one intelligent delivery platform.
+            <p className={styles.brandDesc}>
+              Nepal's Next-Generation Logistics Network. Unifying live parcel
+              tracking, same-day POD cash settlement, and nationwide door-to-door
+              delivery into one platform.
             </p>
-            <div className={styles.badges}>
-              <span className={styles.badge}>🇳🇵 Nepal</span>
-              <span className={styles.badge}>7 Provinces</span>
-              <span className={styles.badge}>Live tracking</span>
+            <div className={styles.statusBadge}>
+              <span className={styles.statusDot} /> System Status: 100% Operational
             </div>
           </div>
 
-          {/* Navigation Columns */}
-          <div className={styles.navGrid}>
-            {navGroups.map((group) => (
-              <div key={group.heading} className={styles.navCol}>
-                <p className={styles.navHeading}>{group.heading}</p>
-                <ul className={styles.navList}>
-                  {group.links.map((link) => (
-                    <li key={link.href + link.label}>
-                      <Link href={link.href} className={styles.navLink}>
-                        {link.label}
-                      </Link>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            ))}
+          {/* Column 2: Navigation */}
+          <div className={styles.navCol}>
+            <p className={styles.colTitle}>Navigation</p>
+            <div className={styles.linkList}>
+              <Link href="/about" className={styles.link}>About Tukaatu</Link>
+              <Link href="/services" className={styles.link}>Delivery Services</Link>
+              <Link href="/pricing" className={styles.link}>Pricing Calculator</Link>
+              <Link href="/franchise" className={styles.link}>Franchise Network</Link>
+              <Link href="/contact" className={styles.link}>Contact Us</Link>
+            </div>
+          </div>
+
+          {/* Column 3: Services (links directly to service details on the services page) */}
+          <div className={styles.navCol}>
+            <p className={styles.colTitle}>Services</p>
+            <div className={styles.linkList}>
+              <Link href="/services#standard" className={styles.link}>Standard Delivery</Link>
+              <Link href="/services#express" className={styles.link}>Express Delivery</Link>
+              <Link href="/services#same-day" className={styles.link}>Same Day Delivery</Link>
+              <Link href="/services#pod" className={styles.link}>POD & Cash Settlement</Link>
+              <Link href="/tracking" className={styles.link}>Smart Parcel Tracking</Link>
+            </div>
+          </div>
+
+          {/* Column 4: Portals & Access */}
+          <div className={styles.navCol}>
+            <p className={styles.colTitle}>Portals & Access</p>
+            <div className={styles.linkList}>
+              <Link href="/login" className={styles.link}>Merchant Portal →</Link>
+              <Link href="/public/merchant-register" className={styles.link}>Register New Store</Link>
+              <Link href="/franchise/apply" className={styles.link}>Franchise Application</Link>
+              <Link href="/contact" className={styles.link}>Help & Support</Link>
+            </div>
           </div>
         </div>
-      </div>
 
-      {/* ── Bottom Bar ── */}
-      <div className={styles.bottom}>
-        <div className={styles.bottomInner}>
-          <span className={styles.copy}>
-            © {new Date().getFullYear()} Tukaatu Express Pvt. Ltd. All rights reserved.
-          </span>
-          <div className={styles.bottomLinks}>
-            <Link href="/privacy-policy" className={styles.bottomLink}>
-              Privacy Policy
-            </Link>
-            <span className={styles.dot} />
-            <Link href="/terms-conditions" className={styles.bottomLink}>
-              Terms & Conditions
-            </Link>
-            <span className={styles.dot} />
-            <Link href="/contact" className={styles.bottomLink}>
-              Contact
-            </Link>
+        {/* Bottom Bar */}
+        <div className={styles.bottomBar}>
+          <div className={styles.copyright}>
+            © {new Date().getFullYear()} Tukaatu Express. All rights reserved.
           </div>
-          <span className={styles.madeIn}>Made for Nepal 🇳🇵</span>
+          <div className={styles.bottomLinks}>
+            <Link href="/privacy-policy" className={styles.bottomLink}>Privacy Policy</Link>
+            <span className={styles.dot} />
+            <Link href="/terms-conditions" className={styles.bottomLink}>Terms of Service</Link>
+            <span className={styles.dot} />
+            <Link href="/contact" className={styles.bottomLink}>Contact</Link>
+            <span className={styles.dot} />
+            <span className={styles.madeIn}>Made for Nepal 🇳🇵</span>
+          </div>
         </div>
       </div>
     </footer>
