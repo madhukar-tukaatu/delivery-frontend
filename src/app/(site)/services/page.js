@@ -13,8 +13,8 @@ export default function ServicesPage() {
         accent="The right service."
         description="From everyday store orders to time-sensitive urgent parcels, find a delivery service that fits your business, your budget and your customers."
         note="A better journey for every parcel."
-        primary={{ href: "/pricing", label: "Calculate price" }}
-        secondary={{ href: "/services/info", label: "Services Info" }}
+        primary={{ href: "/services/info", label: "Services Info" }}
+        secondary={{ href: "/contact", label: "Book a pickup" }}
       />
     </main>
   );
