@@ -63,6 +63,9 @@ export default function Footer() {
               )}
             </Link>
           )}
+          <Link href="/login" className={styles.link}>
+            Admin/Staff
+          </Link>
           <a
             href="https://store.tukaatu.com/login"
             target="_blank"
