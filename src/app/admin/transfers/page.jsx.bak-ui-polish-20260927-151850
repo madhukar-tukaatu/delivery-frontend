@@ -346,82 +346,70 @@ function resolveShipmentNextHop(shipment, availableRoutes = []) {
 
 function buildNextHopGroups(routes, shipments) {
   const map = {};
-  const ensureGroup = (key, seed) => {
-    if (!map[key]) {
-      map[key] = {
-        key,
-        nextHopId: seed.nextHopId,
-        nextHopName: seed.nextHopName,
-        serviceType: seed.serviceType,
-        routes: [],
-        routeIds: new Set(),
-        finalCounts: new Map(), // destKey -> { key, name, count }
-        count: 0,
-        shipmentIds: [],
-      };
-    }
-    return map[key];
-  };
-
   (routes || []).forEach((route) => {
     const hopId = Number(route.next_hop_branch_id || 0);
     if (!hopId) return;
     const svc = String(route.service_type || "standard").toLowerCase();
     const key = `${hopId}::${svc}`;
-    const g = ensureGroup(key, {
-      nextHopId: hopId,
-      nextHopName: route.next_hop_name || `Branch #${hopId}`,
-      serviceType: svc,
-    });
-    const id = Number(route.route_id ?? route.id);
-    if (!g.routeIds.has(id)) {
-      g.routeIds.add(id);
-      g.routes.push(route);
+    if (!map[key]) {
+      map[key] = {
+        key,
+        nextHopId: hopId,
+        nextHopName: route.next_hop_name || `Branch #${hopId}`,
+        serviceType: svc,
+        routes: [],
+        routeIds: new Set(),
+        finals: new Map(),
+        count: 0,
+        shipmentIds: [],
+      };
     }
+    const id = Number(route.route_id ?? route.id);
+    if (!map[key].routeIds.has(id)) {
+      map[key].routeIds.add(id);
+      map[key].routes.push(route);
+    }
+    const finalName = route.destination_branch_name || route.route_code || `#${id}`;
+    map[key].finals.set(String(route.destination_branch_id || finalName), finalName);
   });
 
   (shipments || []).forEach((s) => {
     const hop = resolveShipmentNextHop(s, routes);
     if (!hop.id) return;
     const key = `${hop.id}::${hop.service}`;
-    const g = ensureGroup(key, {
-      nextHopId: hop.id,
-      nextHopName: hop.name || `Branch #${hop.id}`,
-      serviceType: hop.service,
-    });
-    g.count += 1;
-    g.shipmentIds.push(s.id);
-    const dest = routeLabel(
-      s.destination_branch,
-      s.destination_sub_branch,
-      s.hop_meta?.destination_name || "Final"
-    );
-    const destKey = String(s.destination_sub_branch_id || s.destination_branch_id || dest);
-    const existing = g.finalCounts.get(destKey);
-    if (existing) existing.count += 1;
-    else g.finalCounts.set(destKey, { key: destKey, name: dest, count: 1 });
+    if (!map[key]) {
+      map[key] = {
+        key,
+        nextHopId: hop.id,
+        nextHopName: hop.name || `Branch #${hop.id}`,
+        serviceType: hop.service,
+        routes: hop.route ? [hop.route] : [],
+        routeIds: new Set(hop.route ? [Number(hop.route.route_id ?? hop.route.id)] : []),
+        finals: new Map(),
+        count: 0,
+        shipmentIds: [],
+      };
+    }
+    map[key].count += 1;
+    map[key].shipmentIds.push(s.id);
+    const dest = routeLabel(s.destination_branch, s.destination_sub_branch, s.hop_meta?.destination_name || "Final");
+    map[key].finals.set(String(s.destination_sub_branch_id || s.destination_branch_id || dest), dest);
     if (hop.route) {
       const rid = Number(hop.route.route_id ?? hop.route.id);
-      if (rid && !g.routeIds.has(rid)) {
-        g.routeIds.add(rid);
-        g.routes.push(hop.route);
+      if (rid && !map[key].routeIds.has(rid)) {
+        map[key].routeIds.add(rid);
+        map[key].routes.push(hop.route);
       }
     }
   });
 
   return Object.values(map)
-    .map((g) => {
-      const finalBreakdown = Array.from(g.finalCounts.values()).sort(
-        (a, b) => b.count - a.count || String(a.name).localeCompare(String(b.name))
-      );
-      return {
-        ...g,
-        routeIds: Array.from(g.routeIds).filter(Boolean),
-        finalBreakdown,
-        finalNames: finalBreakdown.map((f) => f.name),
-        routeCodes: (g.routes || []).map((r) => r.route_code || r.route_name).filter(Boolean),
-      };
-    })
+    .map((g) => ({
+      ...g,
+      routeIds: Array.from(g.routeIds).filter(Boolean),
+      finalNames: Array.from(g.finals.values()),
+      routeCodes: (g.routes || []).map((r) => r.route_code || r.route_name).filter(Boolean),
+    }))
     .sort((a, b) => b.count - a.count || String(a.nextHopName).localeCompare(String(b.nextHopName)));
 }
 
@@ -454,157 +442,6 @@ function TruncatedSummary({ label, items, max = 3 }) {
         {rest > 0 ? ` +${rest}` : ""}
       </Text>
     </Tooltip>
-  );
-}
-
-/** Stable accent palette hashed from next-hop branch id. */
-const HOP_ACCENT_PALETTE = [
-  { border: "#1677ff", badge: "#1677ff", soft: "#e6f4ff", selectedBg: "rgba(22,119,255,0.12)", chip: "blue" },
-  { border: "#13c2c2", badge: "#13c2c2", soft: "#e6fffb", selectedBg: "rgba(19,194,194,0.12)", chip: "cyan" },
-  { border: "#722ed1", badge: "#722ed1", soft: "#f9f0ff", selectedBg: "rgba(114,46,209,0.12)", chip: "purple" },
-  { border: "#eb2f96", badge: "#eb2f96", soft: "#fff0f6", selectedBg: "rgba(235,47,150,0.12)", chip: "magenta" },
-  { border: "#fa8c16", badge: "#fa8c16", soft: "#fff7e6", selectedBg: "rgba(250,140,22,0.12)", chip: "orange" },
-  { border: "#52c41a", badge: "#52c41a", soft: "#f6ffed", selectedBg: "rgba(82,196,26,0.12)", chip: "green" },
-  { border: "#2f54eb", badge: "#2f54eb", soft: "#f0f5ff", selectedBg: "rgba(47,84,235,0.12)", chip: "geekblue" },
-  { border: "#a0d911", badge: "#7cb305", soft: "#fcffe6", selectedBg: "rgba(160,217,17,0.14)", chip: "lime" },
-];
-
-function hopAccent(nextHopId) {
-  const id = Math.abs(Number(nextHopId) || 0);
-  return HOP_ACCENT_PALETTE[id % HOP_ACCENT_PALETTE.length];
-}
-
-const FINAL_CHIP_COLORS = [
-  "purple", "geekblue", "cyan", "magenta", "orange", "green", "blue", "volcano", "gold", "lime",
-];
-
-function finalChipColor(key) {
-  const s = String(key || "");
-  let h = 0;
-  for (let i = 0; i < s.length; i += 1) h = (h * 31 + s.charCodeAt(i)) >>> 0;
-  return FINAL_CHIP_COLORS[h % FINAL_CHIP_COLORS.length];
-}
-
-function FinalBreakdownChips({ items, max = 6, size = "default" }) {
-  const list = Array.isArray(items) ? items.filter((f) => f && f.name) : [];
-  if (!list.length) return null;
-  const shown = list.slice(0, max);
-  const rest = list.slice(max);
-  const tagStyle =
-    size === "small"
-      ? { margin: 0, fontSize: 11, lineHeight: "18px", padding: "0 6px" }
-      : { margin: 0 };
-  return (
-    <Space size={4} wrap>
-      {shown.map((f) => (
-        <Tooltip key={f.key || f.name} title={`${f.name}: ${f.count} parcel${f.count === 1 ? "" : "s"}`}>
-          <Tag color={finalChipColor(f.key || f.name)} style={tagStyle}>
-            {f.name} <Text strong style={{ fontSize: size === "small" ? 11 : 12 }}>{f.count}</Text>
-          </Tag>
-        </Tooltip>
-      ))}
-      {rest.length > 0 ? (
-        <Tooltip title={rest.map((f) => `${f.name} ${f.count}`).join(", ")}>
-          <Tag style={tagStyle}>+{rest.length}</Tag>
-        </Tooltip>
-      ) : null}
-    </Space>
-  );
-}
-
-/**
- * Collapsible unmatched-parcels notice — softer when other hops already match.
- */
-function UnmatchedParcelsAlert({ unmatched, hasMatchedHops }) {
-  const [open, setOpen] = useState(false);
-  const list = Array.isArray(unmatched) ? unmatched : [];
-  if (!list.length) return null;
-
-  const tracking = list
-    .map((s) => s.tracking_number || (s.id != null ? `#${s.id}` : null))
-    .filter(Boolean);
-  const shown = tracking.slice(0, 12);
-  const rest = tracking.length - shown.length;
-  const alertType = hasMatchedHops ? "warning" : "error";
-  const title = hasMatchedHops
-    ? `${list.length} ready parcel${list.length === 1 ? "" : "s"} need a transfer route`
-    : `${list.length} ready parcel${list.length === 1 ? "" : "s"} have no matching active route`;
-  const reason = hasMatchedHops
-    ? "These destinations/service types are not covered yet — other ready parcels already match a next hop and can be bagged normally."
-    : "No active transfer route matches their destination and service type, so they cannot be bagged yet.";
-
-  return (
-    <Alert
-      type={alertType}
-      showIcon
-      style={{ padding: "6px 10px", borderRadius: 8 }}
-      message={
-        <Space wrap size={[8, 4]} style={{ width: "100%", justifyContent: "space-between" }}>
-          <Text strong style={{ fontSize: 13 }}>
-            {title}
-          </Text>
-          <Button
-            type="link"
-            size="small"
-            style={{ padding: 0, height: "auto" }}
-            onClick={() => setOpen((v) => !v)}
-          >
-            {open ? "Hide details" : "Show details"}
-          </Button>
-        </Space>
-      }
-      description={
-        open ? (
-          <Space direction="vertical" size={6} style={{ width: "100%" }}>
-            <Text type="secondary" style={{ fontSize: 12 }}>
-              {reason}
-            </Text>
-            {shown.length > 0 ? (
-              <div>
-                <Text type="secondary" style={{ fontSize: 11, marginRight: 6 }}>
-                  Tracking:
-                </Text>
-                <Space size={4} wrap>
-                  {shown.map((t) => (
-                    <Tag key={t} style={{ margin: 0, fontFamily: "monospace", fontSize: 11 }}>
-                      {t}
-                    </Tag>
-                  ))}
-                  {rest > 0 ? <Tag style={{ margin: 0 }}>+{rest} more</Tag> : null}
-                </Space>
-              </div>
-            ) : null}
-            <div>
-              <Link href="/admin/branch-transfer-routes">
-                <Button type="primary" size="small" ghost>
-                  Open Transfer Routes
-                </Button>
-              </Link>
-              <Text type="secondary" style={{ fontSize: 11, marginLeft: 8 }}>
-                Admin → Transfer Routes — add an active route for each missing destination / service.
-              </Text>
-            </div>
-          </Space>
-        ) : (
-          <span style={{ fontSize: 12 }}>
-            {hasMatchedHops
-              ? "Other parcels already match a next hop. "
-              : ""}
-            Create missing routes under{" "}
-            <Link href="/admin/branch-transfer-routes">Transfer Routes</Link>
-            {" — "}
-            <Button
-              type="link"
-              size="small"
-              style={{ padding: 0, height: "auto", fontSize: 12 }}
-              onClick={() => setOpen(true)}
-            >
-              list tracking #
-            </Button>
-          </span>
-        )
-      }
-    />
   );
 }
 
@@ -706,23 +543,9 @@ function NextHopMasterDetail({
             s.destination_sub_branch,
             s.hop_meta?.destination_name || "Final"
           );
-          const destKey = String(
-            s.destination_sub_branch_id || s.destination_branch_id || dest
-          );
           return (
             <Tooltip title={dest}>
-              <Tag
-                color={finalChipColor(destKey)}
-                style={{
-                  margin: 0,
-                  maxWidth: 150,
-                  overflow: "hidden",
-                  textOverflow: "ellipsis",
-                  fontSize: 11,
-                }}
-              >
-                {dest}
-              </Tag>
+              <Text style={{ fontSize: 12 }}>{dest}</Text>
             </Tooltip>
           );
         },
@@ -860,7 +683,6 @@ function NextHopMasterDetail({
             ) : (
               visibleGroups.map((g) => {
                 const isSelected = selectedNextHopKey === g.key;
-                const accent = hopAccent(g.nextHopId);
                 return (
                   <div
                     key={g.key}
@@ -874,88 +696,38 @@ function NextHopMasterDetail({
                         selectGroup(g);
                       }
                     }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.transform = "translateY(-1px)";
-                      e.currentTarget.style.boxShadow = "0 2px 8px rgba(0,0,0,0.08)";
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.transform = "none";
-                      e.currentTarget.style.boxShadow = isSelected
-                        ? `0 0 0 1px ${accent.border}33`
-                        : "none";
-                    }}
                     style={{
                       cursor: "pointer",
                       borderRadius: 8,
-                      border: `1px solid ${isSelected ? accent.border : "#f0f0f0"}`,
-                      borderLeft: `4px solid ${accent.border}`,
-                      background: isSelected ? accent.selectedBg : "#fff",
-                      boxShadow: isSelected ? `0 0 0 1px ${accent.border}33` : "none",
+                      border: isSelected ? "1.5px solid #1677ff" : "1px solid #f0f0f0",
+                      background: isSelected ? "rgba(22,119,255,0.06)" : "#fff",
+                      boxShadow: isSelected ? "0 0 0 1px rgba(22,119,255,.2)" : undefined,
                       padding: "8px 10px",
                       outline: "none",
-                      transition: "border-color .15s, background .15s, box-shadow .15s, transform .15s",
+                      transition: "border-color .15s, background .15s",
                     }}
                   >
-                    <div style={{ display: "flex", gap: 10, alignItems: "flex-start" }}>
-                      <div style={{ flex: "0 0 auto", textAlign: "center", minWidth: 36 }}>
-                        <div
-                          style={{
-                            fontSize: 22,
-                            fontWeight: 700,
-                            lineHeight: 1.1,
-                            color: accent.badge,
-                          }}
-                          title="Ready parcels to this next hop"
-                        >
-                          {g.count}
-                        </div>
-                        <Text type="secondary" style={{ fontSize: 10 }}>
-                          total
+                    <Space
+                      style={{ width: "100%", justifyContent: "space-between" }}
+                      size={4}
+                      wrap
+                    >
+                      <Space size={4} wrap>
+                        <Text strong style={{ fontSize: 13 }}>
+                          → {g.nextHopName}
                         </Text>
-                      </div>
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <Space size={4} wrap style={{ marginBottom: 4 }}>
-                          <Text strong style={{ fontSize: 13 }}>
-                            → {g.nextHopName}
-                          </Text>
-                          <Tag
-                            color={accent.chip}
-                            style={{ margin: 0, fontSize: 11, lineHeight: "18px", padding: "0 6px" }}
-                          >
-                            next
-                          </Tag>
-                          <ServiceTypeTag value={g.serviceType} />
-                        </Space>
-                        {(g.finalBreakdown || []).length > 0 ? (
-                          <div style={{ marginBottom: 2 }}>
-                            <FinalBreakdownChips items={g.finalBreakdown} max={4} size="small" />
-                          </div>
-                        ) : (
-                          <Text type="secondary" style={{ fontSize: 11, display: "block" }}>
-                            No ready parcels yet
-                          </Text>
-                        )}
-                        {(g.routeCodes || []).length > 0 ? (
-                          <Text
-                            type="secondary"
-                            style={{
-                              fontSize: 10,
-                              display: "block",
-                              overflow: "hidden",
-                              textOverflow: "ellipsis",
-                              whiteSpace: "nowrap",
-                              opacity: 0.75,
-                            }}
-                            title={(g.routeCodes || []).join(", ")}
-                          >
-                            {(g.routeCodes || []).slice(0, 3).join(" · ")}
-                            {(g.routeCodes || []).length > 3
-                              ? ` +${g.routeCodes.length - 3}`
-                              : ""}
-                          </Text>
-                        ) : null}
-                      </div>
-                    </div>
+                        <ServiceTypeTag value={g.serviceType} />
+                      </Space>
+                      <Badge
+                        count={g.count}
+                        showZero
+                        overflowCount={999}
+                        style={{ backgroundColor: g.count ? "#1677ff" : "#d9d9d9" }}
+                        title="Ready parcels to this next hop"
+                      />
+                    </Space>
+                    <TruncatedSummary label="Finals" items={g.finalNames} max={3} />
+                    <TruncatedSummary label="Routes" items={g.routeCodes} max={3} />
                   </div>
                 );
               })
@@ -1002,57 +774,61 @@ function NextHopMasterDetail({
             />
           ) : (
             <>
-              {(() => {
-                const accent = hopAccent(selected.nextHopId);
-                return (
               <Space
                 wrap
-                style={{
-                  width: "100%",
-                  justifyContent: "space-between",
-                  padding: "8px 10px",
-                  borderRadius: 8,
-                  borderLeft: `4px solid ${accent.border}`,
-                  background: accent.soft,
-                }}
+                style={{ width: "100%", justifyContent: "space-between" }}
                 size={[8, 6]}
               >
-                <Space direction="vertical" size={4} style={{ minWidth: 0, flex: 1 }}>
-                  <Space size={6} wrap align="center">
+                <Space direction="vertical" size={2} style={{ minWidth: 0, flex: 1 }}>
+                  <Space size={6} wrap>
                     <Text strong style={{ fontSize: 14 }}>
                       {fromLabel}
                     </Text>
-                    <ArrowRightOutlined style={{ color: accent.badge }} />
-                    <Text strong style={{ fontSize: 14, color: accent.badge }}>
+                    <ArrowRightOutlined style={{ color: "#1677ff" }} />
+                    <Text strong style={{ fontSize: 14, color: "#1677ff" }}>
                       {selected.nextHopName}
                     </Text>
                     <ServiceTypeTag value={selected.serviceType} />
                     <Badge
                       count={selected.count}
                       overflowCount={999}
-                      style={{ backgroundColor: accent.badge }}
-                      title="Total parcels to this next hop"
+                      style={{ backgroundColor: "#1677ff" }}
                     />
-                    <Text type="secondary" style={{ fontSize: 12 }}>
-                      total
-                    </Text>
                   </Space>
-                  {(selected.finalBreakdown || []).length > 0 ? (
-                    <div>
-                      <Text type="secondary" style={{ fontSize: 11, marginRight: 6 }}>
-                        By final:
-                      </Text>
-                      <FinalBreakdownChips items={selected.finalBreakdown} max={8} size="small" />
-                    </div>
-                  ) : null}
-                  {(selected.routeCodes || []).length > 0 ? (
-                    <Text type="secondary" style={{ fontSize: 11, opacity: 0.8 }}>
-                      Routes: {(selected.routeCodes || []).slice(0, 5).join(" · ")}
-                      {(selected.routeCodes || []).length > 5
-                        ? ` +${selected.routeCodes.length - 5}`
-                        : ""}
-                    </Text>
-                  ) : null}
+                  <Space size={4} wrap>
+                    {(selected.finalNames || []).slice(0, 6).map((name) => (
+                      <Tooltip key={name} title={name}>
+                        <Tag
+                          color="purple"
+                          style={{
+                            margin: 0,
+                            maxWidth: 140,
+                            overflow: "hidden",
+                            textOverflow: "ellipsis",
+                          }}
+                        >
+                          {name}
+                        </Tag>
+                      </Tooltip>
+                    ))}
+                    {(selected.finalNames || []).length > 6 ? (
+                      <Tooltip title={(selected.finalNames || []).slice(6).join(", ")}>
+                        <Tag style={{ margin: 0 }}>+{selected.finalNames.length - 6}</Tag>
+                      </Tooltip>
+                    ) : null}
+                  </Space>
+                  <Space size={4} wrap>
+                    {(selected.routeCodes || []).slice(0, 5).map((code) => (
+                      <Tag key={code} style={{ margin: 0, fontSize: 11 }}>
+                        {code}
+                      </Tag>
+                    ))}
+                    {(selected.routeCodes || []).length > 5 ? (
+                      <Tooltip title={(selected.routeCodes || []).slice(5).join(", ")}>
+                        <Tag style={{ margin: 0 }}>+{selected.routeCodes.length - 5}</Tag>
+                      </Tooltip>
+                    ) : null}
+                  </Space>
                 </Space>
                 {canDispatch ? (
                   <Button
@@ -1062,14 +838,11 @@ function NextHopMasterDetail({
                     disabled={!selected.count || !selectedRowKeys?.length || dispatching}
                     loading={dispatching}
                     onClick={() => onDispatch?.(selected)}
-                    style={{ backgroundColor: accent.badge, borderColor: accent.badge }}
                   >
                     Dispatch Transfer
                   </Button>
                 ) : null}
               </Space>
-                );
-              })()}
 
               <div style={{ flex: 1, overflow: "auto", minHeight: 0 }}>
                 <Table
@@ -2420,11 +2193,18 @@ export default function TransfersPage() {
               )}
 
               {unmatchedOutbound.length > 0 && (
-                <UnmatchedParcelsAlert
-                  unmatched={unmatchedOutbound}
-                  hasMatchedHops={outboundRows.some((s) =>
-                    availableRoutes.some((r) => shipmentMatchesRoute(s, r))
-                  )}
+                <Alert
+                  type="error"
+                  showIcon
+                  style={{ padding: "6px 10px" }}
+                  message={`${unmatchedOutbound.length} ready parcel(s) have no matching active route`}
+                  description={
+                    <span>
+                      Create routes under{" "}
+                      <Link href="/admin/branch-transfer-routes">Transfer Routes</Link>
+                      {" "}for each destination / service type.
+                    </span>
+                  }
                 />
               )}
 
