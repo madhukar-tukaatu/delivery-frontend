@@ -14,20 +14,20 @@
   top: 0;
   right: 0;
   bottom: 0;
-  width: min(620px, 100vw);
+  width: min(660px, 100vw);
   background: #ffffff;
-  box-shadow: -8px 0 36px rgba(11, 31, 51, 0.18);
+  box-shadow: -10px 0 40px rgba(11, 31, 51, 0.2);
   z-index: 51;
   display: flex;
   flex-direction: column;
-  animation: slideInRight 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  animation: slideInRight 0.28s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .drawerHeader {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 18px 24px;
+  padding: 20px 26px;
   border-bottom: 1px solid #e2e8f0;
   background: #f8fafc;
   flex-shrink: 0;
@@ -40,6 +40,9 @@
 }
 
 .drawerEyebrow {
+  display: flex;
+  align-items: center;
+  gap: 6px;
   font-size: 11px;
   font-weight: 800;
   text-transform: uppercase;
@@ -47,8 +50,17 @@
   color: #027196;
 }
 
+.liveDot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #10b981;
+  display: inline-block;
+  animation: pulse 2s infinite;
+}
+
 .drawerTitle {
-  font-size: 20px;
+  font-size: 22px;
   font-weight: 800;
   color: #0b1f33;
   margin: 0;
@@ -59,8 +71,8 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 36px;
-  height: 36px;
+  width: 38px;
+  height: 38px;
   border-radius: 50%;
   border: 1px solid #cbd5e1;
   background: #ffffff;
@@ -73,14 +85,148 @@
   background: #f1f5f9;
   color: #0b1f33;
   border-color: #94a3b8;
-  transform: scale(1.05);
+  transform: scale(1.08);
 }
 
 .drawerBody {
   flex: 1;
   overflow-y: auto;
-  padding: 20px 24px 40px;
+  padding: 24px;
   -webkit-overflow-scrolling: touch;
+  background: #f8fafc;
+}
+
+/* Custom scrollbar for clean drawer presentation */
+.drawerBody::-webkit-scrollbar {
+  width: 6px;
+}
+
+.drawerBody::-webkit-scrollbar-track {
+  background: #f1f5f9;
+}
+
+.drawerBody::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 3px;
+}
+
+.drawerBody::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+/* Drawer UI optimizations for the embedded Pricing Calculator */
+.drawerBody :global(.calc-section) {
+  padding: 0 !important;
+}
+
+.drawerBody :global(.calc-grid) {
+  grid-template-columns: 1fr !important;
+  max-width: 100% !important;
+  gap: 1.25rem !important;
+  margin: 0 !important;
+}
+
+.drawerBody :global(.calc-form) {
+  padding: 1.5rem !important;
+  border-radius: 1.25rem !important;
+  background: #ffffff !important;
+  border: 1px solid #e2e8f0 !important;
+  box-shadow: 0 4px 20px rgba(11, 31, 51, 0.05) !important;
+}
+
+.drawerBody :global(.result-panel) {
+  border-radius: 1.25rem !important;
+  padding: 1.5rem !important;
+}
+
+/* Floating interactive hero card on the side of the image */
+.heroCard {
+  background: rgba(255, 255, 255, 0.94);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(226, 232, 240, 0.9);
+  border-radius: 1.5rem;
+  padding: 2rem;
+  box-shadow: 0 16px 40px rgba(11, 31, 51, 0.12);
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  max-width: 440px;
+  margin-left: auto;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.heroCard:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 20px 48px rgba(11, 31, 51, 0.16);
+}
+
+.heroCardBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #027196;
+}
+
+.heroCardTitle {
+  font-size: 22px;
+  font-weight: 800;
+  color: #0b1f33;
+  margin: 0;
+  letter-spacing: -0.02em;
+}
+
+.heroCardDesc {
+  font-size: 13.5px;
+  line-height: 1.6;
+  color: #64748b;
+  margin: 0;
+}
+
+.heroCardList {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.heroCardItem {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #334155;
+}
+
+.heroCardBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  padding: 13px 20px;
+  border-radius: 12px;
+  background: #f4c542;
+  color: #0b1f33;
+  font-size: 14px;
+  font-weight: 800;
+  border: none;
+  cursor: pointer;
+  transition: all 0.16s ease;
+  box-shadow: 0 4px 14px rgba(244, 197, 66, 0.35);
+}
+
+.heroCardBtn:hover {
+  background: #ffda62;
+  transform: translateY(-1px);
+  box-shadow: 0 6px 18px rgba(244, 197, 66, 0.45);
 }
 
 @keyframes fadeIn {
@@ -101,14 +247,29 @@
   }
 }
 
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.5;
+    transform: scale(0.85);
+  }
+}
+
 @media (max-width: 640px) {
   .drawerPanel {
     width: 100vw;
   }
   .drawerHeader {
-    padding: 14px 16px;
+    padding: 14px 18px;
   }
   .drawerBody {
     padding: 16px;
+  }
+  .heroCard {
+    padding: 1.5rem;
+    margin-left: 0;
   }
 }
