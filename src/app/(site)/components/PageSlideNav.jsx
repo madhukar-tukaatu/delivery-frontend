@@ -29,7 +29,7 @@ export default function PageSlideNav() {
   // Find index in MAIN_SLIDES
   let currentIndex = MAIN_SLIDES.findIndex((s) => s.href === pathname);
 
-  // If on a sub-route (e.g. /services/info or /franchise/apply), match prefix
+  // If on a sub-route (e.g. /services/info or /franchise/info), match prefix
   if (currentIndex === -1) {
     currentIndex = MAIN_SLIDES.findIndex((s) => pathname.startsWith(s.href));
   }
