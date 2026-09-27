@@ -413,43 +413,7 @@ function buildNextHopGroups(routes, shipments) {
     .sort((a, b) => b.count - a.count || String(a.nextHopName).localeCompare(String(b.nextHopName)));
 }
 
-function TruncatedSummary({ label, items, max = 3 }) {
-  const list = Array.isArray(items) ? items.filter(Boolean) : [];
-  if (!list.length) {
-    return (
-      <Text type="secondary" style={{ fontSize: 11 }}>
-        {label}: —
-      </Text>
-    );
-  }
-  const shown = list.slice(0, max);
-  const rest = list.length - shown.length;
-  const full = list.join(", ");
-  return (
-    <Tooltip title={full}>
-      <Text
-        type="secondary"
-        style={{
-          fontSize: 11,
-          display: "block",
-          overflow: "hidden",
-          textOverflow: "ellipsis",
-          whiteSpace: "nowrap",
-          maxWidth: "100%",
-        }}
-      >
-        {label}: {shown.join(", ")}
-        {rest > 0 ? ` +${rest}` : ""}
-      </Text>
-    </Tooltip>
-  );
-}
-
-/**
- * Master-detail next-hop bagging board:
- * left = all next hops, right = selected hop detail + shipment table.
- */
-function NextHopMasterDetail({
+function NextHopPickerCards({
   routes,
   shipments,
   selectedNextHopKey,
@@ -458,147 +422,14 @@ function NextHopMasterDetail({
   loading,
   dispatching,
   canDispatch,
-  selectedRowKeys,
-  onSelectionChange,
 }) {
-  const [hopSearch, setHopSearch] = useState("");
-  const [listPage, setListPage] = useState(1);
   const groups = useMemo(() => buildNextHopGroups(routes, shipments), [routes, shipments]);
+  const withParcels = groups.filter((g) => g.count > 0);
+  const cards = withParcels.length ? withParcels : groups.slice(0, 8);
 
-  const filteredGroups = useMemo(() => {
-    const q = hopSearch.trim().toLowerCase();
-    if (!q) return groups;
-    return groups.filter((g) => {
-      const hay = [
-        g.nextHopName,
-        g.serviceType,
-        ...(g.finalNames || []),
-        ...(g.routeCodes || []),
-      ]
-        .join(" ")
-        .toLowerCase();
-      return hay.includes(q);
-    });
-  }, [groups, hopSearch]);
+  if (loading) return <Card size="small" loading style={{ borderRadius: 8 }} />;
 
-  const LIST_PAGE_SIZE = 15;
-  const useListPagination = filteredGroups.length > 20;
-  const pageCount = Math.max(1, Math.ceil(filteredGroups.length / LIST_PAGE_SIZE));
-  const safeListPage = Math.min(listPage, pageCount);
-  const visibleGroups = useListPagination
-    ? filteredGroups.slice((safeListPage - 1) * LIST_PAGE_SIZE, safeListPage * LIST_PAGE_SIZE)
-    : filteredGroups;
-
-  useEffect(() => {
-    setListPage(1);
-  }, [hopSearch]);
-
-  const selected = useMemo(
-    () => groups.find((g) => g.key === selectedNextHopKey) || null,
-    [groups, selectedNextHopKey]
-  );
-
-  const detailShipments = useMemo(() => {
-    if (!selected) return [];
-    const idSet = new Set(selected.shipmentIds || []);
-    return (shipments || []).filter((s) => idSet.has(s.id));
-  }, [selected, shipments]);
-
-  const fromLabel = useMemo(() => {
-    if (!detailShipments.length) return "This branch";
-    const s = detailShipments[0];
-    return (
-      routeLabel(s.current_branch, s.current_sub_branch, null) ||
-      routeLabel(s.origin_branch, s.origin_sub_branch, "Origin") ||
-      "This branch"
-    );
-  }, [detailShipments]);
-
-  const detailColumns = useMemo(
-    () => [
-      {
-        title: "Shipment",
-        key: "shipment",
-        width: 160,
-        render: (_, s) => (
-          <Space direction="vertical" size={2}>
-            <Text strong style={{ fontSize: 12 }}>
-              {s.tracking_number || `#${s.id}`}
-            </Text>
-            <Space size={4} wrap>
-              <TransferStageTag shipment={s} />
-              <ServiceTypeTag value={s.hop_meta?.service_type || s.service_type} />
-            </Space>
-          </Space>
-        ),
-      },
-      {
-        title: "Final destination",
-        key: "final_dest",
-        width: 160,
-        ellipsis: true,
-        render: (_, s) => {
-          const dest = routeLabel(
-            s.destination_branch,
-            s.destination_sub_branch,
-            s.hop_meta?.destination_name || "Final"
-          );
-          return (
-            <Tooltip title={dest}>
-              <Text style={{ fontSize: 12 }}>{dest}</Text>
-            </Tooltip>
-          );
-        },
-      },
-      {
-        title: "Receiver",
-        key: "receiver",
-        width: 140,
-        render: (_, s) => (
-          <Space direction="vertical" size={0}>
-            <Text style={{ fontSize: 12 }}>{s.receiver_name || "-"}</Text>
-            <Text type="secondary" style={{ fontSize: 10 }}>
-              {s.receiver_phone ? (
-                <Space size={4}>
-                  <PhoneOutlined />
-                  {s.receiver_phone}
-                </Space>
-              ) : (
-                "-"
-              )}
-            </Text>
-          </Space>
-        ),
-      },
-      {
-        title: "Payment",
-        key: "payment",
-        width: 110,
-        render: (_, s) =>
-          ["pod", "cod", "to_pay"].includes(String(s.payment_type || "").toLowerCase()) ? (
-            <Space direction="vertical" size={0}>
-              <Tag color="volcano" style={{ margin: 0 }}>
-                <DollarOutlined /> POD
-              </Tag>
-              <Text strong style={{ fontSize: 11 }}>
-                {money(s.total_collectable_amount || s.pod_amount)}
-              </Text>
-            </Space>
-          ) : (
-            <Tag color="green" style={{ margin: 0 }}>
-              Prepaid
-            </Tag>
-          ),
-      },
-    ],
-    []
-  );
-
-  if (loading) {
-    return <Card size="small" loading style={{ borderRadius: 8, minHeight: 320 }} />;
-  }
-
-  if (!groups.length) {
+  if (!cards.length) {
     return (
       <Alert
         type="warning"
@@ -615,283 +446,73 @@ function NextHopMasterDetail({
     );
   }
 
-  const selectGroup = (g) => {
-    if (!g) {
-      onSelect?.(null);
-      return;
-    }
-    onSelect?.(selectedNextHopKey === g.key ? null : g);
-  };
-
   return (
-    <Row gutter={[10, 10]} style={{ minHeight: 420 }}>
-      {/* Left: next-hop list (~38–42%) */}
-      <Col xs={24} lg={9} xl={9} style={{ display: "flex", flexDirection: "column" }}>
-        <Card
-          size="small"
-          title={
-            <Space size={6}>
-              <Text strong style={{ fontSize: 13 }}>
-                Next hops
-              </Text>
-              <Badge
-                count={groups.length}
-                overflowCount={999}
-                style={{ backgroundColor: "#1677ff" }}
-                title="Total next-hop destinations"
-              />
-            </Space>
-          }
-          styles={{
-            body: {
-              padding: 8,
-              display: "flex",
-              flexDirection: "column",
-              gap: 8,
-              maxHeight: 560,
-              minHeight: 320,
-            },
-          }}
-          style={{ borderRadius: 8, height: "100%" }}
-        >
-          <Input
-            allowClear
-            size="small"
-            prefix={<SearchOutlined style={{ color: "#bfbfbf" }} />}
-            placeholder="Search next hop, final, route…"
-            value={hopSearch}
-            onChange={(e) => setHopSearch(e.target.value)}
-          />
-          <div
-            style={{
-              flex: 1,
-              overflowY: "auto",
-              display: "flex",
-              flexDirection: "column",
-              gap: 6,
-              paddingRight: 2,
-            }}
-            role="listbox"
-            aria-label="Next hop destinations"
-          >
-            {visibleGroups.length === 0 ? (
-              <Empty
-                image={Empty.PRESENTED_IMAGE_SIMPLE}
-                description="No next hops match"
-                style={{ margin: "24px 0" }}
-              />
-            ) : (
-              visibleGroups.map((g) => {
-                const isSelected = selectedNextHopKey === g.key;
-                return (
-                  <div
-                    key={g.key}
-                    role="option"
-                    aria-selected={isSelected}
-                    tabIndex={0}
-                    onClick={() => selectGroup(g)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter" || e.key === " ") {
-                        e.preventDefault();
-                        selectGroup(g);
-                      }
-                    }}
-                    style={{
-                      cursor: "pointer",
-                      borderRadius: 8,
-                      border: isSelected ? "1.5px solid #1677ff" : "1px solid #f0f0f0",
-                      background: isSelected ? "rgba(22,119,255,0.06)" : "#fff",
-                      boxShadow: isSelected ? "0 0 0 1px rgba(22,119,255,.2)" : undefined,
-                      padding: "8px 10px",
-                      outline: "none",
-                      transition: "border-color .15s, background .15s",
-                    }}
-                  >
-                    <Space
-                      style={{ width: "100%", justifyContent: "space-between" }}
-                      size={4}
-                      wrap
-                    >
-                      <Space size={4} wrap>
-                        <Text strong style={{ fontSize: 13 }}>
-                          → {g.nextHopName}
-                        </Text>
-                        <ServiceTypeTag value={g.serviceType} />
-                      </Space>
-                      <Badge
-                        count={g.count}
-                        showZero
-                        overflowCount={999}
-                        style={{ backgroundColor: g.count ? "#1677ff" : "#d9d9d9" }}
-                        title="Ready parcels to this next hop"
-                      />
-                    </Space>
-                    <TruncatedSummary label="Finals" items={g.finalNames} max={3} />
-                    <TruncatedSummary label="Routes" items={g.routeCodes} max={3} />
-                  </div>
-                );
-              })
-            )}
-          </div>
-          {useListPagination ? (
-            <div style={{ display: "flex", justifyContent: "center", paddingTop: 4 }}>
-              <Pagination
-                size="small"
-                current={safeListPage}
-                pageSize={LIST_PAGE_SIZE}
-                total={filteredGroups.length}
-                onChange={setListPage}
-                showSizeChanger={false}
-                showTotal={(t) => `${t} hops`}
-              />
-            </div>
-          ) : null}
-        </Card>
-      </Col>
-
-      {/* Right: detail (~58–62%) */}
-      <Col xs={24} lg={15} xl={15} style={{ display: "flex", flexDirection: "column" }}>
-        <Card
-          size="small"
-          styles={{
-            body: {
-              padding: 10,
-              display: "flex",
-              flexDirection: "column",
-              gap: 8,
-              maxHeight: 560,
-              minHeight: 320,
-              overflow: "hidden",
-            },
-          }}
-          style={{ borderRadius: 8, height: "100%" }}
-        >
-          {!selected ? (
-            <Empty
-              image={Empty.PRESENTED_IMAGE_SIMPLE}
-              description="Select a next hop on the left to bag & dispatch"
-              style={{ margin: "48px 0" }}
-            />
-          ) : (
-            <>
-              <Space
-                wrap
-                style={{ width: "100%", justifyContent: "space-between" }}
-                size={[8, 6]}
-              >
-                <Space direction="vertical" size={2} style={{ minWidth: 0, flex: 1 }}>
-                  <Space size={6} wrap>
-                    <Text strong style={{ fontSize: 14 }}>
-                      {fromLabel}
-                    </Text>
-                    <ArrowRightOutlined style={{ color: "#1677ff" }} />
-                    <Text strong style={{ fontSize: 14, color: "#1677ff" }}>
-                      {selected.nextHopName}
-                    </Text>
-                    <ServiceTypeTag value={selected.serviceType} />
-                    <Badge
-                      count={selected.count}
-                      overflowCount={999}
-                      style={{ backgroundColor: "#1677ff" }}
-                    />
-                  </Space>
+    <Row gutter={[8, 8]}>
+      {cards.map((g) => {
+        const selected = selectedNextHopKey === g.key;
+        return (
+          <Col xs={24} sm={12} lg={8} xl={6} key={g.key}>
+            <Card
+              size="small"
+              hoverable
+              onClick={() => onSelect(selected ? null : g)}
+              styles={{ body: { padding: 10 } }}
+              style={{
+                borderRadius: 8,
+                borderColor: selected ? "#1677ff" : undefined,
+                boxShadow: selected ? "0 0 0 1px rgba(22,119,255,.35)" : undefined,
+                cursor: "pointer",
+                height: "100%",
+              }}
+            >
+              <Space direction="vertical" size={6} style={{ width: "100%" }}>
+                <Space wrap style={{ width: "100%", justifyContent: "space-between" }}>
                   <Space size={4} wrap>
-                    {(selected.finalNames || []).slice(0, 6).map((name) => (
-                      <Tooltip key={name} title={name}>
-                        <Tag
-                          color="purple"
-                          style={{
-                            margin: 0,
-                            maxWidth: 140,
-                            overflow: "hidden",
-                            textOverflow: "ellipsis",
-                          }}
-                        >
-                          {name}
-                        </Tag>
-                      </Tooltip>
-                    ))}
-                    {(selected.finalNames || []).length > 6 ? (
-                      <Tooltip title={(selected.finalNames || []).slice(6).join(", ")}>
-                        <Tag style={{ margin: 0 }}>+{selected.finalNames.length - 6}</Tag>
-                      </Tooltip>
-                    ) : null}
+                    <Text strong style={{ fontSize: 13 }}>→ {g.nextHopName}</Text>
+                    <ServiceTypeTag value={g.serviceType} />
                   </Space>
-                  <Space size={4} wrap>
-                    {(selected.routeCodes || []).slice(0, 5).map((code) => (
-                      <Tag key={code} style={{ margin: 0, fontSize: 11 }}>
-                        {code}
-                      </Tag>
-                    ))}
-                    {(selected.routeCodes || []).length > 5 ? (
-                      <Tooltip title={(selected.routeCodes || []).slice(5).join(", ")}>
-                        <Tag style={{ margin: 0 }}>+{selected.routeCodes.length - 5}</Tag>
-                      </Tooltip>
-                    ) : null}
-                  </Space>
+                  <Badge
+                    count={g.count}
+                    showZero
+                    overflowCount={999}
+                    style={{ backgroundColor: g.count ? "#1677ff" : "#d9d9d9" }}
+                    title="Ready parcels to this next hop"
+                  />
                 </Space>
-                {canDispatch ? (
-                  <Button
-                    type="primary"
-                    size="small"
-                    icon={<SendOutlined />}
-                    disabled={!selected.count || !selectedRowKeys?.length || dispatching}
-                    loading={dispatching}
-                    onClick={() => onDispatch?.(selected)}
-                  >
-                    Dispatch Transfer
-                  </Button>
-                ) : null}
+                <Text type="secondary" style={{ fontSize: 11 }}>
+                  Finals: {(g.finalNames || []).slice(0, 4).join(", ") || "—"}
+                  {(g.finalNames || []).length > 4 ? ` +${g.finalNames.length - 4}` : ""}
+                </Text>
+                <Text type="secondary" style={{ fontSize: 11 }}>
+                  Routes: {(g.routeCodes || []).slice(0, 3).join(", ") || "—"}
+                  {(g.routeCodes || []).length > 3 ? ` +${g.routeCodes.length - 3}` : ""}
+                </Text>
+                <Space size={6} wrap>
+                  {selected ? <Tag color="blue" style={{ margin: 0 }}>Selected</Tag> : <Tag style={{ margin: 0 }}>Select</Tag>}
+                  {canDispatch ? (
+                    <Button
+                      type="primary"
+                      size="small"
+                      icon={<SendOutlined />}
+                      disabled={!g.count || dispatching}
+                      loading={dispatching && selected}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onDispatch?.(g);
+                      }}
+                    >
+                      Dispatch to {g.nextHopName}
+                    </Button>
+                  ) : null}
+                </Space>
               </Space>
-
-              <div style={{ flex: 1, overflow: "auto", minHeight: 0 }}>
-                <Table
-                  rowKey="id"
-                  size="small"
-                  loading={loading}
-                  dataSource={detailShipments}
-                  columns={detailColumns}
-                  rowSelection={
-                    canDispatch
-                      ? {
-                          selectedRowKeys: (selectedRowKeys || []).filter((id) =>
-                            detailShipments.some((s) => s.id === id)
-                          ),
-                          onChange: (keys) => onSelectionChange?.(keys),
-                          selections: [
-                            Table.SELECTION_ALL,
-                            Table.SELECTION_INVERT,
-                            Table.SELECTION_NONE,
-                          ],
-                        }
-                      : undefined
-                  }
-                  pagination={{
-                    pageSize: 10,
-                    showSizeChanger: true,
-                    pageSizeOptions: ["10", "20"],
-                    showTotal: (t) => `${t} shipment${t === 1 ? "" : "s"}`,
-                    size: "small",
-                  }}
-                  scroll={{ x: 640 }}
-                  locale={{
-                    emptyText: (
-                      <Empty
-                        image={Empty.PRESENTED_IMAGE_SIMPLE}
-                        description="No ready parcels for this next hop"
-                      />
-                    ),
-                  }}
-                />
-              </div>
-            </>
-          )}
-        </Card>
-      </Col>
+            </Card>
+          </Col>
+        );
+      })}
     </Row>
   );
 }
-
 
 /**
  * Group shipments by origin-destination route
@@ -1464,39 +1085,6 @@ export default function TransfersPage() {
     }
     return rows;
   }, [outboundRows, availableRoutes, selectedTransferRouteId, selectedNextHop, viewMode]);
-
-  // Auto-select first next-hop with shipments when none selected (ops speed).
-  // Also refresh the selected hop object after outbound reload.
-  useEffect(() => {
-    if (viewMode !== "next_hop" || activeTab !== "outbound") return;
-    const groups = buildNextHopGroups(availableRoutes, outboundRows);
-    if (!groups.length) {
-      if (selectedNextHopKey) {
-        setSelectedNextHopKey(null);
-        setSelectedNextHop(null);
-      }
-      return;
-    }
-    if (selectedNextHopKey) {
-      const match = groups.find((g) => g.key === selectedNextHopKey);
-      if (match) {
-        setSelectedNextHop(match);
-        setSelectedRowKeys((prev) => {
-          const ids = new Set(match.shipmentIds || []);
-          // Preserve user checkbox edits; only drop ids that left this hop.
-          return (prev || []).filter((id) => ids.has(id));
-        });
-        return;
-      }
-      // Previous selection gone — fall through to auto-pick
-    }
-    if (!outboundRows.length) return;
-    const first = groups.find((g) => g.count > 0);
-    if (!first) return;
-    setSelectedNextHopKey(first.key);
-    setSelectedNextHop(first);
-    setSelectedRowKeys(first.shipmentIds || []);
-  }, [outboundRows, availableRoutes, viewMode, activeTab, selectedNextHopKey]);
 
   // Load outbound (optionally filtered by selected transfer route)
   const loadOutbound = useCallback(async (page = 1, pageSize = 20) => {
@@ -2177,7 +1765,29 @@ export default function TransfersPage() {
                 </Space>
               </Space>
 
-              {viewMode === "next_hop" ? null : (
+              {viewMode === "next_hop" ? (
+                <NextHopPickerCards
+                  routes={routesForCards}
+                  shipments={outboundRows}
+                  selectedNextHopKey={selectedNextHopKey}
+                  loading={routesLoading}
+                  dispatching={submitting}
+                  canDispatch={!!can?.("transfers.dispatch")}
+                  onSelect={(group) => {
+                    if (!group) {
+                      setSelectedNextHopKey(null);
+                      setSelectedNextHop(null);
+                      setSelectedRowKeys([]);
+                      return;
+                    }
+                    setSelectedNextHopKey(group.key);
+                    setSelectedNextHop(group);
+                    setSelectedTransferRouteId(null);
+                    setSelectedRowKeys(group.shipmentIds || []);
+                  }}
+                  onDispatch={(group) => handleDispatchNextHop(group)}
+                />
+              ) : (
                 <RoutePickerCards
                   routes={routesForCards}
                   shipments={outboundRows}
@@ -2208,45 +1818,25 @@ export default function TransfersPage() {
                 />
               )}
 
-              {viewMode !== "next_hop" ? (
-                selectedTransferRouteId ? (
+              {viewMode === "next_hop" ? (
+                selectedNextHop ? (
                   <Tag color="blue" style={{ margin: 0 }}>
-                    Filtering / dispatch locked to route #{selectedTransferRouteId}
+                    Bag → {selectedNextHop.nextHopName} · {selectedNextHop.shipmentIds?.length || 0} parcels · {(selectedNextHop.routeCodes || []).join(", ") || "routes"}
                   </Tag>
                 ) : (
-                  <Tag color="orange" style={{ margin: 0 }}>Select a route card before dispatching</Tag>
+                  <Tag color="orange" style={{ margin: 0 }}>Select a next-hop card (or Dispatch on the card)</Tag>
                 )
-              ) : null}
+              ) : selectedTransferRouteId ? (
+                <Tag color="blue" style={{ margin: 0 }}>
+                  Filtering / dispatch locked to route #{selectedTransferRouteId}
+                </Tag>
+              ) : (
+                <Tag color="orange" style={{ margin: 0 }}>Select a route card before dispatching</Tag>
+              )}
             </Space>
           </Card>
 
-          {viewMode === "next_hop" ? (
-            <div style={{ padding: "0 8px 8px" }}>
-              <NextHopMasterDetail
-                routes={routesForCards}
-                shipments={outboundRows}
-                selectedNextHopKey={selectedNextHopKey}
-                loading={routesLoading || loading}
-                dispatching={submitting}
-                canDispatch={!!can?.("transfers.dispatch")}
-                selectedRowKeys={selectedRowKeys}
-                onSelectionChange={setSelectedRowKeys}
-                onSelect={(group) => {
-                  if (!group) {
-                    setSelectedNextHopKey(null);
-                    setSelectedNextHop(null);
-                    setSelectedRowKeys([]);
-                    return;
-                  }
-                  setSelectedNextHopKey(group.key);
-                  setSelectedNextHop(group);
-                  setSelectedTransferRouteId(null);
-                  setSelectedRowKeys(group.shipmentIds || []);
-                }}
-                onDispatch={(group) => handleDispatchNextHop(group)}
-              />
-            </div>
-          ) : viewMode === "flat" ? (
+                    {viewMode === "flat" ? (
             <Table
               rowKey="id"
               size="small"
