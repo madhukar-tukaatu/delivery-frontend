@@ -116,68 +116,68 @@ export default function PricingClient() {
               <div className={heroStyles.cardHeader}>
                 <div>
                   <span className={heroStyles.cardBadge}>
-                    <span className={heroStyles.liveDot} /> Transparent Tariffs
+                    <span className={heroStyles.liveDot} /> Pricing Guarantees
                   </span>
-                  <h2 className={heroStyles.cardTitle}>Base Rate Slabs</h2>
+                  <h2 className={heroStyles.cardTitle}>Fair, Transparent Billing</h2>
                   <p className={heroStyles.cardSubtitle}>
-                    First 1 kg door-to-door delivery starting fares
+                    Honest delivery costs designed for Nepali businesses
                   </p>
                 </div>
               </div>
 
               <div className={heroStyles.infoGrid}>
-                {/* Local Valley */}
+                {/* Zero Hidden Fees */}
                 <div className={heroStyles.infoItem}>
                   <div className={heroStyles.itemIcon}>
-                    <MapPin size={18} />
+                    <ShieldCheck size={18} />
                   </div>
                   <div className={heroStyles.itemText}>
-                    <span className={heroStyles.itemLabel}>Inside Valley</span>
-                    <span className={heroStyles.itemValue}>From Rs. 70</span>
+                    <span className={heroStyles.itemLabel}>Upfront Pricing</span>
+                    <span className={heroStyles.itemValue}>Zero Hidden Fees</span>
                     <span className={heroStyles.itemSub}>
-                      Ring Road • Same / Next Day
+                      No surprise fuel or terminal surcharges.
                     </span>
                   </div>
                 </div>
 
-                {/* Suburbs */}
+                {/* 0% COD Remittance */}
+                <div className={heroStyles.infoItem}>
+                  <div className={`${heroStyles.itemIcon} ${heroStyles.itemIconGold}`}>
+                    <Coins size={18} />
+                  </div>
+                  <div className={heroStyles.itemText}>
+                    <span className={heroStyles.itemLabel}>COD Remittance</span>
+                    <span className={heroStyles.itemValue}>0% Settlement Fee</span>
+                    <span className={heroStyles.itemSub}>
+                      Automated bank payouts for merchants.
+                    </span>
+                  </div>
+                </div>
+
+                {/* Dynamic Calculator */}
                 <div className={heroStyles.infoItem}>
                   <div className={`${heroStyles.itemIcon} ${heroStyles.itemIconTeal}`}>
+                    <Calculator size={18} />
+                  </div>
+                  <div className={heroStyles.itemText}>
+                    <span className={heroStyles.itemLabel}>Fare Calculator</span>
+                    <span className={heroStyles.itemValue}>Dynamic Estimation</span>
+                    <span className={heroStyles.itemSub}>
+                      Instant door-to-door quote across 77 districts.
+                    </span>
+                  </div>
+                </div>
+
+                {/* Commercial Volume */}
+                <div className={heroStyles.infoItem}>
+                  <div className={`${heroStyles.itemIcon} ${heroStyles.itemIconGreen}`}>
                     <Truck size={18} />
                   </div>
                   <div className={heroStyles.itemText}>
-                    <span className={heroStyles.itemLabel}>Valley Suburbs</span>
-                    <span className={heroStyles.itemValue}>From Rs. 100</span>
+                    <span className={heroStyles.itemLabel}>Merchant Volume</span>
+                    <span className={heroStyles.itemValue}>Bulk Shipping Rates</span>
                     <span className={heroStyles.itemSub}>
-                      Bhaktapur, Lalitpur semi-urban
-                    </span>
-                  </div>
-                </div>
-
-                {/* Major Hub Cities */}
-                <div className={heroStyles.infoItem}>
-                  <div className={`${heroStyles.itemIcon} ${heroStyles.itemIconGold}`}>
-                    <DollarSign size={18} />
-                  </div>
-                  <div className={heroStyles.itemText}>
-                    <span className={heroStyles.itemLabel}>Major Cities</span>
-                    <span className={heroStyles.itemValue}>From Rs. 140</span>
-                    <span className={heroStyles.itemSub}>
-                      Pokhara, Biratnagar, Butwal
-                    </span>
-                  </div>
-                </div>
-
-                {/* Remote Districts */}
-                <div className={heroStyles.infoItem}>
-                  <div className={`${heroStyles.itemIcon} ${heroStyles.itemIconGreen}`}>
-                    <Scale size={18} />
-                  </div>
-                  <div className={heroStyles.itemText}>
-                    <span className={heroStyles.itemLabel}>Remote / Hill</span>
-                    <span className={heroStyles.itemValue}>From Rs. 200</span>
-                    <span className={heroStyles.itemSub}>
-                      All 77 districts • Hub pickup
+                      Volume discounts for regular store shippers.
                     </span>
                   </div>
                 </div>
