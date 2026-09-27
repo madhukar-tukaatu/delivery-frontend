@@ -4,6 +4,7 @@ import "./public-pages.css";
 import Header from "./components/Header";
 import Footer from "./components/Footer";
 import MobileBottomNav from "./components/MobileBottomNav";
+import PageSlideNav from "./components/PageSlideNav";
 
 export default function SiteShell({ children }) {
   const pathname = usePathname();
@@ -12,6 +13,7 @@ export default function SiteShell({ children }) {
   return (
     <div className={isHome ? undefined : "public-site"}>
       {!isHome && <Header />}
+      {!isHome && <PageSlideNav />}
       {children}
       {!isHome && <Footer />}
       <MobileBottomNav />

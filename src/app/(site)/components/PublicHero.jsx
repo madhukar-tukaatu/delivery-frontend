@@ -22,10 +22,10 @@ export default function PublicHero({ eyebrow, title, accent, description, primar
             ))}
             {secondary && (secondary.onClick ? (
               <button type="button" className="public-button public-button--outline" onClick={secondary.onClick} style={{ cursor: "pointer", fontFamily: "inherit" }}>
-                {secondary.label}
+                {secondary.label}<ArrowRight size={18} />
               </button>
             ) : (
-              <Link className="public-button public-button--outline" href={secondary.href}>{secondary.label}</Link>
+              <Link className="public-button public-button--outline" href={secondary.href}>{secondary.label}<ArrowRight size={18} /></Link>
             ))}
           </div>}
         </div>
