@@ -4,6 +4,7 @@ import { useState } from 'react';
 import api from '@/lib/api';
 import Header from '../(site)/components/Header';
 import Footer from '../(site)/components/Footer';
+import MobileBottomNav from '../(site)/components/MobileBottomNav';
 import PublicHero from '../(site)/components/PublicHero';
 import '../(site)/public-pages.css';
 export default function TrackPage() {
@@ -21,5 +22,5 @@ export default function TrackPage() {
       {error && <Alert style={{marginTop:24}} type="error" showIcon message={error} />}
       {result && <div style={{marginTop:24}}><Typography.Title level={2}>{result.tracking_number}</Typography.Title><Typography.Paragraph>Status: <strong>{result.status}</strong></Typography.Paragraph><Timeline items={(result.events||[]).map(e=>({children:`${e.status} - ${e.description||''} (${e.created_at})`}))} /></div>}
     </Card></div></section>
-  </main><Footer showCta={false} /></div>;
+  </main><Footer showCta={false} /><MobileBottomNav /></div>;
 }

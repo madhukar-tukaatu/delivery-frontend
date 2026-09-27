@@ -23,6 +23,11 @@
   .inner { flex-direction: column; align-items: flex-start; gap: 4px; }
   .inner nav { justify-content: flex-start; gap: 0 16px; }
 }
+@media (max-width: 768px) {
+  .footer {
+    padding-bottom: calc(64px + env(safe-area-inset-bottom, 12px));
+  }
+}
 @media (max-width: 480px) {
   .inner { width: calc(100% - 32px); padding-block: 14px; }
   .inner p { font-size: 10px; }

@@ -16,7 +16,7 @@ export default function SiteShell({ children }) {
     <div className={isHome ? undefined : `public-site ${isHeroOnly ? "public-site--hero-only" : ""}`}>
       {!isHome && <Header />}
       {children}
-      {!isHome && !isHeroOnly && <Footer showCta={false} />}
+      <Footer showCta={false} />
       <MobileBottomNav />
     </div>
   );

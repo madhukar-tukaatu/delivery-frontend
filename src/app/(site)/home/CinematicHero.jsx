@@ -44,11 +44,6 @@ export default function CinematicHero() {
         el.style.visibility=fade>0?"visible":"hidden";
       });
       setActive(index);
-      // Finish only at the end of the scroll range, after the final shot.
-      if (progress >= 0.995 && !redirected.current) {
-        redirected.current = true;
-        router.replace("/services", { scroll: true });
-      }
     }
     const schedule=()=>{if(!frame)frame=requestAnimationFrame(update);};
     const preference=()=>{update();};
@@ -78,7 +73,7 @@ export default function CinematicHero() {
         <p className={styles.chapter}>0{active+1} <span>/ 08</span> <b>{scene.label}</b></p>
         {active===0?<h1>Every parcel.<br/><em>Anywhere<br className={styles.desktopBreak}/> in Nepal.</em></h1>:<h2 key={scene.file}>{scene.title}</h2>}
         <p className={styles.description}>{active===0?"Fast, trackable delivery for people and growing businesses.":scene.description}</p>
-        <div className={styles.filmHint}><ArrowDown size={16}/><span>{active===7?"Delivered. Continue scrolling to our services.":"Scroll to follow the delivery"}</span></div>
+        <div className={styles.filmHint}><ArrowDown size={16}/><span>{active===7?"Delivered. Scroll down for footer & links.":"Scroll to follow the delivery"}</span></div>
       </div>
       <div className={styles.sceneCaption}><span>ORDER TO DOOR</span><strong>{scene.title}</strong><small>Illustrative Nepal delivery story</small></div>
       <div className={styles.dock}>
