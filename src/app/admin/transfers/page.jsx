@@ -319,24 +319,25 @@ function RoutePickerCards({
 
 
 /**
- * Resolve operational next-hop branch id for a ready outbound shipment.
+ * Prefer live/_routeGroup (board grouping / API next-hop) over stale hop_meta.
+ * hop_meta.next_hop can lag after transit receive until progress is recalculated.
  */
 function resolveShipmentNextHop(shipment, availableRoutes = []) {
-  const fromMeta = Number(shipment?.hop_meta?.next_hop_branch_id || 0);
-  if (fromMeta > 0) {
-    return {
-      id: fromMeta,
-      name: shipment?.hop_meta?.next_hop_name || `Branch #${fromMeta}`,
-      service: String(shipment?.hop_meta?.service_type || shipment?.service_type || "standard").toLowerCase(),
-      route: shipment?._routeGroup || null,
-    };
-  }
   const fromGroup = Number(shipment?._routeGroup?.next_hop_branch_id || 0);
   if (fromGroup > 0) {
     return {
       id: fromGroup,
       name: shipment?._routeGroup?.next_hop_name || `Branch #${fromGroup}`,
       service: String(shipment?._routeGroup?.service_type || shipment?.service_type || "standard").toLowerCase(),
+      route: shipment?._routeGroup || null,
+    };
+  }
+  const fromMeta = Number(shipment?.hop_meta?.next_hop_branch_id || 0);
+  if (fromMeta > 0) {
+    return {
+      id: fromMeta,
+      name: shipment?.hop_meta?.next_hop_name || `Branch #${fromMeta}`,
+      service: String(shipment?.hop_meta?.service_type || shipment?.service_type || "standard").toLowerCase(),
       route: shipment?._routeGroup || null,
     };
   }
