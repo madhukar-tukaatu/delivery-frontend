@@ -73,11 +73,11 @@ export default function AboutPage() {
               {/* Trust & Network Micro-Badges */}
               <div className={styles.trustPills}>
                 <span className={styles.trustPill}>
-                  <Zap size={14} className="text-[#027196]" />
+                  <Zap size={14} className="text-[#017196]" />
                   <span>99.4% on-time delivery rate</span>
                 </span>
                 <span className={styles.trustPill}>
-                  <MapPin size={14} className="text-amber-600" />
+                  <MapPin size={14} className="text-[#ffd025]" />
                   <span>All 77 districts covered</span>
                 </span>
                 <span className={styles.trustPill}>

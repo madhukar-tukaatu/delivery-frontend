@@ -79,11 +79,11 @@ export default function FranchisePage() {
                   <span>Exclusive territory rights</span>
                 </span>
                 <span className={styles.trustPill}>
-                  <TrendingUp size={14} className="text-[#027196]" />
+                  <TrendingUp size={14} className="text-[#017196]" />
                   <span>Multiple revenue streams</span>
                 </span>
                 <span className={styles.trustPill}>
-                  <Building2 size={14} className="text-amber-600" />
+                  <Building2 size={14} className="text-[#ffd025]" />
                   <span>Tech platform & training included</span>
                 </span>
               </div>

@@ -52,11 +52,11 @@ export default function ServicesPage() {
               {/* Trust & Speed Micro-Badges */}
               <div className={styles.trustPills}>
                 <span className={styles.trustPill}>
-                  <Zap size={14} className="text-[#027196]" />
+                  <Zap size={14} className="text-[#017196]" />
                   <span>24-48h nationwide transit</span>
                 </span>
                 <span className={styles.trustPill}>
-                  <Clock size={14} className="text-amber-600" />
+                  <Clock size={14} className="text-[#ffd025]" />
                   <span>Same-day valley dispatch</span>
                 </span>
                 <span className={styles.trustPill}>
@@ -89,7 +89,7 @@ export default function ServicesPage() {
                   <div className={styles.itemText}>
                     <div className="flex items-center justify-between">
                       <span className={styles.itemLabel}>Standard Delivery</span>
-                      <span className="text-[11px] font-extrabold text-[#027196] bg-[#e0f2fe] px-2 py-0.5 rounded-md">
+                      <span className="text-[11px] font-extrabold text-[#017196] bg-[#e0f2fe] px-2 py-0.5 rounded-md">
                         24 – 48 Hours
                       </span>
                     </div>
@@ -110,7 +110,7 @@ export default function ServicesPage() {
                   <div className={styles.itemText}>
                     <div className="flex items-center justify-between">
                       <span className={styles.itemLabel}>Express Delivery</span>
-                      <span className="text-[11px] font-extrabold text-amber-800 bg-amber-100 px-2 py-0.5 rounded-md">
+                      <span className="text-[11px] font-extrabold text-amber-900 bg-[#ffd025]/30 px-2 py-0.5 rounded-md border border-[#ffd025]/40">
                         Priority Hub Transit
                       </span>
                     </div>

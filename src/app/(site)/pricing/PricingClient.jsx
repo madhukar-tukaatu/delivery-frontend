@@ -97,11 +97,11 @@ export default function PricingClient() {
               {/* Trust & Transparency Micro-Badges */}
               <div className={heroStyles.trustPills}>
                 <span className={heroStyles.trustPill}>
-                  <Coins size={14} className="text-amber-600" />
+                  <Coins size={14} className="text-[#ffd025]" />
                   <span>0% COD remittance fees</span>
                 </span>
                 <span className={heroStyles.trustPill}>
-                  <Scale size={14} className="text-[#027196]" />
+                  <Scale size={14} className="text-[#017196]" />
                   <span>Transparent weight slabs</span>
                 </span>
                 <span className={heroStyles.trustPill}>

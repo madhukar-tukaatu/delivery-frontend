@@ -1,18 +1,18 @@
 /* ==========================================================================
    Tukaatu Express - Premium Luxury SaaS Landing Page Design System
-   Primary Blue: #027196 (75% Weight) | Light Blue: #0B8CB7 | Accent Gold: #FFD026
+   Primary Blue: #017196 (75% Weight) | Light Blue: #0B8CB7 | Accent Gold: #ffd025
    ========================================================================== */
 
 .site {
-  --primary: #027196;
+  --primary: #017196;
   --primary-light: #0B8CB7;
   --primary-hover: #015875;
-  --primary-subtle: rgba(2, 113, 150, 0.08);
-  --primary-glow: rgba(2, 113, 150, 0.2);
+  --primary-subtle: rgba(1, 113, 150, 0.08);
+  --primary-glow: rgba(1, 113, 150, 0.2);
 
-  --accent: #FFD026;
+  --accent: #ffd025;
   --accent-hover: #E6B800;
-  --accent-subtle: rgba(255, 208, 38, 0.15);
+  --accent-subtle: rgba(255, 208, 37, 0.15);
 
   --bg-page: #060D14;
   --bg-card: rgba(255,255,255,0.04);

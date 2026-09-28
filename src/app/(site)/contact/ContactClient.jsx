@@ -111,7 +111,7 @@ export default function ContactClient() {
               {/* Trust & Speed Micro-Badges */}
               <div className={heroStyles.trustPills}>
                 <span className={heroStyles.trustPill}>
-                  <Zap size={14} className="text-[#027196]" />
+                  <Zap size={14} className="text-[#017196]" />
                   <span>15-min dispatch response</span>
                 </span>
                 <span className={heroStyles.trustPill}>
@@ -119,7 +119,7 @@ export default function ContactClient() {
                   <span>Verified central support</span>
                 </span>
                 <span className={heroStyles.trustPill}>
-                  <Truck size={14} className="text-[#027196]" />
+                  <Truck size={14} className="text-[#ffd025]" />
                   <span>All 77 districts covered</span>
                 </span>
               </div>
