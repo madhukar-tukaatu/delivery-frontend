@@ -1,13 +1,9 @@
 import Link from "next/link";
 import Image from "next/image";
 import {
-  ArrowRight,
-  Calculator,
   Clock,
-  Headphones,
   Package,
   ShieldCheck,
-  Truck,
   Zap,
 } from "lucide-react";
 import styles from "../components/HeroSummaryCard.module.css";
@@ -36,7 +32,7 @@ export default function ServicesPage() {
 
         <div className={styles.heroWrapper}>
           <div className={styles.heroGrid}>
-            {/* Left Column: Core Copy & CTAs */}
+            {/* Left Column: Core Copy */}
             <div className={styles.copyCol}>
               <Link href="/" className="public-breadcrumb">
                 Tukaatu Express <span>/</span> Delivery services
@@ -52,22 +48,6 @@ export default function ServicesPage() {
                 choose a service tailored to your timeline, budget and coverage
                 needs.
               </p>
-
-              <div className="public-hero-actions">
-                <Link className="public-button" href="/pricing">
-                  <Calculator size={18} />
-                  Calculate rates
-                  <ArrowRight size={18} />
-                </Link>
-                <Link
-                  className="public-button public-button--outline"
-                  href="/contact"
-                >
-                  <Headphones size={18} />
-                  Book pickup
-                  <ArrowRight size={18} />
-                </Link>
-              </div>
 
               {/* Trust & Speed Micro-Badges */}
               <div className={styles.trustPills}>
@@ -163,18 +143,6 @@ export default function ServicesPage() {
                     </span>
                   </div>
                 </div>
-              </div>
-
-              {/* Card Footer Quick Actions */}
-              <div className={styles.cardFooter}>
-                <Link href="/pricing" className={styles.cardActionBtn}>
-                  <Calculator size={16} />
-                  Calculate Delivery Rates
-                </Link>
-                <Link href="/contact" className={styles.cardSecondaryBtn}>
-                  <Truck size={16} />
-                  Schedule Pickup
-                </Link>
               </div>
             </div>
           </div>
