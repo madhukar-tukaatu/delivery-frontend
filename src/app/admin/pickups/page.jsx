@@ -165,14 +165,14 @@ const STATUS_META = {
     color: "green",
     hex: "#52c41a",
     icon: <EnvironmentOutlined />,
-    hint: "Sorted for last-mile delivery",
+    hint: "Last mile at this branch",
   },
   sorted_for_transfer: {
     label: "Sorted | Transfer",
     color: "orange",
     hex: "#fa8c16",
     icon: <SwapOutlined />,
-    hint: "Sorted for branch-to-branch transfer",
+    hint: "Transfer - next hop on Transfers Outbound",
   },
   pickup_failed: {
     label: "Rejected",
