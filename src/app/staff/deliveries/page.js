@@ -398,7 +398,7 @@ export default function StaffDeliveriesPage() {
         if (!cancelled) {
           setPaymentSessionError(
             error?.response?.data?.message ||
-              "Could not create the Store Manager payment session."
+              "Could not create the HamroPay payment session."
           );
         }
       })
@@ -544,7 +544,7 @@ export default function StaffDeliveriesPage() {
       paymentSession?.status !== "paid"
     ) {
       message.warning(
-        "Wait until Store Manager confirms the online payment as paid."
+        "Wait until HamroPay confirms the online payment as paid."
       );
       return;
     }
@@ -916,7 +916,7 @@ export default function StaffDeliveriesPage() {
               message="You are at the delivery location"
               description={
                 deliveryIsCollectable
-                  ? "Collect the exact amount directly for the merchant, or verify the Store Manager online payment before completing delivery."
+                  ? "Collect the exact amount directly for the merchant, or verify the HamroPay online payment before completing delivery."
                   : "Prepaid: confirm receiver name and signature only - no cash or QR collection."
               }
               style={{ marginBottom: 16 }}
@@ -1078,7 +1078,7 @@ export default function StaffDeliveriesPage() {
               <div style={{ marginTop: "6px", color: "#666" }}>
                 The rider collects this amount from the customer for the merchant. Cash
                 is collected by the rider on the merchant&apos;s behalf; online payment is
-                verified through the Store Manager QR.
+                verified through the HamroPay QR.
               </div>
             </div>
           )}
@@ -1088,7 +1088,7 @@ export default function StaffDeliveriesPage() {
               type="success"
               showIcon
               message="Prepaid - no collection at the door"
-              description="Do not collect cash or open Store Manager QR. Confirm the receiver, take their name and signature, then complete."
+              description="Do not collect cash or open HamroPay QR. Confirm the receiver, take their name and signature, then complete."
               style={{ marginBottom: 16 }}
             />
           )}
@@ -1341,7 +1341,7 @@ export default function StaffDeliveriesPage() {
               }.`}
               description={
                 paymentMethod === "online"
-                  ? "After Store Manager verifies payment, take receiver name and signature, then complete."
+                  ? "After HamroPay verifies payment, take receiver name and signature, then complete."
                   : "Collect exact cash for the merchant. After delivery, that cash must be deposited at the branch before merchant settlement."
               }
               style={{ marginBottom: 16 }}
@@ -1357,7 +1357,7 @@ export default function StaffDeliveriesPage() {
                   <Space direction="vertical">
                     <Radio value="cash">Cash collected by rider for the merchant</Radio>
                     <Radio value="online">
-                      Online payment through the merchant's Store Manager QR
+                      Online payment through the merchant's HamroPay QR
                     </Radio>
                   </Space>
                 </Radio.Group>
@@ -1451,7 +1451,8 @@ export default function StaffDeliveriesPage() {
                   )}
 
                   {!paymentSession?.payment?.qr?.image_url &&
-                    paymentSession?.payment?.qr?.payload && (
+                    (paymentSession?.payment?.qr?.payload ||
+                      paymentSession?.qr_string) && (
                       <pre
                         style={{
                           whiteSpace: "pre-wrap",
@@ -1462,14 +1463,19 @@ export default function StaffDeliveriesPage() {
                           marginBottom: 12,
                         }}
                       >
-                        {paymentSession.payment.qr.payload}
+                        {paymentSession.payment?.qr?.payload ||
+                          paymentSession.qr_string}
                       </pre>
                     )}
 
-                  {paymentSession?.payment?.checkout_url && (
+                  {(paymentSession?.payment?.checkout_url ||
+                    paymentSession?.payment_url) && (
                     <div style={{ textAlign: "center" }}>
                       <a
-                        href={paymentSession.payment.checkout_url}
+                        href={
+                          paymentSession.payment?.checkout_url ||
+                          paymentSession.payment_url
+                        }
                         target="_blank"
                         rel="noreferrer"
                       >
@@ -1489,7 +1495,7 @@ export default function StaffDeliveriesPage() {
               type="success"
               showIcon
               message="Prepaid - no collection at the door"
-              description="Do not collect cash or open Store Manager QR. Confirm the receiver, take their name and signature, then complete."
+              description="Do not collect cash or open HamroPay QR. Confirm the receiver, take their name and signature, then complete."
               style={{ marginBottom: 16 }}
             />
 
