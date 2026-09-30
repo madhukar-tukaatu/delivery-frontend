@@ -1156,7 +1156,7 @@ export default function StaffDeliveriesPage() {
               <div style={{ marginTop: "6px", color: "#666" }}>
                 The rider collects this amount from the customer for the merchant. Cash
                 is collected by the rider on the merchant&apos;s behalf; online payment is
-                verified through the Store Manager merchant QR.
+                verified through HamroPay (marketplace HQ credentials + store sub-merchant).
               </div>
             </div>
           )}
@@ -1419,7 +1419,7 @@ export default function StaffDeliveriesPage() {
               }.`}
               description={
                 paymentMethod === "online"
-                  ? "After online payment is verified, take receiver name and signature, then complete."
+                  ? "Customer pays in the HamroPay app (scan the QR). After payment is verified, take receiver name and signature, then complete."
                   : "Collect exact cash for the merchant. After delivery, that cash must be deposited at the branch before merchant settlement."
               }
               style={{ marginBottom: 16 }}

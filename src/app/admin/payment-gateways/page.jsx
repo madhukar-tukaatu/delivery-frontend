@@ -325,8 +325,7 @@ export default function PaymentGatewaysPage() {
           Payment Gateways
         </Title>
         <Paragraph type="secondary" style={{ marginBottom: 0 }}>
-          Save company (Tukaatu Express) and branch credentials for HamroPay, eSewa, Khalti, and ConnectIPS.
-          Settlement, commissions, and payouts will use these accounts after you configure them.
+          Save company, marketplace, and branch credentials for HamroPay, eSewa, Khalti, and ConnectIPS. Phase 6 POD prefers marketplace HamroPay (Admin → Marketplaces) then company. Settlement/commissions use company/branch accounts.
         </Paragraph>
       </div>
 

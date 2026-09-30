@@ -225,12 +225,18 @@ export default function CreateShipmentForm() {
       delivery_charge:
         quoteData?.delivery_charge ??
         quoteData?.final_delivery_fee ??
+        quoteData?.fare?.delivery_charge ??
         quote?.delivery_charge ??
         quote?.final_delivery_fee ??
+        quote?.fare?.delivery_charge ??
         undefined,
       pod_charge:
         quoteData?.pod_charge ??
+        quoteData?.fare?.pod_charge ??
+        quoteData?.fare?.pod_fee ??
         quote?.pod_charge ??
+        quote?.fare?.pod_charge ??
+        quote?.fare?.pod_fee ??
         undefined,
 
       self_drop: Boolean(values.self_drop),
@@ -783,10 +789,10 @@ export default function CreateShipmentForm() {
                   <strong>
                     NPR{" "}
                     {quote.final_delivery_fee ||
-                      quote.fare ||
+                      quote.delivery_charge ||
+                      quote.fare?.delivery_charge ||
                       quote.total_fare ||
                       quote.amount ||
-                      quote.delivery_charge ||
                       "Calculated"}
                   </strong>
                 </Text>
