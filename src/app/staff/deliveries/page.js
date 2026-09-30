@@ -71,6 +71,71 @@ function paymentTypeOf(delivery) {
   return String(delivery?.shipment?.payment_type || "").toLowerCase();
 }
 
+
+function apiErrorMessage(error, fallback = "Something went wrong.") {
+  const data = error?.response?.data;
+  if (!data) {
+    return error?.message || fallback;
+  }
+
+  const bag = data.errors;
+  if (bag && typeof bag === "object") {
+    const first = Object.values(bag)
+      .flat()
+      .map((value) => (typeof value === "string" ? value.trim() : ""))
+      .find(Boolean);
+    if (first) return first;
+  }
+
+  if (typeof data.message === "string" && data.message.trim()) {
+    return data.message.trim();
+  }
+
+  return error?.message || fallback;
+}
+
+function firstNonEmptyString(...values) {
+  for (const value of values) {
+    if (typeof value === "string" && value.trim()) {
+      return value.trim();
+    }
+  }
+  return "";
+}
+
+// Prefer qr_string / payment_url; do not require payment.qr.payload
+// (BE may still return payload:null while qr_string/checkout is set).
+function paymentSessionQrPayload(session) {
+  return firstNonEmptyString(
+    session?.qr_string,
+    session?.payment?.qr?.payload,
+    session?.payment_url,
+    session?.payment?.checkout_url
+  );
+}
+
+function paymentSessionQrImageUrl(session) {
+  const direct = firstNonEmptyString(session?.payment?.qr?.image_url);
+  if (direct) return direct;
+
+  const payload = paymentSessionQrPayload(session);
+  if (!payload) return "";
+
+  // Store Manager / gateway may return qr_string / payment_url / params without image_url.
+  // Render a scannable QR from that payload for doorstep POD.
+  return `https://api.qrserver.com/v1/create-qr-code/?size=260x260&ecc=M&margin=8&data=${encodeURIComponent(
+    payload
+  )}`;
+}
+
+function paymentSessionCheckoutUrl(session) {
+  return firstNonEmptyString(
+    session?.payment?.checkout_url,
+    session?.payment_url
+  );
+}
+
+
 function firstCoordinateValue(values) {
   return values.find(
     (value) =>
@@ -397,8 +462,10 @@ export default function StaffDeliveriesPage() {
       .catch((error) => {
         if (!cancelled) {
           setPaymentSessionError(
-            error?.response?.data?.message ||
-              "Could not create the HamroPay payment session."
+            apiErrorMessage(
+              error,
+              "Could not create the online POD payment session."
+            )
           );
         }
       })
@@ -439,8 +506,10 @@ export default function StaffDeliveriesPage() {
       } catch (error) {
         if (!cancelled) {
           setPaymentSessionError(
-            error?.response?.data?.message ||
+            apiErrorMessage(
+              error,
               "Could not refresh the payment status."
+            )
           );
         }
       }
@@ -544,7 +613,7 @@ export default function StaffDeliveriesPage() {
       paymentSession?.status !== "paid"
     ) {
       message.warning(
-        "Wait until HamroPay confirms the online payment as paid."
+        "Wait until the online payment is confirmed as paid."
       );
       return;
     }
@@ -570,8 +639,15 @@ export default function StaffDeliveriesPage() {
           ...receiptProof,
           payment_method: values.payment_method,
           pod_collected_amount: collectableAmount(paymentDelivery),
-          ...(values.payment_method === "online"
-            ? { payment_session_id: paymentSession?.payment_session_id }
+          ...(values.payment_method === "online" || values.payment_method === "qr"
+            ? {
+                merchant_txn_id:
+                  paymentSession?.merchant_txn_id ||
+                  paymentSession?.payment_session_id,
+                payment_session_id:
+                  paymentSession?.payment_session_id ||
+                  paymentSession?.merchant_txn_id,
+              }
             : {}),
         }
       : receiptProof;
@@ -916,7 +992,7 @@ export default function StaffDeliveriesPage() {
               message="You are at the delivery location"
               description={
                 deliveryIsCollectable
-                  ? "Collect the exact amount directly for the merchant, or verify the HamroPay online payment before completing delivery."
+                  ? "Collect the exact amount directly for the merchant, or verify the online QR payment before completing delivery."
                   : "Prepaid: confirm receiver name and signature only - no cash or QR collection."
               }
               style={{ marginBottom: 16 }}
@@ -1078,7 +1154,7 @@ export default function StaffDeliveriesPage() {
               <div style={{ marginTop: "6px", color: "#666" }}>
                 The rider collects this amount from the customer for the merchant. Cash
                 is collected by the rider on the merchant&apos;s behalf; online payment is
-                verified through the HamroPay QR.
+                verified through the Store Manager merchant QR.
               </div>
             </div>
           )}
@@ -1088,7 +1164,7 @@ export default function StaffDeliveriesPage() {
               type="success"
               showIcon
               message="Prepaid - no collection at the door"
-              description="Do not collect cash or open HamroPay QR. Confirm the receiver, take their name and signature, then complete."
+              description="Do not collect cash or open online QR. Confirm the receiver, take their name and signature, then complete."
               style={{ marginBottom: 16 }}
             />
           )}
@@ -1341,7 +1417,7 @@ export default function StaffDeliveriesPage() {
               }.`}
               description={
                 paymentMethod === "online"
-                  ? "After HamroPay verifies payment, take receiver name and signature, then complete."
+                  ? "After online payment is verified, take receiver name and signature, then complete."
                   : "Collect exact cash for the merchant. After delivery, that cash must be deposited at the branch before merchant settlement."
               }
               style={{ marginBottom: 16 }}
@@ -1357,7 +1433,7 @@ export default function StaffDeliveriesPage() {
                   <Space direction="vertical">
                     <Radio value="cash">Cash collected by rider for the merchant</Radio>
                     <Radio value="online">
-                      Online payment through the merchant's HamroPay QR
+                      Online / QR payment (merchant doorstep)
                     </Radio>
                   </Space>
                 </Radio.Group>
@@ -1366,14 +1442,14 @@ export default function StaffDeliveriesPage() {
               {paymentMethod === "online" && (
                 <Card
                   size="small"
-                  title="POD online payment (HamroPay)"
+                  title="POD online payment"
                   style={{ marginBottom: 16 }}
                 >
                   {paymentSessionLoading && (
                     <div style={{ textAlign: "center", padding: "16px 0" }}>
                       <Spin />
                       <div style={{ marginTop: 8 }}>
-                        Creating HamroPay POD payment QR...
+                        Creating online POD payment QR...
                       </div>
                     </div>
                   )}
@@ -1397,7 +1473,7 @@ export default function StaffDeliveriesPage() {
                       type="warning"
                       showIcon
                       message="Waiting for payment confirmation"
-                      description="Ask the customer to scan this QR and complete the exact amount. This screen checks HamroPay until the payment is confirmed."
+                      description="Ask the customer to scan this QR and complete the exact amount. This screen polls until the payment is confirmed."
                       style={{ marginBottom: 12 }}
                     />
                   )}
@@ -1407,7 +1483,7 @@ export default function StaffDeliveriesPage() {
                       type="success"
                       showIcon
                       message="Payment verified"
-                      description="HamroPay confirmed that the merchant received the payment."
+                      description="Online payment confirmed — the merchant received the payment."
                       style={{ marginBottom: 12 }}
                     />
                   )}
@@ -1434,53 +1510,60 @@ export default function StaffDeliveriesPage() {
                       />
                     )}
 
-                  {paymentSession?.payment?.qr?.image_url && (
+                  {paymentSessionQrImageUrl(paymentSession) && (
                     <div style={{ textAlign: "center", marginBottom: 12 }}>
                       <img
-                        src={paymentSession.payment.qr.image_url}
-                        alt={`Payment QR for ${
+                        src={paymentSessionQrImageUrl(paymentSession)}
+                        alt={`Online payment QR for ${
                           paymentDelivery?.shipment?.merchant?.name || "merchant"
                         }`}
                         style={{
                           maxWidth: "260px",
                           maxHeight: "260px",
+                          width: "100%",
                           objectFit: "contain",
+                          background: "#fff",
+                          border: "1px solid #f0f0f0",
+                          borderRadius: 8,
+                          padding: 8,
                         }}
                       />
+                      <div style={{ marginTop: 8, color: "#666", fontSize: 12 }}>
+                        Amount: Rs.{" "}
+                        {Number(
+                          paymentSession?.amount ||
+                            collectableAmount(paymentDelivery)
+                        ).toFixed(2)}{" "}
+                        {paymentSession?.currency || "NPR"}
+                      </div>
                     </div>
                   )}
 
-                  {!paymentSession?.payment?.qr?.image_url &&
-                    (paymentSession?.payment?.qr?.payload ||
-                      paymentSession?.qr_string) && (
-                      <pre
-                        style={{
-                          whiteSpace: "pre-wrap",
-                          wordBreak: "break-word",
-                          background: "#f5f5f5",
-                          padding: 12,
-                          borderRadius: 4,
-                          marginBottom: 12,
-                        }}
-                      >
-                        {paymentSession.payment?.qr?.payload ||
-                          paymentSession.qr_string}
-                      </pre>
-                    )}
-
-                  {(paymentSession?.payment?.checkout_url ||
-                    paymentSession?.payment_url) && (
+                  {paymentSessionCheckoutUrl(paymentSession) && (
                     <div style={{ textAlign: "center" }}>
                       <a
-                        href={
-                          paymentSession.payment?.checkout_url ||
-                          paymentSession.payment_url
-                        }
+                        href={paymentSessionCheckoutUrl(paymentSession)}
                         target="_blank"
                         rel="noreferrer"
                       >
-                        Open HamroPay checkout
+                        Open payment checkout
                       </a>
+                    </div>
+                  )}
+
+                  {(paymentSession?.merchant_txn_id ||
+                    paymentSession?.payment_session_id) && (
+                    <div
+                      style={{
+                        marginTop: 8,
+                        fontSize: 12,
+                        color: "#666",
+                        wordBreak: "break-all",
+                      }}
+                    >
+                      Txn:{" "}
+                      {paymentSession?.merchant_txn_id ||
+                        paymentSession?.payment_session_id}
                     </div>
                   )}
                 </Card>
@@ -1495,7 +1578,7 @@ export default function StaffDeliveriesPage() {
               type="success"
               showIcon
               message="Prepaid - no collection at the door"
-              description="Do not collect cash or open HamroPay QR. Confirm the receiver, take their name and signature, then complete."
+              description="Do not collect cash or open online QR. Confirm the receiver, take their name and signature, then complete."
               style={{ marginBottom: 16 }}
             />
 

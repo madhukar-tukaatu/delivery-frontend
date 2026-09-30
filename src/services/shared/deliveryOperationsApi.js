@@ -730,9 +730,41 @@ export async function staffCreatePaymentSession(
     throw new Error("Delivery ID is required.");
   }
 
+  // Always send a real JSON object body. Axios serializes `null` as the
+  // literal body `null` (Network tab "Request Payload: null"); omit/undefined
+  // sends no body. Rider create needs Content-Type application/json + {}.
+  const body =
+    payload !== null &&
+    typeof payload === "object" &&
+    !Array.isArray(payload)
+      ? payload
+      : {};
+
   const response = await api.post(
     `/staff/deliveries/${id}/payment-session`,
-    payload
+    body,
+    {
+      headers: {
+        Accept: "application/json",
+        "Content-Type": "application/json",
+      },
+      transformRequest: [
+        (data, headers) => {
+          if (headers) {
+            if (typeof headers.set === "function") {
+              headers.set("Content-Type", "application/json");
+              headers.set("Accept", "application/json");
+            } else {
+              headers["Content-Type"] = "application/json";
+              headers.Accept = "application/json";
+            }
+          }
+          return JSON.stringify(
+            data !== null && typeof data === "object" ? data : {}
+          );
+        },
+      ],
+    }
   );
 
   return unwrap(response);
@@ -749,7 +781,8 @@ export async function staffGetPaymentSession(
   const response = await api.get(
     `/staff/deliveries/${id}/payment-session`,
     {
-      params: refresh ? { refresh: true } : {},
+      // Backend accepts refresh=1 / true; send 1 to match staff poll contract.
+      params: refresh ? { refresh: 1 } : {},
     }
   );
 
