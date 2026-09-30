@@ -515,6 +515,8 @@ export default function StaffDeliveriesPage() {
       }
     };
 
+    // Poll immediately, then every 4s, so paid status is not delayed one interval.
+    poll();
     const interval = setInterval(poll, 4000);
 
     return () => {
