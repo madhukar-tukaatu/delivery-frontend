@@ -173,7 +173,7 @@ export default function CreateShipmentForm() {
     setQuote(null);
   }
 
-  function buildPayload() {
+  function buildPayload(quoteData = null) {
     const values = form.getFieldsValue(true);
 
     const items = (values.items || [])
@@ -220,6 +220,18 @@ export default function CreateShipmentForm() {
 
       payment_type: clean(values.payment_type),
       pod_amount: codAmount,
+
+      delivery_charge_paid_by: clean(values.delivery_charge_paid_by) || "merchant",
+      delivery_charge:
+        quoteData?.delivery_charge ??
+        quoteData?.final_delivery_fee ??
+        quote?.delivery_charge ??
+        quote?.final_delivery_fee ??
+        undefined,
+      pod_charge:
+        quoteData?.pod_charge ??
+        quote?.pod_charge ??
+        undefined,
 
       self_drop: Boolean(values.self_drop),
       special_instructions: clean(values.special_instructions),
@@ -269,9 +281,14 @@ export default function CreateShipmentForm() {
     try {
       await form.validateFields();
 
+      if (!quote) {
+        message.warning("Please calculate fare first.");
+        return;
+      }
+
       setCreating(true);
 
-      const payload = buildPayload();
+      const payload = buildPayload(quote);
       const response = await merchantCreateShipment(payload);
       const data = extractApiData(response);
 
