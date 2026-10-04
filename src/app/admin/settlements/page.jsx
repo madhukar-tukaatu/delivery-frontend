@@ -7,7 +7,7 @@ import {
 
 import AdminPageHeader from "@/components/admin/ui/AdminPageHeader";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Alert,
   Button,
@@ -15,10 +15,12 @@ import {
   Col,
   DatePicker,
   Form,
+  Input,
   InputNumber,
   Modal,
   Radio,
   Row,
+  Select,
   Space,
   Table,
   Tag,
@@ -27,6 +29,10 @@ import {
 } from "antd";
 import dayjs from "dayjs";
 import api from "@/lib/api";
+import { formatMerchantLabel, marketplaceLabel } from "@/lib/merchantLabel";
+import { ViewBillButton, deliveryCount } from "@/components/admin/billing/StoreBillPreview";
+import { listMarketplaces } from "@/services/admin/adminMarketplaceService";
+import { getMerchants } from "@/services/merchant/merchantService";
 
 const { Text, Paragraph } = Typography;
 
@@ -47,16 +53,56 @@ export default function SettlementsPage() {
   const [preview, setPreview] = useState(null);
   const [previewLoading, setPreviewLoading] = useState(false);
   const [form] = Form.useForm();
-  const cashPath = Form.useWatch("cash_path", form);
+  const [marketplaceId, setMarketplaceId] = useState(null);
+  const [merchantId, setMerchantId] = useState(null);
+  const [merchantSearch, setMerchantSearch] = useState("");
+  const [marketplaces, setMarketplaces] = useState([]);
+  const [merchantOptions, setMerchantOptions] = useState([]);
+  const [digestSending, setDigestSending] = useState(null);
+  const [digestHint, setDigestHint] = useState("");
+  const [billSide, setBillSide] = useState(null);
+  const loadFilterOptions = useCallback(async () => {
+    try {
+      const [mps, merchants] = await Promise.all([
+        listMarketplaces().catch(() => []),
+        getMerchants({ per_page: 200 }).catch(() => ({ list: [] })),
+      ]);
+      setMarketplaces(Array.isArray(mps) ? mps : []);
+      setMerchantOptions(Array.isArray(merchants?.list) ? merchants.list : []);
+    } catch {
+      setMarketplaces([]);
+      setMerchantOptions([]);
+    }
+  }, []);
 
   async function load() {
     setLoading(true);
     setLoadError("");
     try {
+      const listParams = {
+        per_page: 50,
+        marketplace_id: marketplaceId || undefined,
+        merchant_id: merchantId || undefined,
+        merchant: merchantSearch.trim() || undefined,
+      };
+      const pendingParams = {
+        per_page: 100,
+        marketplace_id: marketplaceId || undefined,
+        merchant_id: merchantId || undefined,
+        merchant: merchantSearch.trim() || undefined,
+      };
+      const invoiceParams = {
+        type: "delivery_charges",
+        per_page: 50,
+        marketplace_id: marketplaceId || undefined,
+        merchant_id: merchantId || undefined,
+        merchant: merchantSearch.trim() || undefined,
+      };
+
       const [pendingRes, settlementsRes, invoicesRes] = await Promise.all([
-        api.get("/admin/settlements/pending-cash", { params: { per_page: 100 } }),
-        api.get("/admin/settlements", { params: { per_page: 50 } }),
-        api.get("/admin/invoices", { params: { type: "delivery_charges", per_page: 50 } }),
+        api.get("/admin/settlements/pending-cash", { params: pendingParams }),
+        api.get("/admin/settlements", { params: listParams }),
+        api.get("/admin/invoices", { params: invoiceParams }),
       ]);
 
       const pending = unwrap(pendingRes);
@@ -82,8 +128,13 @@ export default function SettlementsPage() {
   }
 
   useEffect(() => {
+    loadFilterOptions();
+  }, [loadFilterOptions]);
+
+  useEffect(() => {
     load();
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [marketplaceId, merchantId]);
 
   const depositableRows = useMemo(
     () => pendingDeposit.filter((row) => row.can_deposit && row.pod_record_id),
@@ -118,6 +169,7 @@ export default function SettlementsPage() {
       cash_path: "after_deposit",
       adjustments: 0,
       period: null,
+      merchant_id: merchantId || undefined,
     });
     setPreview(null);
     setSettleOpen(true);
@@ -193,7 +245,6 @@ export default function SettlementsPage() {
       const data = unwrap(res);
       message.success("HamroPay session created. Complete checkout to pay the merchant.");
       if (data?.gateway_url && data?.checkout) {
-        // Keep session details visible for ops; open gateway when URL present.
         console.info("HamroPay checkout", data);
       }
       load();
@@ -212,11 +263,48 @@ export default function SettlementsPage() {
     }
   }
 
+  async function sendDigest(period) {
+    if (!merchantId) {
+      setDigestHint("Pick a merchant first.");
+      return;
+    }
+    setDigestHint("");
+    setDigestSending(period);
+    try {
+      const res = await api.post("/admin/invoices/send-digest", {
+        merchant_id: merchantId,
+        period,
+      });
+      message.success(res?.data?.message || (period === "weekly" ? "Weekly digest queued" : "Daily digest queued"));
+    } catch (e) {
+      message.error(e?.response?.data?.message || "Send failed");
+    } finally {
+      setDigestSending(null);
+    }
+  }
+
+  const visibleInvoices = useMemo(() => {
+    if (!billSide) return invoices;
+    return invoices.filter((row) => {
+      const payer = String(row.payer_type || "merchant").toLowerCase();
+      return billSide === "company" ? payer === "company" : payer !== "company";
+    });
+  }, [invoices, billSide]);
+
+  const merchantSelectOptions = useMemo(
+    () =>
+      merchantOptions.map((m) => ({
+        value: m.id,
+        label: formatMerchantLabel(m),
+      })),
+    [merchantOptions]
+  );
+
   return (
-    <Space direction="vertical" size={16} style={{ width: "100%" }}>
+    <Space direction="vertical" size={12} style={{ width: "100%" }}>
       <AdminPageHeader
         title="Settlements"
-        subtitle="POD deposits, merchant delivery bills, and settlement batches."
+        subtitle="POD deposits, merchant delivery bills, and settlement batches — filter by marketplace or store."
         icon={<AccountBookOutlined />}
         actions={
           <Button icon={<ReloadOutlined />} onClick={load}>Refresh</Button>
@@ -226,20 +314,62 @@ export default function SettlementsPage() {
       <Alert
         type="info"
         showIcon
-        message="Money tracks (POD + delivery bills + HQ commission)"
-        description={
-          <div>
-            <Paragraph style={{ marginBottom: 8 }}>
-              <strong>1. POD settlement</strong> - cash collected for the merchant.
-              Listed after branch deposit. Payable = full POD cash (no delivery fee deducted).
-            </Paragraph>
-            <Paragraph style={{ marginBottom: 0 }}>
-              <strong>2. Delivery charge bills</strong> - merchant-owed checkout delivery fees
-              (and POD service fees). Auto-created after successful delivery. Billed separately. HQ commission (branch{" -> "}Tukaatu Express) is on /admin/hq-commissions.
-            </Paragraph>
-          </div>
-        }
+        banner
+        message="POD cash is settled in full. Delivery fees are billed separately. HQ commission is on /admin/hq-commissions."
       />
+
+      <Card size="small" title="Filters" styles={{ body: { padding: "8px 12px" } }}>
+        <Space wrap size={8}>
+          <Select
+            size="small"
+            allowClear
+            placeholder="Marketplace"
+            style={{ minWidth: 200 }}
+            value={marketplaceId}
+            onChange={(v) => setMarketplaceId(v ?? null)}
+            options={(marketplaces || []).map((m) => ({
+              value: m.id,
+              label: m.name ? `${m.name}${m.code ? ` (${m.code})` : ""}` : `#${m.id}`,
+            }))}
+          />
+          <Select
+            size="small"
+            allowClear
+            showSearch
+            placeholder="Merchant / store"
+            style={{ minWidth: 240 }}
+            value={merchantId}
+            optionFilterProp="label"
+            onChange={(v) => {
+              setMerchantId(v ?? null);
+              setDigestHint("");
+            }}
+            options={merchantSelectOptions}
+          />
+          <Input.Search
+            size="small"
+            allowClear
+            placeholder="Search merchant name / STORE-id / #"
+            style={{ width: 240 }}
+            value={merchantSearch}
+            onChange={(e) => setMerchantSearch(e.target.value)}
+            onSearch={() => load()}
+          />
+          {(marketplaceId || merchantId || merchantSearch) && (
+            <Button
+              size="small"
+              onClick={() => {
+                setMarketplaceId(null);
+                setMerchantId(null);
+                setMerchantSearch("");
+                setDigestHint("");
+              }}
+            >
+              Clear filters
+            </Button>
+          )}
+        </Space>
+      </Card>
 
       {loadError ? (
         <Alert type="error" showIcon message="Load failed" description={loadError} />
@@ -256,15 +386,18 @@ export default function SettlementsPage() {
       ) : null}
 
       <Card
+        size="small"
         title="1. Branch deposit - cash POD from riders"
+        styles={{ header: { background: "#fff7e6", minHeight: 40 }, body: { padding: 8 } }}
         extra={
-          <Button type="primary" disabled={!selectedIds.length} onClick={depositSelected}>
+          <Button size="small" type="primary" disabled={!selectedIds.length} onClick={depositSelected}>
             Deposit selected (Rs. {selectedAmount.toFixed(2)})
           </Button>
         }
         loading={loading}
       >
         <Table
+          size="small"
           rowKey={(r) => r.pod_record_id || r.id}
           dataSource={pendingDeposit}
           locale={{
@@ -281,7 +414,16 @@ export default function SettlementsPage() {
               title: "Tracking",
               render: (_, r) => r.tracking_number || r.shipment_id,
             },
-            { title: "Merchant", dataIndex: "merchant_id" },
+            {
+              title: "Merchant",
+              key: "merchant",
+              render: (_, r) => formatMerchantLabel(r),
+            },
+            {
+              title: "Marketplace",
+              key: "marketplace",
+              render: (_, r) => marketplaceLabel(r),
+            },
             { title: "Rider", dataIndex: "collected_by" },
             { title: "POD cash", dataIndex: "collected_amount" },
             {
@@ -301,15 +443,18 @@ export default function SettlementsPage() {
       </Card>
 
       <Card
+        size="small"
         title="2. POD settlements - payable to merchant (full POD cash)"
+        styles={{ header: { background: "#e6f4ff", minHeight: 40 }, body: { padding: 8 } }}
         extra={
-          <Button onClick={openSettle}>
+          <Button size="small" onClick={openSettle}>
             Generate POD settlement (catch-up)
           </Button>
         }
         loading={loading}
       >
         <Table
+          size="small"
           rowKey="id"
           dataSource={settlements}
           locale={{
@@ -319,7 +464,22 @@ export default function SettlementsPage() {
           pagination={{ pageSize: 10 }}
           columns={[
             { title: "Number", dataIndex: "settlement_number" },
-            { title: "Merchant", dataIndex: "merchant_id" },
+            {
+              title: "Merchant",
+              key: "merchant",
+              render: (_, r) => formatMerchantLabel(r),
+            },
+            {
+              title: "Marketplace",
+              key: "marketplace",
+              render: (_, r) => marketplaceLabel(r),
+            },
+            {
+              title: "Deliveries",
+              key: "deliveries",
+              width: 90,
+              render: (_, r) => r.delivery_count ?? (Array.isArray(r.items) ? r.items.length : "-"),
+            },
             {
               title: "Path",
               dataIndex: "cash_path",
@@ -342,6 +502,7 @@ export default function SettlementsPage() {
               render: (_, r) => (
                 <Space>
                   <Button
+                    size="small"
                     type="primary"
                     disabled={["paid", "settled"].includes(String(r.status))}
                     onClick={() => paySettlementHamroPay(r.id)}
@@ -349,6 +510,7 @@ export default function SettlementsPage() {
                     Pay via HamroPay
                   </Button>
                   <Button
+                    size="small"
                     disabled={["paid", "settled"].includes(String(r.status))}
                     onClick={() => markSettlementPaid(r.id)}
                   >
@@ -362,12 +524,54 @@ export default function SettlementsPage() {
       </Card>
 
       <Card
+        size="small"
         title="3. Delivery charge bills - merchant owes platform (checkout fees)"
+        styles={{ header: { background: "#f6ffed", minHeight: 40 }, body: { padding: 8 } }}
+        extra={
+          <Space size={8}>
+            <Select
+              size="small"
+              allowClear
+              placeholder="Bill side"
+              style={{ width: 150 }}
+              value={billSide}
+              onChange={(v) => setBillSide(v ?? null)}
+              options={[
+                { value: "merchant", label: "Merchant store" },
+                { value: "company", label: "Marketplace" },
+              ]}
+            />
+            <Button
+              size="small"
+              loading={digestSending === "daily"}
+              disabled={digestSending !== null || billSide === "company"}
+              onClick={() => sendDigest("daily")}
+            >
+              Send daily bills
+            </Button>
+            <Button
+              size="small"
+              loading={digestSending === "weekly"}
+              disabled={digestSending !== null || billSide === "company"}
+              onClick={() => sendDigest("weekly")}
+            >
+              Send weekly bills
+            </Button>
+          </Space>
+        }
         loading={loading}
       >
+        {digestHint ? (
+          <Alert type="warning" showIcon message={digestHint} style={{ marginBottom: 8 }} />
+        ) : null}
+        <Text type="secondary" style={{ display: "block", marginBottom: 8 }}>
+          Merchant store bills and marketplace bills are separate. Paid bills stay listed and are not emailed.
+          Daily digests also run automatically at 6:17 AM; weekly is manual unless you run it.
+        </Text>
         <Table
+          size="small"
           rowKey="id"
-          dataSource={invoices}
+          dataSource={visibleInvoices}
           locale={{
             emptyText:
               "No delivery bills yet. They auto-create after successful delivery when the merchant owes delivery fees.",
@@ -375,7 +579,36 @@ export default function SettlementsPage() {
           pagination={{ pageSize: 10 }}
           columns={[
             { title: "Invoice", dataIndex: "invoice_number" },
-            { title: "Merchant", dataIndex: "merchant_id" },
+            {
+              title: "Merchant",
+              key: "merchant",
+              render: (_, r) =>
+                String(r.payer_type || "").toLowerCase() === "company"
+                  ? "Marketplace bill"
+                  : formatMerchantLabel(r),
+            },
+            {
+              title: "Marketplace",
+              key: "marketplace",
+              render: (_, r) => marketplaceLabel(r),
+            },
+            {
+              title: "Side",
+              dataIndex: "payer_type",
+              width: 110,
+              render: (v) =>
+                String(v || "merchant").toLowerCase() === "company" ? (
+                  <Tag color="blue">Marketplace</Tag>
+                ) : (
+                  <Tag>Store</Tag>
+                ),
+            },
+            {
+              title: "Deliveries",
+              key: "deliveries",
+              width: 90,
+              render: (_, r) => deliveryCount(r),
+            },
             { title: "Date", dataIndex: "invoice_date" },
             { title: "Subtotal", dataIndex: "subtotal" },
             { title: "Total due", dataIndex: "total_amount" },
@@ -389,12 +622,16 @@ export default function SettlementsPage() {
             {
               title: "Action",
               render: (_, r) => (
-                <Button
-                  disabled={String(r.status) === "paid"}
-                  onClick={() => markInvoicePaid(r.id)}
-                >
-                  Mark bill paid
-                </Button>
+                <Space size={4} wrap>
+                  <ViewBillButton invoice={r} />
+                  <Button
+                    size="small"
+                    disabled={String(r.status) === "paid"}
+                    onClick={() => markInvoicePaid(r.id)}
+                  >
+                    Mark bill paid
+                  </Button>
+                </Space>
               ),
             },
           ]}
@@ -460,10 +697,15 @@ export default function SettlementsPage() {
             <Col span={12}>
               <Form.Item
                 name="merchant_id"
-                label="Merchant ID"
+                label="Merchant / store"
                 rules={[{ required: true, message: "Required" }]}
               >
-                <InputNumber style={{ width: "100%" }} min={1} />
+                <Select
+                  showSearch
+                  optionFilterProp="label"
+                  placeholder="Select merchant"
+                  options={merchantSelectOptions}
+                />
               </Form.Item>
             </Col>
             <Col span={12}>
@@ -482,6 +724,9 @@ export default function SettlementsPage() {
         {preview && (
           <Card size="small" title="Preview" style={{ marginTop: 8 }}>
             <Text>
+              {preview.merchant_name
+                ? `${formatMerchantLabel(preview)} · `
+                : ""}
               Shipments: {preview.shipment_count} | POD cash payable: Rs.{" "}
               {Number(preview.final_payable_amount || preview.total_pod_collected || 0).toFixed(2)}
             </Text>
@@ -491,3 +736,4 @@ export default function SettlementsPage() {
     </Space>
   );
 }
+

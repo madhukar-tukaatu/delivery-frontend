@@ -191,7 +191,8 @@ export async function adminReceiveTransfer(
 
 export async function adminAssignDelivery(
   shipmentId,
-  riderId
+  riderId,
+  freeDelivery = {}
 ) {
   if (!shipmentId) {
     throw new Error(
@@ -209,6 +210,9 @@ export async function adminAssignDelivery(
     `/admin/shipments/${shipmentId}/assign-delivery`,
     {
       rider_id: riderId,
+      ...(freeDelivery.delivery_free_by
+        ? { delivery_free_by: freeDelivery.delivery_free_by }
+        : {}),
     }
   );
 
@@ -722,7 +726,7 @@ export async function staffArriveAtDelivery(
   return unwrap(response);
 }
 
-export async function staffCreatePaymentSession(
+export async function staffCreatePodPayment(
   id,
   payload = {}
 ) {
@@ -741,7 +745,7 @@ export async function staffCreatePaymentSession(
       : {};
 
   const response = await api.post(
-    `/staff/deliveries/${id}/payment-session`,
+    `/staff/deliveries/${id}/pod-payment`,
     body,
     {
       headers: {
@@ -770,7 +774,7 @@ export async function staffCreatePaymentSession(
   return unwrap(response);
 }
 
-export async function staffGetPaymentSession(
+export async function staffGetPodPayment(
   id,
   refresh = false
 ) {
@@ -779,7 +783,7 @@ export async function staffGetPaymentSession(
   }
 
   const response = await api.get(
-    `/staff/deliveries/${id}/payment-session`,
+    `/staff/deliveries/${id}/pod-payment`,
     {
       // Backend accepts refresh=1 / true; send 1 to match staff poll contract.
       params: refresh ? { refresh: 1 } : {},
@@ -787,6 +791,17 @@ export async function staffGetPaymentSession(
   );
 
   return unwrap(response);
+}
+
+
+/** @deprecated Prefer staffCreatePodPayment */
+export async function staffCreatePaymentSession(id, payload = {}) {
+  return staffCreatePodPayment(id, payload);
+}
+
+/** @deprecated Prefer staffGetPodPayment */
+export async function staffGetPaymentSession(id, refresh = false) {
+  return staffGetPodPayment(id, refresh);
 }
 
 export async function staffMarkDelivered(

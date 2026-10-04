@@ -4,8 +4,8 @@ function unwrap(response) {
   return response?.data?.data ?? response?.data ?? response;
 }
 
-export async function listMarketplaces() {
-  const response = await api.get("/admin/marketplaces");
+export async function listMarketplaces(params = {}) {
+  const response = await api.get("/admin/marketplaces", { params });
   const data = unwrap(response);
   return Array.isArray(data) ? data : [];
 }
@@ -37,3 +37,14 @@ export async function syncMarketplaceStores(id, merchantIds, action = "attach") 
   });
   return unwrap(response);
 }
+
+export async function reissueMarketplaceApiKey(id, payload = {}) {
+  const response = await api.post(`/admin/marketplaces/${id}/api-keys/reissue`, payload);
+  return unwrap(response);
+}
+
+export async function deleteMarketplace(id) {
+  const response = await api.delete(`/admin/marketplaces/${id}`);
+  return unwrap(response);
+}
+

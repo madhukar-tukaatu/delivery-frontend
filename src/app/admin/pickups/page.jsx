@@ -62,6 +62,9 @@ import {
 } from "@/services/admin/pickupService";
 
 import AdminPageHeader from "@/components/admin/ui/AdminPageHeader";
+import AreaAssignmentMap from "@/features/routing/AreaAssignmentMap";
+import { formatMerchantLabel } from "@/lib/merchantLabel";
+import { getMerchants } from "@/services/merchant/merchantService";
 
 const { Title, Text } = Typography;
 
@@ -353,7 +356,7 @@ function getRequestNumber(p) {
   return p?.request_number ?? `#${getPickupId(p) ?? "-"}`;
 }
 function getMerchantName(p) {
-  return p?.merchant?.name ?? p?.merchant?.business_name ?? "Unknown merchant";
+  return formatMerchantLabel(p, "Unknown merchant");
 }
 function getLocation(p) {
   return p?.pickup_location ?? p?.pickupLocation ?? null;
@@ -468,6 +471,13 @@ export default function AdminPickupsPage() {
   const [debouncedSearch, setDebouncedSearch] = useState("");
 
   const [rows, setRows] = useState([]);
+  const [mapOpen, setMapOpen] = useState(true);
+  const [mapRows, setMapRows] = useState([]);
+  const [mapLoading, setMapLoading] = useState(false);
+  const [mapSelected, setMapSelected] = useState([]);
+  const [mapRiders, setMapRiders] = useState([]);
+  const [mapRidersLoading, setMapRidersLoading] = useState(false);
+  const [mapTick, setMapTick] = useState(0);
   const [loading, setLoading] = useState(false);
   const [pagination, setPagination] = useState({
     current: 1,
@@ -479,6 +489,7 @@ export default function AdminPickupsPage() {
   const [dateFrom, setDateFrom] = useState(null);
   const [dateTo, setDateTo] = useState(null);
   const [merchantFilter, setMerchantFilter] = useState(null);
+  const [merchantOptions, setMerchantOptions] = useState([]);
 
   // Summary report data
   const [summary, setSummary] = useState({
@@ -588,8 +599,59 @@ export default function AdminPickupsPage() {
   }, [dateFrom, dateTo, merchantFilter]);
 
   useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await getMerchants({ per_page: 200 });
+        if (!cancelled) setMerchantOptions(Array.isArray(res?.list) ? res.list : []);
+      } catch {
+        if (!cancelled) setMerchantOptions([]);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  useEffect(() => {
     loadSummary();
   }, [loadSummary]);
+
+  useEffect(() => {
+    if (!mapOpen) return undefined;
+    let cancelled = false;
+    (async () => {
+      setMapLoading(true);
+      try {
+        const params = {
+          page: 1,
+          per_page: 100,
+          search: debouncedSearch || undefined,
+          status: statusParam(activeTab),
+          date_from: dateFrom || undefined,
+          date_to: dateTo || undefined,
+          merchant_id: merchantFilter || undefined,
+        };
+        const first = await getPickups(params);
+        let list = first.list ?? [];
+        const pageSize = first.pageSize || 100;
+        const pages = Math.min(Math.ceil((first.total || list.length) / pageSize), 5);
+        for (let page = 2; page <= pages; page += 1) {
+          const next = await getPickups({ ...params, page });
+          list = list.concat(next.list ?? []);
+        }
+        if (!cancelled) setMapRows(list);
+      } catch (error) {
+        if (!cancelled) {
+          message.error(error?.response?.data?.message || "Could not load pickups for the map.");
+          setMapRows([]);
+        }
+      } finally {
+        if (!cancelled) setMapLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [mapOpen, mapTick, activeTab, debouncedSearch, dateFrom, dateTo, merchantFilter]);
 
   const openDetail = useCallback(async (pickup) => {
     const id = getPickupId(pickup);
@@ -960,17 +1022,82 @@ export default function AdminPickupsPage() {
         title="Pickups"
         subtitle="Monitor the pickup lifecycle across every branch"
         actions={
-          <Button
-            icon={<ReloadOutlined />}
-            onClick={() => {
-              load(pagination.current, pagination.pageSize);
-              loadSummary();
-            }}
-          >
-            Refresh
-          </Button>
+          <Space>
+            <Button
+              icon={<EnvironmentOutlined />}
+              type={mapOpen ? "primary" : "default"}
+              onClick={() => setMapOpen((open) => !open)}
+            >
+              Map
+            </Button>
+            <Button
+              icon={<ReloadOutlined />}
+              onClick={() => {
+                load(pagination.current, pagination.pageSize);
+                loadSummary();
+              }}
+            >
+              Refresh
+            </Button>
+          </Space>
         }
       />
+
+      {mapOpen && (
+        <AreaAssignmentMap
+          mode="pickup"
+          loading={mapLoading}
+          selectedIds={mapSelected}
+          onSelectedIdsChange={setMapSelected}
+          onOpen={(id) => {
+            const row = mapRows.find((pickup) => getPickupId(pickup) === id);
+            if (row) openDetail(row);
+          }}
+          riders={mapRiders}
+          ridersLoading={mapRidersLoading}
+          onLoadRiders={async (ids) => {
+            const id = ids?.[0];
+            if (!id) return;
+            setMapRidersLoading(true);
+            try {
+              setMapRiders(await getPickupAssignableStaff(id));
+            } catch {
+              setMapRiders([]);
+            } finally {
+              setMapRidersLoading(false);
+            }
+          }}
+          onAssign={async (riderId, ids) => {
+            const results = await Promise.allSettled(
+              ids.map((id) => assignPickup(id, riderId)),
+            );
+            const failed = results.filter((result) => result.status === "rejected").length;
+            if (failed) {
+              message.warning(`${ids.length - failed} assigned, ${failed} could not be assigned.`);
+            } else {
+              message.success("Rider assigned.");
+            }
+            setMapSelected([]);
+            setMapTick((n) => n + 1);
+            load(pagination.current, pagination.pageSize);
+            loadSummary();
+          }}
+          stops={mapRows.map((pickup) => ({
+            id: getPickupId(pickup),
+            title: getRequestNumber(pickup),
+            subtitle: `${getMerchantName(pickup)} · ${pickup.parcel_quantity ?? 0} packets`,
+            area: pickup.pickup_area || pickup.pickup_city || "Unknown area",
+            address: pickup.pickup_address || "",
+            lat: pickup.pickup_lat,
+            lng: pickup.pickup_lng,
+            status: pickup.status,
+            statusLabel: (STATUS_META[String(pickup.status || "").toLowerCase()] || {}).label || pickup.status,
+            color: (STATUS_META[String(pickup.status || "").toLowerCase()] || {}).hex || "#6B7280",
+            riderName: pickup.assigned_staff?.name || pickup.assignedStaff?.name || "",
+            riderRole: pickup.assigned_staff?.role || pickup.assignedStaff?.role || "",
+          }))}
+        />
+      )}
 
       <Card className="admin-card" style={{ marginBottom: 16 }}>
         <Space wrap>
@@ -992,6 +1119,19 @@ export default function AdminPickupsPage() {
               setDateFrom(range?.[0] ? range[0].format("YYYY-MM-DD") : null);
               setDateTo(range?.[1] ? range[1].format("YYYY-MM-DD") : null);
             }}
+          />
+          <Select
+            allowClear
+            showSearch
+            placeholder="Merchant / store"
+            style={{ minWidth: 240 }}
+            value={merchantFilter}
+            optionFilterProp="label"
+            onChange={(v) => setMerchantFilter(v ?? null)}
+            options={(merchantOptions.length ? merchantOptions : (summary?.byMerchant || [])).map((m) => ({
+              value: m.id ?? m.merchant_id,
+              label: formatMerchantLabel(m.id ? m : { merchant_id: m.merchant_id, merchant_name: m.merchant_name }),
+            }))}
           />
           {(dateFrom || dateTo || merchantFilter || activeTab !== "all") && (
             <Button

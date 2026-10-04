@@ -40,13 +40,14 @@ import {
 import {
   staffAcceptDelivery,
   staffArriveAtDelivery,
-  staffCreatePaymentSession,
+  staffCreatePodPayment,
   staffGetDeliveries,
-  staffGetPaymentSession,
+  staffGetPodPayment,
   staffMarkDelivered,
   staffMarkFailed,
   staffOutForDelivery,
 } from "@/services/deliveryOperationsApi";
+import { QRCodeSVG } from "qrcode.react";
 import styles from "./deliveries.module.css";
 
 const STATUS_COLORS = {
@@ -103,36 +104,45 @@ function firstNonEmptyString(...values) {
   return "";
 }
 
-// Prefer qr_string / payment_url; do not require payment.qr.payload
-// (BE may still return payload:null while qr_string/checkout is set).
-function paymentSessionQrPayload(session) {
-  return firstNonEmptyString(
-    session?.qr_string,
-    session?.payment?.qr?.payload,
+const CHECKOUT_PARAM_KEYS = [
+  "merchant_id",
+  "session_id",
+  "token",
+  "merchant_transaction_id",
+  "remarks",
+  "success_url",
+  "failure_url",
+];
+
+// HamroPay checkout: payment_url plus params. qr_string is often null.
+function paymentCheckoutLink(session) {
+  const base = firstNonEmptyString(
     session?.payment_url,
     session?.payment?.checkout_url
   );
-}
+  if (!base) return "";
 
-function paymentSessionQrImageUrl(session) {
-  const direct = firstNonEmptyString(session?.payment?.qr?.image_url);
-  if (direct) return direct;
+  const params = session?.params;
+  if (!params || typeof params !== "object" || Array.isArray(params)) {
+    return base;
+  }
 
-  const payload = paymentSessionQrPayload(session);
-  if (!payload) return "";
+  let url;
+  try {
+    url = new URL(base);
+  } catch {
+    return base;
+  }
 
-  // Store Manager / gateway may return qr_string / payment_url / params without image_url.
-  // Render a scannable QR from that payload for doorstep POD.
-  return `https://api.qrserver.com/v1/create-qr-code/?size=260x260&ecc=M&margin=8&data=${encodeURIComponent(
-    payload
-  )}`;
-}
+  for (const key of CHECKOUT_PARAM_KEYS) {
+    const value = params[key];
+    if (value === null || value === undefined || String(value).trim() === "") {
+      continue;
+    }
+    url.searchParams.set(key, String(value));
+  }
 
-function paymentSessionCheckoutUrl(session) {
-  return firstNonEmptyString(
-    session?.payment?.checkout_url,
-    session?.payment_url
-  );
+  return url.toString();
 }
 
 
@@ -453,14 +463,18 @@ export default function StaffDeliveriesPage() {
     setPaymentSessionError("");
     setPaymentSessionLoading(true);
 
-    staffCreatePaymentSession(paymentDelivery.id)
+    staffCreatePodPayment(paymentDelivery.id)
       .then((session) => {
         if (!cancelled) {
-          setPaymentSession(session);
+          setPaymentSession(session || null);
+          // Setup / provider failures on create are returned as HTTP 422 (catch).
+          // If a session still comes back failed, show it once via the failed Alert below.
+          setPaymentSessionError("");
         }
       })
       .catch((error) => {
         if (!cancelled) {
+          setPaymentSession(null);
           setPaymentSessionError(
             apiErrorMessage(
               error,
@@ -485,8 +499,8 @@ export default function StaffDeliveriesPage() {
       !paymentDelivery ||
       !isCollectable(paymentDelivery) ||
       paymentMethod !== "online" ||
-      !paymentSession?.payment_session_id ||
-      paymentSession.status !== "pending"
+      !(paymentSession?.payment_session_id || paymentSession?.session_id) ||
+      !["pending", "ready"].includes(paymentSession.status)
     ) {
       return undefined;
     }
@@ -494,13 +508,14 @@ export default function StaffDeliveriesPage() {
     let cancelled = false;
     const poll = async () => {
       try {
-        const session = await staffGetPaymentSession(
+        const session = await staffGetPodPayment(
           paymentDelivery.id,
-          true
+          false
         );
 
         if (!cancelled && session) {
           setPaymentSession(session);
+          // Failed status is shown once by the status Alert (avoid duplicating last_error).
           setPaymentSessionError("");
         }
       } catch (error) {
@@ -527,6 +542,7 @@ export default function StaffDeliveriesPage() {
     paymentDelivery,
     paymentMethod,
     paymentSession?.payment_session_id,
+    paymentSession?.session_id,
     paymentSession?.status,
   ]);
 
@@ -591,9 +607,30 @@ export default function StaffDeliveriesPage() {
     paymentForm.resetFields();
   }
 
-  function retryPaymentSession() {
-    setPaymentSession(null);
+  async function retryPaymentSession() {
+    if (!paymentDelivery) {
+      setPaymentSessionRetry((value) => value + 1);
+      return;
+    }
+
     setPaymentSessionError("");
+    setPaymentSessionLoading(true);
+    try {
+      const session = await staffGetPodPayment(paymentDelivery.id, true);
+      if (session) {
+        setPaymentSession(session);
+        setPaymentSessionError("");
+        return;
+      }
+    } catch (error) {
+      setPaymentSessionError(
+        apiErrorMessage(error, "Could not retry the payment session.")
+      );
+    } finally {
+      setPaymentSessionLoading(false);
+    }
+
+    setPaymentSession(null);
     setPaymentSessionRetry((value) => value + 1);
   }
 
@@ -645,10 +682,19 @@ export default function StaffDeliveriesPage() {
             ? {
                 merchant_txn_id:
                   paymentSession?.merchant_txn_id ||
+                  paymentSession?.session_id ||
                   paymentSession?.payment_session_id,
                 payment_session_id:
+                  paymentSession?.session_id ||
                   paymentSession?.payment_session_id ||
                   paymentSession?.merchant_txn_id,
+                payment_reference:
+                  paymentSession?.payment_reference ||
+                  paymentSession?.transaction_id ||
+                  paymentSession?.merchant_txn_id ||
+                  paymentSession?.session_id ||
+                  paymentSession?.payment_session_id,
+                paid: paymentSession?.status === "paid" || paymentSession?.paid === true,
               }
             : {}),
         }
@@ -1419,7 +1465,7 @@ export default function StaffDeliveriesPage() {
               }.`}
               description={
                 paymentMethod === "online"
-                  ? "Customer pays in the HamroPay app (scan the QR). After payment is verified, take receiver name and signature, then complete."
+                  ? "Customer pays via the Tukaatu / HamroPay QR (merchant doorstep). After payment is verified, take receiver name and signature, then complete."
                   : "Collect exact cash for the merchant. After delivery, that cash must be deposited at the branch before merchant settlement."
               }
               style={{ marginBottom: 16 }}
@@ -1447,11 +1493,11 @@ export default function StaffDeliveriesPage() {
                   title="POD online payment"
                   style={{ marginBottom: 16 }}
                 >
-                  {paymentSessionLoading && (
+                  {(paymentSessionLoading || (paymentMethod === "online" && paymentSession && ["pending", "ready"].includes(paymentSession.status) && !paymentCheckoutLink(paymentSession) && !paymentSessionError)) && (
                     <div style={{ textAlign: "center", padding: "16px 0" }}>
                       <Spin />
                       <div style={{ marginTop: 8 }}>
-                        Creating online POD payment QR...
+                        Creating online POD payment session...
                       </div>
                     </div>
                   )}
@@ -1470,12 +1516,12 @@ export default function StaffDeliveriesPage() {
                     />
                   )}
 
-                  {paymentSession?.status === "pending" && (
+                  {["pending", "ready"].includes(paymentSession?.status) && (
                     <Alert
                       type="warning"
                       showIcon
-                      message="Waiting for payment confirmation"
-                      description="Ask the customer to scan this QR and complete the exact amount. This screen polls until the payment is confirmed."
+                      message={paymentCheckoutLink(paymentSession) ? "Waiting for payment confirmation" : "Requesting payment QR from Tukaatu"}
+                      description={paymentCheckoutLink(paymentSession) ? "Ask the customer to scan this QR and complete the exact amount. This screen polls until the payment is confirmed." : "Creating the doorstep QR via Tukaatu. This screen polls until the QR appears, then until payment is confirmed."}
                       style={{ marginBottom: 12 }}
                     />
                   )}
@@ -1493,29 +1539,30 @@ export default function StaffDeliveriesPage() {
                   {paymentSession &&
                     ["failed", "expired", "cancelled", "refunded"].includes(
                       paymentSession.status
-                    ) && (
+                    ) &&
+                    !paymentSessionError && (
                       <Alert
                         type="error"
                         showIcon
-                        message={`Payment session ${paymentSession.status}`}
+                        message={
+                          paymentSession.last_error ||
+                          (paymentSession.status === "failed"
+                            ? "Online payment failed. Retry or collect cash."
+                            : `Payment session ${paymentSession.status}`)
+                        }
                         description={
-                          <Space direction="vertical" size={4}>
-                            <span>
-                              Create a new payment session or ask the customer to use cash.
-                            </span>
-                            <Button size="small" onClick={retryPaymentSession}>
-                              Create new session
-                            </Button>
-                          </Space>
+                          <Button size="small" onClick={retryPaymentSession}>
+                            Retry payment
+                          </Button>
                         }
                         style={{ marginBottom: 12 }}
                       />
                     )}
 
-                  {paymentSessionQrImageUrl(paymentSession) && (
+                  {paymentCheckoutLink(paymentSession) && (
                     <div style={{ textAlign: "center", marginBottom: 12 }}>
                       <img
-                        src={paymentSessionQrImageUrl(paymentSession)}
+                        src={paymentCheckoutLink(paymentSession)}
                         alt={`Online payment QR for ${
                           paymentDelivery?.shipment?.merchant?.name || "merchant"
                         }`}
@@ -1541,10 +1588,10 @@ export default function StaffDeliveriesPage() {
                     </div>
                   )}
 
-                  {paymentSessionCheckoutUrl(paymentSession) && (
+                  {paymentCheckoutLink(paymentSession) && (
                     <div style={{ textAlign: "center" }}>
                       <a
-                        href={paymentSessionCheckoutUrl(paymentSession)}
+                        href={paymentCheckoutLink(paymentSession)}
                         target="_blank"
                         rel="noreferrer"
                       >

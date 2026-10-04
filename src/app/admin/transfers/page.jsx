@@ -49,6 +49,7 @@ import {
 import { usePermissions } from "@/hooks/usePermission";
 import api from "@/lib/api";
 import {
+import { formatMerchantLabel } from "@/lib/merchantLabel";
   getTransfers,
   getTransferStats,
   getAvailableTransferRoutes,
@@ -719,6 +720,17 @@ function NextHopMasterDetail({
               <ServiceTypeTag value={s.hop_meta?.service_type || s.service_type} />
             </Space>
           </Space>
+        ),
+      },
+      {
+        title: "Merchant",
+        key: "merchant",
+        width: 160,
+        ellipsis: true,
+        render: (_, s) => (
+          <Text ellipsis style={{ fontSize: 11 }} title={formatMerchantLabel(s.merchant || s)}>
+            {formatMerchantLabel(s.merchant || s)}
+          </Text>
         ),
       },
       {
@@ -2218,7 +2230,21 @@ export default function TransfersPage() {
     ),
   };
 
-  const routeColumn = {
+
+      {
+        title: "Merchant",
+        key: "merchant",
+        width: 150,
+        ellipsis: true,
+        render: (_, s) => {
+          const row = s.shipment ?? s;
+          return (
+            <Text ellipsis style={{ fontSize: 11 }} title={formatMerchantLabel(row.merchant || row)}>
+              {formatMerchantLabel(row.merchant || row)}
+            </Text>
+          );
+        },
+      },  const routeColumn = {
     title: "Route",
     key: "route",
     render: (_, s) => {

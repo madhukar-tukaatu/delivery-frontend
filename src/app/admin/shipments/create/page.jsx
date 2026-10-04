@@ -16,7 +16,8 @@ function payload(values) {
     customer: { name: values.customer_name, phone: values.customer_phone, email: values.customer_email || null },
     delivery: { address: values.delivery_address, city: values.delivery_city, area: values.delivery_area || null, latitude: values.delivery_latitude || null, longitude: values.delivery_longitude || null },
     package: { type: values.package_type || "parcel", description: values.package_description || null, weight: values.weight, length_cm: values.length_cm || 0, width_cm: values.width_cm || 0, height_cm: values.height_cm || 0, pieces: values.pieces || 1, value: values.declared_value || 0 },
-    payment: { type: values.payment_type || "prepaid", pod_amount: values.payment_type === "pod" ? values.pod_amount || 0 : 0, delivery_charge_paid_by: values.delivery_charge_paid_by || "merchant" },
+    payment: { type: values.payment_type || "prepaid", pod_amount: values.payment_type === "pod" ? values.pod_amount || 0 : 0, delivery_charge_paid_by: values.delivery_charge_paid_by || "merchant", delivery_free_by: values.delivery_free_by || "none" },
+    delivery_free_by: values.delivery_free_by || "none",
     special_instruction: values.special_instruction || null,
   };
 }
@@ -58,7 +59,7 @@ export default function AdminCreateShipmentPage() {
       <Row gutter={[16, 16]}>
         <Col xs={24} lg={15}>
           <Card title="Shipment Form">
-            <Form form={form} layout="vertical" initialValues={{ payment_type: "prepaid", delivery_charge_paid_by: "merchant", pieces: 1, package_type: "parcel" }}>
+            <Form form={form} layout="vertical" initialValues={{ payment_type: "prepaid", delivery_charge_paid_by: "merchant", delivery_free_by: "none", pieces: 1, package_type: "parcel" }}>
               <Row gutter={16}>
                 <Col xs={24} md={8}><Form.Item name="merchant_id" label="Merchant ID" rules={[{ required: true }]}><InputNumber style={{ width: "100%" }} /></Form.Item></Col>
                 <Col xs={24} md={8}><Form.Item name="pickup_location_id" label="Pickup Location ID"><InputNumber style={{ width: "100%" }} placeholder="optional; default used if blank" /></Form.Item></Col>
@@ -91,6 +92,7 @@ export default function AdminCreateShipmentPage() {
                 <Col xs={24} md={8}><Form.Item name="payment_type" label="Payment"><Select options={[{ value: "prepaid", label: "Prepaid" }, { value: "pod", label: "POD" }]} /></Form.Item></Col>
                 {paymentType === "pod" && <Col xs={24} md={8}><Form.Item name="pod_amount" label="POD Amount" rules={[{ required: true }]}><InputNumber min={0} style={{ width: "100%" }} /></Form.Item></Col>}
                 <Col xs={24} md={8}><Form.Item name="delivery_charge_paid_by" label="Charge Paid By"><Select options={[{ value: "merchant", label: "Merchant" }, { value: "customer", label: "Customer" }]} /></Form.Item></Col>
+                <Col xs={24} md={8}><Form.Item name="delivery_free_by" label="Free delivery"><Select options={[{ value: "none", label: "None" }, { value: "store", label: "Store" }, { value: "marketplace", label: "Marketplace" }]} /></Form.Item></Col>
               </Row>
               <Form.Item name="special_instruction" label="Instruction"><Input.TextArea rows={2} /></Form.Item>
               <Space><Button loading={loading} onClick={calculate}>Calculate</Button><Button type="primary" loading={creating} onClick={create}>Create Shipment</Button></Space>

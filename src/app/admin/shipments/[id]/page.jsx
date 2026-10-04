@@ -48,6 +48,7 @@ import {
 } from "@/services/merchantShipmentService";
 
 import {
+import { formatMerchantLabel } from "@/lib/merchantLabel";
   formatDateTime,
   formatMoney,
   labelForStatus,
@@ -319,7 +320,9 @@ export default function AdminShipmentDetailPage() {
               </Title>
 
               <Text type="secondary">
-                Merchant Order:{" "}
+                Merchant:{" "}
+                {formatMerchantLabel(shipment.merchant || shipment)}
+                {" · "}Order:{" "}
                 {shipment.merchant_order_id ||
                   "-"}
               </Text>
@@ -532,6 +535,10 @@ export default function AdminShipmentDetailPage() {
               column={1}
               size="small"
             >
+              <Descriptions.Item label="Merchant">
+                {formatMerchantLabel(shipment.merchant || shipment)}
+              </Descriptions.Item>
+
               <Descriptions.Item label="Name">
                 {shipment.sender_name ??
                   shipment.customer_name ??

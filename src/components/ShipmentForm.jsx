@@ -32,6 +32,10 @@ export default function ShipmentForm({ mode = 'admin' }) {
         pod_amount: values.pod_amount ?? routing.pod_amount ?? 0,
       };
 
+      if (isMerchant && payload.delivery_free_by === "marketplace") {
+        payload.delivery_free_by = "none";
+      }
+
       const res = await api.post(endpoint, payload);
       message.success('Shipment created: ' + res.data.data.tracking_number);
       router.push(mode === 'merchant' ? '/merchant/shipments' : '/admin/shipments');
@@ -46,7 +50,7 @@ export default function ShipmentForm({ mode = 'admin' }) {
         form={form}
         layout="vertical"
         onFinish={submit}
-        initialValues={{ payment_type: 'pod', delivery_charge_paid_by: 'customer', quantity: 1, weight: 1 }}
+        initialValues={{ payment_type: 'pod', delivery_charge_paid_by: 'customer', delivery_free_by: 'none', quantity: 1, weight: 1 }}
         onValuesChange={(changed, all) => {
           if ('weight' in changed || 'pod_amount' in changed) {
             setRouting((prev) => ({ ...prev, weight: all.weight || 1, pod_amount: all.pod_amount || 0 }));
@@ -94,6 +98,11 @@ export default function ShipmentForm({ mode = 'admin' }) {
           <Form.Item name="payment_type" label="Payment Type"><Select options={[{value:'pod',label:'POD'},{value:'prepaid',label:'Prepaid'},{value:'to_pay',label:'To Pay'}]} /></Form.Item>
           <Form.Item name="pod_amount" label="POD Amount"><InputNumber min={0} style={{ width: '100%' }} /></Form.Item>
           <Form.Item name="delivery_charge_paid_by" label="Delivery Charge Paid By"><Select options={[{value:'customer',label:'Customer'},{value:'merchant',label:'Merchant'}]} /></Form.Item>
+          <Form.Item name="delivery_free_by" label="Free delivery">
+            <Select options={mode === 'admin'
+              ? [{ value: 'none', label: 'None' }, { value: 'store', label: 'Store' }, { value: 'marketplace', label: 'Marketplace' }]
+              : [{ value: 'none', label: 'None' }, { value: 'store', label: 'Store' }]} />
+          </Form.Item>
         </div>
         <Button type="primary" htmlType="submit">Create Shipment</Button>
       </Form>

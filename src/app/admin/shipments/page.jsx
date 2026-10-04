@@ -39,6 +39,7 @@ import {
 import {
   getShipments,
 } from "@/services/merchant/merchantShipmentService";
+import { formatMerchantLabel } from "@/lib/merchantLabel";
 
 import WorkflowStatusTag from "@/features/workflow/components/WorkflowStatusTag";
 
@@ -293,10 +294,8 @@ export default function ShipmentsPage() {
       key: "merchant",
       width: 130,
       render: (_, record) => (
-        <Text ellipsis style={{ fontSize: "12px" }}>
-          {record.merchant?.name ||
-          record.merchant_name ||
-          "-"}
+        <Text ellipsis style={{ fontSize: "12px" }} title={formatMerchantLabel(record)}>
+          {formatMerchantLabel(record)}
         </Text>
       ),
     },

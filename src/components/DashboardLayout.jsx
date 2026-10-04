@@ -16,7 +16,7 @@ import {
 } from "@ant-design/icons";
 import { usePathname, useRouter } from "next/navigation";
 import Image from "next/image";
-import { clearAuth, getUser } from "@/lib/auth";
+import { clearAuth, getUser, hasPermission } from "@/lib/auth";
 import { getMyMenus } from "@/services/menuService";
 
 const { Header, Sider, Content } = Layout;
@@ -66,6 +66,43 @@ const iconMap = {
   checklist: <CheckSquareOutlined />,
   location: <EnvironmentOutlined />,
 };
+
+
+function menuTreeHasPath(menus, path) {
+  return (menus || []).some(
+    (item) => item?.path === path || menuTreeHasPath(item?.children || [], path)
+  );
+}
+
+/** Keep Marketplaces in the sidebar when the user has marketplaces.view. */
+function withMarketplaceMenu(menus) {
+  if (!hasPermission("marketplaces.view")) return menus || [];
+  if (menuTreeHasPath(menus, "/admin/marketplaces")) return menus || [];
+
+  const item = {
+    id: "marketplaces",
+    key: "marketplaces.view",
+    label: "Marketplaces",
+    path: "/admin/marketplaces",
+    icon: "api",
+    permission: "marketplaces.view",
+  };
+
+  const list = Array.isArray(menus) ? [...menus] : [];
+  const networkIndex = list.findIndex(
+    (row) => String(row?.label || "").toLowerCase() === "network" && !row?.path
+  );
+
+  if (networkIndex === -1) return [...list, item];
+
+  const network = list[networkIndex];
+  const children = Array.isArray(network.children) ? [...network.children] : [];
+  const merchantIndex = children.findIndex((child) => child?.path === "/admin/merchants");
+  if (merchantIndex >= 0) children.splice(merchantIndex + 1, 0, item);
+  else children.push(item);
+  list[networkIndex] = { ...network, children };
+  return list;
+}
 
 function getIcon(icon) {
   return iconMap[icon] || <AppstoreOutlined />;
@@ -173,7 +210,7 @@ export default function DashboardLayout({ section: propsSection = "admin", child
       try {
         setLoadingMenus(true);
         const data = await getMyMenus(section);
-        if (active) setMenus(data);
+        if (active) setMenus(withMarketplaceMenu(Array.isArray(data) ? data : []));
       } catch {
         if (active) setMenus([]);
       } finally {

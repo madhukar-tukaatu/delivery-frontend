@@ -45,7 +45,9 @@ import {
 } from "@/services/admin/deliveryService";
 
 import AdminPageHeader from "@/components/admin/ui/AdminPageHeader";
+import AreaAssignmentMap from "@/features/routing/AreaAssignmentMap";
 import StatCard, { StatCardGrid } from "@/components/admin/ui/StatCard";
+import { formatMerchantLabel } from "@/lib/merchantLabel";
 
 const { Text, Title } = Typography;
 const BRAND = "#0891B2";
@@ -197,6 +199,10 @@ export default function DeliveriesPage() {
   const [debouncedSearch, setDebouncedSearch] = useState("");
 
   const [rows, setRows] = useState([]);
+  const [mapOpen, setMapOpen] = useState(true);
+  const [mapRows, setMapRows] = useState([]);
+  const [mapLoading, setMapLoading] = useState(false);
+  const [mapTick, setMapTick] = useState(0);
   const [loading, setLoading] = useState(false);
   const [pagination, setPagination] = useState({ current: 1, pageSize: 10, total: 0 });
   const [counts, setCounts] = useState({});
@@ -260,6 +266,44 @@ export default function DeliveriesPage() {
   useEffect(() => {
     loadSummary();
   }, [loadSummary]);
+
+  useEffect(() => {
+    if (!mapOpen) return undefined;
+    let cancelled = false;
+    (async () => {
+      setMapLoading(true);
+      try {
+        const statuses = STATUS_TABS.find((tab) => tab.key === statusTab)?.statuses ?? [];
+        const params = {
+          page: 1,
+          per_page: 100,
+          status: statuses.length ? statuses[0] : undefined,
+          delivery_type: typeTab !== "all" ? typeTab : undefined,
+          search: debouncedSearch || undefined,
+          branch_id: branchId || undefined,
+        };
+        const first = await getDeliveries(params);
+        let list = first.list ?? [];
+        const pageSize = first.pageSize || 100;
+        const pages = Math.min(Math.ceil((first.total || list.length) / pageSize), 5);
+        for (let page = 2; page <= pages; page += 1) {
+          const next = await getDeliveries({ ...params, page });
+          list = list.concat(next.list ?? []);
+        }
+        if (!cancelled) setMapRows(list);
+      } catch (error) {
+        if (!cancelled) {
+          message.error(error?.response?.data?.message || "Could not load deliveries for the map.");
+          setMapRows([]);
+        }
+      } finally {
+        if (!cancelled) setMapLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [mapOpen, branchId, mapTick, statusTab, typeTab, debouncedSearch]);
 
   const refresh = useCallback(async () => {
     await Promise.all([load(pagination.current, pagination.pageSize), loadSummary()]);
@@ -381,6 +425,19 @@ export default function DeliveriesPage() {
                 )}
               </Tag>
             </Space>
+          );
+        },
+      },
+      {
+        title: "Merchant",
+        key: "merchant",
+        width: 180,
+        render: (_, r) => {
+          const s = r.shipment ?? {};
+          return (
+            <Text ellipsis style={{ fontSize: 12 }} title={formatMerchantLabel(s.merchant || s)}>
+              {formatMerchantLabel(s.merchant || { merchant_id: s.merchant_id, merchant_name: s.merchant_name, external_store_id: s.external_store_id })}
+            </Text>
           );
         },
       },
@@ -538,11 +595,67 @@ export default function DeliveriesPage() {
         title="Deliveries"
         subtitle="Assign riders, track last-mile, and follow cash POD / settlement after delivery"
         actions={
-          <Button icon={<ReloadOutlined />} onClick={refresh}>
-            Refresh
-          </Button>
+          <Space>
+            <Button
+              icon={<EnvironmentOutlined />}
+              type={mapOpen ? "primary" : "default"}
+              onClick={() => setMapOpen((open) => !open)}
+            >
+              Map
+            </Button>
+            <Button icon={<ReloadOutlined />} onClick={refresh}>
+              Refresh
+            </Button>
+          </Space>
         }
       />
+
+      {mapOpen && (
+        <AreaAssignmentMap
+          mode="delivery"
+          loading={mapLoading}
+          selectedIds={selectedRowKeys}
+          onSelectedIdsChange={setSelectedRowKeys}
+          riders={riders}
+          ridersLoading={ridersLoading}
+          onLoadRiders={(ids) => loadRidersFor(ids?.[0])}
+          onAssign={async (riderId, ids) => {
+            const res = await bulkAssignDeliveries(riderId, ids);
+            const skipped = Object.keys(res?.skipped || {}).length;
+            if (skipped) {
+              message.warning(`${res?.assigned?.length || 0} assigned, ${skipped} skipped.`);
+            } else {
+              message.success("Rider assigned.");
+            }
+            setSelectedRowKeys([]);
+            setSelectedRider(null);
+            setMapTick((n) => n + 1);
+            refresh();
+          }}
+          stops={mapRows.map((row) => {
+            const shipment = row.shipment ?? {};
+            return {
+              id: row.id,
+              title: shipment.tracking_number || `#${row.shipment_id}`,
+              subtitle: shipment.receiver_name || "",
+              area:
+                shipment.receiver_area ||
+                shipment.delivery_area ||
+                shipment.receiver_city ||
+                "Unknown area",
+              address: shipment.delivery_address || shipment.receiver_address || "",
+              lat: shipment.delivery_lat,
+              lng: shipment.delivery_lng,
+              status: row.status,
+              statusLabel: statusMeta(row.status).label,
+              color: statusMeta(row.status).hex,
+              deliveryType: row.delivery_type,
+              riderName: row.rider?.name || "",
+              riderRole: row.rider?.role || "",
+            };
+          })}
+        />
+      )}
 
       <Card className="admin-card" style={{ marginBottom: 12 }}>
         <Space wrap>
@@ -769,7 +882,7 @@ export default function DeliveriesPage() {
               <Space direction="vertical" size={2} style={{ width: "100%" }}>
                 <Text strong>{assignTarget.shipment?.tracking_number || `#${assignTarget.shipment_id}`}</Text>
                 <Text type="secondary" style={{ fontSize: 12 }}>
-                  <Space size={4}><ShopOutlined />{assignTarget.shipment?.merchant?.name || "Merchant"}</Space>
+                  <Space size={4}><ShopOutlined />{formatMerchantLabel(assignTarget.shipment?.merchant || assignTarget.shipment, "Merchant")}</Space>
                 </Text>
                 <Text type="secondary" style={{ fontSize: 12 }}>
                   <Space size={4}><EnvironmentOutlined />

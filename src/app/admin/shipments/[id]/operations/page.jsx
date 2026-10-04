@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
-import { Alert, Button, Card, Col, Descriptions, Form, Input, InputNumber, Modal, Row, Space, Tag, Timeline, Typography, message } from "antd";
+import { Alert, Button, Card, Col, Descriptions, Form, Input, InputNumber, Modal, Row, Select, Space, Tag, Timeline, Typography, message } from "antd";
 import {
   adminAssignDelivery,
   adminAssignPickup,
@@ -126,8 +126,8 @@ export default function AdminShipmentOperationsPage() {
         </Form>
       </Modal>
 
-      <Modal title="Assign Delivery Rider" open={deliveryOpen} onCancel={() => setDeliveryOpen(false)} onOk={() => form.validateFields().then((v) => run(() => adminAssignDelivery(s.id, v.rider_id), "Delivery rider assigned"))}>
-        <Form form={form} layout="vertical"><Form.Item name="rider_id" label="Delivery Rider ID" rules={[{ required: true }]}><InputNumber style={{ width: "100%" }} /></Form.Item></Form>
+      <Modal title="Assign Delivery Rider" open={deliveryOpen} onCancel={() => setDeliveryOpen(false)} onOk={() => form.validateFields(["rider_id", "delivery_free_by"]).then((v) => run(() => adminAssignDelivery(s.id, v.rider_id, { delivery_free_by: v.delivery_free_by || "none" }), "Delivery rider assigned"))}>
+        <Form form={form} layout="vertical"><Form.Item name="rider_id" label="Delivery Rider ID" rules={[{ required: true }]}><InputNumber style={{ width: "100%" }} /></Form.Item><Form.Item name="delivery_free_by" label="Free delivery" initialValue="none"><Select options={[{ value: "none", label: "None" }, { value: "store", label: "Store" }, { value: "marketplace", label: "Marketplace" }]} /></Form.Item></Form>
       </Modal>
     </Space>
   );

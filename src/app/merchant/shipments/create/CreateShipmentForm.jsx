@@ -222,6 +222,7 @@ export default function CreateShipmentForm() {
       pod_amount: codAmount,
 
       delivery_charge_paid_by: clean(values.delivery_charge_paid_by) || "merchant",
+      delivery_free_by: values.delivery_free_by === "store" ? "store" : "none",
       delivery_charge:
         quoteData?.delivery_charge ??
         quoteData?.final_delivery_fee ??
@@ -342,6 +343,7 @@ export default function CreateShipmentForm() {
               initialValues={{
                 order_source: "manual",
                 payment_type: "prepaid",
+                delivery_free_by: "none",
                 self_drop: false,
                 package_weight: 1,
                 package_value: 0,
@@ -731,6 +733,15 @@ export default function CreateShipmentForm() {
                   </Form.Item>
                 </Col>
               </Row>
+
+              <Form.Item label="Free delivery" name="delivery_free_by">
+                <Select
+                  options={[
+                    { value: "none", label: "None" },
+                    { value: "store", label: "Store" },
+                  ]}
+                />
+              </Form.Item>
 
               <Form.Item label="Self Drop" name="self_drop">
                 <Select
