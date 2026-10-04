@@ -416,6 +416,7 @@ export default function StaffDeliveriesPage() {
   const [form] = Form.useForm();
   const [paymentForm] = Form.useForm();
   const paymentMethod = Form.useWatch("payment_method", paymentForm) || "cash";
+  const checkoutLink = paymentCheckoutLink(paymentSession);
   const [filterStatus, setFilterStatus] = useState("all");
   const [searchText, setSearchText] = useState("");
   const [viewMode, setViewMode] = useState("list");
@@ -1493,7 +1494,7 @@ export default function StaffDeliveriesPage() {
                   title="POD online payment"
                   style={{ marginBottom: 16 }}
                 >
-                  {(paymentSessionLoading || (paymentMethod === "online" && paymentSession && ["pending", "ready"].includes(paymentSession.status) && !paymentCheckoutLink(paymentSession) && !paymentSessionError)) && (
+                  {(paymentSessionLoading || (paymentMethod === "online" && paymentSession && ["pending", "ready"].includes(paymentSession.status) && !checkoutLink && !paymentSessionError)) && (
                     <div style={{ textAlign: "center", padding: "16px 0" }}>
                       <Spin />
                       <div style={{ marginTop: 8 }}>
@@ -1520,8 +1521,8 @@ export default function StaffDeliveriesPage() {
                     <Alert
                       type="warning"
                       showIcon
-                      message={paymentCheckoutLink(paymentSession) ? "Waiting for payment confirmation" : "Requesting payment QR from Tukaatu"}
-                      description={paymentCheckoutLink(paymentSession) ? "Ask the customer to scan this QR and complete the exact amount. This screen polls until the payment is confirmed." : "Creating the doorstep QR via Tukaatu. This screen polls until the QR appears, then until payment is confirmed."}
+                      message={checkoutLink ? "Waiting for payment confirmation" : "Requesting payment QR from Tukaatu"}
+                      description={checkoutLink ? "Ask the customer to scan this QR and complete the exact amount. This screen polls until the payment is confirmed." : "Creating the doorstep QR via Tukaatu. This screen polls until the QR appears, then until payment is confirmed."}
                       style={{ marginBottom: 12 }}
                     />
                   )}
@@ -1559,24 +1560,27 @@ export default function StaffDeliveriesPage() {
                       />
                     )}
 
-                  {paymentCheckoutLink(paymentSession) && (
+                  {["pending", "ready"].includes(paymentSession?.status) && checkoutLink && (
                     <div style={{ textAlign: "center", marginBottom: 12 }}>
-                      <img
-                        src={paymentCheckoutLink(paymentSession)}
-                        alt={`Online payment QR for ${
-                          paymentDelivery?.shipment?.merchant?.name || "merchant"
-                        }`}
+                      <div
                         style={{
-                          maxWidth: "260px",
-                          maxHeight: "260px",
-                          width: "100%",
-                          objectFit: "contain",
+                          display: "inline-block",
                           background: "#fff",
                           border: "1px solid #f0f0f0",
                           borderRadius: 8,
                           padding: 8,
                         }}
-                      />
+                      >
+                        <QRCodeSVG
+                          value={checkoutLink}
+                          size={220}
+                          level="M"
+                          includeMargin
+                          title={`Online payment QR for ${
+                            paymentDelivery?.shipment?.merchant?.name || "merchant"
+                          }`}
+                        />
+                      </div>
                       <div style={{ marginTop: 8, color: "#666", fontSize: 12 }}>
                         Amount: Rs.{" "}
                         {Number(
@@ -1585,18 +1589,21 @@ export default function StaffDeliveriesPage() {
                         ).toFixed(2)}{" "}
                         {paymentSession?.currency || "NPR"}
                       </div>
-                    </div>
-                  )}
-
-                  {paymentCheckoutLink(paymentSession) && (
-                    <div style={{ textAlign: "center" }}>
-                      <a
-                        href={paymentCheckoutLink(paymentSession)}
-                        target="_blank"
-                        rel="noreferrer"
+                      <div
+                        style={{
+                          marginTop: 8,
+                          fontSize: 12,
+                          color: "#333",
+                          wordBreak: "break-all",
+                        }}
                       >
-                        Open payment checkout
-                      </a>
+                        {checkoutLink}
+                      </div>
+                      <div style={{ marginTop: 8 }}>
+                        <a href={checkoutLink} target="_blank" rel="noreferrer">
+                          Open payment checkout
+                        </a>
+                      </div>
                     </div>
                   )}
 
