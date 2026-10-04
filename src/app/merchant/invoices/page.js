@@ -139,7 +139,7 @@ export default function MerchantInvoicesPage() {
       dataIndex: "shipment", 
       width: 180,
       render: (shipment) => shipment ? (
-        <Text copyable>{{shipment.tracking_number}}</Text>
+        <Text copyable>{shipment.tracking_number}</Text>
       ) : '-'
     },
     { 
