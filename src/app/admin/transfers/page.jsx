@@ -48,8 +48,8 @@ import {
 } from "@ant-design/icons";
 import { usePermissions } from "@/hooks/usePermission";
 import api from "@/lib/api";
-import {
 import { formatMerchantLabel } from "@/lib/merchantLabel";
+import {
   getTransfers,
   getTransferStats,
   getAvailableTransferRoutes,
@@ -2230,21 +2230,7 @@ export default function TransfersPage() {
     ),
   };
 
-
-      {
-        title: "Merchant",
-        key: "merchant",
-        width: 150,
-        ellipsis: true,
-        render: (_, s) => {
-          const row = s.shipment ?? s;
-          return (
-            <Text ellipsis style={{ fontSize: 11 }} title={formatMerchantLabel(row.merchant || row)}>
-              {formatMerchantLabel(row.merchant || row)}
-            </Text>
-          );
-        },
-      },  const routeColumn = {
+  const routeColumn = {
     title: "Route",
     key: "route",
     render: (_, s) => {

@@ -47,8 +47,8 @@ import {
   normalizeShipmentDetailResponse,
 } from "@/services/merchantShipmentService";
 
-import {
 import { formatMerchantLabel } from "@/lib/merchantLabel";
+import {
   formatDateTime,
   formatMoney,
   labelForStatus,
