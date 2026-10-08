@@ -417,6 +417,34 @@ export default function StaffDeliveriesPage() {
   const [paymentForm] = Form.useForm();
   const paymentMethod = Form.useWatch("payment_method", paymentForm) || "cash";
   const checkoutLink = paymentCheckoutLink(paymentSession);
+  const lastPodLogRef = useRef("");
+
+  // Log which marketplace pod-qr API the payment request used (create, poll,
+  // retry). Only when status / api_url / http_status changes, not every 4s poll.
+  useEffect(() => {
+    if (!paymentSession) return;
+    const gateway = paymentSession.gateway || {};
+    const sessionId =
+      paymentSession.payment_session_id || paymentSession.session_id || null;
+    const key = [
+      paymentDelivery?.id,
+      sessionId,
+      paymentSession.status,
+      gateway.api_url,
+      gateway.http_status,
+    ].join("|");
+    if (key === lastPodLogRef.current) return;
+    lastPodLogRef.current = key;
+    console.info("[POD] payment request", {
+      delivery_id: paymentDelivery?.id ?? null,
+      session_id: sessionId,
+      status: paymentSession.status,
+      marketplace: gateway.marketplace_name ?? null,
+      api_url: gateway.api_url ?? null,
+      http_status: gateway.http_status ?? null,
+      last_error: paymentSession.last_error ?? gateway.last_error ?? null,
+    });
+  }, [paymentSession, paymentDelivery?.id]);
   const [filterStatus, setFilterStatus] = useState("all");
   const [searchText, setSearchText] = useState("");
   const [viewMode, setViewMode] = useState("list");
@@ -1559,6 +1587,24 @@ export default function StaffDeliveriesPage() {
                         style={{ marginBottom: 12 }}
                       />
                     )}
+
+                  {paymentSession?.gateway?.api_url ? (
+                    <div
+                      style={{
+                        marginBottom: 12,
+                        fontSize: 12,
+                        color: "#8c8c8c",
+                        wordBreak: "break-all",
+                      }}
+                    >
+                      Gateway: {paymentSession.gateway.marketplace_name || "Marketplace"}
+                      {" - "}
+                      {paymentSession.gateway.api_url}
+                      {paymentSession.gateway.http_status
+                        ? ` (HTTP ${paymentSession.gateway.http_status})`
+                        : ""}
+                    </div>
+                  ) : null}
 
                   {["pending", "ready"].includes(paymentSession?.status) && checkoutLink && (
                     <div style={{ textAlign: "center", marginBottom: 12 }}>
