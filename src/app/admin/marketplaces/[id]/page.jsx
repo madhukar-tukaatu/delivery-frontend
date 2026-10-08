@@ -329,10 +329,10 @@ export default function MarketplaceDetailPage() {
 
       {canSendKey === false ? (
         <Alert
-          type="warning"
+          type="info"
           showIcon
           style={{ flexShrink: 0, padding: "4px 12px" }}
-          message="Outbound Online POD needs a reissued key. Current key is hash-only and cannot be sent."
+          message="Online POD still works: the current key is hash-only, so pod-qr is called without X-Tukaatu-Key. Reissue the key only if this marketplace requires it."
         />
       ) : null}
 
@@ -401,7 +401,7 @@ export default function MarketplaceDetailPage() {
           <Descriptions.Item label="Shipments">{payload?.shipments_count ?? 0}</Descriptions.Item>
         </Descriptions>
         <Text type="secondary" style={{ display: "block", marginTop: 6, fontSize: 11 }}>
-          Online POD POSTs to the POD URL with the issued marketplace key and secret (same pair partners use inbound). Full key/secret are never shown here.
+          Online POD POSTs to the POD URL for every linked store. The issued key and secret are sent when available; a key is optional (marketplaces without a key, e.g. FCA, still work). Shipments are counted by the store&apos;s current marketplace. Full key/secret are never shown here.
         </Text>
       </Card>
 

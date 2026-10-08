@@ -137,7 +137,7 @@ export default function MerchantDetailPage() {
             <Form.Item
               name="marketplace_id"
               label="Marketplace"
-              extra="POD uses this marketplace HamroPay HQ credentials"
+              extra="Online POD calls this marketplace's API (pod-qr). Saving a new marketplace also moves this store's open shipments."
             >
               <Select
                 allowClear
