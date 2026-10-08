@@ -48,6 +48,22 @@ function useStaffRoles() {
   return { roles, loading };
 }
 
+// The real (Spatie) role lives in `roles`; `role` is a legacy column that can
+// hold an old default such as "staff", so only fall back to it.
+function primaryRoleName(row) {
+  if (Array.isArray(row?.roles) && row.roles.length) {
+    return row.roles[0]?.name || row.roles[0];
+  }
+  return typeof row?.role === "string" ? row.role : row?.role?.name;
+}
+
+// Show the API's validation message (422) instead of a generic error.
+function apiErrorMessage(err, fallback) {
+  const data = err?.response?.data;
+  const fieldErrors = data?.errors ? Object.values(data.errors).flat().filter(Boolean) : [];
+  return fieldErrors[0] || data?.message || fallback;
+}
+
 function getRoleColor(roleName) {
   const roleLower = (roleName || '').toLowerCase();
   if (roleLower === 'rider') return 'green';
@@ -137,7 +153,7 @@ export default function BranchStaffPage() {
       name: row.name,
       email: row.email,
       phone: row.phone,
-      role: row.role?.name || row.role,
+      role: primaryRoleName(row),
       is_active: row.is_active !== false,
     });
     setModalOpen(true);
@@ -172,7 +188,16 @@ export default function BranchStaffPage() {
       form.resetFields();
       load(pagination.current, pagination.pageSize);
     } catch (err) {
-      message.error(err?.response?.data?.message || "Operation failed.");
+      const fieldErrors = err?.response?.data?.errors;
+      if (fieldErrors && typeof fieldErrors === "object") {
+        const known = ["name", "email", "phone", "password", "role", "is_active"];
+        form.setFields(
+          Object.entries(fieldErrors)
+            .filter(([field]) => known.includes(field))
+            .map(([field, errs]) => ({ name: field, errors: [].concat(errs) }))
+        );
+      }
+      message.error(apiErrorMessage(err, "Operation failed."));
     } finally {
       setSubmitting(false);
     }
@@ -227,7 +252,7 @@ export default function BranchStaffPage() {
       key: "role",
       width: 160,
       render: (_, row) => {
-        const roleName = typeof row.role === "string" ? row.role : row.role?.name;
+        const roleName = primaryRoleName(row);
         const roleObj = staffRoles.find(r => r.value === roleName);
         return (
           <Tag color={getRoleColor(roleName)} style={{ margin: 0 }}>
@@ -291,7 +316,7 @@ export default function BranchStaffPage() {
   const activeCount = rows.filter((r) => r.is_active !== false).length;
   const inactiveCount = rows.filter((r) => r.is_active === false).length;
   const riderCount = rows.filter((r) => {
-    const roleName = typeof r.role === "string" ? r.role : r.role?.name;
+    const roleName = primaryRoleName(r);
     return String(roleName || "").toLowerCase() === "rider";
   }).length;
 

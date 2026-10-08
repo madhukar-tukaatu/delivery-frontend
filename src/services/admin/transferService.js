@@ -25,7 +25,7 @@ function normalizeList(response, params = {}) {
 /**
  * Transfer board.
  *
- * GET /admin/transfers  params: direction ("outbound"|"inbound"), search, branch_id
+ * GET /admin/transfers  params: direction ("outbound"|"inbound"|"sent"), search, status, service_type, branch_id
  * This returns cross-branch transfers ONLY (origin_branch_id != destination_branch_id)
  */
 export async function getTransfers(params = {}) {
@@ -61,7 +61,7 @@ export async function getTransfers(params = {}) {
 /**
  * Get comprehensive transfer statistics (cross-branch only).
  *
- * GET /admin/transfers/stats -> { outbound, in_transit, received, completed, total_value, pod_amount }
+ * GET /admin/transfers/stats -> { outbound, sent, in_transit, received, completed, total_value, pod_amount }
  * Optional: branch_id to view stats for a specific branch (admin only)
  */
 export async function getTransferStats(branchId = null) {
@@ -70,6 +70,7 @@ export async function getTransferStats(branchId = null) {
   const payload = unwrap(response) ?? {};
   return {
     outbound: Number(payload.outbound ?? 0),
+    sent: Number(payload.sent ?? 0),
     in_transit: Number(payload.in_transit ?? 0),
     received: Number(payload.received ?? 0),
     completed: Number(payload.completed ?? 0),

@@ -3,7 +3,7 @@
 import AdminPageHeader from "@/components/admin/ui/AdminPageHeader";
 import Link from "next/link";
 
-import { useCallback, useEffect, useState, useMemo } from "react";
+import { useCallback, useEffect, useRef, useState, useMemo } from "react";
 import {
   Alert,
   Badge,
@@ -1258,6 +1258,128 @@ function TabGuide({ type, message: msg }) {
   );
 }
 
+const statusText = (status) =>
+  status ? String(status).replaceAll("_", " ").replace(/\b\w/g, (c) => c.toUpperCase()) : "-";
+
+const TRANSFER_EVENT_LABEL = {
+  sorted_for_transfer: "Sorted for transfer",
+  dispatched: "Dispatched",
+  received: "Received",
+  sorted_for_delivery: "Sorted for delivery",
+  last_mile: "Last mile",
+  delivered: "Delivered",
+  delivery_failed: "Delivery failed",
+  returning: "Returning",
+};
+
+// Current status of the parcel (as of now), with the branch it is at.
+function CurrentStatusCell({ shipment }) {
+  const info = shipment?.transfer_info || {};
+  return (
+    <Space direction="vertical" size={2}>
+      <TransferStageTag shipment={shipment} />
+      <Text type="secondary" style={{ fontSize: 11 }}>
+        {info.current_status_label || statusText(shipment?.status)}
+        {info.current_branch_name ? ` at ${info.current_branch_name}` : ""}
+      </Text>
+      <DataGapTag info={info} />
+    </Space>
+  );
+}
+
+function DataGapTag({ info }) {
+  const gaps = info?.data_gaps || [];
+  if (!gaps.length) return null;
+  return (
+    <Tooltip title={gaps.join(" ")}>
+      <Tag color="warning" style={{ margin: 0, fontSize: 11 }}>Data note</Tag>
+    </Tooltip>
+  );
+}
+
+// "Sent" (dispatch from the selected branch) or "Received" (arrival at it).
+function TransferLegCell({ leg, kind, fallbackAt }) {
+  if (!leg && !fallbackAt) {
+    return <Text type="secondary" style={{ fontSize: 12 }}>Not recorded</Text>;
+  }
+  const at = leg?.at || fallbackAt;
+  const other = kind === "sent" ? leg?.to_branch_name : leg?.from_branch_name;
+  return (
+    <Space direction="vertical" size={0}>
+      <Text style={{ fontSize: 13 }}>{formatDate(at)}</Text>
+      {other ? (
+        <Text type="secondary" style={{ fontSize: 11 }}>
+          {kind === "sent" ? `To ${other}` : `From ${other}`}
+        </Text>
+      ) : null}
+      <Text type="secondary" style={{ fontSize: 11 }}>
+        {leg?.by ? `By ${leg.by}` : "User not recorded"}
+        {leg?.manifest_number ? ` | ${leg.manifest_number}` : ""}
+      </Text>
+    </Space>
+  );
+}
+
+// The selected branch's own transfer events for this parcel.
+function BranchEventsCell({ shipment }) {
+  const events = (shipment?.branch_events?.length ? shipment.branch_events : shipment?.timeline) || [];
+  if (!events.length) {
+    return <Text type="secondary" style={{ fontSize: 12 }}>No transfer events recorded</Text>;
+  }
+  return (
+    <Space direction="vertical" size={0}>
+      {events.slice(-5).map((e, i) => {
+        const where = e.type === "dispatched" && e.from_branch_name
+          ? `${e.from_branch_name} -> ${e.to_branch_name || "?"}`
+          : e.branch_name;
+        return (
+          <Text key={`${e.status}-${e.at}-${i}`} style={{ fontSize: 12 }}>
+            <Text strong style={{ fontSize: 12 }}>{TRANSFER_EVENT_LABEL[e.type] || statusText(e.status)}</Text>
+            {where ? ` ${where}` : ""}
+            <Text type="secondary" style={{ fontSize: 11 }}>
+              {` | ${formatDate(e.at)}${e.by ? ` | ${e.by}` : ""}`}
+            </Text>
+          </Text>
+        );
+      })}
+    </Space>
+  );
+}
+
+function TransferInfoSummary({ info }) {
+  const roleText = { origin: "Origin branch", destination: "Destination branch", transit: "Transit hub" };
+  return (
+    <Card size="small" style={{ marginBottom: 16 }}>
+      <Space direction="vertical" size={4} style={{ width: "100%" }}>
+        {info.branch_name ? (
+          <Text type="secondary" style={{ fontSize: 12 }}>
+            {info.branch_name}{info.role ? ` (${roleText[info.role] || info.role})` : ""}
+          </Text>
+        ) : null}
+        {info.sent ? (
+          <Text style={{ fontSize: 12 }}>
+            <Text strong style={{ fontSize: 12 }}>Sent</Text>
+            {` from ${info.sent.branch_name || "-"}${info.sent.to_branch_name ? ` to ${info.sent.to_branch_name}` : ""} | ${formatDate(info.sent.at)}${info.sent.by ? ` | by ${info.sent.by}` : ""}${info.sent.manifest_number ? ` | ${info.sent.manifest_number}` : ""}`}
+          </Text>
+        ) : null}
+        {info.received ? (
+          <Text style={{ fontSize: 12 }}>
+            <Text strong style={{ fontSize: 12 }}>Received</Text>
+            {` at ${info.received.branch_name || "-"} | ${formatDate(info.received.at)}${info.received.by ? ` | by ${info.received.by}` : ""}`}
+          </Text>
+        ) : null}
+        <Text style={{ fontSize: 12 }}>
+          <Text strong style={{ fontSize: 12 }}>Now</Text>
+          {` ${info.current_status_label || statusText(info.current_status)}${info.current_branch_name ? ` at ${info.current_branch_name}` : ""}`}
+        </Text>
+        {(info.data_gaps || []).map((g) => (
+          <Alert key={g} type="warning" showIcon message={g} style={{ padding: "2px 8px", fontSize: 12 }} />
+        ))}
+      </Space>
+    </Card>
+  );
+}
+
 function TimelineModal({ open, shipment, onClose }) {
   if (!shipment) return null;
 
@@ -1267,8 +1389,13 @@ function TimelineModal({ open, shipment, onClose }) {
     const icons = {
       sorted_for_transfer: <SendOutlined style={{ color: "#fa8c16" }} />,
       in_transit: <CarOutlined style={{ color: "#1677ff" }} />,
+      dispatched_to_destination_branch: <CarOutlined style={{ color: "#1677ff" }} />,
+      received_at_transit_hub: <InboxOutlined style={{ color: "#13c2c2" }} />,
       received_at_destination_branch: <InboxOutlined style={{ color: "#13c2c2" }} />,
+      received_at_destination_sub_branch: <InboxOutlined style={{ color: "#13c2c2" }} />,
       sorted_for_delivery: <HomeOutlined style={{ color: "#722ed1" }} />,
+      assigned_to_rider: <HomeOutlined style={{ color: "#2f54eb" }} />,
+      out_for_delivery: <CarOutlined style={{ color: "#2f54eb" }} />,
       delivered: <CheckCircleOutlined style={{ color: "#52c41a" }} />,
     };
     return icons[status] || <ClockCircleOutlined />;
@@ -1278,9 +1405,15 @@ function TimelineModal({ open, shipment, onClose }) {
     const colors = {
       sorted_for_transfer: "orange",
       in_transit: "blue",
+      dispatched_to_destination_branch: "blue",
+      received_at_transit_hub: "cyan",
       received_at_destination_branch: "cyan",
+      received_at_destination_sub_branch: "cyan",
       sorted_for_delivery: "purple",
+      assigned_to_rider: "geekblue",
+      out_for_delivery: "geekblue",
       delivered: "green",
+      delivery_failed: "red",
     };
     return colors[status] || "gray";
   };
@@ -1361,6 +1494,7 @@ function TimelineModal({ open, shipment, onClose }) {
               </div>
             ) : null}
           </Card>
+          {shipment.transfer_info ? <TransferInfoSummary info={shipment.transfer_info} /> : null}
         </Col>
         <Col span={24}>
           {timeline.length > 0 ? (
@@ -1372,12 +1506,19 @@ function TimelineModal({ open, shipment, onClose }) {
                 dot: getTimelineIcon(event.status),
                 children: (
                   <div>
-                    <Text strong>{event.description}</Text>
-                    {(event.next_hop || event.path_text || event.branch_name) ? (
+                    <Text strong>{event.description || statusText(event.status)}</Text>
+                    {(event.next_hop || event.path_text || event.branch_name || event.to_branch_name) ? (
                       <>
                         <br />
                         <Text type="secondary" style={{ fontSize: 12 }}>
-                          {[event.branch_name, event.next_hop ? `Next: ${event.next_hop}` : null, event.path_text]
+                          {[
+                            event.from_branch_name && event.to_branch_name
+                              ? `${event.from_branch_name} -> ${event.to_branch_name}`
+                              : event.branch_name,
+                            event.manifest_number ? `Manifest ${event.manifest_number}` : null,
+                            event.next_hop ? `Next: ${event.next_hop}` : null,
+                            event.path_text,
+                          ]
                             .filter(Boolean)
                             .join(" · ")}
                         </Text>
@@ -1386,6 +1527,7 @@ function TimelineModal({ open, shipment, onClose }) {
                     <br />
                     <Text type="secondary" style={{ fontSize: 12 }}>
                       {formatDate(event.at)}
+                      {event.by ? ` | by ${event.by}` : ""}
                     </Text>
                   </div>
                 ),
@@ -1634,6 +1776,7 @@ export default function TransfersPage() {
   // Data states
   const [stats, setStats] = useState({
     outbound: 0,
+    sent: 0,
     in_transit: 0,
     received: 0,
     completed: 0,
@@ -1641,6 +1784,8 @@ export default function TransfersPage() {
     pod_amount: 0,
   });
   const [outboundRows, setOutboundRows] = useState([]);
+  const [sentRows, setSentRows] = useState([]);
+  const [historyDirection, setHistoryDirection] = useState("all");
   const [inboundRows, setInboundRows] = useState([]);
   const [receivedRows, setReceivedRows] = useState([]);
   const [completedRows, setCompletedRows] = useState([]);
@@ -1954,7 +2099,25 @@ export default function TransfersPage() {
     }
   }, [debouncedSearch, serviceTypeFilter, selectedBranchId]);
 
-  // Load received
+  // Load sent (outbounded): everything the branch dispatched, any later state
+  const loadSent = useCallback(async (page = 1, pageSize = 20) => {
+    setLoading(true);
+    try {
+      const params = { page, per_page: pageSize, direction: "sent", search: debouncedSearch || undefined };
+      if (selectedBranchId) params.branch_id = selectedBranchId;
+      if (serviceTypeFilter && serviceTypeFilter !== "all") params.service_type = serviceTypeFilter;
+      if (statusFilter !== "all") params.status = statusFilter;
+      const res = await getTransfers(params);
+      setSentRows(res.list || []);
+      setPagination((p) => ({ ...p, current: res.currentPage || page, pageSize, total: Number(res.total ?? 0) }));
+    } catch (e) {
+      message.error(e?.response?.data?.message || "Failed to load sent transfers");
+    } finally {
+      setLoading(false);
+    }
+  }, [debouncedSearch, serviceTypeFilter, statusFilter, selectedBranchId]);
+
+  // Load received: everything that arrived at the branch, any later state
   const loadReceived = useCallback(async (page = 1, pageSize = 20) => {
     setLoading(true);
     try {
@@ -1963,14 +2126,16 @@ export default function TransfersPage() {
         receivedParams.branch_id = selectedBranchId;
       }
       if (serviceTypeFilter && serviceTypeFilter !== "all") receivedParams.service_type = serviceTypeFilter;
+      if (statusFilter !== "all") receivedParams.status = statusFilter;
       const res = await getReceivedTransfers(receivedParams);
-      setReceivedRows(res.list);
+      setReceivedRows(res.list || []);
+      setPagination((p) => ({ ...p, current: res.currentPage || page, pageSize, total: Number(res.total ?? 0) }));
     } catch (e) {
       message.error(e?.response?.data?.message || "Failed to load received transfers");
     } finally {
       setLoading(false);
     }
-  }, [debouncedSearch, serviceTypeFilter, selectedBranchId]);
+  }, [debouncedSearch, serviceTypeFilter, statusFilter, selectedBranchId]);
 
   // Load completed
   const loadCompleted = useCallback(async (page = 1, pageSize = 20) => {
@@ -2005,6 +2170,10 @@ export default function TransfersPage() {
       if (statusFilter !== "all") {
         params.status = statusFilter;
       }
+      if (historyDirection !== "all") {
+        params.direction = historyDirection;
+      }
+      if (serviceTypeFilter && serviceTypeFilter !== "all") params.service_type = serviceTypeFilter;
       if (dateRange?.length === 2) {
         params.date_from = dateRange[0].format("YYYY-MM-DD");
         params.date_to = dateRange[1].format("YYYY-MM-DD");
@@ -2017,7 +2186,7 @@ export default function TransfersPage() {
     } finally {
       setLoading(false);
     }
-  }, [debouncedSearch, dateRange, statusFilter, selectedBranchId]);
+  }, [debouncedSearch, dateRange, statusFilter, historyDirection, serviceTypeFilter, selectedBranchId]);
 
   // Load data based on active tab
   const loadData = useCallback(async () => {
@@ -2025,6 +2194,9 @@ export default function TransfersPage() {
     switch (activeTab) {
       case "outbound":
         await loadOutbound(pagination.current, pagination.pageSize);
+        break;
+      case "sent":
+        await loadSent();
         break;
       case "inbound":
         await loadInbound();
@@ -2041,7 +2213,7 @@ export default function TransfersPage() {
       default:
         break;
     }
-  }, [activeTab, pagination.current, pagination.pageSize, loadOutbound, loadInbound, loadReceived, loadCompleted, loadHistory]);
+  }, [activeTab, pagination.current, pagination.pageSize, loadOutbound, loadSent, loadInbound, loadReceived, loadCompleted, loadHistory]);
 
   // Load branches for admin branch selector
   const loadBranches = useCallback(async () => {
@@ -2093,6 +2265,20 @@ export default function TransfersPage() {
     setPagination((p) => ({ ...p, current: 1 }));
     loadData();
   }, [activeTab, debouncedSearch]);
+
+  // Reload the open tab when the branch or a history filter changes
+  // (skipped on first render: the tab/search effect above already loads).
+  const filtersMounted = useRef(false);
+  useEffect(() => {
+    if (!filtersMounted.current) {
+      filtersMounted.current = true;
+      return;
+    }
+    setPagination((p) => ({ ...p, current: 1 }));
+    setSelectedRowKeys([]);
+    loadData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedBranchId, statusFilter, dateRange, historyDirection]);
 
   // Refresh all data
   const refresh = useCallback(async () => {
@@ -2331,22 +2517,57 @@ export default function TransfersPage() {
     },
   ];
 
-  // Received columns
+  const timelineColumn = {
+    title: "Timeline",
+    key: "timeline",
+    render: (_, s) => (
+      <Button type="link" size="small" onClick={() => showTimelineModal(s)}>
+        View Timeline
+      </Button>
+    ),
+  };
+
+  const currentStatusColumn = {
+    title: "Current Status",
+    key: "current_status",
+    render: (_, s) => <CurrentStatusCell shipment={s} />,
+  };
+
+  // Sent columns: dispatched FROM the branch, any later state
+  const sentColumns = [
+    shipmentColumn,
+    routeColumn,
+    {
+      title: "Sent",
+      key: "sent",
+      render: (_, s) => (
+        <TransferLegCell leg={s.transfer_info?.sent} kind="sent" fallbackAt={s.dispatched_at} />
+      ),
+    },
+    currentStatusColumn,
+    receiverColumn,
+    timelineColumn,
+  ];
+
+  // Received columns: arrived AT the branch, any later state
   const receivedColumns = [
     shipmentColumn,
     routeColumn,
     {
-      title: "Received At",
+      title: "Received",
       key: "received_at",
       render: (_, s) => (
-        <Space direction="vertical" size={0}>
-          <Text style={{ fontSize: 13 }}>{formatDate(s.received_at_destination_at)}</Text>
-          <Tag color="blue" icon={<CheckCircleOutlined />}>Ready for Delivery</Tag>
-        </Space>
+        <TransferLegCell
+          leg={s.transfer_info?.received}
+          kind="received"
+          fallbackAt={s.transfer_info ? null : s.received_at_destination_at}
+        />
       ),
     },
+    currentStatusColumn,
     receiverColumn,
     paymentColumn,
+    timelineColumn,
   ];
 
   // Completed columns
@@ -2371,33 +2592,22 @@ export default function TransfersPage() {
     },
   ];
 
-  // History columns
+  // History columns: the branch's transfer events + current status
   const historyColumns = [
     shipmentColumn,
     routeColumn,
     {
-      title: "Status",
-      key: "status",
-      render: (_, s) => <TransferStageTag shipment={s} />,
+      title: "Branch Transfer Events",
+      key: "branch_events",
+      render: (_, s) => <BranchEventsCell shipment={s} />,
     },
+    currentStatusColumn,
     {
       title: "Updated",
       key: "updated",
       render: (_, s) => formatDate(s.updated_at),
     },
-    {
-      title: "Timeline",
-      key: "timeline",
-      render: (_, s) => (
-        <Button
-          type="link"
-          size="small"
-          onClick={() => showTimelineModal(s)}
-        >
-          View Timeline
-        </Button>
-      ),
-    },
+    timelineColumn,
   ];
 
   // Row selection for outbound
@@ -2411,10 +2621,12 @@ export default function TransfersPage() {
     switch (activeTab) {
       case "outbound":
         return { rows: outboundRows, columns: outboundColumns, count: stats.outbound };
+      case "sent":
+        return { rows: sentRows, columns: sentColumns, count: pagination.total };
       case "inbound":
         return { rows: inboundRows, columns: inboundColumns, count: stats.in_transit };
       case "received":
-        return { rows: receivedRows, columns: receivedColumns, count: stats.received };
+        return { rows: receivedRows, columns: receivedColumns, count: pagination.total };
       case "completed":
         return { rows: completedRows, columns: completedColumns, count: stats.completed };
       case "history":
@@ -2609,6 +2821,41 @@ export default function TransfersPage() {
 
     },
     {
+      key: "sent",
+      label: (
+        <span>
+          <SendOutlined /> Sent ({stats.sent ?? 0})
+        </span>
+      ),
+      children: (
+        <Card styles={{ body: { padding: 0 } }} style={{ borderRadius: 14 }}>
+          <TabGuide
+            type="info"
+            message="Parcels this branch has dispatched (outbounded) to another branch, with their current status: in transit, received, out for delivery, delivered."
+          />
+          <Table
+            rowKey="id"
+            size="middle"
+            loading={loading && activeTab === "sent"}
+            columns={currentColumns}
+            dataSource={currentRows}
+            scroll={{ x: 1100 }}
+            locale={{
+              emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Nothing sent from this branch" />,
+            }}
+            pagination={{
+              current: pagination.current,
+              pageSize: pagination.pageSize,
+              total: currentCount,
+              showSizeChanger: true,
+              showTotal: (t) => `${t} transfer${t === 1 ? "" : "s"}`,
+              onChange: (p, ps) => loadSent(p, ps),
+            }}
+          />
+        </Card>
+      ),
+    },
+    {
       key: "inbound",
       label: (
         <span>
@@ -2647,7 +2894,7 @@ export default function TransfersPage() {
         <Card styles={{ body: { padding: 0 } }} style={{ borderRadius: 14 }}>
           <TabGuide
             type="success"
-            message="Arrived at this branch and sorted for last-mile delivery. Assign a rider from the Deliveries board to complete the drop-off."
+            message="Transfers received at this branch (final destination or transit hub), with their current status: sorted, assigned to rider, out for delivery, delivered."
           />
           <Table
             rowKey="id"
@@ -2655,11 +2902,18 @@ export default function TransfersPage() {
             loading={loading && activeTab === "received"}
             columns={currentColumns}
             dataSource={currentRows}
-            scroll={{ x: 900 }}
+            scroll={{ x: 1100 }}
             locale={{
               emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="No received transfers" />,
             }}
-            pagination={{ pageSize: 20 }}
+            pagination={{
+              current: pagination.current,
+              pageSize: pagination.pageSize,
+              total: currentCount,
+              showSizeChanger: true,
+              showTotal: (t) => `${t} transfer${t === 1 ? "" : "s"}`,
+              onChange: (p, ps) => loadReceived(p, ps),
+            }}
           />
         </Card>
       ),
@@ -2713,7 +2967,7 @@ export default function TransfersPage() {
         <Card styles={{ body: { padding: 0 } }} style={{ borderRadius: 14 }}>
           <TabGuide
             type="info"
-            message="Full transfer timeline for every cross-branch parcel. Filter by date or status, and open View Timeline for step-by-step tracking."
+            message="Transfer events for this branch (sorted, dispatched, received) with time and user, and each parcel's current status. Filter by date, status or direction; open View Timeline for every step."
           />
           <Table
             rowKey="id"
@@ -2808,19 +3062,38 @@ export default function TransfersPage() {
           )}
         </Col>
         <Col>
-          {/* Status Filter (for History) */}
-          {activeTab === "history" && (
-            <Select
-              value={statusFilter}
-              onChange={setStatusFilter}
-              style={{ width: 180 }}
-            >
-              <Option value="all">All Statuses</Option>
-              <Option value="sorted_for_transfer">Outbound</Option>
-              <Option value="in_transit">In Transit</Option>
-              <Option value="received_at_destination_branch">Received</Option>
-              <Option value="delivered">Completed</Option>
-            </Select>
+          {/* Current-status filter (Sent / Received / History) */}
+          {["sent", "received", "history"].includes(activeTab) && (
+            <Space wrap>
+              {activeTab === "history" && (
+                <Select
+                  value={historyDirection}
+                  onChange={setHistoryDirection}
+                  style={{ width: 160 }}
+                  options={[
+                    { value: "all", label: "Sent + Received" },
+                    { value: "sent", label: "Sent only" },
+                    { value: "received", label: "Received only" },
+                  ]}
+                />
+              )}
+              <Select
+                value={statusFilter}
+                onChange={setStatusFilter}
+                style={{ width: 200 }}
+              >
+                <Option value="all">All current statuses</Option>
+                <Option value="sorted_for_transfer">Ready to dispatch</Option>
+                <Option value="in_transit">In Transit</Option>
+                <Option value="received_at_transit_hub">At transit hub</Option>
+                <Option value="received_at_destination_branch">Received at destination</Option>
+                <Option value="sorted_for_delivery">Sorted for delivery</Option>
+                <Option value="assigned_to_rider">Assigned to rider</Option>
+                <Option value="out_for_delivery">Out for delivery</Option>
+                <Option value="delivered">Delivered</Option>
+                <Option value="delivery_failed">Delivery failed</Option>
+              </Select>
+            </Space>
           )}
         </Col>
       </Row>
