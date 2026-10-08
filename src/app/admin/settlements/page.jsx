@@ -29,6 +29,7 @@ import {
 } from "antd";
 import dayjs from "dayjs";
 import api from "@/lib/api";
+import BranchScopeNotice from "@/components/admin/billing/BranchScopeNotice";
 import { formatMerchantLabel, marketplaceLabel } from "@/lib/merchantLabel";
 import { ViewBillButton, deliveryCount } from "@/components/admin/billing/StoreBillPreview";
 import { listMarketplaces } from "@/services/admin/adminMarketplaceService";
@@ -317,6 +318,7 @@ export default function SettlementsPage() {
         banner
         message="POD cash is settled in full. Delivery fees are billed separately. HQ commission is on /admin/hq-commissions."
       />
+      <BranchScopeNotice />
 
       <Card size="small" title="Filters" styles={{ body: { padding: "8px 12px" } }}>
         <Space wrap size={8}>

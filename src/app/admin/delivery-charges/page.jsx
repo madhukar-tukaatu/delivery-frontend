@@ -5,6 +5,7 @@ import AdminPageHeader from "@/components/admin/ui/AdminPageHeader";
 import { useEffect, useState } from "react";
 import { Button, Card, Space, Table, Tag, message } from "antd";
 import api from "@/lib/api";
+import BranchScopeNotice from "@/components/admin/billing/BranchScopeNotice";
 
 function unwrap(r) {
   return r?.data?.data ?? r?.data ?? r;
@@ -72,6 +73,7 @@ export default function AdminDeliveryChargesPage() {
         subtitle="Store free delivery is billed and emailed to the store. Marketplace free delivery is billed and emailed to that marketplace (tukaatu.com, FCA, or any other). Payment host is the marketplace API base URL."
         icon={<FileTextOutlined />}
       />
+      <BranchScopeNotice style={{ marginBottom: 12 }} />
       <Card loading={loading}>
         <Table
           rowKey="id"

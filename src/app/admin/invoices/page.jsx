@@ -5,6 +5,7 @@ import AdminPageHeader from "@/components/admin/ui/AdminPageHeader";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Alert, Button, Card, Input, Select, Space, Table, Tag, Typography, message } from "antd";
 import api from "@/lib/api";
+import BranchScopeNotice from "@/components/admin/billing/BranchScopeNotice";
 import { ViewBillButton, deliveryCount } from "@/components/admin/billing/StoreBillPreview";
 import { formatMerchantLabel } from "@/lib/merchantLabel";
 import { listMarketplaces } from "@/services/admin/adminMarketplaceService";
@@ -191,6 +192,7 @@ export default function AdminInvoicesPage() {
         }
       />
 
+      <BranchScopeNotice style={{ margin: "8px 0" }} />
       <Text type="secondary" style={{ display: "block", margin: "8px 0" }}>
         Daily digests also run automatically at 6:17 AM; weekly is manual unless you run it.
       </Text>

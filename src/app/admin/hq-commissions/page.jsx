@@ -23,6 +23,7 @@ import {
   message,
 } from "antd";
 import api from "@/lib/api";
+import BranchScopeNotice, { useIsFinanceHq } from "@/components/admin/billing/BranchScopeNotice";
 
 const { Title, Text, Paragraph } = Typography;
 
@@ -36,6 +37,7 @@ export default function HqCommissionsPage() {
   const [settlements, setSettlements] = useState([]);
   const [loading, setLoading] = useState(false);
   const [form] = Form.useForm();
+  const isHq = useIsFinanceHq();
 
   async function load() {
     setLoading(true);
@@ -133,6 +135,8 @@ export default function HqCommissionsPage() {
         }
       />
 
+      <BranchScopeNotice />
+
       <Row gutter={16}>
         <Col xs={24} md={8}>
           <Card loading={loading} title="Unpaid (branches owe HQ)">
@@ -158,20 +162,26 @@ export default function HqCommissionsPage() {
         </Col>
       </Row>
 
-      <Card title="Commission rate (superadmin)">
-        <Form form={form} layout="inline" onFinish={saveRate}>
-          <Form.Item
-            name="hq_percent"
-            label="HQ % of delivery charge"
-            rules={[{ required: true }]}
-          >
-            <InputNumber min={0} max={100} step={0.1} />
-          </Form.Item>
-          <Button type="primary" htmlType="submit">
-            Save
-          </Button>
-        </Form>
-      </Card>
+      {isHq ? (
+        <Card title="Commission rate (superadmin)">
+          <Form form={form} layout="inline" onFinish={saveRate}>
+            <Form.Item
+              name="hq_percent"
+              label="HQ % of delivery charge"
+              rules={[{ required: true }]}
+            >
+              <InputNumber min={0} max={100} step={0.1} />
+            </Form.Item>
+            <Button type="primary" htmlType="submit">
+              Save
+            </Button>
+          </Form>
+        </Card>
+      ) : (
+        <Card title="Commission rate">
+          <Text>HQ % of delivery charge: {summary?.hq_percent ?? "-"}%</Text>
+        </Card>
+      )}
 
       <Card title="Per-delivery HQ commission bills" loading={loading}>
         <Table
