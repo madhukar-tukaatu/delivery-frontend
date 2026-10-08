@@ -48,6 +48,14 @@ import {
   staffOutForDelivery,
 } from "@/services/deliveryOperationsApi";
 import { QRCodeSVG } from "qrcode.react";
+import {
+  POD_CHECKOUT_WINDOW,
+  podCheckoutPageUrl,
+  podCheckoutReady,
+  podCheckoutTarget,
+  podSessionId,
+  submitPodCheckoutForm,
+} from "@/lib/podCheckout";
 import styles from "./deliveries.module.css";
 
 const STATUS_COLORS = {
@@ -418,6 +426,13 @@ export default function StaffDeliveriesPage() {
   const paymentMethod = Form.useWatch("payment_method", paymentForm) || "cash";
   const checkoutLink = paymentCheckoutLink(paymentSession);
   const lastPodLogRef = useRef("");
+  // HamroPay checkout tab: opened on the rider's click (popup-safe), then
+  // pointed at /pod-checkout?session=... which POSTs payment_url + params.
+  const checkoutWindowRef = useRef(null);
+  const checkoutWindowSessionRef = useRef(null); // "pending" | session id
+  const openedCheckoutSessionsRef = useRef(new Set());
+  const [checkoutNeedsClick, setCheckoutNeedsClick] = useState(false);
+  const checkoutReady = podCheckoutReady(paymentSession);
 
   // Log which marketplace pod-qr API the payment request used (create, poll,
   // retry). Only when status / api_url / http_status changes, not every 4s poll.
@@ -445,6 +460,68 @@ export default function StaffDeliveriesPage() {
       last_error: paymentSession.last_error ?? gateway.last_error ?? null,
     });
   }, [paymentSession, paymentDelivery?.id]);
+
+  // Must run inside a click handler: browsers only allow window.open then.
+  function openCheckoutTabOnClick(deliveryId) {
+    if (!deliveryId || typeof window === "undefined") return;
+    let tab = null;
+    try {
+      tab = window.open(podCheckoutPageUrl(deliveryId), POD_CHECKOUT_WINDOW);
+    } catch {
+      tab = null;
+    }
+    checkoutWindowRef.current = tab;
+    checkoutWindowSessionRef.current = tab ? "pending" : null;
+  }
+
+  // "Open payment page" button: POST the checkout straight into the tab.
+  function openPaymentPageNow() {
+    const checkout = podCheckoutTarget(paymentSession);
+    if (!checkout) return;
+    let tab = null;
+    try {
+      tab = window.open("", POD_CHECKOUT_WINDOW);
+    } catch {
+      tab = null;
+    }
+    submitPodCheckoutForm(checkout, tab ? POD_CHECKOUT_WINDOW : "_blank");
+    checkoutWindowRef.current = tab;
+    const sid = podSessionId(paymentSession);
+    checkoutWindowSessionRef.current = sid;
+    if (sid) openedCheckoutSessionsRef.current.add(sid);
+    setCheckoutNeedsClick(false);
+  }
+
+  // When a session with payment_url arrives (create, retry or poll), open the
+  // real payment page once per session id: reuse the tab opened by the click,
+  // otherwise ask the rider to tap "Open payment page".
+  useEffect(() => {
+    const sid = podSessionId(paymentSession);
+    if (!paymentDelivery || paymentMethod !== "online" || !sid || !checkoutReady) {
+      return;
+    }
+    if (openedCheckoutSessionsRef.current.has(sid)) return;
+
+    const tab = checkoutWindowRef.current;
+    if (tab && !tab.closed) {
+      if (checkoutWindowSessionRef.current !== sid) {
+        try {
+          tab.location.href = podCheckoutPageUrl(paymentDelivery.id, sid);
+        } catch {
+          setCheckoutNeedsClick(true);
+          return;
+        }
+        checkoutWindowSessionRef.current = sid;
+      }
+      openedCheckoutSessionsRef.current.add(sid);
+      setCheckoutNeedsClick(false);
+      console.info("[POD] opened HamroPay checkout tab", { delivery_id: paymentDelivery.id, session_id: sid });
+      return;
+    }
+
+    setCheckoutNeedsClick(true);
+  }, [paymentSession, paymentDelivery, paymentMethod, checkoutReady]);
+
   const [filterStatus, setFilterStatus] = useState("all");
   const [searchText, setSearchText] = useState("");
   const [viewMode, setViewMode] = useState("list");
@@ -625,10 +702,12 @@ export default function StaffDeliveriesPage() {
     setPaymentSession(null);
     setPaymentSessionError("");
     setPaymentSessionLoading(false);
+    setCheckoutNeedsClick(false);
     setPaymentDelivery(delivery);
   }
 
   function closePaymentConfirmation() {
+    setCheckoutNeedsClick(false);
     setPaymentDelivery(null);
     setPaymentSession(null);
     setPaymentSessionError("");
@@ -637,6 +716,9 @@ export default function StaffDeliveriesPage() {
   }
 
   async function retryPaymentSession() {
+    if (paymentDelivery) {
+      openCheckoutTabOnClick(paymentDelivery.id);
+    }
     if (!paymentDelivery) {
       setPaymentSessionRetry((value) => value + 1);
       return;
@@ -1506,7 +1588,13 @@ export default function StaffDeliveriesPage() {
                 label="How was the POD amount collected?"
                 rules={[{ required: true, message: "Select a payment method." }]}
               >
-                <Radio.Group>
+                <Radio.Group
+                  onChange={(event) => {
+                    if (event?.target?.value === "online" && paymentDelivery) {
+                      openCheckoutTabOnClick(paymentDelivery.id);
+                    }
+                  }}
+                >
                   <Space direction="vertical">
                     <Radio value="cash">Cash collected by rider for the merchant</Radio>
                     <Radio value="online">
@@ -1549,8 +1637,8 @@ export default function StaffDeliveriesPage() {
                     <Alert
                       type="warning"
                       showIcon
-                      message={checkoutLink ? "Waiting for payment confirmation" : "Requesting payment QR from Tukaatu"}
-                      description={checkoutLink ? "Ask the customer to scan this QR and complete the exact amount. This screen polls until the payment is confirmed." : "Creating the doorstep QR via Tukaatu. This screen polls until the QR appears, then until payment is confirmed."}
+                      message={checkoutReady ? "Waiting for payment confirmation" : "Requesting the payment page from Tukaatu"}
+                      description={checkoutReady ? "The HamroPay payment page opens in a new tab. Let the customer complete the exact amount there; this screen polls until the payment is confirmed." : "Creating the doorstep payment via Tukaatu. The payment page opens in a new tab as soon as it is ready."}
                       style={{ marginBottom: 12 }}
                     />
                   )}
@@ -1606,8 +1694,36 @@ export default function StaffDeliveriesPage() {
                     </div>
                   ) : null}
 
-                  {["pending", "ready"].includes(paymentSession?.status) && checkoutLink && (
+                  {checkoutReady && (
                     <div style={{ textAlign: "center", marginBottom: 12 }}>
+                      {checkoutNeedsClick ? (
+                        <Alert
+                          type="info"
+                          showIcon
+                          message="Payment page ready"
+                          description="Tap the button to open the HamroPay payment page in a new tab."
+                          style={{ marginBottom: 8, textAlign: "left" }}
+                        />
+                      ) : null}
+                      <Button
+                        type={checkoutNeedsClick ? "primary" : "default"}
+                        size="large"
+                        block
+                        icon={<DollarOutlined />}
+                        onClick={openPaymentPageNow}
+                        style={{ marginBottom: 12 }}
+                      >
+                        {checkoutNeedsClick ? "Open payment page" : "Open payment page again"}
+                      </Button>
+                    </div>
+                  )}
+
+                  {checkoutReady && checkoutLink && (
+                    <div style={{ textAlign: "center", marginBottom: 12 }}>
+                      <div style={{ fontSize: 12, color: "#8c8c8c", marginBottom: 6 }}>
+                        Secondary: QR of the checkout link. HamroPay expects a form POST, so this QR
+                        may not open the payment page on every phone - prefer the payment page above.
+                      </div>
                       <div
                         style={{
                           display: "inline-block",
@@ -1619,7 +1735,7 @@ export default function StaffDeliveriesPage() {
                       >
                         <QRCodeSVG
                           value={checkoutLink}
-                          size={220}
+                          size={160}
                           level="M"
                           includeMargin
                           title={`Online payment QR for ${
@@ -1634,21 +1750,6 @@ export default function StaffDeliveriesPage() {
                             collectableAmount(paymentDelivery)
                         ).toFixed(2)}{" "}
                         {paymentSession?.currency || "NPR"}
-                      </div>
-                      <div
-                        style={{
-                          marginTop: 8,
-                          fontSize: 12,
-                          color: "#333",
-                          wordBreak: "break-all",
-                        }}
-                      >
-                        {checkoutLink}
-                      </div>
-                      <div style={{ marginTop: 8 }}>
-                        <a href={checkoutLink} target="_blank" rel="noreferrer">
-                          Open payment checkout
-                        </a>
                       </div>
                     </div>
                   )}
