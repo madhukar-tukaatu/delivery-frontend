@@ -27,6 +27,7 @@ import {
   Divider,
   Tooltip,
   Pagination,
+  Segmented,
 } from "antd";
 import {
   ReloadOutlined,
@@ -49,6 +50,9 @@ import {
 import { usePermissions } from "@/hooks/usePermission";
 import api from "@/lib/api";
 import { formatMerchantLabel } from "@/lib/merchantLabel";
+import TransferDispatchModal, { splitByFinal, trHeadline } from "@/components/admin/transfers/TransferDispatchModal";
+import TransferReceiveScanner from "@/components/admin/transfers/TransferReceiveScanner";
+import TransferContainerTable from "@/components/admin/transfers/TransferContainerTable";
 import {
   getTransfers,
   getTransferStats,
@@ -59,6 +63,8 @@ import {
   getReceivedTransfers,
   getCompletedTransfers,
   getTransferHistory,
+  getContainer,
+  dispatchContainer,
 } from "@/services/admin/transferService";
 
 const { Text, Title } = Typography;
@@ -71,6 +77,7 @@ const SERVICE_TYPE_META = {
   express: { color: "orange", label: "EXPRESS" },
   same_day: { color: "magenta", label: "SAME DAY" },
   flight: { color: "purple", label: "FLIGHT" },
+  mixed: { color: "cyan", label: "MIXED" },
 };
 
 function ServiceTypeTag({ value }) {
@@ -363,6 +370,8 @@ function buildNextHopGroups(routes, shipments, { includeEmptyFromRoutes = false 
         nextHopId: seed.nextHopId,
         nextHopName: seed.nextHopName,
         serviceType: seed.serviceType,
+        services: new Set(seed.serviceType ? [seed.serviceType] : []),
+        lastMileCount: 0,
         routes: [],
         routeIds: new Set(),
         finalCounts: new Map(), // destKey -> { key, name, count }
@@ -382,7 +391,7 @@ function buildNextHopGroups(routes, shipments, { includeEmptyFromRoutes = false 
       const hopId = Number(route.next_hop_branch_id || 0);
       if (!hopId) return;
       const svc = String(route.service_type || "standard").toLowerCase();
-      const key = `${hopId}::${svc}`;
+      const key = String(hopId);
       const g = ensureGroup(key, {
         nextHopId: hopId,
         nextHopName: route.next_hop_name || `Branch #${hopId}`,
@@ -399,12 +408,15 @@ function buildNextHopGroups(routes, shipments, { includeEmptyFromRoutes = false 
   (shipments || []).forEach((s) => {
     const hop = resolveShipmentNextHop(s, routes);
     if (!hop.id) return;
-    const key = `${hop.id}::${hop.service}`;
+    // One TR per next hop: every service type rides the same trip.
+    const key = String(hop.id);
     const g = ensureGroup(key, {
       nextHopId: hop.id,
       nextHopName: hop.name || `Branch #${hop.id}`,
       serviceType: hop.service,
     });
+    if (hop.service) g.services.add(hop.service);
+    if (Number(s.destination_branch_id || 0) === Number(hop.id)) g.lastMileCount += 1;
     g.count += 1;
     g.shipmentIds.push(s.id);
     const dest = routeLabel(
@@ -430,8 +442,14 @@ function buildNextHopGroups(routes, shipments, { includeEmptyFromRoutes = false 
       const finalBreakdown = Array.from(g.finalCounts.values()).sort(
         (a, b) => b.count - a.count || String(a.name).localeCompare(String(b.name))
       );
+      const services = Array.from(g.services || []);
+      const onwardBreakdown = finalBreakdown.filter((f) => String(f.key) !== String(g.nextHopId));
       return {
         ...g,
+        services,
+        serviceType: services.length > 1 ? "mixed" : services[0] || g.serviceType,
+        onwardCount: Math.max(0, g.count - g.lastMileCount),
+        onwardBreakdown,
         routeIds: Array.from(g.routeIds).filter(Boolean),
         finalBreakdown,
         finalNames: finalBreakdown.map((f) => f.name),
@@ -693,6 +711,15 @@ function NextHopMasterDetail({
     const idSet = new Set(selected.shipmentIds || []);
     return (shipments || []).filter((s) => idSet.has(s.id));
   }, [selected, shipments]);
+
+  const selectedInHop = useMemo(
+    () => detailShipments.filter((s) => (selectedRowKeys || []).includes(s.id)),
+    [detailShipments, selectedRowKeys]
+  );
+  const trHeader = useMemo(
+    () => (selected ? trHeadline(selected.nextHopName, splitByFinal(detailShipments, selected.nextHopId)) : ""),
+    [selected, detailShipments]
+  );
 
   const fromLabel = useMemo(() => {
     if (!detailShipments.length) return "This branch";
@@ -999,6 +1026,14 @@ function NextHopMasterDetail({
                           </Tag>
                           <ServiceTypeTag value={g.serviceType} />
                         </Space>
+                        {g.count > 0 ? (
+                          <Text style={{ fontSize: 11, display: "block", marginBottom: 2 }}>
+                            <Text type="success" style={{ fontSize: 11 }}>{g.lastMileCount} last mile</Text>
+                            {g.onwardCount ? (
+                              <Text type="secondary" style={{ fontSize: 11 }}> · {g.onwardCount} onward</Text>
+                            ) : null}
+                          </Text>
+                        ) : null}
                         {(g.finalBreakdown || []).length > 0 ? (
                           <div style={{ marginBottom: 2 }}>
                             <FinalBreakdownChips items={g.finalBreakdown} max={4} size="small" />
@@ -1070,7 +1105,7 @@ function NextHopMasterDetail({
           {!selected ? (
             <Empty
               image={Empty.PRESENTED_IMAGE_SIMPLE}
-              description="Select a next hop on the left to bag & dispatch"
+              description="Select a next hop on the left to build its TR"
               style={{ margin: "48px 0" }}
             />
           ) : (
@@ -1110,6 +1145,7 @@ function NextHopMasterDetail({
                       total
                     </Text>
                   </Space>
+                  <Text strong style={{ fontSize: 13 }}>{trHeader}</Text>
                   {(selected.finalBreakdown || []).length > 0 ? (
                     <div>
                       <Text type="secondary" style={{ fontSize: 11, marginRight: 6 }}>
@@ -1132,12 +1168,12 @@ function NextHopMasterDetail({
                     type="primary"
                     size="small"
                     icon={<SendOutlined />}
-                    disabled={!selected.count || !selectedRowKeys?.length || dispatching}
+                    disabled={!selected.count || !selectedInHop.length || dispatching}
                     loading={dispatching}
                     onClick={() => onDispatch?.(selected)}
                     style={{ backgroundColor: accent.badge, borderColor: accent.badge }}
                   >
-                    Dispatch Transfer
+                    Create TR ({selectedInHop.length})
                   </Button>
                 ) : null}
               </Space>
@@ -1515,7 +1551,7 @@ function TimelineModal({ open, shipment, onClose }) {
                             event.from_branch_name && event.to_branch_name
                               ? `${event.from_branch_name} -> ${event.to_branch_name}`
                               : event.branch_name,
-                            event.manifest_number ? `Manifest ${event.manifest_number}` : null,
+                            event.manifest_number ? `TR ${event.manifest_number}` : null,
                             event.next_hop ? `Next: ${event.next_hop}` : null,
                             event.path_text,
                           ]
@@ -1799,6 +1835,42 @@ export default function TransfersPage() {
 
   // Selection states
   const [selectedRowKeys, setSelectedRowKeys] = useState([]);
+  // TR dispatch dialog: vehicle, rider / driver, trip cost (split per parcel).
+  const [dispatchDlg, setDispatchDlg] = useState({ open: false, shipments: [] });
+  const dispatchResolver = useRef(null);
+  const askDispatch = useCallback((cfg) => {
+    setDispatchDlg({ open: true, allowHold: true, transferNumber: null, ...cfg });
+    return new Promise((resolve) => {
+      dispatchResolver.current = resolve;
+    });
+  }, []);
+  const closeDispatch = useCallback((value) => {
+    setDispatchDlg((d) => ({ ...d, open: false }));
+    const r = dispatchResolver.current;
+    dispatchResolver.current = null;
+    if (r) r(value);
+  }, []);
+
+  // TR check-in drawer + TR lists reload trigger
+  const [scanner, setScanner] = useState({ open: false, id: null });
+  const [trReloadKey, setTrReloadKey] = useState(0);
+  const [inboundView, setInboundView] = useState("tr");
+  const [sentView, setSentView] = useState("tr");
+  const [historyView, setHistoryView] = useState("tr");
+  const [deepLinkTr, setDeepLinkTr] = useState(null);
+
+  // Deep link: /admin/transfers?tab=inbound&tr=<id> opens that TR's check-in.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const sp = new URLSearchParams(window.location.search);
+    const tab = sp.get("tab");
+    const tr = Number(sp.get("tr") || 0);
+    if (tab && ["outbound", "sent", "inbound", "received", "completed", "history"].includes(tab)) setActiveTab(tab);
+    if (tr > 0) {
+      setDeepLinkTr(tr);
+      setScanner({ open: true, id: tr });
+    }
+  }, []);
 
   // Configured transfer route selection (required for outbound dispatch)
   const [availableRoutes, setAvailableRoutes] = useState([]);
@@ -1911,10 +1983,7 @@ export default function TransfersPage() {
     if (selectedNextHop && viewMode === "next_hop") {
       rows = rows.filter((s) => {
         const hop = resolveShipmentNextHop(s, availableRoutes);
-        return (
-          Number(hop.id) === Number(selectedNextHop.nextHopId) &&
-          String(hop.service) === String(selectedNextHop.serviceType)
-        );
+        return Number(hop.id) === Number(selectedNextHop.nextHopId);
       });
     }
     return rows;
@@ -2285,6 +2354,65 @@ export default function TransfersPage() {
     await Promise.all([loadStats(), loadData()]);
   }, [loadStats, loadData]);
 
+  const branchExtra = selectedBranchId ? { branch_id: selectedBranchId } : {};
+
+  const dispatchedText = (res, fallbackTarget) => {
+    const ok = res?.dispatched?.length ?? res?.dispatched_count ?? 0;
+    const skip = res?.skipped ? Object.keys(res.skipped).length : 0;
+    const trs = (res?.transfer_numbers || []).join(", ");
+    const verb = res?.containers?.some?.((c) => c.status === "open") ? "loaded on" : "dispatched on";
+    const base = trs ? `${ok} parcel(s) ${verb} ${trs}` : `${ok} dispatched to ${fallbackTarget}`;
+    return skip === 0 ? `${base}.` : `${base}, ${skip} skipped.`;
+  };
+
+  const showDispatchError = (e, fallback) => {
+    const errors = e?.response?.data?.errors;
+    const firstError = errors ? Object.values(errors).flat()?.[0] : null;
+    message.error(firstError || e?.response?.data?.message || fallback);
+  };
+
+  // Send an open (held) TR from the Sent tab
+  const handleDispatchOpenTr = async (container) => {
+    let items = [];
+    try {
+      const full = await getContainer(container.id, branchExtra);
+      items = (full?.items || []).filter((i) => i.status === "added");
+    } catch (e) {
+      showDispatchError(e, "Failed to load TR");
+      return;
+    }
+    if (!items.length) {
+      message.warning(`${container.display_number} has no loaded parcels. Cancel it instead.`);
+      return;
+    }
+    const meta = await askDispatch({
+      transferNumber: container.display_number,
+      allowHold: false,
+      nextHopName: container.to_branch?.name,
+      nextHopId: container.to_branch?.id,
+      fromLabel: container.from_branch?.name,
+      shipments: items.map((i) => ({
+        id: i.shipment_id,
+        tracking_number: i.tracking_number,
+        weight: i.weight,
+        destination_branch_id: i.destination_branch_id,
+        destination_name: i.destination_name,
+      })),
+    });
+    if (!meta) return;
+    setSubmitting(true);
+    try {
+      await dispatchContainer(container.id, meta, branchExtra);
+      message.success(`${container.display_number} dispatched to ${container.to_branch?.name || "next hop"}.`);
+      setTrReloadKey((k) => k + 1);
+      await refresh();
+    } catch (e) {
+      showDispatchError(e, "Failed to dispatch TR.");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   // Bulk dispatch (requires a configured transfer route)
   const handleBulkDispatch = async () => {
     if (selectedRowKeys.length === 0) return;
@@ -2292,18 +2420,24 @@ export default function TransfersPage() {
       message.warning("Select a transfer route before dispatching.");
       return;
     }
+    const route = availableRoutes.find(
+      (r) => Number(r.route_id ?? r.id) === Number(selectedTransferRouteId)
+    );
+    const cost = await askDispatch({
+      nextHopName: route?.next_hop_name || "next hop",
+      nextHopId: route?.next_hop_branch_id,
+      shipments: outboundRows.filter((s) => selectedRowKeys.includes(s.id)),
+    });
+    if (!cost) return;
     setSubmitting(true);
     try {
-      const res = await dispatchTransfers(selectedRowKeys, selectedTransferRouteId);
-      const ok = res?.dispatched?.length ?? 0;
-      const skip = res?.skipped ? Object.keys(res.skipped).length : 0;
-      message.success(skip === 0 ? `${ok} dispatched on selected route.` : `${ok} dispatched, ${skip} skipped.`);
+      const res = await dispatchTransfers(selectedRowKeys, selectedTransferRouteId, { ...cost, ...branchExtra });
+      message.success(dispatchedText(res, route?.next_hop_name || "next hop"));
       setSelectedRowKeys([]);
+      setTrReloadKey((k) => k + 1);
       await refresh();
     } catch (e) {
-      const errors = e?.response?.data?.errors;
-      const firstError = errors ? Object.values(errors).flat()?.[0] : null;
-      message.error(firstError || e?.response?.data?.message || "Failed to dispatch.");
+      showDispatchError(e, "Failed to dispatch.");
     } finally {
       setSubmitting(false);
     }
@@ -2315,37 +2449,36 @@ export default function TransfersPage() {
       message.warning("Select a next hop first.");
       return;
     }
-    const ids = (group.shipmentIds && group.shipmentIds.length)
+    const hopIds = (group.shipmentIds && group.shipmentIds.length)
       ? group.shipmentIds
       : outboundRows
-          .filter((s) => {
-            const hop = resolveShipmentNextHop(s, availableRoutes);
-            return Number(hop.id) === Number(group.nextHopId)
-              && String(hop.service) === String(group.serviceType);
-          })
+          .filter((s) => Number(resolveShipmentNextHop(s, availableRoutes).id) === Number(group.nextHopId))
           .map((s) => s.id);
+    // Only the ticked parcels ride this TR (all of the hop when none ticked).
+    const ticked = hopIds.filter((id) => selectedRowKeys.includes(id));
+    const ids = ticked.length ? ticked : hopIds;
     if (!ids.length) {
       message.warning("No ready parcels for this next hop.");
       return;
     }
+    const parcels = outboundRows.filter((s) => ids.includes(s.id));
+    const meta = await askDispatch({
+      nextHopName: group.nextHopName || "next hop",
+      nextHopId: group.nextHopId,
+      shipments: parcels.length ? parcels : ids.map((id) => ({ id })),
+    });
+    if (!meta) return;
     setSubmitting(true);
     try {
-      const res = await dispatchToNextHop(ids, group.nextHopId);
-      const ok = res?.dispatched?.length ?? res?.dispatched_count ?? 0;
-      const skip = res?.skipped ? Object.keys(res.skipped).length : 0;
-      message.success(
-        skip === 0
-          ? `${ok} dispatched to ${group.nextHopName}.`
-          : `${ok} dispatched to ${group.nextHopName}, ${skip} skipped.`
-      );
+      const res = await dispatchToNextHop(ids, group.nextHopId, { ...meta, ...branchExtra });
+      message.success(dispatchedText(res, group.nextHopName));
       setSelectedRowKeys([]);
       setSelectedNextHopKey(null);
       setSelectedNextHop(null);
+      setTrReloadKey((k) => k + 1);
       await refresh();
     } catch (e) {
-      const errors = e?.response?.data?.errors;
-      const firstError = errors ? Object.values(errors).flat()?.[0] : null;
-      message.error(firstError || e?.response?.data?.message || "Failed to dispatch to next hop.");
+      showDispatchError(e, "Failed to dispatch to next hop.");
     } finally {
       setSubmitting(false);
     }
@@ -2364,19 +2497,22 @@ export default function TransfersPage() {
     
     const shipmentIds = group.shipments.map(s => s.id);
     const transferRouteId = group.route.id || group.route.route_id;
-    
+    const groupCost = await askDispatch({
+      nextHopName: group.route.next_hop_name || "next hop",
+      nextHopId: group.route.next_hop_branch_id,
+      shipments: group.shipments,
+    });
+    if (!groupCost) return;
+
     setSubmitting(true);
     try {
-      const res = await dispatchTransfers(shipmentIds, transferRouteId);
-      const ok = res?.dispatched?.length ?? 0;
-      const skip = res?.skipped ? Object.keys(res.skipped).length : 0;
-      message.success(skip === 0 ? `${ok} dispatched on route ${group.route.route_code || group.route.route_name}.` : `${ok} dispatched, ${skip} skipped.`);
+      const res = await dispatchTransfers(shipmentIds, transferRouteId, { ...groupCost, ...branchExtra });
+      message.success(dispatchedText(res, group.route.next_hop_name || "next hop"));
       setSelectedRowKeys([]);
+      setTrReloadKey((k) => k + 1);
       await refresh();
     } catch (e) {
-      const errors = e?.response?.data?.errors;
-      const firstError = errors ? Object.values(errors).flat()?.[0] : null;
-      message.error(firstError || e?.response?.data?.message || "Failed to dispatch group.");
+      showDispatchError(e, "Failed to dispatch group.");
     } finally {
       setSubmitting(false);
     }
@@ -2651,7 +2787,7 @@ export default function TransfersPage() {
         <Card styles={{ body: { padding: 0 } }} style={{ borderRadius: 10 }}>
           <TabGuide
             type="info"
-            message="Hub bagging: parcels that share the same NEXT hop (e.g. KTM→BHA direct + KTM→BRN via BHA) dispatch together. Drill into By route when you need one transfer route only."
+            message="One TR per trip: every parcel whose NEXT hop is the same branch (last mile there + onward beyond it, any service) goes on one TR with the vehicle, rider and trip cost. The next branch checks the TR in and sorts it automatically."
           />
 
           <Card size="small" style={{ margin: 8, borderRadius: 8 }} styles={{ body: { padding: 10 } }}>
@@ -2831,8 +2967,31 @@ export default function TransfersPage() {
         <Card styles={{ body: { padding: 0 } }} style={{ borderRadius: 14 }}>
           <TabGuide
             type="info"
-            message="Parcels this branch has dispatched (outbounded) to another branch, with their current status: in transit, received, out for delivery, delivered."
+            message="TRs this branch sent: one per trip, with vehicle, rider, cost and the receiving branch's check-in (received / missing / extra). Open TRs (loaded, not yet sent) can be dispatched or cancelled here. Switch to By parcel for each parcel's current status."
           />
+          <Space size={6} style={{ padding: "8px 8px 0" }}>
+            <Segmented
+              size="small"
+              value={sentView}
+              onChange={setSentView}
+              options={[
+                { value: "tr", label: "By TR" },
+                { value: "parcel", label: "By parcel" },
+              ]}
+            />
+          </Space>
+          {sentView === "tr" ? (
+            <TransferContainerTable
+              direction="outbound"
+              branchId={selectedBranchId}
+              search={debouncedSearch}
+              reloadKey={trReloadKey}
+              canDispatch={!!can?.("transfers.dispatch")}
+              onOpen={(c) => setScanner({ open: true, id: c.id })}
+              onDispatchOpen={handleDispatchOpenTr}
+              onChanged={refresh}
+            />
+          ) : (
           <Table
             rowKey="id"
             size="middle"
@@ -2852,6 +3011,7 @@ export default function TransfersPage() {
               onChange: (p, ps) => loadSent(p, ps),
             }}
           />
+          )}
         </Card>
       ),
     },
@@ -2866,8 +3026,30 @@ export default function TransfersPage() {
         <Card styles={{ body: { padding: 0 } }} style={{ borderRadius: 14 }}>
           <TabGuide
             type="info"
-            message="Parcels whose NEXT hop is this branch. Receive them here. If this is a transit hub, they move to Outbound for onward dispatch; if final destination, they go to Received for last-mile."
+            message="TRs arriving at this branch. Open a TR, scan or tick the parcels that came, then Confirm receive: last-mile parcels are sorted for delivery here, onward parcels move to Outbound for your next TR, and unticked parcels are flagged missing."
           />
+          <Space size={6} style={{ padding: "8px 8px 0" }}>
+            <Segmented
+              size="small"
+              value={inboundView}
+              onChange={setInboundView}
+              options={[
+                { value: "tr", label: "Incoming TRs" },
+                { value: "parcel", label: "Single parcels" },
+              ]}
+            />
+          </Space>
+          {inboundView === "tr" ? (
+            <TransferContainerTable
+              direction="inbound"
+              branchId={selectedBranchId}
+              search={debouncedSearch}
+              reloadKey={trReloadKey}
+              canReceive={!!can?.("transfers.receive")}
+              highlightId={deepLinkTr}
+              onOpen={(c) => setScanner({ open: true, id: c.id })}
+            />
+          ) : (
           <Table
             rowKey="id"
             size="middle"
@@ -2880,6 +3062,7 @@ export default function TransfersPage() {
             }}
             pagination={{ pageSize: 20 }}
           />
+          )}
         </Card>
       ),
     },
@@ -2967,8 +3150,30 @@ export default function TransfersPage() {
         <Card styles={{ body: { padding: 0 } }} style={{ borderRadius: 14 }}>
           <TabGuide
             type="info"
-            message="Transfer events for this branch (sorted, dispatched, received) with time and user, and each parcel's current status. Filter by date, status or direction; open View Timeline for every step."
+            message="Every TR this branch sent or received, with status and check-in counts (By TR), or each parcel's transfer events and current status (By parcel)."
           />
+          <Space size={6} style={{ padding: "8px 8px 0" }}>
+            <Segmented
+              size="small"
+              value={historyView}
+              onChange={setHistoryView}
+              options={[
+                { value: "tr", label: "By TR" },
+                { value: "parcel", label: "By parcel" },
+              ]}
+            />
+          </Space>
+          {historyView === "tr" ? (
+            <TransferContainerTable
+              direction={historyDirection === "sent" ? "outbound" : historyDirection === "received" ? "inbound_all" : "all"}
+              branchId={selectedBranchId}
+              search={debouncedSearch}
+              dateFrom={dateRange?.length === 2 ? dateRange[0].format("YYYY-MM-DD") : null}
+              dateTo={dateRange?.length === 2 ? dateRange[1].format("YYYY-MM-DD") : null}
+              reloadKey={trReloadKey}
+              onOpen={(c) => setScanner({ open: true, id: c.id })}
+            />
+          ) : (
           <Table
             rowKey="id"
             size="middle"
@@ -2991,6 +3196,7 @@ export default function TransfersPage() {
               },
             }}
           />
+          )}
         </Card>
       ),
     },
@@ -3118,7 +3324,7 @@ export default function TransfersPage() {
             <Text strong style={{ fontSize: 13 }}>{selectedRowKeys.length} selected</Text>
             <Text type="secondary" style={{ fontSize: 12 }}>
               {viewMode === "next_hop"
-                ? (selectedNextHop ? `Dispatch bag → ${selectedNextHop.nextHopName}` : "Dispatch to next hop")
+                ? (selectedNextHop ? `One TR → ${selectedNextHop.nextHopName}` : "Create TR to next hop")
                 : "Dispatch on selected transfer route"}
             </Text>
           </Space>
@@ -3133,7 +3339,7 @@ export default function TransfersPage() {
                 onClick={() => handleDispatchNextHop(selectedNextHop)}
                 disabled={!selectedNextHop || selectedRowKeys.length === 0}
               >
-                {selectedNextHop ? `Dispatch to ${selectedNextHop.nextHopName}` : "Dispatch to next hop"}
+                {selectedNextHop ? `Create TR to ${selectedNextHop.nextHopName}` : "Create TR"}
               </Button>
             ) : (
               <Tooltip
@@ -3171,6 +3377,31 @@ export default function TransfersPage() {
         open={timelineModal.open}
         shipment={timelineModal.shipment}
         onClose={() => setTimelineModal({ open: false, shipment: null })}
+      />
+
+      <TransferDispatchModal
+        open={dispatchDlg.open}
+        nextHopName={dispatchDlg.nextHopName}
+        nextHopId={dispatchDlg.nextHopId}
+        fromLabel={dispatchDlg.fromLabel}
+        shipments={dispatchDlg.shipments}
+        transferNumber={dispatchDlg.transferNumber}
+        allowHold={dispatchDlg.allowHold}
+        branchId={selectedBranchId}
+        submitting={submitting}
+        onCancel={() => closeDispatch(null)}
+        onSubmit={(meta) => closeDispatch(meta)}
+      />
+
+      <TransferReceiveScanner
+        open={scanner.open}
+        containerId={scanner.id}
+        branchId={selectedBranchId}
+        onClose={() => setScanner({ open: false, id: null })}
+        onDone={() => {
+          setTrReloadKey((k) => k + 1);
+          loadStats();
+        }}
       />
     </div>
   );

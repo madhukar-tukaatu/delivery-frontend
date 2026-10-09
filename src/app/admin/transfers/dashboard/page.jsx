@@ -36,6 +36,7 @@ import {
   HistoryOutlined,
 } from "@ant-design/icons";
 import { usePermissions } from "@/hooks/usePermission";
+import { useTransportCostPrompt } from "@/components/admin/transfers/TransportCostPrompt";
 import {
   getTransfers,
   getTransferStats,
@@ -127,6 +128,7 @@ export default function TransferDashboardPage() {
 
   // Selection states
   const [selectedRowKeys, setSelectedRowKeys] = useState([]);
+  const [askTransportCost, transportCostModal] = useTransportCostPrompt();
 
   const [availableRoutes, setAvailableRoutes] = useState([]);
   const [routesLoading, setRoutesLoading] = useState(false);
@@ -326,9 +328,14 @@ export default function TransferDashboardPage() {
       message.warning("Select a transfer route before dispatching.");
       return;
     }
+    const cost = await askTransportCost(
+      outboundRows.filter((s) => selectedRowKeys.includes(s.id)),
+      `Transport cost for ${selectedRowKeys.length} parcel(s)`
+    );
+    if (!cost) return;
     setSubmitting(true);
     try {
-      const res = await dispatchTransfers(selectedRowKeys, selectedTransferRouteId);
+      const res = await dispatchTransfers(selectedRowKeys, selectedTransferRouteId, cost);
       const ok = res?.dispatched?.length ?? 0;
       const skip = res?.skipped ? Object.keys(res.skipped).length : 0;
       message.success(skip === 0 ? `${ok} dispatched.` : `${ok} dispatched, ${skip} skipped.`);
@@ -962,6 +969,8 @@ export default function TransferDashboardPage() {
         shipment={timelineModal.shipment}
         onClose={() => setTimelineModal({ open: false, shipment: null })}
       />
+
+      {transportCostModal}
     </div>
   );
 }

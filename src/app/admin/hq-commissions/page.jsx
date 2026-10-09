@@ -127,10 +127,10 @@ export default function HqCommissionsPage() {
         message="Tukaatu Express HQ billing"
         description={
           <Paragraph style={{ marginBottom: 0 }}>
-            After each successful delivery, the destination branch owes HQ a commission
-            (default {summary?.hq_percent ?? 5}% of checkout delivery charge). Branches
-            settle that to the company HamroPay account. This is separate from merchant
-            POD cash and merchant delivery-fee invoices.
+            After each successful delivery, every branch that handled the shipment owes HQ
+            {" "}{summary?.hq_percent ?? 5}% of its own share of the delivery charge (see Branch shares),
+            so a transfer creates one bill per branch. Branches settle that to the company
+            HamroPay account. This is separate from merchant POD cash and merchant delivery-fee invoices.
           </Paragraph>
         }
       />
@@ -192,7 +192,7 @@ export default function HqCommissionsPage() {
             { title: "Bill", dataIndex: "bill_number" },
             { title: "Branch", dataIndex: "branch_id" },
             { title: "Shipment", dataIndex: "shipment_id" },
-            { title: "Delivery base", dataIndex: "delivery_charge_base" },
+            { title: "Branch allocation", dataIndex: "delivery_charge_base" },
             {
               title: "Rate %",
               dataIndex: "commission_rate",

@@ -166,7 +166,7 @@ export async function getAvailableTransferRoutes(params = {}) {
  *
  * POST /admin/transfers/dispatch  { shipment_ids: [] }
  */
-export async function dispatchTransfers(shipmentIds, transferRouteId) {
+export async function dispatchTransfers(shipmentIds, transferRouteId, extra = {}) {
   if (!Array.isArray(shipmentIds) || shipmentIds.length === 0) {
     throw new Error("Select at least one shipment.");
   }
@@ -176,6 +176,8 @@ export async function dispatchTransfers(shipmentIds, transferRouteId) {
   const response = await api.post("/admin/transfers/dispatch", {
     shipment_ids: shipmentIds,
     transfer_route_id: Number(transferRouteId),
+    // transport_cost / transport_cost_split_mode entered by the dispatching branch
+    ...extra,
   });
   return unwrap(response);
 }
@@ -264,4 +266,87 @@ export async function getOutboundGroupedByNextHop(params = {}) {
     params: { per_page: 20, direction: "outbound", group_by_next_hop: true, ...params },
   });
   return unwrap(response);
+}
+
+/* ------------------------------------------------------------------ */
+/* TR containers: one transfer per (this branch -> next hop) trip      */
+/* ------------------------------------------------------------------ */
+
+/**
+ * GET /admin/transfers/containers
+ * params: direction ("outbound"|"inbound"|"all"), status (comma list), search, date_from, date_to, page, per_page, branch_id
+ * Inbound without a status lists TRs still arriving (dispatched / in transit / partially received).
+ */
+export async function getContainers(params = {}) {
+  const response = await api.get("/admin/transfers/containers", {
+    params: { per_page: 20, direction: "outbound", ...params },
+  });
+  return normalizeList(response, params);
+}
+
+/** GET /admin/transfers/containers/{id} -> TR with items and can_receive / can_resolve / can_dispatch / can_cancel */
+export async function getContainer(containerId, params = {}) {
+  if (!containerId) throw new Error("TR id is required.");
+  const response = await api.get(`/admin/transfers/containers/${containerId}`, { params });
+  return unwrap(response);
+}
+
+/**
+ * Check a TR in at this branch.
+ * POST /admin/transfers/containers/{id}/receive { scanned: [shipment ids or tracking numbers], remarks? }
+ * Unscanned parcels are flagged missing; scanned parcels from other TRs headed here are taken as extras.
+ * -> { container, received, missing, extras, rejected }
+ */
+export async function receiveContainer(containerId, scanned = [], remarks = null, params = {}) {
+  if (!containerId) throw new Error("TR id is required.");
+  const response = await api.post(
+    `/admin/transfers/containers/${containerId}/receive`,
+    { scanned: Array.isArray(scanned) ? scanned : [], remarks: remarks || undefined },
+    { params }
+  );
+  return { ...(unwrap(response) || {}), message: response?.data?.message };
+}
+
+/** POST /admin/transfers/containers/{id}/items/{itemId}/resolve { action: "found"|"lost", note? } */
+export async function resolveContainerItem(containerId, itemId, action, note = null, params = {}) {
+  if (!containerId || !itemId) throw new Error("TR and parcel are required.");
+  const response = await api.post(
+    `/admin/transfers/containers/${containerId}/items/${itemId}/resolve`,
+    { action, note: note || undefined },
+    { params }
+  );
+  return unwrap(response);
+}
+
+/** POST /admin/transfers/containers/{id}/dispatch : send an open (held) TR with vehicle / rider / cost. */
+export async function dispatchContainer(containerId, data = {}, params = {}) {
+  if (!containerId) throw new Error("TR id is required.");
+  const response = await api.post(`/admin/transfers/containers/${containerId}/dispatch`, data, { params });
+  return unwrap(response);
+}
+
+/** POST /admin/transfers/containers/{id}/cancel { reason? } : only an open TR; its parcels stay ready. */
+export async function cancelContainer(containerId, reason = null, params = {}) {
+  if (!containerId) throw new Error("TR id is required.");
+  const response = await api.post(
+    `/admin/transfers/containers/${containerId}/cancel`,
+    { reason: reason || undefined },
+    { params }
+  );
+  return unwrap(response);
+}
+
+/** GET /admin/transfers/riders : staff of the dispatching branch (riders first) for the TR rider picker. */
+export async function getTransferRiders(params = {}) {
+  const response = await api.get("/admin/transfers/riders", { params });
+  const payload = unwrap(response);
+  return Array.isArray(payload) ? payload : [];
+}
+
+/** GET /admin/transfers/shipments/{id}/hops : per-hop TR number, trip and transport cost of one parcel. */
+export async function getShipmentHops(shipmentId) {
+  if (!shipmentId) return [];
+  const response = await api.get(`/admin/transfers/shipments/${shipmentId}/hops`);
+  const payload = unwrap(response) ?? {};
+  return Array.isArray(payload.hops) ? payload.hops : [];
 }

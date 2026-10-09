@@ -48,6 +48,8 @@ import {
 } from "@/services/merchantShipmentService";
 
 import { formatMerchantLabel } from "@/lib/merchantLabel";
+import BranchShareBreakdown from "@/components/admin/shipments/BranchShareBreakdown";
+import ShipmentTransferHops from "@/components/admin/shipments/ShipmentTransferHops";
 import {
   formatDateTime,
   formatMoney,
@@ -517,6 +519,8 @@ export default function AdminShipmentDetailPage() {
         </Card>
       ) : null}
 
+      {shipmentId ? <ShipmentTransferHops shipmentId={shipmentId} /> : null}
+
       {/* Sender / Receiver */}
 
       <Row
@@ -754,6 +758,8 @@ export default function AdminShipmentDetailPage() {
           <Empty description="No pricing breakdown found" />
         )}
       </Card>
+
+      <BranchShareBreakdown shipmentId={params?.id} />
 
       {/* Tasks */}
 
