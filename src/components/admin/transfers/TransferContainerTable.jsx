@@ -1,18 +1,20 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Button, Empty, Input, Modal, Select, Space, Table, Tag, Tooltip, Typography, message } from "antd";
+import { Button, Dropdown, Empty, Input, Modal, Select, Space, Table, Tag, Tooltip, Typography, message } from "antd";
 import {
   ArrowRightOutlined,
   CarOutlined,
+  EditOutlined,
   EyeOutlined,
+  PrinterOutlined,
   InboxOutlined,
   SendOutlined,
   StopOutlined,
   WarningOutlined,
 } from "@ant-design/icons";
-import { cancelContainer, getContainer, getContainers } from "@/services/admin/transferService";
-import { TrStatusTag, TR_STATUS_META } from "@/components/admin/transfers/TransferReceiveScanner";
+import { cancelContainer, getContainer, getContainers, openTrPrint } from "@/services/admin/transferService";
+import { SealTag, TrStatusTag, TR_STATUS_META } from "@/components/admin/transfers/TransferReceiveScanner";
 import { vehicleLabel } from "@/components/admin/transfers/TransferDispatchModal";
 
 const { Text } = Typography;
@@ -38,6 +40,22 @@ export function trSplitText(c) {
     parts.push(`${c.onward_count} onward to ${names.join(", ")}`);
   }
   return parts.join(", ");
+}
+
+export function TrPrintButton({ c, branchId = null, size = "small" }) {
+  return (
+    <Dropdown
+      menu={{
+        items: [
+          { key: "label", label: "Bag label (A6)" },
+          { key: "manifest", label: "Manifest sheet (A4)" },
+        ],
+        onClick: ({ key }) => openTrPrint(c.id, key, branchId),
+      }}
+    >
+      <Button size={size} icon={<PrinterOutlined />} />
+    </Dropdown>
+  );
 }
 
 const ITEM_TAG = {
@@ -114,6 +132,7 @@ function ContainerItems({ containerId, params }) {
  *  - canReceive, canDispatch: permission flags
  *  - onOpen(container): open the check-in / detail drawer
  *  - onDispatchOpen(container): send an open (held) TR
+ *  - onManageOpen(container): add / remove parcels on an open TR
  *  - onChanged(): after cancel
  *  - highlightId: TR id to highlight (deep link)
  */
@@ -128,6 +147,7 @@ export default function TransferContainerTable({
   canDispatch = false,
   onOpen,
   onDispatchOpen,
+  onManageOpen,
   onChanged,
   highlightId = null,
 }) {
@@ -271,6 +291,7 @@ export default function TransferContainerTable({
           {c.received_count ? <Tag color="green" style={{ margin: 0 }}>{c.received_count} in</Tag> : null}
           {c.missing_count ? <Tag color="orange" style={{ margin: 0 }}>{c.missing_count} missing</Tag> : null}
           {c.extra_count ? <Tag color="gold" style={{ margin: 0 }}>{c.extra_count} extra</Tag> : null}
+          <SealTag c={c} />
         </Space>
       ),
     },
@@ -279,37 +300,53 @@ export default function TransferContainerTable({
     {
       title: "",
       key: "actions",
-      width: 170,
+      width: 230,
       fixed: "right",
       render: (_, c) => {
+        const print = <TrPrintButton c={c} branchId={branchId} />;
         if (direction === "outbound" && c.status === "open" && canDispatch) {
           return (
             <Space size={4}>
+              <Tooltip title="Add or remove parcels before dispatch">
+                <Button size="small" icon={<EditOutlined />} onClick={() => onManageOpen?.(c)}>
+                  Edit
+                </Button>
+              </Tooltip>
               <Button size="small" type="primary" icon={<SendOutlined />} onClick={() => onDispatchOpen?.(c)}>
                 Dispatch
               </Button>
               <Button size="small" danger icon={<StopOutlined />} onClick={() => doCancel(c)} />
+              {print}
             </Space>
           );
         }
         if (direction === "inbound" && canReceive && ["dispatched", "in_transit"].includes(c.status)) {
           return (
-            <Button size="small" type="primary" icon={<InboxOutlined />} onClick={() => onOpen?.(c)}>
-              Receive
-            </Button>
+            <Space size={4}>
+              <Button size="small" type="primary" icon={<InboxOutlined />} onClick={() => onOpen?.(c)}>
+                Receive
+              </Button>
+              {print}
+            </Space>
           );
         }
         if (direction === "inbound" && canReceive && c.status === "partially_received") {
           return (
-            <Button size="small" icon={<WarningOutlined />} onClick={() => onOpen?.(c)} style={{ color: "#d46b08", borderColor: "#ffd591" }}>
-              Resolve missing
-            </Button>
+            <Space size={4}>
+              <Button size="small" icon={<WarningOutlined />} onClick={() => onOpen?.(c)} style={{ color: "#d46b08", borderColor: "#ffd591" }}>
+                Resolve missing
+              </Button>
+              {print}
+            </Space>
           );
         }
         return (
-          <Button size="small" icon={<EyeOutlined />} onClick={() => onOpen?.(c)}>
-            View
-          </Button>
+          <Space size={4}>
+            <Button size="small" icon={<EyeOutlined />} onClick={() => (c.status === "open" && onManageOpen ? onManageOpen(c) : onOpen?.(c))}>
+              View
+            </Button>
+            {print}
+          </Space>
         );
       },
     },

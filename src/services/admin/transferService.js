@@ -297,13 +297,16 @@ export async function getContainer(containerId, params = {}) {
  * Unscanned parcels are flagged missing; scanned parcels from other TRs headed here are taken as extras.
  * -> { container, received, missing, extras, rejected }
  */
-export async function receiveContainer(containerId, scanned = [], remarks = null, params = {}) {
+export async function receiveContainer(containerId, scanned = [], remarks = null, params = {}, seal = null) {
   if (!containerId) throw new Error("TR id is required.");
-  const response = await api.post(
-    `/admin/transfers/containers/${containerId}/receive`,
-    { scanned: Array.isArray(scanned) ? scanned : [], remarks: remarks || undefined },
-    { params }
-  );
+  const body = { scanned: Array.isArray(scanned) ? scanned : [], remarks: remarks || undefined };
+  // Seal check at arrival: { value, intact, remark }
+  if (seal) {
+    body.seal_value = seal.value || undefined;
+    body.seal_intact = seal.intact !== undefined ? !!seal.intact : undefined;
+    body.seal_remark = seal.remark || undefined;
+  }
+  const response = await api.post(`/admin/transfers/containers/${containerId}/receive`, body, { params });
   return { ...(unwrap(response) || {}), message: response?.data?.message };
 }
 
@@ -349,4 +352,52 @@ export async function getShipmentHops(shipmentId) {
   const response = await api.get(`/admin/transfers/shipments/${shipmentId}/hops`);
   const payload = unwrap(response) ?? {};
   return Array.isArray(payload.hops) ? payload.hops : [];
+}
+
+/** GET /admin/transfers/containers/lookup?number=TR-000001 : open a TR from its bag barcode (receiving branch only). */
+export async function lookupContainer(number, params = {}) {
+  const response = await api.get("/admin/transfers/containers/lookup", { params: { number, ...params } });
+  return unwrap(response);
+}
+
+/** GET /admin/transfers/containers/{id}/candidates : ready parcels for this open TR's next hop, not on any TR. */
+export async function getContainerCandidates(containerId, params = {}) {
+  if (!containerId) return [];
+  const response = await api.get(`/admin/transfers/containers/${containerId}/candidates`, { params });
+  const payload = unwrap(response);
+  return Array.isArray(payload) ? payload : [];
+}
+
+/** POST /admin/transfers/containers/{id}/items { shipment_ids } : load more parcels on an open TR. */
+export async function addContainerItems(containerId, shipmentIds = [], params = {}) {
+  const response = await api.post(`/admin/transfers/containers/${containerId}/items`, { shipment_ids: shipmentIds }, { params });
+  return { ...(unwrap(response) || {}), message: response?.data?.message };
+}
+
+/** POST /admin/transfers/containers/{id}/items/remove { shipment_ids, reason? } : take parcels off an open TR. */
+export async function removeContainerItems(containerId, shipmentIds = [], reason = null, params = {}) {
+  const response = await api.post(
+    `/admin/transfers/containers/${containerId}/items/remove`,
+    { shipment_ids: shipmentIds, reason: reason || undefined },
+    { params }
+  );
+  return { ...(unwrap(response) || {}), message: response?.data?.message };
+}
+
+/** POST /admin/transfers/containers/{id}/auto-append { enabled } */
+export async function setContainerAutoAppend(containerId, enabled, params = {}) {
+  const response = await api.post(`/admin/transfers/containers/${containerId}/auto-append`, { enabled: !!enabled }, { params });
+  return { ...(unwrap(response) || {}), message: response?.data?.message };
+}
+
+/** Printable TR bag label / manifest sheet (opens in a new tab). type: "label" | "manifest" */
+export function trPrintUrl(containerId, type = "label", branchId = null) {
+  const q = new URLSearchParams({ type });
+  if (branchId) q.set("branch_id", String(branchId));
+  return `/admin/transfers/containers/${containerId}/print?${q.toString()}`;
+}
+
+export function openTrPrint(containerId, type = "label", branchId = null) {
+  if (typeof window === "undefined" || !containerId) return;
+  window.open(trPrintUrl(containerId, type, branchId), "_blank", "noopener");
 }

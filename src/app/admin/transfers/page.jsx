@@ -46,6 +46,10 @@ import {
   FilterOutlined,
   GlobalOutlined,
   OrderedListOutlined,
+  PrinterOutlined,
+  PlusOutlined,
+  EditOutlined,
+  BarcodeOutlined,
 } from "@ant-design/icons";
 import { usePermissions } from "@/hooks/usePermission";
 import api from "@/lib/api";
@@ -65,7 +69,10 @@ import {
   getTransferHistory,
   getContainer,
   dispatchContainer,
+  addContainerItems,
+  openTrPrint,
 } from "@/services/admin/transferService";
+import OpenTrManager from "@/components/admin/transfers/OpenTrManager";
 
 const { Text, Title } = Typography;
 const { RangePicker } = DatePicker;
@@ -658,6 +665,9 @@ function NextHopMasterDetail({
   canDispatch,
   selectedRowKeys,
   onSelectionChange,
+  openTrByHop = {},
+  onAddToOpen,
+  onManageOpen,
 }) {
   const [hopSearch, setHopSearch] = useState("");
   const [listPage, setListPage] = useState(1);
@@ -716,6 +726,12 @@ function NextHopMasterDetail({
     () => detailShipments.filter((s) => (selectedRowKeys || []).includes(s.id)),
     [detailShipments, selectedRowKeys]
   );
+  // Open (loaded, not dispatched) TR for this next hop, if any.
+  const openTr = selected ? openTrByHop?.[selected.nextHopId] || null : null;
+  const notOnOpenTr = useMemo(
+    () => selectedInHop.filter((s) => !s.open_tr_number),
+    [selectedInHop]
+  );
   const trHeader = useMemo(
     () => (selected ? trHeadline(selected.nextHopName, splitByFinal(detailShipments, selected.nextHopId)) : ""),
     [selected, detailShipments]
@@ -745,6 +761,11 @@ function NextHopMasterDetail({
             <Space size={4} wrap>
               <TransferStageTag shipment={s} />
               <ServiceTypeTag value={s.hop_meta?.service_type || s.service_type} />
+              {s.open_tr_number ? (
+                <Tooltip title="Loaded on this open TR (not dispatched yet)">
+                  <Tag color="blue" style={{ margin: 0 }}>On {s.open_tr_number}</Tag>
+                </Tooltip>
+              ) : null}
             </Space>
           </Space>
         ),
@@ -1164,17 +1185,39 @@ function NextHopMasterDetail({
                   ) : null}
                 </Space>
                 {canDispatch ? (
-                  <Button
-                    type="primary"
-                    size="small"
-                    icon={<SendOutlined />}
-                    disabled={!selected.count || !selectedInHop.length || dispatching}
-                    loading={dispatching}
-                    onClick={() => onDispatch?.(selected)}
-                    style={{ backgroundColor: accent.badge, borderColor: accent.badge }}
-                  >
-                    Create TR ({selectedInHop.length})
-                  </Button>
+                  <Space direction="vertical" size={4} align="end">
+                    {openTr ? (
+                      <Space size={4} wrap style={{ justifyContent: "flex-end" }}>
+                        <Tag color="blue" style={{ margin: 0 }}>
+                          Open {openTr.transfer_number}: {openTr.loaded_count} loaded{openTr.auto_append ? " · auto-add on" : ""}
+                        </Tag>
+                        <Tooltip title={`Load the ticked parcels on ${openTr.transfer_number} without dispatching`}>
+                          <Button
+                            size="small"
+                            icon={<PlusOutlined />}
+                            disabled={!notOnOpenTr.length || dispatching}
+                            onClick={() => onAddToOpen?.(selected, openTr, notOnOpenTr.map((s) => s.id))}
+                          >
+                            Add to {openTr.transfer_number} ({notOnOpenTr.length})
+                          </Button>
+                        </Tooltip>
+                        <Button size="small" icon={<EditOutlined />} onClick={() => onManageOpen?.(openTr)}>
+                          Edit TR
+                        </Button>
+                      </Space>
+                    ) : null}
+                    <Button
+                      type="primary"
+                      size="small"
+                      icon={<SendOutlined />}
+                      disabled={!selected.count || !selectedInHop.length || dispatching}
+                      loading={dispatching}
+                      onClick={() => onDispatch?.(selected)}
+                      style={{ backgroundColor: accent.badge, borderColor: accent.badge }}
+                    >
+                      {openTr ? `Dispatch ${openTr.transfer_number} (${selectedInHop.length} + loaded)` : `Create TR (${selectedInHop.length})`}
+                    </Button>
+                  </Space>
                 ) : null}
               </Space>
                 );
@@ -1853,6 +1896,9 @@ export default function TransfersPage() {
 
   // TR check-in drawer + TR lists reload trigger
   const [scanner, setScanner] = useState({ open: false, id: null });
+  // Open TR per next hop (from Outbound) + the open-TR editor.
+  const [openTrByHop, setOpenTrByHop] = useState({});
+  const [trManager, setTrManager] = useState({ open: false, id: null });
   const [trReloadKey, setTrReloadKey] = useState(0);
   const [inboundView, setInboundView] = useState("tr");
   const [sentView, setSentView] = useState("tr");
@@ -2076,6 +2122,11 @@ export default function TransfersPage() {
 
       if (viewMode === "next_hop") {
         const groupedRes = await getTransfers({ ...baseParams, group_by_next_hop: true });
+        const openMap = {};
+        (groupedRes?.next_hops || []).forEach((hop) => {
+          if (hop.open_container) openMap[hop.next_hop_branch_id] = hop.open_container;
+        });
+        setOpenTrByHop(openMap);
         if (Array.isArray(groupedRes?.next_hops) && groupedRes.next_hops.length) {
           const all = [];
           groupedRes.next_hops.forEach((hop) => {
@@ -2371,6 +2422,51 @@ export default function TransfersPage() {
     message.error(firstError || e?.response?.data?.message || fallback);
   };
 
+  // After a TR leaves: offer the bag label + manifest sheet.
+  const promptPrint = (containers = []) => {
+    const list = (containers || []).filter((c) => c?.id);
+    if (!list.length) return;
+    Modal.success({
+      title: list.length === 1 ? `Print ${list[0].display_number || list[0].transfer_number}` : "Print TR documents",
+      width: 460,
+      okText: "Done",
+      content: (
+        <Space direction="vertical" size={6} style={{ width: "100%" }}>
+          {list.map((c) => (
+            <Space key={c.id} wrap>
+              <Text strong>{c.display_number || c.transfer_number}</Text>
+              <Button size="small" icon={<PrinterOutlined />} onClick={() => openTrPrint(c.id, "label", selectedBranchId)}>
+                Bag label
+              </Button>
+              <Button size="small" icon={<PrinterOutlined />} onClick={() => openTrPrint(c.id, "manifest", selectedBranchId)}>
+                Manifest
+              </Button>
+            </Space>
+          ))}
+        </Space>
+      ),
+    });
+  };
+
+  // Outbound: load ticked parcels on the open TR of this next hop (no dispatch).
+  const handleAddToOpen = async (group, openTr, ids) => {
+    if (!openTr?.id || !ids?.length) return;
+    setSubmitting(true);
+    try {
+      const res = await addContainerItems(openTr.id, ids, branchExtra);
+      const skipped = Object.values(res?.skipped || {});
+      message.success(res?.message || `Added to ${openTr.transfer_number}.`);
+      if (skipped.length) message.warning(skipped.slice(0, 3).join(" "));
+      setSelectedRowKeys([]);
+      setTrReloadKey((k) => k + 1);
+      await refresh();
+    } catch (e) {
+      showDispatchError(e, `Failed to add to ${openTr.transfer_number}.`);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   // Send an open (held) TR from the Sent tab
   const handleDispatchOpenTr = async (container) => {
     let items = [];
@@ -2405,6 +2501,7 @@ export default function TransfersPage() {
       await dispatchContainer(container.id, meta, branchExtra);
       message.success(`${container.display_number} dispatched to ${container.to_branch?.name || "next hop"}.`);
       setTrReloadKey((k) => k + 1);
+      promptPrint([container]);
       await refresh();
     } catch (e) {
       showDispatchError(e, "Failed to dispatch TR.");
@@ -2461,7 +2558,27 @@ export default function TransfersPage() {
       message.warning("No ready parcels for this next hop.");
       return;
     }
-    const parcels = outboundRows.filter((s) => ids.includes(s.id));
+    // Parcels already loaded on this hop's open TR leave with it, so the
+    // cost preview covers them too (the server splits over the final list).
+    const openTr = openTrByHop?.[group.nextHopId] || null;
+    let parcels = outboundRows.filter((s) => ids.includes(s.id));
+    if (openTr) {
+      try {
+        const full = await getContainer(openTr.id, branchExtra);
+        const loaded = (full?.items || [])
+          .filter((i) => i.status === "added" && !ids.includes(i.shipment_id))
+          .map((i) => ({
+            id: i.shipment_id,
+            tracking_number: i.tracking_number,
+            weight: i.weight,
+            destination_branch_id: i.destination_branch_id,
+            destination_name: i.destination_name,
+          }));
+        parcels = parcels.concat(loaded);
+      } catch (e) {
+        // preview only
+      }
+    }
     const meta = await askDispatch({
       nextHopName: group.nextHopName || "next hop",
       nextHopId: group.nextHopId,
@@ -2472,6 +2589,7 @@ export default function TransfersPage() {
     try {
       const res = await dispatchToNextHop(ids, group.nextHopId, { ...meta, ...branchExtra });
       message.success(dispatchedText(res, group.nextHopName));
+      if (!meta.hold) promptPrint(res?.containers);
       setSelectedRowKeys([]);
       setSelectedNextHopKey(null);
       setSelectedNextHop(null);
@@ -2897,6 +3015,9 @@ export default function TransfersPage() {
                   setSelectedRowKeys(group.shipmentIds || []);
                 }}
                 onDispatch={(group) => handleDispatchNextHop(group)}
+                openTrByHop={openTrByHop}
+                onAddToOpen={handleAddToOpen}
+                onManageOpen={(tr) => setTrManager({ open: true, id: tr.id })}
               />
             </div>
           ) : viewMode === "flat" ? (
@@ -2989,6 +3110,7 @@ export default function TransfersPage() {
               canDispatch={!!can?.("transfers.dispatch")}
               onOpen={(c) => setScanner({ open: true, id: c.id })}
               onDispatchOpen={handleDispatchOpenTr}
+              onManageOpen={(c) => setTrManager({ open: true, id: c.id })}
               onChanged={refresh}
             />
           ) : (
@@ -3038,6 +3160,11 @@ export default function TransfersPage() {
                 { value: "parcel", label: "Single parcels" },
               ]}
             />
+            {can?.("transfers.receive") ? (
+              <Button size="small" type="primary" icon={<BarcodeOutlined />} onClick={() => setScanner({ open: true, id: null })}>
+                Scan TR label
+              </Button>
+            ) : null}
           </Space>
           {inboundView === "tr" ? (
             <TransferContainerTable
@@ -3172,6 +3299,7 @@ export default function TransfersPage() {
               dateTo={dateRange?.length === 2 ? dateRange[1].format("YYYY-MM-DD") : null}
               reloadKey={trReloadKey}
               onOpen={(c) => setScanner({ open: true, id: c.id })}
+              onManageOpen={(c) => setTrManager({ open: true, id: c.id })}
             />
           ) : (
           <Table
@@ -3391,6 +3519,21 @@ export default function TransfersPage() {
         submitting={submitting}
         onCancel={() => closeDispatch(null)}
         onSubmit={(meta) => closeDispatch(meta)}
+      />
+
+      <OpenTrManager
+        open={trManager.open}
+        containerId={trManager.id}
+        branchId={selectedBranchId}
+        onClose={() => setTrManager({ open: false, id: null })}
+        onChanged={() => {
+          setTrReloadKey((k) => k + 1);
+          loadData();
+        }}
+        onDispatch={(c) => {
+          setTrManager({ open: false, id: null });
+          if (c) handleDispatchOpenTr(c);
+        }}
       />
 
       <TransferReceiveScanner
