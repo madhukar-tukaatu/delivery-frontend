@@ -48,7 +48,7 @@ import {
   createBranchTransferRoute,
   deleteBranchTransferRoute,
   deriveBranchConnectivity,
-  getBranchTransferLanes,
+  getAllBranchTransferLanes,
   getBranchTransferRoutes,
   getRateBranches,
   updateBranchTransferRoute,
@@ -255,7 +255,8 @@ export default function BranchTransferRoutesPage() {
 
   const loadLanes = useCallback(async () => {
     try {
-      const payload = await getBranchTransferLanes({ per_page: 500 });
+      // Load ALL lanes (paged) so older lanes are never cut off.
+      const payload = await getAllBranchTransferLanes();
       const collection = extractCollection(payload);
       setLanes(collection.rows);
     } catch (error) {
@@ -562,12 +563,42 @@ export default function BranchTransferRoutesPage() {
     }
   };
 
+  // Real delete. The API refuses (422 + usage) when shipments/TRs/batches/
+  // pricing rates still reference the route; then offer Disable instead.
   const removeRoute = async (row) => {
     try {
-      await deleteBranchTransferRoute(row.id);
-      message.success("Transfer route disabled.");
+      const res = await deleteBranchTransferRoute(row.id);
+      message.success(res?.message || "Transfer route deleted.");
+      setSelected((current) =>
+        Number(current?.id) === Number(row.id) ? null : current,
+      );
       await loadRows();
     } catch (error) {
+      const body = error?.response?.data;
+      if (error?.response?.status === 422 && body?.data?.usage) {
+        const canDisable = Boolean(body.data.can_disable ?? row.is_active);
+        Modal.confirm({
+          title: `Cannot delete ${row.route_code || `route #${row.id}`}`,
+          content: (
+            <Space direction="vertical" size={4}>
+              <Text>{body.message}</Text>
+              {canDisable ? (
+                <Text type="secondary">
+                  Disable it to stop new shipments using it; existing records keep working.
+                </Text>
+              ) : (
+                <Text type="secondary">This route is already disabled.</Text>
+              )}
+            </Space>
+          ),
+          okText: canDisable ? "Disable route" : "OK",
+          okButtonProps: canDisable ? { danger: true } : undefined,
+          cancelText: "Close",
+          cancelButtonProps: canDisable ? undefined : { style: { display: "none" } },
+          onOk: canDisable ? () => toggleStatus({ ...row, is_active: true }) : undefined,
+        });
+        return;
+      }
       message.error(apiErrorMessage(error, "Could not delete transfer route."));
     }
   };
@@ -712,17 +743,32 @@ export default function BranchTransferRoutesPage() {
             {row.is_active ? "Disable" : "Enable"}
           </Button>
           <Popconfirm
-            title="Disable this transfer route?"
-            okText="Disable"
+            title={`Delete route ${row.route_code || `#${row.id}`}?`}
+            description={
+              <div style={{ maxWidth: 320 }}>
+                {row.path_text ? <div>{row.path_text}</div> : null}
+                <div style={{ marginTop: 4 }}>
+                  This permanently removes the route and its lane chain. Routes
+                  used by shipments or TRs cannot be deleted - disable them instead.
+                </div>
+              </div>
+            }
+            okText="Delete"
             okButtonProps={{ danger: true }}
-            onConfirm={() => removeRoute(row)}
+            onConfirm={(e) => {
+              e?.stopPropagation?.();
+              return removeRoute(row);
+            }}
+            onCancel={(e) => e?.stopPropagation?.()}
           >
-            <Button
-              danger
-              size="small"
-              icon={<DeleteOutlined />}
-              onClick={(e) => e.stopPropagation()}
-            />
+            <Tooltip title="Delete route">
+              <Button
+                danger
+                size="small"
+                icon={<DeleteOutlined />}
+                onClick={(e) => e.stopPropagation()}
+              />
+            </Tooltip>
           </Popconfirm>
         </Space>
       ),

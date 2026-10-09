@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Alert, Button, Empty, Input, Modal, Space, Switch, Table, Tag, Tooltip, Typography, message } from "antd";
-import { DeleteOutlined, PlusOutlined, PrinterOutlined, SendOutlined, ThunderboltOutlined } from "@ant-design/icons";
+import { DeleteOutlined, PlusOutlined, PrinterOutlined, SendOutlined, StopOutlined, ThunderboltOutlined } from "@ant-design/icons";
 import {
   addContainerItems,
   getContainer,
@@ -30,9 +30,10 @@ function errText(e, fallback) {
  * next hop, remove parcels, switch auto-add on, then dispatch. The trip cost is
  * entered at dispatch and split over the final parcel list.
  *
- * props: open, containerId, branchId (admin override), onClose, onChanged(container), onDispatch(container)
+ * props: open, containerId, branchId (admin override), onClose, onChanged(container), onDispatch(container),
+ *        onCancelTr(container) (shows a Cancel TR button), inline (render in a detail panel), reloadKey
  */
-export default function OpenTrManager({ open, containerId, branchId = null, onClose, onChanged, onDispatch }) {
+export default function OpenTrManager({ open, containerId, branchId = null, onClose, onChanged, onDispatch, onCancelTr, inline = false, reloadKey = 0 }) {
   const [tr, setTr] = useState(null);
   const [candidates, setCandidates] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -62,7 +63,7 @@ export default function OpenTrManager({ open, containerId, branchId = null, onCl
     setCandSel([]);
     setReason("");
     load();
-  }, [open, load]);
+  }, [open, load, reloadKey]);
 
   const loaded = useMemo(() => (tr?.items || []).filter((i) => i.status === "added"), [tr]);
   const editable = !!tr?.can_edit;
@@ -120,14 +121,7 @@ export default function OpenTrManager({ open, containerId, branchId = null, onCl
 
   const totalWeight = loaded.reduce((s, i) => s + Number(i.weight || 0), 0);
 
-  return (
-    <Modal
-      open={open}
-      onCancel={onClose}
-      width={920}
-      destroyOnClose
-      title={
-        <Space size={8} wrap>
+  const titleNode = (<Space size={8} wrap>
           <span>Edit {tr?.display_number || "TR"}</span>
           {tr ? (
             <Text type="secondary" style={{ fontSize: 12, fontWeight: 400 }}>
@@ -136,21 +130,29 @@ export default function OpenTrManager({ open, containerId, branchId = null, onCl
           ) : null}
           {tr && tr.status !== "open" ? <Tag color="red">{tr.status}</Tag> : <Tag>Open (not dispatched)</Tag>}
         </Space>
-      }
-      footer={
-        <Space wrap>
+  );
+  const footerNode = (<Space wrap>
+          <Button icon={<PrinterOutlined />} disabled={!tr} onClick={() => openTrPrint(containerId, "label", branchId)}>
+            Label
+          </Button>
           <Button icon={<PrinterOutlined />} disabled={!tr} onClick={() => openTrPrint(containerId, "manifest", branchId)}>
             Manifest
           </Button>
-          <Button onClick={onClose}>Close</Button>
+          {!inline ? <Button onClick={onClose}>Close</Button> : null}
+          {editable && onCancelTr ? (
+            <Button danger icon={<StopOutlined />} onClick={() => onCancelTr(tr)}>
+              Cancel TR
+            </Button>
+          ) : null}
           {editable ? (
             <Button type="primary" icon={<SendOutlined />} disabled={!loaded.length} onClick={() => onDispatch?.(tr)}>
               Dispatch {tr?.display_number} ({loaded.length})
             </Button>
           ) : null}
         </Space>
-      }
-    >
+  );
+  const bodyNode = (
+    <>
       {!tr && !loading ? (
         <Empty description="TR not found" />
       ) : (
@@ -249,6 +251,22 @@ export default function OpenTrManager({ open, containerId, branchId = null, onCl
           ) : null}
         </Space>
       )}
+    </>
+  );
+
+  if (inline) {
+    return (
+      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+        <div style={{ fontWeight: 600 }}>{titleNode}</div>
+        {bodyNode}
+        <div style={{ display: "flex", justifyContent: "flex-end" }}>{footerNode}</div>
+      </div>
+    );
+  }
+
+  return (
+    <Modal open={open} onCancel={onClose} width={920} destroyOnClose title={titleNode} footer={footerNode}>
+      {bodyNode}
     </Modal>
   );
 }

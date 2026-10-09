@@ -118,9 +118,10 @@ function fmt(dt) {
  * sorted for transfer and show up in this branch's next TR. Missing parcels can be
  * resolved later (found / lost).
  *
- * props: open, containerId, branchId (admin override), onClose, onDone(result)
+ * props: open, containerId, branchId (admin override), onClose, onDone(result),
+ *        inline (render in a detail panel instead of a drawer; pass open={true})
  */
-export default function TransferReceiveScanner({ open, containerId, branchId = null, onClose, onDone }) {
+export default function TransferReceiveScanner({ open, containerId, branchId = null, onClose, onDone, inline = false }) {
   const [activeId, setActiveId] = useState(containerId || null);
   const [trCode, setTrCode] = useState("");
   const [looking, setLooking] = useState(false);
@@ -391,26 +392,19 @@ export default function TransferReceiveScanner({ open, containerId, branchId = n
     return acc;
   }, {});
 
-  return (
-    <Drawer
-      open={open}
-      onClose={onClose}
-      width={860}
-      destroyOnClose
-      title={
-        <Space size={8} wrap>
+  const titleNode = (<Space size={8} wrap>
           <InboxOutlined />
-          <span>{tr ? `Receive ${tr.display_number}` : "Receive TR"}</span>
+          <span>{tr ? (tr.can_receive ? `Receive ${tr.display_number}` : tr.display_number) : "Receive TR"}</span>
           {tr ? <TrStatusTag status={tr.status} /> : null}
+          {tr ? <SealTag c={tr} /> : null}
           {tr ? (
             <Text type="secondary" style={{ fontSize: 12, fontWeight: 400 }}>
               {tr.from_branch?.name} → {tr.to_branch?.name}
             </Text>
           ) : null}
         </Space>
-      }
-      extra={
-        <Space size={6}>
+  );
+  const extraNode = (<Space size={6}>
           {tr?.id ? (
             <>
               <Button icon={<PrinterOutlined />} onClick={() => openTrPrint(tr.id, "manifest", branchId)}>
@@ -427,9 +421,9 @@ export default function TransferReceiveScanner({ open, containerId, branchId = n
             </Button>
           ) : null}
         </Space>
-      }
-      styles={{ body: { padding: 12 } }}
-    >
+  );
+  const bodyNode = (
+    <>
       {!activeId ? (
         <Space direction="vertical" size={10} style={{ width: "100%", padding: "24px 0" }}>
           <Text strong>Step 1: scan the TR bag label</Text>
@@ -665,6 +659,32 @@ export default function TransferReceiveScanner({ open, containerId, branchId = n
           ) : null}
         </Space>
       )}
+    </>
+  );
+
+  if (inline) {
+    return (
+      <div style={{ display: "flex", flexDirection: "column", gap: 8, minHeight: 0 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+          <div style={{ fontWeight: 600 }}>{titleNode}</div>
+          {extraNode}
+        </div>
+        {bodyNode}
+      </div>
+    );
+  }
+
+  return (
+    <Drawer
+      open={open}
+      onClose={onClose}
+      width={860}
+      destroyOnClose
+      title={titleNode}
+      extra={extraNode}
+      styles={{ body: { padding: 12 } }}
+    >
+      {bodyNode}
     </Drawer>
   );
 }

@@ -1,7 +1,7 @@
 "use client";
 "use client";
 
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Alert,
   Button,
@@ -21,6 +21,8 @@ import {
   ThunderboltOutlined,
   WarningFilled,
 } from "@ant-design/icons";
+
+import { getTransferLanePathSuggestions } from "@/services/admin/adminRateManagementService";
 
 const { Text } = Typography;
 
@@ -47,13 +49,14 @@ function laneLabel(lane) {
  * each path being an ordered array of lane objects, sorted by hop count then
  * total distance. Includes the direct path AND transit alternatives.
  */
-function findLanePaths(lanes, fromId, toId, serviceType, maxHops = 4) {
+function findLanePaths(lanes, fromId, toId, serviceType, maxHops = 3) {
   if (!fromId || !toId || Number(fromId) === Number(toId)) return [];
 
   const graph = new Map();
   for (const lane of lanes) {
     if (String(lane.service_type) !== String(serviceType)) continue;
     if (!lane.is_active) continue;
+    if (Number(lane.from_branch_id) === Number(lane.to_branch_id)) continue;
     const a = Number(lane.from_branch_id);
     if (!graph.has(a)) graph.set(a, []);
     graph.get(a).push(lane);
@@ -118,11 +121,58 @@ export default function OrderedLaneBuilder({
   onChangeFrom,
   onChangeTo,
 }) {
+  // Server-side suggestions (built from ALL active lanes, existing routes first).
+  const [serverPaths, setServerPaths] = useState([]);
+  const [suggestLoading, setSuggestLoading] = useState(false);
+
+  useEffect(() => {
+    if (!fromBranchId || !toBranchId || Number(fromBranchId) === Number(toBranchId)) {
+      setServerPaths([]);
+      return undefined;
+    }
+    let cancelled = false;
+    setSuggestLoading(true);
+    getTransferLanePathSuggestions({
+      from_branch_id: Number(fromBranchId),
+      to_branch_id: Number(toBranchId),
+      service_type: serviceType || "standard",
+      max_transits: 2,
+      limit: 20,
+    })
+      .then((rows) => {
+        if (!cancelled) setServerPaths(rows);
+      })
+      .catch(() => {
+        // Fall back to client-side lane search below.
+        if (!cancelled) setServerPaths([]);
+      })
+      .finally(() => {
+        if (!cancelled) setSuggestLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [fromBranchId, toBranchId, serviceType]);
+
   const lanesById = useMemo(() => {
     const map = new Map();
+    // Server lanes first as a fallback; loaded (richer) lanes override them.
+    for (const path of serverPaths) {
+      for (const lane of path?.lanes || []) {
+        map.set(Number(lane.id), {
+          ...lane,
+          id: Number(lane.id),
+          from_branch_id: Number(lane.from_branch_id),
+          to_branch_id: Number(lane.to_branch_id),
+          distance_km: Number(lane.distance_km || 0),
+          estimated_hours: Number(lane.estimated_hours || 0),
+          is_active: true,
+        });
+      }
+    }
     for (const lane of lanes) map.set(Number(lane.id), lane);
     return map;
-  }, [lanes]);
+  }, [lanes, serverPaths]);
 
   const selectedLanes = useMemo(
     () => value.map((id) => lanesById.get(Number(id))).filter(Boolean),
@@ -150,10 +200,30 @@ export default function OrderedLaneBuilder({
   }, [lanes, serviceType, value, lastToBranchId]);
 
   // All candidate paths (direct + via-transit alternatives) from From to To.
-  const candidatePaths = useMemo(
-    () => findLanePaths(lanes, fromBranchId, toBranchId, serviceType),
-    [lanes, fromBranchId, toBranchId, serviceType],
-  );
+  // Server paths come first (existing-route chains ranked on top), then any
+  // extra client-side lane paths not already listed.
+  const candidatePaths = useMemo(() => {
+    const out = [];
+    const seen = new Set();
+    for (const sp of serverPaths) {
+      const ids = (sp?.lane_ids || []).map(Number);
+      const path = ids.map((id) => lanesById.get(id)).filter(Boolean);
+      if (!path.length || path.length !== ids.length) continue;
+      const key = ids.join(",");
+      if (seen.has(key)) continue;
+      seen.add(key);
+      path.source = sp.source || "lanes";
+      out.push(path);
+    }
+    for (const path of findLanePaths(lanes, fromBranchId, toBranchId, serviceType)) {
+      const key = path.map((l) => Number(l.id)).join(",");
+      if (seen.has(key)) continue;
+      seen.add(key);
+      path.source = "lanes";
+      out.push(path);
+    }
+    return out;
+  }, [serverPaths, lanesById, lanes, fromBranchId, toBranchId, serviceType]);
 
   const validation = useMemo(() => {
     const errors = [];
@@ -273,7 +343,7 @@ export default function OrderedLaneBuilder({
                 size={6}
                 style={{ width: "100%", marginTop: 8 }}
               >
-                {candidatePaths.slice(0, 8).map((path, i) => {
+                {candidatePaths.slice(0, 12).map((path, i) => {
                   const ids = path.map((l) => Number(l.id));
                   const isSelected =
                     ids.length === value.length &&
@@ -300,6 +370,11 @@ export default function OrderedLaneBuilder({
                             ? "Direct"
                             : `${path.length - 1} transit`}
                         </Tag>
+                        <Tag color={path.source === "existing_routes" ? "gold" : "blue"}>
+                          {path.source === "existing_routes"
+                            ? "Existing routes"
+                            : "Existing lanes"}
+                        </Tag>
                         <Text style={{ fontSize: 13 }}>{pathLabel(path)}</Text>
                       </Space>
                       <Button
@@ -313,6 +388,12 @@ export default function OrderedLaneBuilder({
                   );
                 })}
               </Space>
+            </div>
+          ) : suggestLoading ? (
+            <div style={{ marginTop: 12 }}>
+              <Text type="secondary" style={{ fontSize: 12 }}>
+                Finding paths from existing lanes...
+              </Text>
             </div>
           ) : (
             <Alert

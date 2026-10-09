@@ -642,6 +642,51 @@ export async function getBranchTransferLanes(params = {}) {
   return response.data;
 }
 
+/**
+ * Load EVERY transfer lane by walking all pages (the API caps per_page at
+ * 500). The route builder needs the full lane graph; a single 500-row page
+ * ordered newest-first silently dropped older lanes (e.g. KTM -> Bharatpur).
+ * Resolves to the raw paginator-like shape { data: { data: rows, total } }.
+ */
+export async function getAllBranchTransferLanes(params = {}) {
+  const perPage = 500;
+  const rows = [];
+  let page = 1;
+  let lastPage = 1;
+
+  do {
+    const response = await api.get(ENDPOINTS.transferLanes, {
+      params: { ...params, per_page: perPage, page },
+    });
+    const body = response.data;
+    const paginator = body?.data && !Array.isArray(body.data) ? body.data : body;
+    const pageRows = Array.isArray(paginator?.data)
+      ? paginator.data
+      : Array.isArray(body?.data)
+        ? body.data
+        : [];
+    rows.push(...pageRows);
+    lastPage = Number(paginator?.last_page ?? 1) || 1;
+    page += 1;
+  } while (page <= lastPage && page <= 50);
+
+  return { success: true, data: { data: rows, total: rows.length, last_page: 1 } };
+}
+
+/**
+ * Server-side lane path suggestions (direct + via transits) built from ALL
+ * active lanes. Paths whose hops all have active routes come first.
+ */
+export async function getTransferLanePathSuggestions(params = {}, config = {}) {
+  const response = await api.get(`${ENDPOINTS.transferLanes}/path-suggestions`, {
+    params,
+    ...config,
+  });
+
+  const data = response?.data?.data ?? response?.data ?? [];
+  return Array.isArray(data) ? data : [];
+}
+
 export async function getBranchTransferLane(id) {
   const response = await api.get(`${ENDPOINTS.transferLanes}/${id}`);
 

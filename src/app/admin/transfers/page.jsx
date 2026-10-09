@@ -49,14 +49,12 @@ import {
   PrinterOutlined,
   PlusOutlined,
   EditOutlined,
-  BarcodeOutlined,
 } from "@ant-design/icons";
 import { usePermissions } from "@/hooks/usePermission";
 import api from "@/lib/api";
 import { formatMerchantLabel } from "@/lib/merchantLabel";
 import TransferDispatchModal, { splitByFinal, trHeadline } from "@/components/admin/transfers/TransferDispatchModal";
-import TransferReceiveScanner from "@/components/admin/transfers/TransferReceiveScanner";
-import TransferContainerTable from "@/components/admin/transfers/TransferContainerTable";
+import TransferContainerBoard from "@/components/admin/transfers/TransferContainerBoard";
 import {
   getTransfers,
   getTransferStats,
@@ -1894,8 +1892,7 @@ export default function TransfersPage() {
     if (r) r(value);
   }, []);
 
-  // TR check-in drawer + TR lists reload trigger
-  const [scanner, setScanner] = useState({ open: false, id: null });
+  // TR lists reload trigger
   // Open TR per next hop (from Outbound) + the open-TR editor.
   const [openTrByHop, setOpenTrByHop] = useState({});
   const [trManager, setTrManager] = useState({ open: false, id: null });
@@ -1903,6 +1900,8 @@ export default function TransfersPage() {
   const [inboundView, setInboundView] = useState("tr");
   const [sentView, setSentView] = useState("tr");
   const [historyView, setHistoryView] = useState("tr");
+  const [receivedView, setReceivedView] = useState("tr");
+  const [completedView, setCompletedView] = useState("tr");
   const [deepLinkTr, setDeepLinkTr] = useState(null);
 
   // Deep link: /admin/transfers?tab=inbound&tr=<id> opens that TR's check-in.
@@ -1911,12 +1910,28 @@ export default function TransfersPage() {
     const sp = new URLSearchParams(window.location.search);
     const tab = sp.get("tab");
     const tr = Number(sp.get("tr") || 0);
-    if (tab && ["outbound", "sent", "inbound", "received", "completed", "history"].includes(tab)) setActiveTab(tab);
-    if (tr > 0) {
-      setDeepLinkTr(tr);
-      setScanner({ open: true, id: tr });
+    const TABS = ["outbound", "sent", "inbound", "received", "completed", "history"];
+    let last = null;
+    try {
+      last = window.sessionStorage.getItem("transfers:last-tab");
+    } catch {
+      last = null;
     }
+    if (tab && TABS.includes(tab)) setActiveTab(tab);
+    else if (last && TABS.includes(last)) setActiveTab(last);
+    // The TR board of that tab selects the TR (receive flow opens in its detail).
+    if (tr > 0) setDeepLinkTr(tr);
   }, []);
+
+  // Remember the last tab (each TR board remembers its own selection).
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      window.sessionStorage.setItem("transfers:last-tab", activeTab);
+    } catch {
+      // storage unavailable
+    }
+  }, [activeTab]);
 
   // Configured transfer route selection (required for outbound dispatch)
   const [availableRoutes, setAvailableRoutes] = useState([]);
@@ -2406,6 +2421,32 @@ export default function TransfersPage() {
   }, [loadStats, loadData]);
 
   const branchExtra = selectedBranchId ? { branch_id: selectedBranchId } : {};
+
+  // Shared props for every TR board (same filters on every tab).
+  const trBoardProps = {
+    branchId: selectedBranchId,
+    search: debouncedSearch,
+    dateFrom: dateRange?.length === 2 ? dateRange[0].format("YYYY-MM-DD") : null,
+    dateTo: dateRange?.length === 2 ? dateRange[1].format("YYYY-MM-DD") : null,
+    reloadKey: trReloadKey,
+    canReceive: !!can?.("transfers.receive"),
+    canDispatch: !!can?.("transfers.dispatch"),
+    onDispatchOpen: (c) => handleDispatchOpenTr(c),
+    onChanged: () => loadStats(),
+  };
+  const viewToggle = (value, onChange, parcelLabel = "By parcel") => (
+    <Space size={6} style={{ padding: "8px 8px 0" }}>
+      <Segmented
+        size="small"
+        value={value}
+        onChange={onChange}
+        options={[
+          { value: "tr", label: "By TR" },
+          { value: "parcel", label: parcelLabel },
+        ]}
+      />
+    </Space>
+  );
 
   const dispatchedText = (res, fallbackTarget) => {
     const ok = res?.dispatched?.length ?? res?.dispatched_count ?? 0;
@@ -3088,30 +3129,23 @@ export default function TransfersPage() {
         <Card styles={{ body: { padding: 0 } }} style={{ borderRadius: 14 }}>
           <TabGuide
             type="info"
-            message="TRs this branch sent: one per trip, with vehicle, rider, cost and the receiving branch's check-in (received / missing / extra). Open TRs (loaded, not yet sent) can be dispatched or cancelled here. Switch to By parcel for each parcel's current status."
+            message="TRs this branch sent, one card per trip. Select a TR: open TRs (loaded, not yet sent) can be edited (add / remove parcels), dispatched or cancelled; sent TRs show the receiving branch's check-in (received / missing / extra) and seal result. Print the bag label or manifest from any TR."
           />
-          <Space size={6} style={{ padding: "8px 8px 0" }}>
-            <Segmented
-              size="small"
-              value={sentView}
-              onChange={setSentView}
-              options={[
-                { value: "tr", label: "By TR" },
-                { value: "parcel", label: "By parcel" },
-              ]}
-            />
-          </Space>
+          {viewToggle(sentView, setSentView)}
           {sentView === "tr" ? (
-            <TransferContainerTable
+            <TransferContainerBoard
+              {...trBoardProps}
+              tabKey="sent"
               direction="outbound"
-              branchId={selectedBranchId}
-              search={debouncedSearch}
-              reloadKey={trReloadKey}
-              canDispatch={!!can?.("transfers.dispatch")}
-              onOpen={(c) => setScanner({ open: true, id: c.id })}
-              onDispatchOpen={handleDispatchOpenTr}
-              onManageOpen={(c) => setTrManager({ open: true, id: c.id })}
-              onChanged={refresh}
+              statusOptions={[
+                { value: "", label: "All TR statuses" },
+                { value: "open", label: "Open (loading)" },
+                { value: "dispatched,in_transit", label: "On the way" },
+                { value: "partially_received", label: "Partially received" },
+                { value: "received", label: "Received" },
+                { value: "cancelled", label: "Cancelled" },
+              ]}
+              emptyText="No TRs sent from this branch"
             />
           ) : (
           <Table
@@ -3148,33 +3182,23 @@ export default function TransfersPage() {
         <Card styles={{ body: { padding: 0 } }} style={{ borderRadius: 14 }}>
           <TabGuide
             type="info"
-            message="TRs arriving at this branch. Open a TR, scan or tick the parcels that came, then Confirm receive: last-mile parcels are sorted for delivery here, onward parcels move to Outbound for your next TR, and unticked parcels are flagged missing."
+            message="TRs arriving at this branch. Scan the TR label (or pick a TR), check the seal, scan or tick the parcels that came, then Confirm receive: last-mile parcels are sorted for delivery here, onward parcels move to Outbound for your next TR, and unticked parcels are flagged missing."
           />
-          <Space size={6} style={{ padding: "8px 8px 0" }}>
-            <Segmented
-              size="small"
-              value={inboundView}
-              onChange={setInboundView}
-              options={[
-                { value: "tr", label: "Incoming TRs" },
-                { value: "parcel", label: "Single parcels" },
-              ]}
-            />
-            {can?.("transfers.receive") ? (
-              <Button size="small" type="primary" icon={<BarcodeOutlined />} onClick={() => setScanner({ open: true, id: null })}>
-                Scan TR label
-              </Button>
-            ) : null}
-          </Space>
+          {viewToggle(inboundView, setInboundView, "Single parcels")}
           {inboundView === "tr" ? (
-            <TransferContainerTable
+            <TransferContainerBoard
+              {...trBoardProps}
+              tabKey="inbound"
               direction="inbound"
-              branchId={selectedBranchId}
-              search={debouncedSearch}
-              reloadKey={trReloadKey}
-              canReceive={!!can?.("transfers.receive")}
-              highlightId={deepLinkTr}
-              onOpen={(c) => setScanner({ open: true, id: c.id })}
+              scanLookup
+              highlightId={activeTab === "inbound" ? deepLinkTr : null}
+              defaultStatuses="dispatched,in_transit,partially_received"
+              statusOptions={[
+                { value: "", label: "Arriving + partially received" },
+                { value: "dispatched,in_transit", label: "Arriving" },
+                { value: "partially_received", label: "Partially received" },
+              ]}
+              emptyText="No TRs arriving"
             />
           ) : (
           <Table
@@ -3204,8 +3228,23 @@ export default function TransfersPage() {
         <Card styles={{ body: { padding: 0 } }} style={{ borderRadius: 14 }}>
           <TabGuide
             type="success"
-            message="Transfers received at this branch (final destination or transit hub), with their current status: sorted, assigned to rider, out for delivery, delivered."
+            message="TRs checked in at this branch with their counts and seal result; resolve missing parcels (Found / Lost) from the TR. By parcel shows each received parcel's current status: sorted, assigned to rider, out for delivery, delivered."
           />
+          {viewToggle(receivedView, setReceivedView)}
+          {receivedView === "tr" ? (
+            <TransferContainerBoard
+              {...trBoardProps}
+              tabKey="received"
+              direction="inbound_all"
+              defaultStatuses="received,partially_received"
+              statusOptions={[
+                { value: "", label: "Received + partially received" },
+                { value: "partially_received", label: "Partially received (missing)" },
+                { value: "received", label: "Fully received" },
+              ]}
+              emptyText="No TRs received yet"
+            />
+          ) : (
           <Table
             rowKey="id"
             size="middle"
@@ -3225,6 +3264,7 @@ export default function TransfersPage() {
               onChange: (p, ps) => loadReceived(p, ps),
             }}
           />
+          )}
         </Card>
       ),
     },
@@ -3239,8 +3279,19 @@ export default function TransfersPage() {
         <Card styles={{ body: { padding: 0 } }} style={{ borderRadius: 14 }}>
           <TabGuide
             type="success"
-            message="Cross-branch transfers that reached their destination and were delivered to the customer."
+            message="Completed TRs (every parcel checked in at the next hop), sent or received by this branch. By parcel lists cross-branch transfers delivered to the customer."
           />
+          {viewToggle(completedView, setCompletedView, "Delivered parcels")}
+          {completedView === "tr" ? (
+            <TransferContainerBoard
+              {...trBoardProps}
+              tabKey="completed"
+              direction="all"
+              defaultStatuses="received"
+              statusOptions={[{ value: "", label: "Fully received TRs" }]}
+              emptyText="No completed TRs"
+            />
+          ) : (
           <Table
             rowKey="id"
             size="middle"
@@ -3263,6 +3314,7 @@ export default function TransfersPage() {
               },
             }}
           />
+          )}
         </Card>
       ),
     },
@@ -3277,29 +3329,24 @@ export default function TransfersPage() {
         <Card styles={{ body: { padding: 0 } }} style={{ borderRadius: 14 }}>
           <TabGuide
             type="info"
-            message="Every TR this branch sent or received, with status and check-in counts (By TR), or each parcel's transfer events and current status (By parcel)."
+            message="Closed TRs this branch sent or received: counts, seal result and missing-parcel resolution (Found / Lost) per TR, or each parcel's transfer events and current status (By parcel)."
           />
-          <Space size={6} style={{ padding: "8px 8px 0" }}>
-            <Segmented
-              size="small"
-              value={historyView}
-              onChange={setHistoryView}
-              options={[
-                { value: "tr", label: "By TR" },
-                { value: "parcel", label: "By parcel" },
-              ]}
-            />
-          </Space>
+          {viewToggle(historyView, setHistoryView)}
           {historyView === "tr" ? (
-            <TransferContainerTable
+            <TransferContainerBoard
+              {...trBoardProps}
+              key={`history-${historyDirection}`}
+              tabKey={`history-${historyDirection}`}
               direction={historyDirection === "sent" ? "outbound" : historyDirection === "received" ? "inbound_all" : "all"}
-              branchId={selectedBranchId}
-              search={debouncedSearch}
-              dateFrom={dateRange?.length === 2 ? dateRange[0].format("YYYY-MM-DD") : null}
-              dateTo={dateRange?.length === 2 ? dateRange[1].format("YYYY-MM-DD") : null}
-              reloadKey={trReloadKey}
-              onOpen={(c) => setScanner({ open: true, id: c.id })}
-              onManageOpen={(c) => setTrManager({ open: true, id: c.id })}
+              defaultStatuses="received,partially_received,cancelled"
+              statusOptions={[
+                { value: "", label: "Closed TRs (received / partial / cancelled)" },
+                { value: "partially_received", label: "Partially received (missing)" },
+                { value: "received", label: "Received" },
+                { value: "cancelled", label: "Cancelled" },
+                { value: "all", label: "All TR statuses" },
+              ]}
+              emptyText="No TR history"
             />
           ) : (
           <Table
@@ -3370,7 +3417,7 @@ export default function TransfersPage() {
       <Row justify="space-between" align="middle" style={{ marginBottom: 12 }} gutter={[12, 12]}>
         <Col>
           {/* Date Range Filter (for Completed and History) */}
-          {(activeTab === "completed" || activeTab === "history") && (
+          {activeTab !== "outbound" && (
             <RangePicker
               value={dateRange}
               onChange={setDateRange}
@@ -3397,7 +3444,9 @@ export default function TransfersPage() {
         </Col>
         <Col>
           {/* Current-status filter (Sent / Received / History) */}
-          {["sent", "received", "history"].includes(activeTab) && (
+          {((activeTab === "sent" && sentView === "parcel") ||
+            (activeTab === "received" && receivedView === "parcel") ||
+            activeTab === "history") && (
             <Space wrap>
               {activeTab === "history" && (
                 <Select
@@ -3411,6 +3460,7 @@ export default function TransfersPage() {
                   ]}
                 />
               )}
+              {!(activeTab === "history" && historyView === "tr") && (
               <Select
                 value={statusFilter}
                 onChange={setStatusFilter}
@@ -3427,6 +3477,7 @@ export default function TransfersPage() {
                 <Option value="delivered">Delivered</Option>
                 <Option value="delivery_failed">Delivery failed</Option>
               </Select>
+              )}
             </Space>
           )}
         </Col>
@@ -3536,16 +3587,6 @@ export default function TransfersPage() {
         }}
       />
 
-      <TransferReceiveScanner
-        open={scanner.open}
-        containerId={scanner.id}
-        branchId={selectedBranchId}
-        onClose={() => setScanner({ open: false, id: null })}
-        onDone={() => {
-          setTrReloadKey((k) => k + 1);
-          loadStats();
-        }}
-      />
     </div>
   );
 }
