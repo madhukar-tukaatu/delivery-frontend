@@ -118,6 +118,69 @@ function formatDate(dateStr) {
   });
 }
 
+/**
+ * Full hop trail for a shipment from hop_meta.path_text ("A -> B -> C").
+ * Done stops = before current, current = where the parcel is now,
+ * next = immediate next hop, then remaining stops. Final stop is the destination.
+ */
+function hopStops(shipment) {
+  const meta = shipment?.hop_meta || {};
+  const raw = String(meta.path_text || shipment?.path_text || "").trim();
+  if (!raw) return [];
+  const names = raw.split(/\s*(?:->|\u2192)\s*/).map((n) => n.trim()).filter(Boolean);
+  if (names.length < 2) return [];
+  const norm = (v) => String(v || "").trim().toLowerCase();
+  let current = Number.isInteger(meta.transfer_leg_index) ? meta.transfer_leg_index : -1;
+  if (current < 0 || current >= names.length) {
+    const cur = norm(meta.current_name || shipment?.current_branch?.name);
+    current = cur ? names.findIndex((n) => norm(n) === cur) : -1;
+  }
+  const nextName = norm(meta.next_hop_name);
+  let next = current >= 0 && current < names.length - 1 ? current + 1 : -1;
+  if (nextName) {
+    const idx = names.findIndex((n, i) => i > current && norm(n) === nextName);
+    if (idx >= 0) next = idx;
+  }
+  return names.map((name, i) => ({
+    name,
+    state: i === current ? "current" : i === next ? "next" : current >= 0 && i < current ? "done" : "upcoming",
+    isFinal: i === names.length - 1,
+  }));
+}
+
+const HOP_COLORS = { done: "success", current: "processing", next: "orange", upcoming: "default" };
+
+function HopsTrail({ shipment, compact = false }) {
+  const stops = hopStops(shipment);
+  if (!stops.length) {
+    return <Text type="secondary" style={{ fontSize: 11 }}>{shipment?.hop_meta?.next_hop_name ? `Next: ${shipment.hop_meta.next_hop_name}` : "Direct"}</Text>;
+  }
+  const transits = Math.max(0, stops.length - 2);
+  return (
+    <Space direction="vertical" size={2} style={{ maxWidth: compact ? 320 : 460 }}>
+      <Space size={2} wrap style={{ rowGap: 2 }}>
+        {stops.map((stop, i) => (
+          <span key={`${stop.name}-${i}`} style={{ display: "inline-flex", alignItems: "center" }}>
+            {i > 0 ? <ArrowRightOutlined style={{ color: "#bfbfbf", fontSize: 10, margin: "0 2px" }} /> : null}
+            <Tooltip title={`${stop.name}${stop.state === "current" ? " (here now)" : stop.state === "next" ? " (next hop)" : stop.state === "done" ? " (passed)" : ""}${stop.isFinal ? " - final" : ""}`}>
+              <Tag
+                color={HOP_COLORS[stop.state]}
+                style={{ margin: 0, fontSize: 11, maxWidth: compact ? 110 : 150, overflow: "hidden", textOverflow: "ellipsis", fontWeight: stop.state === "next" ? 600 : 400 }}
+              >
+                {stop.name}
+              </Tag>
+            </Tooltip>
+          </span>
+        ))}
+      </Space>
+      <Text type="secondary" style={{ fontSize: 10 }}>
+        {transits === 0 ? "Direct" : `${transits} transit${transits > 1 ? "s" : ""}`}
+        {shipment?.hop_meta?.route_code ? ` | ${shipment.hop_meta.route_code}` : ""}
+      </Text>
+    </Space>
+  );
+}
+
 function routeLabel(branch, subBranch, fallback) {
   const branchName = branch?.name || branch?.code;
   const subBranchName = subBranch?.name || subBranch?.code;
@@ -810,6 +873,11 @@ function NextHopMasterDetail({
             </Tooltip>
           );
         },
+      },      {
+        title: "Hops",
+        key: "hops",
+        width: 300,
+        render: (_, s) => <HopsTrail shipment={s} compact />,
       },
       {
         title: "Receiver",
@@ -1803,13 +1871,9 @@ function GroupedOutboundView({ rows, selectedRowKeys, onSelectionChange, loading
                         ),
                     },
                     {
-                      title: "Next Hop",
+                      title: "Hops",
                       key: "next_hop",
-                      render: (_, s) => (
-                        <Text type="secondary" style={{ fontSize: 11 }}>
-                          {s.hop_meta?.next_hop_name || s.hop_meta?.path_text || "Final Destination"}
-                        </Text>
-                      ),
+                      render: (_, s) => <HopsTrail shipment={s} compact />,
                     },
                   ]}
                   dataSource={group.shipments}
@@ -2744,9 +2808,7 @@ export default function TransfersPage() {
             {nextHop ? <ArrowRightOutlined style={{ color: "#bfbfbf" }} /> : null}
             <Tag color="purple" style={{ margin: 0, maxWidth: 180 }}>Final: {destination}</Tag>
           </Space>
-          {pathText ? (
-            <Text type="secondary" style={{ fontSize: 11 }}>{pathText}</Text>
-          ) : null}
+          {pathText ? <HopsTrail shipment={s} /> : null}
           <Text type="secondary" style={{ fontSize: 11 }}>
             {hint}
           </Text>
