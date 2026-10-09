@@ -1,11 +1,11 @@
 "use client";
-"use client";
 
 import { useEffect, useMemo, useState } from "react";
 import {
   Alert,
   Button,
   Empty,
+  Pagination,
   Select,
   Space,
   Tag,
@@ -40,7 +40,7 @@ function laneTo(lane) {
 
 function laneLabel(lane) {
   const dist = lane?.distance_km != null ? ` | ${Number(lane.distance_km)}km` : "";
-  return `${laneFrom(lane)}{" -> "}${laneTo(lane)}${dist}`;
+  return `${laneFrom(lane)} -> ${laneTo(lane)}${dist}`;
 }
 
 /**
@@ -124,6 +124,12 @@ export default function OrderedLaneBuilder({
   // Server-side suggestions (built from ALL active lanes, existing routes first).
   const [serverPaths, setServerPaths] = useState([]);
   const [suggestLoading, setSuggestLoading] = useState(false);
+  const PATH_PAGE_SIZE = 10;
+  const [pathPage, setPathPage] = useState(1);
+
+  useEffect(() => {
+    setPathPage(1);
+  }, [fromBranchId, toBranchId, serviceType]);
 
   useEffect(() => {
     if (!fromBranchId || !toBranchId || Number(fromBranchId) === Number(toBranchId)) {
@@ -230,7 +236,7 @@ export default function OrderedLaneBuilder({
     for (let i = 0; i < selectedLanes.length; i++) {
       const lane = selectedLanes[i];
       if (String(lane.service_type) !== String(serviceType)) {
-        errors.push(`Lane ${laneFrom(lane)}{" -> "}${laneTo(lane)} is ${lane.service_type}.`);
+        errors.push(`Lane ${laneFrom(lane)} -> ${laneTo(lane)} is ${lane.service_type}.`);
       }
       if (i > 0) {
         const prev = selectedLanes[i - 1];
@@ -343,14 +349,16 @@ export default function OrderedLaneBuilder({
                 size={6}
                 style={{ width: "100%", marginTop: 8 }}
               >
-                {candidatePaths.slice(0, 12).map((path, i) => {
+                {candidatePaths
+                  .slice((pathPage - 1) * PATH_PAGE_SIZE, pathPage * PATH_PAGE_SIZE)
+                  .map((path, i) => {
                   const ids = path.map((l) => Number(l.id));
                   const isSelected =
                     ids.length === value.length &&
                     ids.every((id, idx) => id === Number(value[idx]));
                   return (
                     <div
-                      key={`cand-${i}`}
+                      key={`cand-${(pathPage - 1) * PATH_PAGE_SIZE + i}`}
                       style={{
                         display: "flex",
                         alignItems: "center",
@@ -388,6 +396,18 @@ export default function OrderedLaneBuilder({
                   );
                 })}
               </Space>
+              {candidatePaths.length > PATH_PAGE_SIZE ? (
+                <Pagination
+                  size="small"
+                  style={{ marginTop: 10, textAlign: "right" }}
+                  current={pathPage}
+                  pageSize={PATH_PAGE_SIZE}
+                  total={candidatePaths.length}
+                  showSizeChanger={false}
+                  showTotal={(total, range) => `${range[0]}-${range[1]} of ${total} paths`}
+                  onChange={(p) => setPathPage(p)}
+                />
+              ) : null}
             </div>
           ) : suggestLoading ? (
             <div style={{ marginTop: 12 }}>
