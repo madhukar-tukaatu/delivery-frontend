@@ -1,16 +1,14 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Avatar,
   Badge,
   Button,
   Card,
-  Col,
   Empty,
   Input,
   Modal,
-  Row,
   Select,
   Space,
   Table,
@@ -33,6 +31,7 @@ import {
   InboxOutlined,
   DollarOutlined,
   ArrowRightOutlined,
+  NodeIndexOutlined,
 } from "@ant-design/icons";
 import { usePermissions } from "@/hooks/usePermission";
 import {
@@ -48,8 +47,12 @@ import AdminPageHeader from "@/components/admin/ui/AdminPageHeader";
 import AreaAssignmentMap from "@/features/routing/AreaAssignmentMap";
 import StatCard, { StatCardGrid } from "@/components/admin/ui/StatCard";
 import { formatMerchantLabel } from "@/lib/merchantLabel";
+import { refreshMenuBadges } from "@/hooks/useMenuBadges";
+import { CreateRunModal } from "@/components/admin/delivery-runs/DeliveryRunBoard";
+import DeliveryRunDetail from "@/components/admin/delivery-runs/DeliveryRunDetail";
+import { RUN_STATUS_META } from "@/components/admin/delivery-runs/runMeta";
 
-const { Text, Title } = Typography;
+const { Text } = Typography;
 const BRAND = "#0891B2";
 
 /* -------------------------------------------------------------------------- */
@@ -65,15 +68,41 @@ const STATUS_META = {
   failed: { label: "Failed", color: "error", hex: "#cf1322", icon: <CloseCircleOutlined /> },
 };
 
+/**
+ * One status filter drives the coverage map, the list and the table. Only the
+ * chosen status is fetched (lazily, cached per status) - counts come from the
+ * lightweight /admin/deliveries/summary endpoint.
+ */
 const STATUS_TABS = [
-  { key: "all", label: "All", statuses: [] },
-  { key: "pending", label: "Ready to Assign", statuses: ["pending"] },
-  { key: "assigned", label: "Assigned", statuses: ["assigned"] },
+  // "ready" = pending and not on a DR yet; "planned" = pending parcels already on
+  // a DR with its rider (they count as Assigned until the run is dispatched).
+  { key: "pending", label: "Ready to Assign", statuses: ["ready"], countKeys: ["ready"], hexOf: "pending" },
+  { key: "assigned", label: "Assigned", statuses: ["assigned", "planned"], countKeys: ["assigned", "planned"] },
   { key: "accepted", label: "Accepted", statuses: ["accepted"] },
   { key: "out_for_delivery", label: "Out for Delivery", statuses: ["out_for_delivery"] },
   { key: "delivered", label: "Delivered", statuses: ["delivered"] },
   { key: "failed", label: "Failed", statuses: ["failed"] },
+  { key: "all", label: "All", statuses: [] },
 ];
+
+const DEFAULT_STATUS = "pending";
+
+function tabCount(tab, counts) {
+  if (tab.key === "all") return counts.all ?? 0;
+  return (tab.countKeys || tab.statuses).reduce((sum, k) => sum + Number(counts[k] || 0), 0);
+}
+
+function tabHex(tab) {
+  return tab.key === "all" ? BRAND : statusMeta(tab.hexOf || tab.statuses[0]).hex;
+}
+const LEGACY_TAB_TO_STATUS = { ready: "pending", runs: "pending", all: "all", assigned: "assigned" };
+
+function readStatusFromUrl() {
+  if (typeof window === "undefined") return null;
+  const params = new URLSearchParams(window.location.search);
+  const raw = params.get("status") || LEGACY_TAB_TO_STATUS[params.get("tab")] || params.get("tab");
+  return STATUS_TABS.some((t) => t.key === raw) ? raw : null;
+}
 
 const TYPE_TABS = [
   { key: "all", label: "All Deliveries", icon: <InboxOutlined /> },
@@ -186,15 +215,34 @@ function initials(name) {
   return (parts[0][0] + (parts[1]?.[0] ?? "")).toUpperCase();
 }
 
+/** DR chip for a delivery that is (or was) on a delivery run. */
+function RunChip({ run, onOpen }) {
+  if (!run) return <Text type="secondary" style={{ fontSize: 12 }}>-</Text>;
+  const meta = RUN_STATUS_META[run.status] || { label: run.status, color: "default" };
+  return (
+    <Tooltip title={`${meta.label}${run.sequence ? ` · stop ${run.sequence}` : ""} - click to open`}>
+      <Tag
+        color={run.active ? meta.color : "default"}
+        style={{ margin: 0, cursor: "pointer", fontFamily: "monospace" }}
+        onClick={() => onOpen?.(run.id)}
+      >
+        {run.run_number}
+        {run.sequence ? ` #${run.sequence}` : ""}
+      </Tag>
+    </Tooltip>
+  );
+}
+
 /* -------------------------------------------------------------------------- */
 /* Page                                                                       */
 /* -------------------------------------------------------------------------- */
 
 export default function DeliveriesPage() {
-  const { can, branchId } = usePermissions();
+  const { can, branchId, isSuperAdmin } = usePermissions();
 
   const [typeTab, setTypeTab] = useState("all");
-  const [statusTab, setStatusTab] = useState("all");
+  const [statusTab, setStatusTab] = useState(DEFAULT_STATUS);
+  const [urlReady, setUrlReady] = useState(false);
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
 
@@ -202,10 +250,11 @@ export default function DeliveriesPage() {
   const [mapOpen, setMapOpen] = useState(true);
   const [mapRows, setMapRows] = useState([]);
   const [mapLoading, setMapLoading] = useState(false);
-  const [mapTick, setMapTick] = useState(0);
   const [loading, setLoading] = useState(false);
   const [pagination, setPagination] = useState({ current: 1, pageSize: 10, total: 0 });
   const [counts, setCounts] = useState({});
+  // Bumped after any action; part of every cache key so stale lists are dropped.
+  const [version, setVersion] = useState(0);
 
   const [assignOpen, setAssignOpen] = useState(false);
   const [assignTarget, setAssignTarget] = useState(null);
@@ -215,73 +264,128 @@ export default function DeliveriesPage() {
   const [selectedRider, setSelectedRider] = useState(null);
   const [submitting, setSubmitting] = useState(false);
 
-  // Multi-select for bulk assignment.
+  // Multi-select for bulk assignment / delivery runs (table + map share it).
   const [selectedRowKeys, setSelectedRowKeys] = useState([]);
+  const rowsById = useRef(new Map());
+
+  // Delivery run (DR) actions live inside this view.
+  const [createRunOpen, setCreateRunOpen] = useState(false);
+  const [openRunId, setOpenRunId] = useState(null);
+
+  // Per-status caches: { [cacheKey]: result } - cleared by `version`.
+  const listCache = useRef(new Map());
+  const mapCache = useRef(new Map());
+  const listSeq = useRef(0);
 
   useEffect(() => {
     const t = setTimeout(() => setDebouncedSearch(search.trim()), 400);
     return () => clearTimeout(t);
   }, [search]);
 
+  // Deep link: ?status=assigned (legacy ?tab= still understood). Default Ready to Assign.
+  useEffect(() => {
+    const fromUrl = readStatusFromUrl();
+    if (fromUrl) setStatusTab(fromUrl);
+    setUrlReady(true);
+  }, []);
+
+  useEffect(() => {
+    if (!urlReady || typeof window === "undefined") return;
+    const url = new URL(window.location.href);
+    url.searchParams.delete("tab");
+    url.searchParams.delete("run");
+    if (statusTab === DEFAULT_STATUS) url.searchParams.delete("status");
+    else url.searchParams.set("status", statusTab);
+    window.history.replaceState(null, "", url.toString());
+  }, [urlReady, statusTab]);
+
+  const baseParams = useMemo(() => {
+    const statuses = STATUS_TABS.find((t) => t.key === statusTab)?.statuses ?? [];
+    return {
+      status: statuses.length ? statuses.join(",") : undefined,
+      delivery_type: typeTab !== "all" ? typeTab : undefined,
+      search: debouncedSearch || undefined,
+      branch_id: branchId || undefined,
+    };
+  }, [statusTab, typeTab, debouncedSearch, branchId]);
+
+  const rememberRows = useCallback((list) => {
+    (list || []).forEach((r) => rowsById.current.set(r.id, r));
+  }, []);
+
   const load = useCallback(
-    async (page = 1, pageSize = 10) => {
+    async (page = 1, pageSize = 10, { force = false } = {}) => {
+      const key = JSON.stringify({ ...baseParams, page, pageSize, version });
+      const cached = listCache.current.get(key);
+      if (cached && !force) {
+        setRows(cached.list);
+        setPagination({ current: cached.currentPage, pageSize: cached.pageSize, total: cached.total });
+        return;
+      }
+      const seq = ++listSeq.current;
       setLoading(true);
       try {
-        const statuses = STATUS_TABS.find((t) => t.key === statusTab)?.statuses ?? [];
-        const result = await getDeliveries({
-          page,
-          per_page: pageSize,
-          status: statuses.length ? statuses[0] : undefined,
-          delivery_type: typeTab !== "all" ? typeTab : undefined,
-          search: debouncedSearch || undefined,
-          branch_id: branchId || undefined,
-        });
+        const result = await getDeliveries({ ...baseParams, page, per_page: pageSize });
+        if (seq !== listSeq.current) return; // a newer request won
+        listCache.current.set(key, result);
+        rememberRows(result.list);
         setRows(result.list);
         setPagination({ current: result.currentPage, pageSize: result.pageSize, total: result.total });
       } catch (e) {
+        if (seq !== listSeq.current) return;
         message.error(e?.response?.data?.message || "Could not load deliveries.");
         setRows([]);
       } finally {
-        setLoading(false);
+        if (seq === listSeq.current) setLoading(false);
       }
     },
-    [statusTab, typeTab, debouncedSearch, branchId],
+    [baseParams, version, rememberRows],
   );
 
+  // Lightweight counts for the status chips / stat cards (no list loading).
   const loadSummary = useCallback(async () => {
     try {
-      const data = await getDeliverySummary({ branch_id: branchId || undefined });
-      setCounts({ all: data.total, ...data.byStatus });
+      const data = await getDeliverySummary({
+        branch_id: branchId || undefined,
+        delivery_type: typeTab !== "all" ? typeTab : undefined,
+      });
+      setCounts({ ...data.byStatus, all: data.total, ready: data.ready, planned: data.planned });
     } catch {
       /* silent */
     }
-  }, [branchId]);
+  }, [branchId, typeTab]);
 
+  // Only the chosen status is fetched; switching back uses the cache. A filter
+  // change starts at page 1; a refresh after an action keeps the current page.
+  const lastParams = useRef("");
   useEffect(() => {
-    setSelectedRowKeys([]);
-    load(1, pagination.pageSize);
+    if (!urlReady) return;
+    const paramsKey = JSON.stringify(baseParams);
+    const filtersChanged = paramsKey !== lastParams.current;
+    lastParams.current = paramsKey;
+    if (filtersChanged) setSelectedRowKeys([]);
+    load(filtersChanged ? 1 : pagination.current, pagination.pageSize);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [statusTab, typeTab, debouncedSearch]);
+  }, [urlReady, load]);
 
   useEffect(() => {
+    if (!urlReady) return;
     loadSummary();
-  }, [loadSummary]);
+  }, [urlReady, loadSummary, version]);
 
   useEffect(() => {
-    if (!mapOpen) return undefined;
+    if (!urlReady || !mapOpen) return undefined;
+    const key = JSON.stringify({ ...baseParams, version });
+    const cached = mapCache.current.get(key);
+    if (cached) {
+      setMapRows(cached);
+      return undefined;
+    }
     let cancelled = false;
     (async () => {
       setMapLoading(true);
       try {
-        const statuses = STATUS_TABS.find((tab) => tab.key === statusTab)?.statuses ?? [];
-        const params = {
-          page: 1,
-          per_page: 100,
-          status: statuses.length ? statuses[0] : undefined,
-          delivery_type: typeTab !== "all" ? typeTab : undefined,
-          search: debouncedSearch || undefined,
-          branch_id: branchId || undefined,
-        };
+        const params = { ...baseParams, page: 1, per_page: 100 };
         const first = await getDeliveries(params);
         let list = first.list ?? [];
         const pageSize = first.pageSize || 100;
@@ -290,7 +394,10 @@ export default function DeliveriesPage() {
           const next = await getDeliveries({ ...params, page });
           list = list.concat(next.list ?? []);
         }
-        if (!cancelled) setMapRows(list);
+        if (cancelled) return;
+        mapCache.current.set(key, list);
+        rememberRows(list);
+        setMapRows(list);
       } catch (error) {
         if (!cancelled) {
           message.error(error?.response?.data?.message || "Could not load deliveries for the map.");
@@ -303,11 +410,24 @@ export default function DeliveriesPage() {
     return () => {
       cancelled = true;
     };
-  }, [mapOpen, branchId, mapTick, statusTab, typeTab, debouncedSearch]);
+  }, [urlReady, mapOpen, baseParams, version, rememberRows]);
 
-  const refresh = useCallback(async () => {
-    await Promise.all([load(pagination.current, pagination.pageSize), loadSummary()]);
-  }, [load, loadSummary, pagination]);
+  /** Something changed (assign, fail, DR created/updated): drop caches, reload the open status + counts + sidebar badges. */
+  const refresh = useCallback(() => {
+    listCache.current.clear();
+    mapCache.current.clear();
+    setVersion((v) => v + 1);
+    refreshMenuBadges();
+  }, []);
+
+  const changeStatus = useCallback((key) => {
+    setStatusTab(STATUS_TABS.some((t) => t.key === key) ? key : "all");
+    setPagination((p) => ({ ...p, current: 1 }));
+  }, []);
+
+  const openRun = useCallback((id) => {
+    if (id) setOpenRunId(id);
+  }, []);
 
   const loadRidersFor = useCallback(async (deliveryId) => {
     setRidersLoading(true);
@@ -366,7 +486,7 @@ export default function DeliveriesPage() {
       setAssignOpen(false);
       setAssignTarget(null);
       setBulkMode(false);
-      await refresh();
+      refresh();
     } catch (e) {
       message.error(e?.response?.data?.message || "Failed to assign rider.");
     } finally {
@@ -397,7 +517,7 @@ export default function DeliveriesPage() {
         }
         await failDelivery(delivery.id, reason.trim());
         message.success("Delivery marked as failed.");
-        await refresh();
+        refresh();
       },
     });
   };
@@ -512,15 +632,25 @@ export default function DeliveriesPage() {
         title: "Rider",
         key: "rider",
         render: (_, r) => {
-          const rider = r.rider;
-          if (!rider) return <Text type="warning" italic style={{ fontSize: 12 }}>Unassigned</Text>;
+          const runRider = !r.rider && r.delivery_run?.active ? r.delivery_run.rider : null;
+          const rider = r.rider || runRider;
+          if (!rider) {
+            return (
+              <Text type="warning" italic style={{ fontSize: 12 }}>
+                {r.delivery_run?.active ? "DR has no rider" : "Unassigned"}
+              </Text>
+            );
+          }
           return (
             <Space size={6}>
               <Avatar size="small" style={{ background: "#f6ffed", color: "#52c41a" }}>
                 {initials(rider.name)}
               </Avatar>
               <Space direction="vertical" size={0}>
-                <Text style={{ fontSize: 12 }}>{rider.name}</Text>
+                <Text style={{ fontSize: 12 }}>
+                  {rider.name}
+                  {runRider ? <Tag style={{ marginLeft: 6, fontSize: 10 }}>via {r.delivery_run.run_number}</Tag> : null}
+                </Text>
                 {rider.phone ? <Text type="secondary" style={{ fontSize: 11 }}>{rider.phone}</Text> : null}
               </Space>
             </Space>
@@ -528,20 +658,46 @@ export default function DeliveriesPage() {
         },
       },
       {
+        title: "Run",
+        key: "run",
+        width: 140,
+        render: (_, r) => <RunChip run={r.delivery_run} onOpen={openRun} />,
+      },
+      {
         title: "Status",
         dataIndex: "status",
         key: "status",
-        render: (v) => <StatusPill status={v} />,
+        render: (v, r) =>
+          v === "pending" && r.delivery_run?.active ? (
+            <Tooltip title={`On ${r.delivery_run.run_number} - its rider takes it when the DR is dispatched`}>
+              <Tag color="purple" style={{ borderRadius: 999, margin: 0 }}>
+                <Space size={4}>
+                  <NodeIndexOutlined />
+                  On DR
+                </Space>
+              </Tag>
+            </Tooltip>
+          ) : (
+            <StatusPill status={v} />
+          ),
       },
       {
         title: "",
         key: "actions",
         render: (_, r) => {
           const follow = r.status === "delivered" ? moneyFollowUp(r.shipment ?? {}) : null;
+          const onRun = !!r.delivery_run?.active;
 
           return (
             <Space size={4} wrap>
-              {can?.("deliveries.assign") && ["pending", "assigned"].includes(r.status) && (
+              {onRun && ["pending", "assigned"].includes(r.status) && (
+                <Tooltip title="This parcel is on a delivery run - change the rider on the run.">
+                  <Button size="small" icon={<NodeIndexOutlined />} onClick={() => openRun(r.delivery_run.id)}>
+                    Open DR
+                  </Button>
+                </Tooltip>
+              )}
+              {!onRun && can?.("deliveries.assign") && ["pending", "assigned"].includes(r.status) && (
                 <Button
                   size="small"
                   type="primary"
@@ -573,7 +729,7 @@ export default function DeliveriesPage() {
       },
     ],
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [can, openAssign],
+    [can, openAssign, openRun],
   );
 
   const canAssign = can?.("deliveries.assign");
@@ -581,13 +737,47 @@ export default function DeliveriesPage() {
   const rowSelection = canAssign
     ? {
         selectedRowKeys,
+        preserveSelectedRowKeys: true,
         onChange: (keys) => setSelectedRowKeys(keys),
         getCheckboxProps: (record) => ({
-          // Only pending / assigned deliveries can be (re)assigned in bulk.
-          disabled: !["pending", "assigned"].includes(record.status),
+          // Only pending / assigned deliveries that are not already on an active DR.
+          disabled: !["pending", "assigned"].includes(record.status) || !!record.delivery_run?.active,
         }),
       }
     : undefined;
+
+  // Create DR & assign rider from the selection (one branch per DR).
+  const selectedRows = selectedRowKeys.map((id) => rowsById.current.get(id)).filter(Boolean);
+  const runnable = selectedRows.filter((r) => r.status === "pending" && !r.delivery_run?.active);
+  const runBranches = [...new Set(runnable.map((r) => r.branch_id || r.sub_branch_id).filter(Boolean))];
+  const runBranchId = branchId || (runBranches.length === 1 ? runBranches[0] : null);
+  const runCod = runnable.reduce((sum, r) => {
+    const s = r.shipment ?? {};
+    return sum + (isPod(s.payment_type) ? Number(s.total_collectable_amount || s.pod_amount || 0) : 0);
+  }, 0);
+  const canCreateRun = !!(isSuperAdmin || can?.("deliveries.assign"));
+
+  const openCreateRun = () => {
+    if (!runnable.length) {
+      message.warning("Select Ready to Assign parcels that are not already on a DR.");
+      return;
+    }
+    if (runnable.length !== selectedRows.length) {
+      message.warning(`${selectedRows.length - runnable.length} selected parcel(s) are not Ready to Assign and will be left out.`);
+    }
+    if (!runBranchId) {
+      message.warning("The selected parcels belong to different branches. Create one DR per branch.");
+      return;
+    }
+    setCreateRunOpen(true);
+  };
+
+  const statusOptions = STATUS_TABS.map((tab) => ({
+    key: tab.key,
+    label: tab.label,
+    color: tabHex(tab),
+    count: tabCount(tab, counts),
+  }));
 
   return (
     <div style={{ padding: 16, background: "#f7f8fa", minHeight: "100%" }}>
@@ -614,6 +804,9 @@ export default function DeliveriesPage() {
         <AreaAssignmentMap
           mode="delivery"
           loading={mapLoading}
+          statusOptions={statusOptions}
+          statusValue={statusTab}
+          onStatusChange={changeStatus}
           selectedIds={selectedRowKeys}
           onSelectedIdsChange={setSelectedRowKeys}
           riders={riders}
@@ -629,7 +822,6 @@ export default function DeliveriesPage() {
             }
             setSelectedRowKeys([]);
             setSelectedRider(null);
-            setMapTick((n) => n + 1);
             refresh();
           }}
           stops={mapRows.map((row) => {
@@ -652,6 +844,7 @@ export default function DeliveriesPage() {
               deliveryType: row.delivery_type,
               riderName: row.rider?.name || "",
               riderRole: row.rider?.role || "",
+              runNumber: row.delivery_run?.active ? row.delivery_run.run_number : "",
             };
           })}
         />
@@ -662,10 +855,10 @@ export default function DeliveriesPage() {
           <Input
             allowClear
             prefix={<SearchOutlined style={{ color: "#bfbfbf" }} />}
-            placeholder="Search tracking, receiver, phone"
+            placeholder="Search tracking, receiver, phone, DR number"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            style={{ width: 220 }}
+            style={{ width: 280 }}
           />
         </Space>
       </Card>
@@ -673,13 +866,13 @@ export default function DeliveriesPage() {
       <StatCardGrid>
         <StatCard
           label="Ready to Assign"
-          value={counts.pending ?? 0}
+          value={counts.ready ?? 0}
           hint="Awaiting rider"
           variant="warning"
         />
         <StatCard
           label="Assigned"
-          value={counts.assigned ?? 0}
+          value={Number(counts.assigned || 0) + Number(counts.planned || 0)}
           hint="With riders"
           variant="primary"
         />
@@ -732,13 +925,13 @@ export default function DeliveriesPage() {
         <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
           {STATUS_TABS.map((tab) => {
             const active = statusTab === tab.key;
-            const value = tab.key === "all" ? (counts.all ?? 0) : (counts[tab.statuses[0]] ?? 0);
-            const hex = tab.key === "all" ? BRAND : statusMeta(tab.statuses[0]).hex;
+            const value = tabCount(tab, counts);
+            const hex = tabHex(tab);
             return (
               <button
                 key={tab.key}
                 type="button"
-                onClick={() => { setStatusTab(tab.key); setPagination((p) => ({ ...p, current: 1 })); }}
+                onClick={() => changeStatus(tab.key)}
                 style={{
                   display: "inline-flex",
                   alignItems: "center",
@@ -790,18 +983,25 @@ export default function DeliveriesPage() {
             <Badge count={selectedRowKeys.length} style={{ background: BRAND }} />
             <Text strong>{selectedRowKeys.length} selected</Text>
             <Text type="secondary" style={{ fontSize: 12 }}>
-              Assign these to one rider as a delivery route
+              Put them on a delivery run (DR) for one rider, or assign them directly
             </Text>
+            {runCod ? <Tag color="volcano" style={{ margin: 0 }}>COD {money(runCod)}</Tag> : null}
           </Space>
-          <Space>
+          <Space wrap>
             <Button onClick={() => setSelectedRowKeys([])}>Clear</Button>
-            <Button
-              type="primary"
-              icon={<UserAddOutlined />}
-              onClick={openBulkAssign}
-            >
-              Assign selected to rider
+            <Button icon={<UserAddOutlined />} onClick={openBulkAssign}>
+              Assign without DR
             </Button>
+            {canCreateRun && (
+              <Button
+                type="primary"
+                icon={<NodeIndexOutlined />}
+                disabled={!runnable.length}
+                onClick={openCreateRun}
+              >
+                Create DR &amp; assign rider ({runnable.length})
+              </Button>
+            )}
           </Space>
         </div>
       )}
@@ -830,6 +1030,36 @@ export default function DeliveriesPage() {
           }}
         />
       </Card>
+
+      {/* Create DR & assign rider */}
+      <CreateRunModal
+        open={createRunOpen}
+        shipmentIds={runnable.map((r) => r.shipment_id)}
+        codTotal={runCod}
+        branchId={runBranchId}
+        requireRider
+        onClose={() => setCreateRunOpen(false)}
+        onCreated={(id) => {
+          setCreateRunOpen(false);
+          setSelectedRowKeys([]);
+          refresh();
+          if (id) openRun(id);
+        }}
+      />
+
+      {/* DR detail (opened from a Run chip) */}
+      <Modal
+        open={!!openRunId}
+        onCancel={() => setOpenRunId(null)}
+        footer={null}
+        width={1100}
+        destroyOnHidden
+        title={<Space><NodeIndexOutlined style={{ color: BRAND }} />Delivery run</Space>}
+      >
+        {openRunId ? (
+          <DeliveryRunDetail runId={openRunId} branchId={branchId || null} canManage={canCreateRun} onChanged={refresh} />
+        ) : null}
+      </Modal>
 
       {/* Assign rider modal */}
       <Modal

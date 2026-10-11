@@ -57,6 +57,8 @@ import {
   submitPodCheckoutForm,
 } from "@/lib/podCheckout";
 import styles from "./deliveries.module.css";
+import StaffRunPanel from "@/components/staff/StaffRunPanel";
+import { refreshMenuBadges } from "@/hooks/useMenuBadges";
 
 const STATUS_COLORS = {
   assigned: "gold",
@@ -531,8 +533,17 @@ export default function StaffDeliveriesPage() {
   async function load() {
     setLoading(true);
     try {
-      const nextRows = await staffGetDeliveries({ per_page: 100 });
+      // Active work comes first from the API; page through history (max 500 rows).
+      let nextRows = [];
+      for (let page = 1; page <= 5; page += 1) {
+        const batch = await staffGetDeliveries({ per_page: 100, page });
+        nextRows = nextRows.concat(batch);
+        if (batch.length < 100) break;
+      }
+      const seen = new Set();
+      nextRows = nextRows.filter((row) => (seen.has(row.id) ? false : seen.add(row.id)));
       setRows(nextRows);
+      refreshMenuBadges();
       setSelectedDelivery((current) => {
         if (!current) return current;
 
@@ -835,12 +846,19 @@ export default function StaffDeliveriesPage() {
           row.shipment?.tracking_number?.toLowerCase().includes(search) ||
           row.shipment?.receiver_name?.toLowerCase().includes(search) ||
           row.shipment?.receiver_phone?.includes(search) ||
-          row.shipment?.delivery_address?.toLowerCase().includes(search)
+          row.shipment?.delivery_address?.toLowerCase().includes(search) ||
+          row.delivery_run?.run_number?.toLowerCase().includes(search)
       );
     }
 
     return result;
   }, [rows, filterStatus, searchText]);
+
+  // Stay on a real page when the list shrinks (filter, search, refresh).
+  useEffect(() => {
+    const lastPage = Math.max(1, Math.ceil(filteredRows.length / pageSize));
+    if (currentPage > lastPage) setCurrentPage(lastPage);
+  }, [filteredRows.length, pageSize, currentPage]);
 
   const paginatedRows =
     viewMode === "list"
@@ -897,8 +915,8 @@ export default function StaffDeliveriesPage() {
         onClick={() => setSelectedDelivery(delivery)}
         style={{ cursor: "pointer" }}
         extra={
-          <Tag color={STATUS_COLORS[delivery.status]}>
-            {STATUS_DISPLAY[delivery.status]}
+          <Tag color={STATUS_COLORS[delivery.status] || "default"}>
+            {STATUS_DISPLAY[delivery.status] || delivery.status || "-"}
           </Tag>
         }
       >
@@ -917,6 +935,12 @@ export default function StaffDeliveriesPage() {
             <div>
               <div style={{ fontWeight: 600, fontSize: "14px" }}>
                 {shipment.tracking_number || "N/A"}
+                {delivery.delivery_run ? (
+                  <Tag color={delivery.delivery_run.active ? "purple" : "default"} style={{ marginLeft: 8, fontFamily: "monospace" }}>
+                    {delivery.delivery_run.run_number}
+                    {delivery.delivery_run.sequence ? ` · stop ${delivery.delivery_run.sequence}` : ""}
+                  </Tag>
+                ) : null}
               </div>
               <div style={{ fontSize: "12px", color: "#666", marginTop: "2px" }}>
                 {shipment.receiver_name || "N/A"}
@@ -926,11 +950,10 @@ export default function StaffDeliveriesPage() {
           description={
             <div style={{ fontSize: "12px", color: "#888", marginTop: "4px" }}>
               <div>
-                {(shipment.delivery_address || shipment.receiver_address || "N/A").substring(
-                  0,
-                  60
-                )}
-                ...
+                {(() => {
+                  const address = shipment.delivery_address || shipment.receiver_address || "N/A";
+                  return address.length > 60 ? `${address.substring(0, 60)}...` : address;
+                })()}
               </div>
               <div style={{ marginTop: "4px" }}>
                 <PhoneOutlined style={{ marginRight: "4px" }} />
@@ -1401,6 +1424,8 @@ export default function StaffDeliveriesPage() {
 
   return (
     <>
+      <StaffRunPanel deliveries={rows} onOpenDelivery={setSelectedDelivery} onChanged={load} />
+
       <Row gutter={[12, 12]} style={{ marginBottom: "16px" }}>
         {[
           {
@@ -1481,7 +1506,7 @@ export default function StaffDeliveriesPage() {
         <Row gutter={16} style={{ marginBottom: "16px" }}>
           <Col xs={24} sm={16}>
             <Input
-              placeholder="Search by tracking #, name, phone, or address..."
+              placeholder="Search by tracking #, name, phone, address or DR..."
               prefix={<SearchOutlined />}
               value={searchText}
               onChange={(event) => {
@@ -1564,7 +1589,7 @@ export default function StaffDeliveriesPage() {
             (paymentSessionLoading || paymentSession?.status !== "paid"),
         }}
         width={540}
-        destroyOnClose
+        destroyOnHidden
       >
         {completionIsCollectable ? (
           <>

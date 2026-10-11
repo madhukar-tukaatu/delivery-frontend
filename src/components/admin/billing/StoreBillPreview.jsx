@@ -22,7 +22,7 @@ export function storeBillEmail(invoice) {
   const subject = company
     ? `Marketplace free delivery bill ${number} (${who})`
     : `Delivery charge bill ${number}`;
-  const dueTo = company ? "marketplace (tukaatu.com)" : "branch";
+  const dueTo = company ? `marketplace (${who})` : "branch";
   const body = [
     `Delivery charge bill for shipment ${tracking}.`,
     `Invoice: ${number}`,

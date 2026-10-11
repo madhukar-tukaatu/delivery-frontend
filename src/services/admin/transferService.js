@@ -367,6 +367,20 @@ export async function lookupContainer(number, params = {}) {
   return unwrap(response);
 }
 
+/**
+ * POST /admin/transfers/containers/{id}/repair { clear_seal, found_all, dry_run } (admin only).
+ * dry_run = true returns the preview; false applies. Returns { changes, errors, applied, before, after, container? }.
+ */
+export async function repairContainer(containerId, { clearSeal = false, foundAll = false, dryRun = true } = {}, params = {}) {
+  if (!containerId) throw new Error("TR id is required.");
+  const response = await api.post(
+    `/admin/transfers/containers/${containerId}/repair`,
+    { clear_seal: !!clearSeal, found_all: !!foundAll, dry_run: !!dryRun },
+    { params }
+  );
+  return { ...(unwrap(response) || {}), message: response?.data?.message };
+}
+
 /** GET /admin/transfers/containers/{id}/candidates : ready parcels for this open TR's next hop, not on any TR. */
 export async function getContainerCandidates(containerId, params = {}) {
   if (!containerId) return [];

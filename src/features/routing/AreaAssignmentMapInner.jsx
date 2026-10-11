@@ -154,13 +154,21 @@ export default function AreaAssignmentMapInner({
   ridersLoading = false,
   onLoadRiders,
   onAssign,
+  // Optional server-side status filter. When onStatusChange is given, the
+  // legend / Status select drive the page's filter (lazy fetch per status)
+  // instead of filtering the already-loaded pins.
+  statusOptions = null,
+  statusValue = null,
+  onStatusChange = null,
 }) {
   const [riderId, setRiderId] = useState(null);
   const [assigning, setAssigning] = useState(false);
   const [route, setRoute] = useState(null);
   const [routing, setRouting] = useState(false);
   const [query, setQuery] = useState("");
-  const [statusFilter, setStatusFilter] = useState(null);
+  const [localStatus, setLocalStatus] = useState(null);
+  const controlled = typeof onStatusChange === "function" && Array.isArray(statusOptions);
+  const statusFilter = controlled ? null : localStatus;
   const [areaFilter, setAreaFilter] = useState(null);
   const [vehicleFilter, setVehicleFilter] = useState(null);
   const selected = useMemo(() => new Set(selectedIds), [selectedIds]);
@@ -194,7 +202,7 @@ export default function AreaAssignmentMapInner({
       if (areaFilter && area !== areaFilter) return false;
       if (vehicleFilter && vehicleKind(stop) !== vehicleFilter) return false;
       if (!q) return true;
-      const hay = [stop.title, stop.subtitle, stop.address, stop.area, stop.statusLabel, stop.riderName]
+      const hay = [stop.title, stop.subtitle, stop.address, stop.area, stop.statusLabel, stop.riderName, stop.runNumber]
         .filter(Boolean)
         .join(" ")
         .toLowerCase();
@@ -221,6 +229,13 @@ export default function AreaAssignmentMapInner({
   }, [visible]);
 
   const legend = useMemo(() => {
+    if (controlled) {
+      return statusOptions.map((item) => ({
+        key: item.key,
+        label: item.count != null ? `${item.label} (${item.count})` : item.label,
+        color: item.color || "#6B7280",
+      }));
+    }
     const seen = new Map();
     placed.forEach((stop) => {
       const key = stop.status || "unknown";
@@ -233,7 +248,13 @@ export default function AreaAssignmentMapInner({
       }
     });
     return [...seen.values()];
-  }, [placed]);
+  }, [placed, controlled, statusOptions]);
+
+  const activeStatus = controlled ? statusValue : localStatus;
+  const pickStatus = (key) => {
+    if (controlled) onStatusChange(key ?? "all");
+    else setLocalStatus(key ?? null);
+  };
 
   const points = visible.filter((stop) => stop.point).map((stop) => stop.point);
 
@@ -296,10 +317,17 @@ export default function AreaAssignmentMapInner({
           {legend.map((item) => (
             <Tag
               key={item.key}
-              onClick={() => setStatusFilter((current) => (current === item.key ? null : item.key))}
-              style={{ margin: 0, cursor: "pointer", borderColor: item.color, color: item.color, fontWeight: statusFilter === item.key ? 700 : 400 }}
+              onClick={() => pickStatus(activeStatus === item.key && !controlled ? null : item.key)}
+              style={{
+                margin: 0,
+                cursor: "pointer",
+                borderColor: item.color,
+                color: activeStatus === item.key && controlled ? "#fff" : item.color,
+                background: activeStatus === item.key && controlled ? item.color : undefined,
+                fontWeight: activeStatus === item.key ? 700 : 400,
+              }}
             >
-              <span style={{ display: "inline-block", width: 8, height: 8, borderRadius: 8, background: item.color, marginRight: 6 }} />
+              <span style={{ display: "inline-block", width: 8, height: 8, borderRadius: 8, background: activeStatus === item.key && controlled ? "#fff" : item.color, marginRight: 6 }} />
               {item.label}
             </Tag>
           ))}
@@ -319,8 +347,8 @@ export default function AreaAssignmentMapInner({
           allowClear
           placeholder="Status"
           style={{ width: 160 }}
-          value={statusFilter}
-          onChange={(value) => setStatusFilter(value ?? null)}
+          value={activeStatus}
+          onChange={(value) => pickStatus(value ?? null)}
           options={legend.map((item) => ({ value: item.key, label: item.label }))}
         />
         <Select

@@ -507,13 +507,22 @@ export default function MarketplaceDetailPage() {
           <Form.Item name="code" label="Code" rules={[{ required: true }]}>
             <Input />
           </Form.Item>
-          <Form.Item name="email" label="Billing email">
-            <Input />
+          <Form.Item
+            name="email"
+            label="Billing email"
+            rules={[{ type: "email", message: "Enter a valid email" }]}
+            extra="Used for delivery-charge bills: branches email this marketplace's free-delivery bills here. Leave empty and bills cannot be sent."
+          >
+            <Input placeholder="billing@example.com" />
           </Form.Item>
           <Form.Item name="api_base_url" label="API base URL">
             <Input placeholder="https://api.tukaatu.com" />
           </Form.Item>
-          <Form.Item name="callback_url" label="Callback URL">
+          <Form.Item
+            name="callback_url"
+            label="Callback URL"
+            extra="Also receives signed billing.bill.* webhooks (issued, reminder, paid, reopened)."
+          >
             <Input />
           </Form.Item>
           <Form.Item

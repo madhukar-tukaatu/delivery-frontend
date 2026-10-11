@@ -49,6 +49,10 @@ export async function getDeliverySummary(params = {}) {
   return {
     total: Number(payload.total ?? 0),
     byStatus: payload.by_status ?? {},
+    // pending deliveries that are not on an active delivery run
+    ready: Number(payload.ready ?? payload.by_status?.pending ?? 0),
+    // pending deliveries already on an active DR (rider set, not dispatched yet)
+    planned: Number(payload.planned ?? 0),
   };
 }
 

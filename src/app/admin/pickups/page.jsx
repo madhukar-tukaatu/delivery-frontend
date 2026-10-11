@@ -59,6 +59,7 @@ import {
   resendPickupCallback,
   receivePickupShipment,
   rejectPickupShipment,
+  reconcilePickup,
 } from "@/services/admin/pickupService";
 
 import AdminPageHeader from "@/components/admin/ui/AdminPageHeader";
@@ -199,14 +200,6 @@ const STATUS_META = {
 
 const TABS = [
   {
-    key: "all",
-    label: "All",
-    hex: BRAND,
-    icon: <InboxOutlined />,
-    statuses: [],
-    hint: "Every pickup across all branches",
-  },
-  {
     key: "requested",
     label: "Requested",
     hex: "#1677ff",
@@ -286,7 +279,18 @@ const TABS = [
     statuses: ["cancelled"],
     hint: "Pickup was cancelled",
   },
+  {
+    key: "all",
+    label: "All",
+    hex: BRAND,
+    icon: <InboxOutlined />,
+    statuses: [],
+    hint: "Every pickup across all branches",
+  },
 ];
+
+// Open on the first actionable status; other statuses load when chosen.
+const DEFAULT_TAB = "requested";
 
 function tabByKey(key) {
   return TABS.find((t) => t.key === key) ?? TABS[0];
@@ -466,7 +470,8 @@ function Field({ label, children }) {
 */
 
 export default function AdminPickupsPage() {
-  const [activeTab, setActiveTab] = useState("all");
+  const [activeTab, setActiveTab] = useState(DEFAULT_TAB);
+  const [urlReady, setUrlReady] = useState(false);
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
 
@@ -515,6 +520,10 @@ export default function AdminPickupsPage() {
   const [rejectTarget, setRejectTarget] = useState(null);
   const [submitting, setSubmitting] = useState(false);
   const [receivingId, setReceivingId] = useState(null);
+  const [fixOpen, setFixOpen] = useState(false);
+  const [fixPreview, setFixPreview] = useState(null);
+  const [fixLoading, setFixLoading] = useState(false);
+  const [fixReceive, setFixReceive] = useState(false);
 
   const [assignForm] = Form.useForm();
   const [transferForm] = Form.useForm();
@@ -558,10 +567,27 @@ export default function AdminPickupsPage() {
     [activeTab, debouncedSearch, dateFrom, dateTo, merchantFilter],
   );
 
+  // Deep link ?status=assigned; default Requested. Lists wait for this so the
+  // first request is already the right status.
   useEffect(() => {
+    const fromUrl = new URLSearchParams(window.location.search).get("status");
+    if (fromUrl && TABS.some((t) => t.key === fromUrl)) setActiveTab(fromUrl);
+    setUrlReady(true);
+  }, []);
+
+  useEffect(() => {
+    if (!urlReady) return;
+    const url = new URL(window.location.href);
+    if (activeTab === DEFAULT_TAB) url.searchParams.delete("status");
+    else url.searchParams.set("status", activeTab);
+    window.history.replaceState(null, "", url.toString());
+  }, [urlReady, activeTab]);
+
+  useEffect(() => {
+    if (!urlReady) return;
     load(1, pagination.pageSize);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeTab, debouncedSearch, dateFrom, dateTo, merchantFilter]);
+  }, [urlReady, activeTab, debouncedSearch, dateFrom, dateTo, merchantFilter]);
 
   /*
   |--------------------------------------------------------------------------
@@ -616,7 +642,7 @@ export default function AdminPickupsPage() {
   }, [loadSummary]);
 
   useEffect(() => {
-    if (!mapOpen) return undefined;
+    if (!mapOpen || !urlReady) return undefined;
     let cancelled = false;
     (async () => {
       setMapLoading(true);
@@ -651,7 +677,7 @@ export default function AdminPickupsPage() {
     return () => {
       cancelled = true;
     };
-  }, [mapOpen, mapTick, activeTab, debouncedSearch, dateFrom, dateTo, merchantFilter]);
+  }, [urlReady, mapOpen, mapTick, activeTab, debouncedSearch, dateFrom, dateTo, merchantFilter]);
 
   const openDetail = useCallback(async (pickup) => {
     const id = getPickupId(pickup);
@@ -792,6 +818,57 @@ export default function AdminPickupsPage() {
       );
     } finally {
       setReceivingId(null);
+    }
+  };
+
+  // "Fix pickup status": preview first, then apply (audited on the server).
+  const openFix = async () => {
+    if (!detail) return;
+    setFixOpen(true);
+    setFixPreview(null);
+    setFixReceive(false);
+    setFixLoading(true);
+    try {
+      setFixPreview(await reconcilePickup(getPickupId(detail)));
+    } catch (error) {
+      message.error(
+        error?.response?.data?.message || "Could not check this pickup.",
+      );
+      setFixOpen(false);
+    } finally {
+      setFixLoading(false);
+    }
+  };
+
+  const applyFix = async () => {
+    if (!detail) return;
+    setFixLoading(true);
+    try {
+      const res = await reconcilePickup(getPickupId(detail), {
+        apply: true,
+        receiveCorrected: fixReceive,
+      });
+      const errs = Array.isArray(res?.errors) ? res.errors : [];
+      if (errs.length) {
+        message.warning(
+          `Fixed with ${errs.length} problem(s): ${errs.map((e) => e.error).join("; ")}`,
+        );
+      } else {
+        message.success(
+          res?.status_after === "completed"
+            ? "Pickup status fixed. Pickup completed."
+            : "Pickup status fixed.",
+        );
+      }
+      setFixOpen(false);
+      setFixPreview(null);
+      await afterMutation();
+    } catch (error) {
+      message.error(
+        error?.response?.data?.message || "Could not fix this pickup.",
+      );
+    } finally {
+      setFixLoading(false);
     }
   };
 
@@ -941,8 +1018,10 @@ export default function AdminPickupsPage() {
     "arrived",
   ].includes(detailStatus);
 
-  // Branch validation phase: rider has arrived at branch, staff verifies each shipment.
-  const inValidation = detailStatus === "on_way_to_branch";
+  // Branch validation phase: the rider has collected the parcels (on the way /
+  // at the branch). Staff verifies each shipment. "collected" is included so
+  // the branch is never stuck when the rider forgot to press "start transit".
+  const inValidation = ["on_way_to_branch", "collected"].includes(detailStatus);
   // A shipment is "received" once the branch has accepted it - including after it
   // has been auto-sorted for delivery or transfer.
   const RECEIVED_STATUSES = [
@@ -951,12 +1030,41 @@ export default function AdminPickupsPage() {
     "sorted_for_delivery",
     "sorted_for_transfer",
   ];
-  const REJECTED_STATUSES = ["pickup_failed"];
-  const isReceived = (s) =>
-    RECEIVED_STATUSES.includes(String(s?.status ?? "").toLowerCase());
-  const isRejected = (s) =>
-    REJECTED_STATUSES.includes(String(s?.status ?? "").toLowerCase());
+  const REJECTED_STATUSES = ["pickup_failed", "cancelled"];
+  // pickup_state comes from the server (PickupCustody::describe): where the
+  // parcel really is, so a parcel that already left on a TR is never offered
+  // for Receive again.
+  const stateOf = (s) => s?.pickup_state ?? null;
+  const isReceived = (s) => {
+    const st = stateOf(s);
+    if (st) return ["received", "left_on_tr", "moved_on"].includes(st.state);
+    return RECEIVED_STATUSES.includes(String(s?.status ?? "").toLowerCase());
+  };
+  const isRejected = (s) => {
+    const st = stateOf(s);
+    if (st) return st.state === "rejected";
+    return REJECTED_STATUSES.includes(String(s?.status ?? "").toLowerCase());
+  };
   const isResolved = (s) => isReceived(s) || isRejected(s);
+  const canReceive = (s) => {
+    const st = stateOf(s);
+    if (st) return Boolean(st.can_receive);
+    return !isResolved(s);
+  };
+  const canReject = (s) => {
+    const st = stateOf(s);
+    if (st) return Boolean(st.can_reject);
+    return !isResolved(s);
+  };
+  // Lines that need "Fix pickup status": parcel already left / moved on but
+  // the pickup line was never verified, or a wrong "in transit" status.
+  const needsFix = detailShipments.filter((s) => {
+    const st = stateOf(s);
+    return Boolean(st && (st.needs_sync || st.state === "wrong_in_transit"));
+  });
+  const canFix =
+    needsFix.length > 0 &&
+    !["completed", "cancelled", "failed"].includes(detailStatus);
   const sortModeOf = (s) => {
     const st = String(s?.status ?? "").toLowerCase();
     if (st === "sorted_for_delivery") return "delivery";
@@ -965,8 +1073,11 @@ export default function AdminPickupsPage() {
   };
   const receivedCount = detailShipments.filter(isReceived).length;
   const rejectedCount = detailShipments.filter(isRejected).length;
-  const resolvedCount = detailShipments.filter(isResolved).length;
-  const pendingCount = detailShipments.length - resolvedCount;
+  // A line that still needs "Fix pickup status" is not resolved on the pickup yet.
+  const pendingCount = detailShipments.filter(
+    (s) => !isResolved(s) || needsFix.includes(s),
+  ).length;
+  const resolvedCount = detailShipments.length - pendingCount;
 
   const lat =
     detailLocation?.latitude ??
@@ -1047,6 +1158,12 @@ export default function AdminPickupsPage() {
         <AreaAssignmentMap
           mode="pickup"
           loading={mapLoading}
+          statusOptions={TABS.map((tab) => ({ key: tab.key, label: tab.label, color: tab.hex, count: counts[tab.key] ?? 0 }))}
+          statusValue={activeTab}
+          onStatusChange={(key) => {
+            setActiveTab(TABS.some((t) => t.key === key) ? key : "all");
+            setPagination((p) => ({ ...p, current: 1 }));
+          }}
           selectedIds={mapSelected}
           onSelectedIdsChange={setMapSelected}
           onOpen={(id) => {
@@ -1133,13 +1250,13 @@ export default function AdminPickupsPage() {
               label: formatMerchantLabel(m.id ? m : { merchant_id: m.merchant_id, merchant_name: m.merchant_name }),
             }))}
           />
-          {(dateFrom || dateTo || merchantFilter || activeTab !== "all") && (
+          {(dateFrom || dateTo || merchantFilter || activeTab !== DEFAULT_TAB) && (
             <Button
               onClick={() => {
                 setDateFrom(null);
                 setDateTo(null);
                 setMerchantFilter(null);
-                setActiveTab("all");
+                setActiveTab(DEFAULT_TAB);
               }}
             >
               Clear
@@ -1545,10 +1662,39 @@ export default function AdminPickupsPage() {
                 description={
                   pendingCount === 0
                     ? `Every shipment has been resolved (${receivedCount} received${rejectedCount ? `, ${rejectedCount} rejected` : ""}). The pickup will complete automatically.`
-                    : `Rider is at the branch. Verify each shipment - receive it or reject a discrepancy. ${resolvedCount}/${detailShipments.length} resolved, ${pendingCount} pending.`
+                    : `When the rider hands over the parcels, receive each one or reject a discrepancy. ${resolvedCount}/${detailShipments.length} resolved, ${pendingCount} pending.`
                 }
               />
             )}
+
+            {/* Parcels whose real state does not match the pickup */}
+            {canFix ? (
+              <Alert
+                type="error"
+                showIcon
+                message={`${needsFix.length} parcel(s) do not match this pickup`}
+                description={
+                  <Space direction="vertical" size={6}>
+                    <Text style={{ fontSize: 12 }}>
+                      {needsFix
+                        .map(
+                          (s) =>
+                            `${s.tracking_number ?? `#${s.id}`}: ${stateOf(s)?.label}`,
+                        )
+                        .join(" | ")}
+                    </Text>
+                    <Button
+                      size="small"
+                      type="primary"
+                      danger
+                      onClick={openFix}
+                    >
+                      Fix pickup status
+                    </Button>
+                  </Space>
+                }
+              />
+            ) : null}
 
             {/* Shipments */}
             <SectionCard
@@ -1575,6 +1721,14 @@ export default function AdminPickupsPage() {
                     const received = isReceived(s);
                     const rejected = isRejected(s);
                     const sortMode = sortModeOf(s);
+                    const custody = stateOf(s);
+                    const stateNote =
+                      custody &&
+                      ["left_on_tr", "moved_on", "wrong_in_transit"].includes(
+                        custody.state,
+                      )
+                        ? custody
+                        : null;
                     return (
                       <div
                         key={s.id ?? s.tracking_number}
@@ -1626,40 +1780,68 @@ export default function AdminPickupsPage() {
                               )}
                             </Tag>
                           ) : null}
+                          {stateNote ? (
+                            <Tag
+                              color={
+                                stateNote.state === "wrong_in_transit"
+                                  ? "red"
+                                  : "gold"
+                              }
+                              style={{ margin: 0, marginTop: 2, whiteSpace: "normal" }}
+                            >
+                              <ExclamationCircleOutlined /> {stateNote.label}
+                            </Tag>
+                          ) : null}
                         </Space>
 
                         <Space size={8}>
                           <StatusTag status={s.status} withIcon={false} />
                           {inValidation && s.id ? (
                             received ? (
-                              <Tag color="success" style={{ margin: 0 }}>
-                                <CheckCircleOutlined /> Received
+                              <Tag
+                                color={stateNote ? "gold" : "success"}
+                                style={{ margin: 0 }}
+                              >
+                                <CheckCircleOutlined />{" "}
+                                {custody?.state === "left_on_tr" && custody?.tr
+                                  ? `On ${custody.tr.number}`
+                                  : stateNote
+                                    ? "Moved on"
+                                    : "Received"}
                               </Tag>
                             ) : rejected ? (
                               <Tag color="error" style={{ margin: 0 }}>
                                 <CloseCircleOutlined /> Rejected
                               </Tag>
-                            ) : (
+                            ) : canReceive(s) || canReject(s) ? (
                               <Space size={6}>
-                                <Button
-                                  type="primary"
-                                  size="small"
-                                  icon={<CheckCircleOutlined />}
-                                  loading={receivingId === s.id}
-                                  onClick={() => handleReceive(s.id)}
-                                  style={{ background: "#10B981", borderColor: "#10B981" }}
-                                >
-                                  Receive
-                                </Button>
-                                <Button
-                                  danger
-                                  size="small"
-                                  icon={<CloseCircleOutlined />}
-                                  onClick={() => openReject(s)}
-                                >
-                                  Reject
-                                </Button>
+                                {canReceive(s) ? (
+                                  <Button
+                                    type="primary"
+                                    size="small"
+                                    icon={<CheckCircleOutlined />}
+                                    loading={receivingId === s.id}
+                                    onClick={() => handleReceive(s.id)}
+                                    style={{ background: "#10B981", borderColor: "#10B981" }}
+                                  >
+                                    Receive
+                                  </Button>
+                                ) : null}
+                                {canReject(s) ? (
+                                  <Button
+                                    danger
+                                    size="small"
+                                    icon={<CloseCircleOutlined />}
+                                    onClick={() => openReject(s)}
+                                  >
+                                    Reject
+                                  </Button>
+                                ) : null}
                               </Space>
+                            ) : (
+                              <Tag style={{ margin: 0 }}>
+                                {custody?.label ?? "Waiting"}
+                              </Tag>
                             )
                           ) : null}
                         </Space>
@@ -1825,6 +2007,75 @@ export default function AdminPickupsPage() {
             }}
           </Form.Item>
         </Form>
+      </Modal>
+
+      {/* Fix pickup status: preview, then apply */}
+      <Modal
+        title={`Fix pickup status${fixPreview?.request_number ? ` · ${fixPreview.request_number}` : ""}`}
+        open={fixOpen}
+        width={760}
+        onCancel={() => {
+          setFixOpen(false);
+          setFixPreview(null);
+        }}
+        onOk={applyFix}
+        okText="Apply fix"
+        okButtonProps={{
+          disabled: !fixPreview || !(fixPreview?.changes > 0),
+          danger: true,
+        }}
+        confirmLoading={fixLoading}
+        cancelText="Close"
+      >
+        {fixLoading && !fixPreview ? (
+          <Text type="secondary">Checking where each parcel is…</Text>
+        ) : fixPreview ? (
+          <Space direction="vertical" size={10} style={{ width: "100%" }}>
+            <Alert
+              type={fixPreview.changes > 0 ? "warning" : "success"}
+              showIcon
+              message={
+                fixPreview.changes > 0
+                  ? `${fixPreview.changes} change(s) will be made. Nothing has changed yet.`
+                  : "Nothing to fix. This pickup matches its parcels."
+              }
+              description="Parcels that already left on a TR are only closed on this pickup; they stay on their TR. Parcels marked in transit with no TR go back to picked up so you can receive them."
+            />
+            <Table
+              size="small"
+              rowKey="shipment_id"
+              pagination={false}
+              dataSource={Array.isArray(fixPreview.items) ? fixPreview.items : []}
+              columns={[
+                { title: "Tracking", dataIndex: "tracking_number" },
+                {
+                  title: "Status",
+                  dataIndex: "shipment_status",
+                  render: (v) => String(v ?? "").replaceAll("_", " "),
+                },
+                { title: "Where it is", dataIndex: "label" },
+                {
+                  title: "Fix",
+                  dataIndex: "action_label",
+                  render: (v) =>
+                    v ? <Text strong>{v}</Text> : <Text type="secondary">-</Text>,
+                },
+              ]}
+            />
+            {(fixPreview.items ?? []).some((r) => r.action === "reset_status") ? (
+              <label style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                <input
+                  type="checkbox"
+                  checked={fixReceive}
+                  onChange={(e) => setFixReceive(e.target.checked)}
+                />
+                <Text>
+                  These parcels are here at the branch: receive them now too
+                </Text>
+              </label>
+            ) : null}
+          </Space>
+        ) : null}
       </Modal>
 
       {/* Reject shipment modal */}

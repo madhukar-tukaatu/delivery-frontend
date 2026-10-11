@@ -18,6 +18,7 @@ import { usePathname, useRouter } from "next/navigation";
 import Image from "next/image";
 import { clearAuth, getUser, hasPermission } from "@/lib/auth";
 import { getMyMenus } from "@/services/menuService";
+import useMenuBadges from "@/hooks/useMenuBadges";
 
 const { Header, Sider, Content } = Layout;
 
@@ -108,7 +109,52 @@ function getIcon(icon) {
   return iconMap[icon] || <AppstoreOutlined />;
 }
 
-function buildMenuItems(menus = []) {
+const PILL_STYLE = {
+  display: "inline-block",
+  minWidth: 18,
+  height: 18,
+  lineHeight: "18px",
+  padding: "0 5px",
+  borderRadius: 9,
+  fontSize: 11,
+  fontWeight: 600,
+  color: "#fff",
+  textAlign: "center",
+};
+
+function badgeTotal(list) {
+  return (list || []).reduce((sum, b) => sum + (Number(b?.count) || 0), 0);
+}
+
+function pillText(count) {
+  return count > 99 ? "99+" : String(count);
+}
+
+/** Menu label with work-waiting pills (e.g. Transfers: 2 TRs to receive, 5 to send). */
+function labelWithBadges(label, list) {
+  const shown = (list || []).filter((b) => Number(b?.count) > 0).slice(0, 3);
+  if (!shown.length) return label;
+  const title = shown.map((b) => `${b.count} ${b.label || ""}`.trim()).join(" · ");
+  return (
+    <span style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 6, width: "100%" }}>
+      <span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>{label}</span>
+      <span title={title} aria-label={title} style={{ display: "inline-flex", gap: 3, flexShrink: 0 }}>
+        {shown.map((b) => (
+          <span key={b.key || b.label} style={{ ...PILL_STYLE, background: b.color || "#1677ff" }}>
+            {pillText(Number(b.count))}
+          </span>
+        ))}
+      </span>
+    </span>
+  );
+}
+
+/**
+ * badges: { [menuPath]: [{ key, count, label, color }] } from /me/menu-badges.
+ * Parent groups show the total of their children while the group is closed;
+ * with the sidebar collapsed the icon gets a dot.
+ */
+function buildMenuItems(menus = [], badges = {}, openKeys = [], collapsed = false) {
   return menus
     .filter((item) => {
       if (!item?.label) return false;
@@ -118,18 +164,30 @@ function buildMenuItems(menus = []) {
     })
     .map((item) => {
       const children = item.children?.length
-        ? buildMenuItems(item.children)
+        ? buildMenuItems(item.children, badges, openKeys, collapsed)
         : undefined;
       const hasChildren = !!(children && children.length);
       const key = item.path
         ? item.path
         : `group-${item.id ?? item.key ?? item.label}`;
-      
+
+      const own = item.path ? badges?.[item.path] || [] : [];
+      const total = badgeTotal(own) + (hasChildren ? children.reduce((sum, c) => sum + (c.badgeTotal || 0), 0) : 0);
+
+      let label = item.label;
+      if (own.length) {
+        label = labelWithBadges(item.label, own);
+      } else if (hasChildren && total > 0 && !openKeys.includes(key)) {
+        label = labelWithBadges(item.label, [{ key: "total", count: total, label: "waiting in this section", color: "#475569" }]);
+      }
+
+      const icon = getIcon(item.icon);
       const menuItem = {
         key,
-        icon: getIcon(item.icon),
-        label: item.label,
+        icon: collapsed && total > 0 ? <Badge dot offset={[2, 2]}>{icon}</Badge> : icon,
+        label,
         children: hasChildren ? children : undefined,
+        badgeTotal: total,
       };
       
       // Add href for items with paths so they render as <a> tags
@@ -144,6 +202,14 @@ function buildMenuItems(menus = []) {
     .filter((item) => item.children?.length || !String(item.key).startsWith("group-"));
 }
 
+/** antd Menu does not know badgeTotal; strip it before rendering. */
+function stripMeta(items = []) {
+  return items.map((item) => {
+    const { children, ...rest } = item;
+    delete rest.badgeTotal;
+    return { ...rest, ...(children ? { children: stripMeta(children) } : {}) };
+  });
+}
 
 function collectOpenKeys(items = []) {
   const keys = [];
@@ -221,11 +287,17 @@ export default function DashboardLayout({ section: propsSection = "admin", child
     return () => { active = false; };
   }, [section]);
 
-  const items = useMemo(() => buildMenuItems(menus), [menus]);
+  const badges = useMenuBadges(section, pathname);
+  // Structure only (no badges) drives the default open groups.
+  const baseItems = useMemo(() => buildMenuItems(menus), [menus]);
+  const items = useMemo(
+    () => stripMeta(buildMenuItems(menus, badges, openKeys, collapsed)),
+    [menus, badges, openKeys, collapsed]
+  );
 
   useEffect(() => {
-    setOpenKeys(collectOpenKeys(items));
-  }, [items]);
+    setOpenKeys(collectOpenKeys(baseItems));
+  }, [baseItems]);
   const selectedKey = useMemo(() => findSelectedKey(pathname, menus), [pathname, menus]);
 
   function logout() {

@@ -161,6 +161,20 @@ function getDeliveryAddress(shipment) {
   );
 }
 
+/*
+ * Still to be collected from the merchant. Parcels that moved on after
+ * collection (received at branch, in transit, ...) are not "pending".
+ */
+function isAwaitingCollection(status) {
+  return [
+    "booked",
+    "awaiting_pickup",
+    "pickup_assigned",
+  ].includes(
+    String(status ?? "").toLowerCase()
+  );
+}
+
 function getShipmentStatus(shipment) {
   return String(
     shipment?.status ?? ""
@@ -604,11 +618,8 @@ export default function StaffPickupsPage() {
                     shipment
                   );
 
-                return (
-                  shipmentStatus !==
-                    "picked_up" &&
-                  shipmentStatus !==
-                    "cancelled"
+                return isAwaitingCollection(
+                  shipmentStatus
                 );
               }
             ).length;
@@ -837,16 +848,71 @@ export default function StaffPickupsPage() {
 
         /*
          * Collection is only possible
-         * after rider has arrived.
+         * after rider has arrived. Once
+         * collected, show where the parcel
+         * is instead of "Arrive first".
          */
         if (
           pickupStatus !==
           "arrived"
         ) {
+          if (
+            [
+              "requested",
+              "assigned",
+              "accepted",
+              "started",
+            ].includes(pickupStatus)
+          ) {
+            return (
+              <Text type="secondary">
+                Arrive first
+              </Text>
+            );
+          }
+
+          const custody =
+            shipment?.pickup_state;
+
+          if (
+            custody?.state ===
+            "with_rider"
+          ) {
+            return (
+              <Tag color="blue">
+                Collected · hand over at branch
+              </Tag>
+            );
+          }
+
+          if (custody?.label) {
+            return (
+              <Tag
+                color={
+                  custody.state ===
+                    "received"
+                    ? "green"
+                    : custody.state ===
+                        "rejected"
+                      ? "red"
+                      : "gold"
+                }
+              >
+                {custody.label}
+              </Tag>
+            );
+          }
+
           return (
-            <Text type="secondary">
-              Arrive first
-            </Text>
+            <Tag
+              color={statusColor(
+                shipmentStatus
+              )}
+            >
+              {statusLabel(
+                shipmentStatus
+              )}
+            </Tag>
           );
         }
 
@@ -927,11 +993,8 @@ export default function StaffPickupsPage() {
             shipment
           );
 
-        return (
-          status !==
-            "picked_up" &&
-          status !==
-            "cancelled"
+        return isAwaitingCollection(
+          status
         );
       }
     );

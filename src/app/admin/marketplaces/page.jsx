@@ -242,7 +242,12 @@ export default function MarketplacesPage() {
           <Form.Item name="code" label="Code" rules={[{ required: true }]} extra="Stable slug, for example fca-marketplace">
             <Input placeholder="fca-marketplace" />
           </Form.Item>
-          <Form.Item name="email" label="Billing email">
+          <Form.Item
+            name="email"
+            label="Billing email"
+            rules={[{ type: "email", message: "Enter a valid email" }]}
+            extra="Used for delivery-charge bills: branches email this marketplace's free-delivery bills here. Leave empty and bills cannot be sent."
+          >
             <Input placeholder="billing@example.com" />
           </Form.Item>
           <Form.Item name="api_base_url" label="API base URL">

@@ -5,6 +5,7 @@ import {
   Alert,
   Badge,
   Button,
+  Checkbox,
   Descriptions,
   Drawer,
   Empty,
@@ -30,9 +31,10 @@ import {
   InboxOutlined,
   PrinterOutlined,
   SafetyCertificateOutlined,
+  ToolOutlined,
   WarningOutlined,
 } from "@ant-design/icons";
-import { getContainer, lookupContainer, openTrPrint, receiveContainer, resolveContainerItem } from "@/services/admin/transferService";
+import { getContainer, lookupContainer, openTrPrint, receiveContainer, repairContainer, resolveContainerItem } from "@/services/admin/transferService";
 import { vehicleLabel } from "@/components/admin/transfers/TransferDispatchModal";
 
 const { Text } = Typography;
@@ -134,6 +136,124 @@ function fmt(dt) {
 }
 
 /**
+ * Admin "Repair receive" for a TR checked in wrongly: clear a wrong seal flag and/or
+ * receive + sort the parcels still marked missing. Preview (dry run) first, then Apply.
+ */
+function RepairReceiveDialog({ tr, open, onClose, onRepaired, params }) {
+  const [clearSeal, setClearSeal] = useState(false);
+  const [foundAll, setFoundAll] = useState(false);
+  const [preview, setPreview] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    if (!open) return;
+    setClearSeal(!!tr?.seal_status);
+    setFoundAll(Number(tr?.missing_count || 0) > 0);
+    setPreview(null);
+    setError("");
+  }, [open, tr?.id, tr?.seal_status, tr?.missing_count]);
+
+  const run = async (dryRun) => {
+    if (!clearSeal && !foundAll) {
+      setError("Pick at least one repair.");
+      return;
+    }
+    setBusy(true);
+    setError("");
+    try {
+      const res = await repairContainer(tr.id, { clearSeal, foundAll, dryRun }, params);
+      if (dryRun) {
+        setPreview(res);
+      } else {
+        message.success(res?.message || "TR repaired");
+        onRepaired?.(res);
+        onClose?.();
+      }
+    } catch (e) {
+      const errors = e?.response?.data?.errors;
+      setError((errors ? Object.values(errors).flat()[0] : null) || e?.response?.data?.message || "Repair failed");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const actionable = (preview?.changes || []).some((c) => c.action);
+  return (
+    <Modal
+      open={open}
+      onCancel={onClose}
+      title={
+        <Space size={6}>
+          <ToolOutlined />
+          <span>Repair receive · {tr?.display_number}</span>
+        </Space>
+      }
+      footer={[
+        <Button key="close" onClick={onClose}>
+          Close
+        </Button>,
+        <Button key="preview" loading={busy && !preview} onClick={() => run(true)}>
+          Preview
+        </Button>,
+        <Button key="apply" type="primary" danger disabled={!preview || !actionable} loading={busy && !!preview} onClick={() => run(false)}>
+          Apply
+        </Button>,
+      ]}
+      destroyOnHidden
+    >
+      <Space direction="vertical" size={8} style={{ width: "100%" }}>
+        <Text type="secondary" style={{ fontSize: 12 }}>
+          For a TR checked in wrongly. Preview shows exactly what will change; nothing is written until Apply. Every repair is
+          recorded in the audit log with your name.
+        </Text>
+        <Checkbox
+          checked={clearSeal}
+          onChange={(e) => {
+            setClearSeal(e.target.checked);
+            setPreview(null);
+          }}
+        >
+          Clear wrong seal flag {tr?.seal_status ? <Text type="secondary">(now: {SEAL_RESULT_LABEL[tr.seal_status] || tr.seal_status})</Text> : null}
+        </Checkbox>
+        <Checkbox
+          checked={foundAll}
+          onChange={(e) => {
+            setFoundAll(e.target.checked);
+            setPreview(null);
+          }}
+        >
+          Receive &amp; sort missing parcels (mark found){" "}
+          <Text type="secondary">({Number(tr?.missing_count || 0)} missing)</Text>
+        </Checkbox>
+        {error ? <Alert type="error" showIcon message={error} style={{ padding: "4px 8px" }} /> : null}
+        {preview ? (
+          <Alert
+            type={actionable ? "info" : "warning"}
+            showIcon
+            message={actionable ? "Apply will:" : "Nothing to change"}
+            description={
+              <ul style={{ margin: 0, paddingLeft: 18, fontSize: 12 }}>
+                {(preview.changes || []).map((c, i) => (
+                  <li key={i} style={{ color: c.action ? undefined : "#8c8c8c" }}>
+                    {c.label}
+                  </li>
+                ))}
+                {(preview.errors || []).map((e) => (
+                  <li key={e} style={{ color: "#cf1322" }}>
+                    {e}
+                  </li>
+                ))}
+              </ul>
+            }
+          />
+        ) : null}
+      </Space>
+    </Modal>
+  );
+}
+
+/**
  * Check-in drawer / panel for one TR at the receiving branch. Works without a scanner.
  * Step 1: type the TR number (TR-000004, 4, 000004, tr-4) or scan the bag label
  *         (only when opened without a TR; picking a TR card skips this step).
@@ -170,6 +290,7 @@ export default function TransferReceiveScanner({ open, containerId, branchId = n
   const [saving, setSaving] = useState(false);
   const [result, setResult] = useState(null);
   const [resolving, setResolving] = useState(null);
+  const [repairOpen, setRepairOpen] = useState(false);
   const scanRef = useRef(null);
   const params = useMemo(() => (branchId ? { branch_id: branchId } : {}), [branchId]);
 
@@ -469,6 +590,11 @@ export default function TransferReceiveScanner({ open, containerId, branchId = n
               </Button>
             </>
           ) : null}
+          {tr?.can_repair ? (
+            <Button icon={<ToolOutlined />} onClick={() => setRepairOpen(true)}>
+              Repair receive
+            </Button>
+          ) : null}
           {canReceive ? (
             <Button type="primary" icon={<CheckCircleOutlined />} loading={saving} onClick={confirmReceive}>
               Confirm receive ({checked.length + extras.length})
@@ -476,8 +602,22 @@ export default function TransferReceiveScanner({ open, containerId, branchId = n
           ) : null}
         </Space>
   );
+  const repairNode = tr?.can_repair ? (
+    <RepairReceiveDialog
+      tr={tr}
+      open={repairOpen}
+      params={params}
+      onClose={() => setRepairOpen(false)}
+      onRepaired={(res) => {
+        setResult(null);
+        load();
+        onDone?.(res);
+      }}
+    />
+  ) : null;
   const bodyNode = (
     <>
+      {repairNode}
       {!activeId ? (
         <Space direction="vertical" size={10} style={{ width: "100%", padding: "24px 0" }}>
           <Text strong>Step 1: scan the TR bag label, or type the TR number</Text>

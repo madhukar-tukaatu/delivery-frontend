@@ -290,3 +290,26 @@ export async function resendPickupCallback(id, event, shipmentId = null) {
 
   return unwrap(response);
 }
+
+/**
+ * Fix pickup status: line the pickup up with where its parcels really are.
+ * apply=false only previews. receiveCorrected also receives parcels whose wrong
+ * "in transit" status gets corrected (only when they are at the branch).
+ *
+ * POST /admin/pickups/{id}/reconcile
+ */
+export async function reconcilePickup(
+  id,
+  { apply = false, receiveCorrected = false } = {},
+) {
+  if (!id) {
+    throw new Error("Pickup ID is required.");
+  }
+
+  const response = await api.post(`/admin/pickups/${id}/reconcile`, {
+    apply,
+    receive_corrected: receiveCorrected,
+  });
+
+  return unwrap(response);
+}
