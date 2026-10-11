@@ -74,6 +74,11 @@ export async function getTransferStats(branchId = null) {
     in_transit: Number(payload.in_transit ?? 0),
     received: Number(payload.received ?? 0),
     completed: Number(payload.completed ?? 0),
+    received_today: Number(payload.received_today ?? 0),
+    received_today_parcels: Number(payload.received_today_parcels ?? 0),
+    dispatched_today: Number(payload.dispatched_today ?? 0),
+    dispatched_today_parcels: Number(payload.dispatched_today_parcels ?? 0),
+    open_trs: Number(payload.open_trs ?? 0),
     total_value: Number(payload.total_value ?? 0),
     pod_amount: Number(payload.pod_amount ?? 0),
   };
@@ -300,11 +305,13 @@ export async function getContainer(containerId, params = {}) {
 export async function receiveContainer(containerId, scanned = [], remarks = null, params = {}, seal = null) {
   if (!containerId) throw new Error("TR id is required.");
   const body = { scanned: Array.isArray(scanned) ? scanned : [], remarks: remarks || undefined };
-  // Seal check at arrival: { value, intact, remark }
+  // Seal check at arrival: { value, intact, remark, status }
   if (seal) {
     body.seal_value = seal.value || undefined;
     body.seal_intact = seal.intact !== undefined ? !!seal.intact : undefined;
     body.seal_remark = seal.remark || undefined;
+    // Explicit answer: "intact" | "broken" | "mismatch" (never blocks the receive).
+    body.seal_status = seal.status || undefined;
   }
   const response = await api.post(`/admin/transfers/containers/${containerId}/receive`, body, { params });
   return { ...(unwrap(response) || {}), message: response?.data?.message };

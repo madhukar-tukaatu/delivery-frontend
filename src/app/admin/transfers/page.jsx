@@ -28,6 +28,7 @@ import {
   Tooltip,
   Pagination,
   Segmented,
+  Statistic,
 } from "antd";
 import {
   ReloadOutlined,
@@ -406,6 +407,9 @@ function resolveShipmentNextHop(shipment, availableRoutes = []) {
       name: shipment?._routeGroup?.next_hop_name || `Branch #${fromGroup}`,
       service: String(shipment?._routeGroup?.service_type || shipment?.service_type || "standard").toLowerCase(),
       route: shipment?._routeGroup || null,
+      // HQ all-branches groups: one bag per sending branch + next hop.
+      fromId: Number(shipment?._routeGroup?.from_branch_id || 0) || null,
+      fromName: shipment?._routeGroup?.from_branch_name || null,
     };
   }
   const fromMeta = Number(shipment?.hop_meta?.next_hop_branch_id || 0);
@@ -435,6 +439,8 @@ function buildNextHopGroups(routes, shipments, { includeEmptyFromRoutes = false 
     if (!map[key]) {
       map[key] = {
         key,
+        fromId: seed.fromId || null,
+        fromName: seed.fromName || null,
         nextHopId: seed.nextHopId,
         nextHopName: seed.nextHopName,
         serviceType: seed.serviceType,
@@ -477,8 +483,11 @@ function buildNextHopGroups(routes, shipments, { includeEmptyFromRoutes = false 
     const hop = resolveShipmentNextHop(s, routes);
     if (!hop.id) return;
     // One TR per next hop: every service type rides the same trip.
-    const key = String(hop.id);
+    // HQ (all branches): separate bag per sending branch.
+    const key = hop.fromId ? `${hop.fromId}:${hop.id}` : String(hop.id);
     const g = ensureGroup(key, {
+      fromId: hop.fromId,
+      fromName: hop.fromName,
       nextHopId: hop.id,
       nextHopName: hop.name || `Branch #${hop.id}`,
       serviceType: hop.service,
@@ -525,7 +534,12 @@ function buildNextHopGroups(routes, shipments, { includeEmptyFromRoutes = false 
       };
     })
     .filter((g) => includeEmptyFromRoutes || g.count > 0)
-    .sort((a, b) => b.count - a.count || String(a.nextHopName).localeCompare(String(b.nextHopName)));
+    .sort(
+      (a, b) =>
+        String(a.fromName || "").localeCompare(String(b.fromName || "")) ||
+        b.count - a.count ||
+        String(a.nextHopName).localeCompare(String(b.nextHopName))
+    );
 }
 
 function TruncatedSummary({ label, items, max = 3 }) {
@@ -749,6 +763,7 @@ function NextHopMasterDetail({
     if (!q) return groups;
     return groups.filter((g) => {
       const hay = [
+        g.fromName,
         g.nextHopName,
         g.serviceType,
         ...(g.finalNames || []),
@@ -788,7 +803,9 @@ function NextHopMasterDetail({
     [detailShipments, selectedRowKeys]
   );
   // Open (loaded, not dispatched) TR for this next hop, if any.
-  const openTr = selected ? openTrByHop?.[selected.nextHopId] || null : null;
+  const openTr = selected
+    ? openTrByHop?.[selected.fromId ? `${selected.fromId}:${selected.nextHopId}` : selected.nextHopId] || null
+    : null;
   const notOnOpenTr = useMemo(
     () => selectedInHop.filter((s) => !s.open_tr_number),
     [selectedInHop]
@@ -799,6 +816,7 @@ function NextHopMasterDetail({
   );
 
   const fromLabel = useMemo(() => {
+    if (selected?.fromName) return selected.fromName;
     if (!detailShipments.length) return "This branch";
     const s = detailShipments[0];
     return (
@@ -806,7 +824,7 @@ function NextHopMasterDetail({
       routeLabel(s.origin_branch, s.origin_sub_branch, "Origin") ||
       "This branch"
     );
-  }, [detailShipments]);
+  }, [detailShipments, selected]);
 
   const detailColumns = useMemo(
     () => [
@@ -1102,6 +1120,9 @@ function NextHopMasterDetail({
                       </div>
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <Space size={4} wrap style={{ marginBottom: 4 }}>
+                          {g.fromName ? (
+                            <Text strong style={{ fontSize: 13 }}>{g.fromName}</Text>
+                          ) : null}
                           <Text strong style={{ fontSize: 13 }}>
                             → {g.nextHopName}
                           </Text>
@@ -1904,7 +1925,9 @@ function GroupedOutboundView({ rows, selectedRowKeys, onSelectionChange, loading
 }
 
 export default function TransfersPage() {
-  const { can } = usePermissions();
+  const { can, isSuperAdmin, roles } = usePermissions();
+  // HQ (super admin / main admin / admin) sees every branch's transfers.
+  const isHq = !!isSuperAdmin || (roles || []).includes("main_admin");
 
   // Tab management
   const [activeTab, setActiveTab] = useState("outbound");
@@ -2019,6 +2042,11 @@ export default function TransfersPage() {
   // Branches list for admin branch selector
   const [branches, setBranches] = useState([]);
   const [branchesLoading, setBranchesLoading] = useState(false);
+  // HQ on "All branches" is view-only; picking a branch lets HQ act as that branch.
+  const hqAll = isHq && !selectedBranchId;
+  const scopeName = selectedBranchId
+    ? branches.find((b) => Number(b.id) === Number(selectedBranchId))?.name || `Branch #${selectedBranchId}`
+    : "All branches";
 
   // Debounce search
   useEffect(() => {
@@ -2108,7 +2136,10 @@ export default function TransfersPage() {
     if (selectedNextHop && viewMode === "next_hop") {
       rows = rows.filter((s) => {
         const hop = resolveShipmentNextHop(s, availableRoutes);
-        return Number(hop.id) === Number(selectedNextHop.nextHopId);
+        return (
+          Number(hop.id) === Number(selectedNextHop.nextHopId) &&
+          (!selectedNextHop.fromId || Number(hop.fromId) === Number(selectedNextHop.fromId))
+        );
       });
     }
     return rows;
@@ -2202,8 +2233,10 @@ export default function TransfersPage() {
       if (viewMode === "next_hop") {
         const groupedRes = await getTransfers({ ...baseParams, group_by_next_hop: true });
         const openMap = {};
+        // HQ all-branches groups come keyed "fromBranch:nextHop".
+        const isPairKey = (hop) => String(hop.group_key || "").includes(":");
         (groupedRes?.next_hops || []).forEach((hop) => {
-          if (hop.open_container) openMap[hop.next_hop_branch_id] = hop.open_container;
+          if (hop.open_container) openMap[isPairKey(hop) ? hop.group_key : hop.next_hop_branch_id] = hop.open_container;
         });
         setOpenTrByHop(openMap);
         if (Array.isArray(groupedRes?.next_hops) && groupedRes.next_hops.length) {
@@ -2214,6 +2247,8 @@ export default function TransfersPage() {
                 ...shipment,
                 _routeGroup: {
                   id: hop.next_hop_branch_id,
+                  from_branch_id: isPairKey(hop) ? hop.from_branch_id : null,
+                  from_branch_name: isPairKey(hop) ? hop.from_branch_name : null,
                   next_hop_branch_id: hop.next_hop_branch_id,
                   next_hop_name: hop.next_hop_name,
                   next_hop_coverage_id: hop.next_hop_coverage_id,
@@ -2388,11 +2423,13 @@ export default function TransfersPage() {
   }, [debouncedSearch, dateRange, statusFilter, historyDirection, serviceTypeFilter, selectedBranchId]);
 
   // Load data based on active tab
+  const pageCurrent = pagination.current;
+  const pageSizeNow = pagination.pageSize;
   const loadData = useCallback(async () => {
     setSelectedRowKeys([]);
     switch (activeTab) {
       case "outbound":
-        await loadOutbound(pagination.current, pagination.pageSize);
+        await loadOutbound(pageCurrent, pageSizeNow);
         break;
       case "sent":
         await loadSent();
@@ -2412,7 +2449,14 @@ export default function TransfersPage() {
       default:
         break;
     }
-  }, [activeTab, pagination.current, pagination.pageSize, loadOutbound, loadSent, loadInbound, loadReceived, loadCompleted, loadHistory]);
+  }, [activeTab, pageCurrent, pageSizeNow, loadOutbound, loadSent, loadInbound, loadReceived, loadCompleted, loadHistory]);
+
+  // Latest loadData for effects that must run only on their own triggers
+  // (loadData changes after every page load; depending on it would loop).
+  const loadDataRef = useRef(loadData);
+  useEffect(() => {
+    loadDataRef.current = loadData;
+  }, [loadData]);
 
   // Load branches for admin branch selector
   const loadBranches = useCallback(async () => {
@@ -2446,8 +2490,7 @@ export default function TransfersPage() {
     setSelectedNextHopKey(null);
     setSelectedNextHop(null);
     // loadData runs via activeTab/debouncedSearch effect; trigger explicitly
-    loadData();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    loadDataRef.current();
   }, [serviceTypeFilter]);
 
   // Reload outbound when the selected transfer route changes
@@ -2462,7 +2505,7 @@ export default function TransfersPage() {
   // Reload data when tab or search changes
   useEffect(() => {
     setPagination((p) => ({ ...p, current: 1 }));
-    loadData();
+    loadDataRef.current();
   }, [activeTab, debouncedSearch]);
 
   // Reload the open tab when the branch or a history filter changes
@@ -2475,8 +2518,7 @@ export default function TransfersPage() {
     }
     setPagination((p) => ({ ...p, current: 1 }));
     setSelectedRowKeys([]);
-    loadData();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    loadDataRef.current();
   }, [selectedBranchId, statusFilter, dateRange, historyDirection]);
 
   // Refresh all data
@@ -2493,8 +2535,8 @@ export default function TransfersPage() {
     dateFrom: dateRange?.length === 2 ? dateRange[0].format("YYYY-MM-DD") : null,
     dateTo: dateRange?.length === 2 ? dateRange[1].format("YYYY-MM-DD") : null,
     reloadKey: trReloadKey,
-    canReceive: !!can?.("transfers.receive"),
-    canDispatch: !!can?.("transfers.dispatch"),
+    canReceive: !!can?.("transfers.receive") && !hqAll,
+    canDispatch: !!can?.("transfers.dispatch") && !hqAll,
     onDispatchOpen: (c) => handleDispatchOpenTr(c),
     onChanged: () => loadStats(),
   };
@@ -2799,6 +2841,16 @@ export default function TransfersPage() {
 
       return (
         <Space direction="vertical" size={2}>
+          {s.tr_number ? (
+            <Tooltip title={`${s.tr_from_name || "-"} -> ${s.tr_to_name || "-"}${s.tr_status ? ` | ${s.tr_status}` : ""}`}>
+              <Space size={4} wrap>
+                <Tag color="geekblue" style={{ margin: 0, fontWeight: 600, fontFamily: "monospace" }}>{s.tr_number}</Tag>
+                <Text type="secondary" style={{ fontSize: 11 }}>
+                  {s.tr_from_name || "-"} {"->"} {s.tr_to_name || "-"}
+                </Text>
+              </Space>
+            </Tooltip>
+          ) : null}
           <Space size={6} style={{ fontSize: 12 }} wrap>
             <Tag style={{ margin: 0, maxWidth: 160 }}>{origin}</Tag>
             <ArrowRightOutlined style={{ color: "#bfbfbf" }} />
@@ -2847,11 +2899,50 @@ export default function TransfersPage() {
       ),
   };
 
+  // HQ all-branches: which branch sent / holds the parcel and which receives it.
+  const branchColumn = {
+    title: "Branch",
+    key: "hq_branch",
+    width: 220,
+    render: (_, s) => {
+      const holder =
+        routeLabel(s.current_branch, s.current_sub_branch, null) ||
+        routeLabel(s.origin_branch, s.origin_sub_branch, "-");
+      const from = s.tr_from_name || holder;
+      const to =
+        s.tr_to_name ||
+        s.hop_meta?.next_hop_name ||
+        routeLabel(s.destination_branch, s.destination_sub_branch, "-");
+      return (
+        <Space direction="vertical" size={2}>
+          <Space size={4} wrap>
+            <Tooltip title="Sending / current branch">
+              <Tag color="blue" style={{ margin: 0, maxWidth: 170 }}>{from}</Tag>
+            </Tooltip>
+            <ArrowRightOutlined style={{ color: "#bfbfbf" }} />
+            <Tooltip title="Receiving branch (next hop)">
+              <Tag color="orange" style={{ margin: 0, maxWidth: 170 }}>{to}</Tag>
+            </Tooltip>
+          </Space>
+          {s.tr_number ? (
+            <Tag color="geekblue" style={{ margin: 0, fontWeight: 600, fontFamily: "monospace" }}>{s.tr_number}</Tag>
+          ) : (
+            <Text type="secondary" style={{ fontSize: 11 }}>No TR yet</Text>
+          )}
+          {holder && holder !== from ? (
+            <Text type="secondary" style={{ fontSize: 11 }}>Now at {holder}</Text>
+          ) : null}
+        </Space>
+      );
+    },
+  };
+  const withHq = (cols) => (hqAll ? [cols[0], branchColumn, ...cols.slice(1)] : cols);
+
   // Outbound columns
-  const outboundColumns = [shipmentColumn, routeColumn, receiverColumn, paymentColumn];
+  const outboundColumns = withHq([shipmentColumn, routeColumn, receiverColumn, paymentColumn]);
 
   // Inbound columns
-  const inboundColumns = [
+  const inboundColumns = withHq([
     shipmentColumn,
     routeColumn,
     receiverColumn,
@@ -2860,7 +2951,7 @@ export default function TransfersPage() {
       title: "",
       key: "actions",
       render: (_, s) =>
-        can?.("transfers.receive") ? (
+        can?.("transfers.receive") && !hqAll ? (
           <Button
             type="primary"
             size="small"
@@ -2872,7 +2963,7 @@ export default function TransfersPage() {
           </Button>
         ) : null,
     },
-  ];
+  ]);
 
   const timelineColumn = {
     title: "Timeline",
@@ -2891,7 +2982,7 @@ export default function TransfersPage() {
   };
 
   // Sent columns: dispatched FROM the branch, any later state
-  const sentColumns = [
+  const sentColumns = withHq([
     shipmentColumn,
     routeColumn,
     {
@@ -2904,10 +2995,10 @@ export default function TransfersPage() {
     currentStatusColumn,
     receiverColumn,
     timelineColumn,
-  ];
+  ]);
 
   // Received columns: arrived AT the branch, any later state
-  const receivedColumns = [
+  const receivedColumns = withHq([
     shipmentColumn,
     routeColumn,
     {
@@ -2925,10 +3016,10 @@ export default function TransfersPage() {
     receiverColumn,
     paymentColumn,
     timelineColumn,
-  ];
+  ]);
 
   // Completed columns
-  const completedColumns = [
+  const completedColumns = withHq([
     shipmentColumn,
     routeColumn,
     {
@@ -2947,10 +3038,10 @@ export default function TransfersPage() {
           "-"
         ),
     },
-  ];
+  ]);
 
   // History columns: the branch's transfer events + current status
-  const historyColumns = [
+  const historyColumns = withHq([
     shipmentColumn,
     routeColumn,
     {
@@ -2965,11 +3056,11 @@ export default function TransfersPage() {
       render: (_, s) => formatDate(s.updated_at),
     },
     timelineColumn,
-  ];
+  ]);
 
   // Row selection for outbound
   const rowSelection =
-    activeTab === "outbound" && can?.("transfers.dispatch")
+    activeTab === "outbound" && can?.("transfers.dispatch") && !hqAll
       ? { selectedRowKeys, onChange: (keys) => setSelectedRowKeys(keys) }
       : undefined;
 
@@ -3102,7 +3193,7 @@ export default function TransfersPage() {
                 selectedNextHopKey={selectedNextHopKey}
                 loading={routesLoading || loading}
                 dispatching={submitting}
-                canDispatch={!!can?.("transfers.dispatch")}
+                canDispatch={!!can?.("transfers.dispatch") && !hqAll}
                 selectedRowKeys={selectedRowKeys}
                 onSelectionChange={setSelectedRowKeys}
                 onSelect={(group) => {
@@ -3130,7 +3221,7 @@ export default function TransfersPage() {
               loading={loading}
               dataSource={displayedOutbound}
               columns={outboundColumns}
-              rowSelection={{
+              rowSelection={hqAll ? undefined : {
                 selectedRowKeys,
                 onChange: setSelectedRowKeys,
                 getCheckboxProps: (record) => {
@@ -3203,7 +3294,7 @@ export default function TransfersPage() {
                 { value: "", label: "All TR statuses" },
                 { value: "open", label: "Open (loading)" },
                 { value: "dispatched,in_transit", label: "On the way" },
-                { value: "partially_received", label: "Partially received" },
+                { value: "partially_received", label: "Received with missing shipments" },
                 { value: "received", label: "Received" },
                 { value: "cancelled", label: "Cancelled" },
               ]}
@@ -3256,9 +3347,9 @@ export default function TransfersPage() {
               highlightId={activeTab === "inbound" ? deepLinkTr : null}
               defaultStatuses="dispatched,in_transit,partially_received"
               statusOptions={[
-                { value: "", label: "Arriving + partially received" },
+                { value: "", label: "Arriving + received with missing" },
                 { value: "dispatched,in_transit", label: "Arriving" },
-                { value: "partially_received", label: "Partially received" },
+                { value: "partially_received", label: "Received with missing shipments" },
               ]}
               emptyText="No TRs arriving"
             />
@@ -3300,8 +3391,8 @@ export default function TransfersPage() {
               direction="inbound_all"
               defaultStatuses="received,partially_received"
               statusOptions={[
-                { value: "", label: "Received + partially received" },
-                { value: "partially_received", label: "Partially received (missing)" },
+                { value: "", label: "Received (all present + with missing)" },
+                { value: "partially_received", label: "Received with missing shipments" },
                 { value: "received", label: "Fully received" },
               ]}
               emptyText="No TRs received yet"
@@ -3403,7 +3494,7 @@ export default function TransfersPage() {
               defaultStatuses="received,partially_received,cancelled"
               statusOptions={[
                 { value: "", label: "Closed TRs (received / partial / cancelled)" },
-                { value: "partially_received", label: "Partially received (missing)" },
+                { value: "partially_received", label: "Received with missing shipments" },
                 { value: "received", label: "Received" },
                 { value: "cancelled", label: "Cancelled" },
                 { value: "all", label: "All TR statuses" },
@@ -3455,7 +3546,7 @@ export default function TransfersPage() {
           <Input
             allowClear
             prefix={<SearchOutlined style={{ color: "#bfbfbf" }} />}
-            placeholder="Search tracking, receiver, phone"
+            placeholder="Search tracking, TR no., receiver, phone"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             style={{ width: 260 }}
@@ -3475,6 +3566,60 @@ export default function TransfersPage() {
         </Space>
       </Card>
 
+      {/* HQ summary strip: counts for the selected scope */}
+      {isHq ? (
+        <Card size="small" style={{ marginBottom: 8, borderRadius: 10 }} styles={{ body: { padding: "8px 12px" } }}>
+          <Row gutter={[16, 8]} align="middle">
+            <Col xs={24} md={5}>
+              <Space direction="vertical" size={0}>
+                <Text type="secondary" style={{ fontSize: 11 }}>Scope</Text>
+                <Space size={4} wrap>
+                  <GlobalOutlined style={{ color: "#1677ff" }} />
+                  <Text strong>{scopeName}</Text>
+                </Space>
+                <Tag color={hqAll ? "default" : "blue"} style={{ margin: 0, marginTop: 2 }}>
+                  {hqAll ? "View only" : "Acting as this branch"}
+                </Tag>
+              </Space>
+            </Col>
+            {[
+              { key: "outbound", title: "Outbound (ready)", value: stats.outbound, color: "#fa8c16" },
+              { key: "open_trs", title: "Open TRs (loading)", value: stats.open_trs ?? 0, color: "#1677ff" },
+              { key: "in_transit", title: "In transit", value: stats.in_transit, color: "#722ed1" },
+              {
+                key: "dispatched_today",
+                title: "TRs sent today",
+                value: stats.dispatched_today ?? 0,
+                suffix: stats.dispatched_today_parcels ? `/ ${stats.dispatched_today_parcels} pcs` : null,
+                color: "#13c2c2",
+              },
+              {
+                key: "received_today",
+                title: "TRs received today",
+                value: stats.received_today ?? 0,
+                suffix: stats.received_today_parcels ? `/ ${stats.received_today_parcels} pcs` : null,
+                color: "#52c41a",
+              },
+            ].map((item) => (
+              <Col key={item.key} xs={12} sm={8} md={{ flex: "1 1 0" }}>
+                <Statistic
+                  title={<Text type="secondary" style={{ fontSize: 11 }}>{item.title}</Text>}
+                  value={item.value}
+                  suffix={item.suffix ? <span style={{ fontSize: 12, color: "#8c8c8c" }}>{item.suffix}</span> : null}
+                  loading={statsLoading}
+                  valueStyle={{ fontSize: 20, fontWeight: 600, color: item.color }}
+                />
+              </Col>
+            ))}
+          </Row>
+          {hqAll ? (
+            <Text type="secondary" style={{ fontSize: 11, display: "block", marginTop: 4 }}>
+              Viewing every branch. Outbound is grouped by sending branch and next hop. Pick a branch to create, dispatch or receive TRs as that branch.
+            </Text>
+          ) : null}
+        </Card>
+      ) : null}
+
       {/* Filters Row */}
       <Row justify="space-between" align="middle" style={{ marginBottom: 12 }} gutter={[12, 12]}>
         <Col>
@@ -3489,7 +3634,26 @@ export default function TransfersPage() {
         </Col>
         <Col>
           {/* Branch Selector (for Admin users to override branch scope) */}
-          {branches.length > 0 && (
+          {isHq ? (
+            <Space size={6}>
+              <Text strong style={{ fontSize: 12 }}>Branch</Text>
+              <Select
+                value={selectedBranchId ?? "all"}
+                onChange={(value) => setSelectedBranchId(!value || value === "all" ? null : value)}
+                style={{ width: 280 }}
+                showSearch
+                optionFilterProp="label"
+                loading={branchesLoading}
+                options={[
+                  { value: "all", label: "All branches" },
+                  ...branches.map((branch) => ({
+                    value: branch.id,
+                    label: `${branch.name} (${branch.code || branch.id})`,
+                  })),
+                ]}
+              />
+            </Space>
+          ) : branches.length > 0 && (
             <Select
               value={selectedBranchId}
               onChange={(value) => setSelectedBranchId(value || null)}
@@ -3546,7 +3710,7 @@ export default function TransfersPage() {
       </Row>
 
       {/* Bulk Action Bar (Outbound) */}
-      {activeTab === "outbound" && can?.("transfers.dispatch") && selectedRowKeys.length > 0 && (
+      {activeTab === "outbound" && can?.("transfers.dispatch") && !hqAll && selectedRowKeys.length > 0 && (
         <div
           style={{
             display: "flex",

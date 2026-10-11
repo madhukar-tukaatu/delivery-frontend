@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Card, Col, Empty, Input, Modal, Pagination, Row, Select, Space, Spin, Tag, Tooltip, Typography, message } from "antd";
+import { Alert, Card, Col, Empty, Input, Modal, Pagination, Row, Select, Space, Spin, Tag, Tooltip, Typography, message } from "antd";
 import { ArrowRightOutlined, BarcodeOutlined, CarOutlined, SearchOutlined, StopOutlined } from "@ant-design/icons";
 import { cancelContainer, getContainers, lookupContainer } from "@/services/admin/transferService";
 import TransferReceiveScanner, { SealTag, TrStatusTag, TR_STATUS_META } from "@/components/admin/transfers/TransferReceiveScanner";
@@ -70,7 +70,10 @@ function TrCard({ c, selected, direction, onClick }) {
       style={{
         cursor: "pointer",
         borderRadius: 8,
-        border: `1px solid ${selected ? accent.border : "#f0f0f0"}`,
+        // Separate sides (no border/borderLeft shorthand clash on re-render).
+        borderTop: `1px solid ${selected ? accent.border : "#f0f0f0"}`,
+        borderRight: `1px solid ${selected ? accent.border : "#f0f0f0"}`,
+        borderBottom: `1px solid ${selected ? accent.border : "#f0f0f0"}`,
         borderLeft: `4px solid ${accent.border}`,
         background: selected ? accent.selectedBg : "#fff",
         boxShadow: selected ? `0 0 0 1px ${accent.border}33` : "none",
@@ -87,7 +90,7 @@ function TrCard({ c, selected, direction, onClick }) {
         <div style={{ flex: 1, minWidth: 0 }}>
           <Space size={4} wrap style={{ marginBottom: 2 }}>
             <Text strong style={{ fontSize: 13 }}>{c.display_number}</Text>
-            <TrStatusTag status={c.status} />
+            <TrStatusTag status={c.status} missing={c.missing_count} />
             <SealTag c={c} />
           </Space>
           <div style={{ fontSize: 12 }}>
@@ -171,22 +174,32 @@ export default function TransferContainerBoard({
   const [total, setTotal] = useState(0);
   const [status, setStatus] = useState("");
   const [trSearch, setTrSearch] = useState("");
-  const [selected, setSelected] = useState(() => (highlightId ? { id: Number(highlightId) } : readSaved(storageKey)));
+  // Start empty on server and client (no hydration mismatch); the remembered TR is restored after mount.
+  // pinned = opened on purpose (deep link / typed number): kept even when not in the current list page.
+  const [selected, setSelected] = useState(() => (highlightId ? { id: Number(highlightId), pinned: true } : null));
   const [localReload, setLocalReload] = useState(0);
   const [detailKey, setDetailKey] = useState(0);
   const [scanCode, setScanCode] = useState("");
   const [looking, setLooking] = useState(false);
+  const [lookupError, setLookupError] = useState("");
   const scanRef = useRef(null);
   const params = useMemo(() => (branchId ? { branch_id: branchId } : {}), [branchId]);
 
   useEffect(() => {
-    if (highlightId) setSelected({ id: Number(highlightId) });
+    if (highlightId) setSelected({ id: Number(highlightId), pinned: true });
   }, [highlightId]);
+
+  // Restore the remembered TR of this tab (runs before the first list load resolves).
+  useEffect(() => {
+    if (highlightId) return;
+    const saved = readSaved(storageKey);
+    if (saved) setSelected((cur) => cur || { id: saved.id, status: saved.status });
+  }, [storageKey, highlightId]);
 
   useEffect(() => {
     if (!storageKey || typeof window === "undefined") return;
     try {
-      if (selected?.id) window.sessionStorage.setItem(storageKey, JSON.stringify(selected));
+      if (selected?.id) window.sessionStorage.setItem(storageKey, JSON.stringify({ id: selected.id, status: selected.status }));
       else window.sessionStorage.removeItem(storageKey);
     } catch {
       // storage unavailable
@@ -215,12 +228,12 @@ export default function TransferContainerBoard({
         setRows(list);
         setTotal(Number(res.total || 0));
         setPage(res.currentPage || p);
-        // Keep the remembered TR; otherwise pick the first one.
+        // Keep the remembered TR when it is in this list (or was opened on purpose);
+        // otherwise open the first TR so its receive / detail shows right away.
         setSelected((cur) => {
-          if (cur?.id) {
-            const hit = list.find((c) => Number(c.id) === Number(cur.id));
-            return hit ? { id: hit.id, status: hit.status } : cur;
-          }
+          const hit = cur?.id ? list.find((c) => Number(c.id) === Number(cur.id)) : null;
+          if (hit) return { id: hit.id, status: hit.status, pinned: cur.pinned };
+          if (cur?.pinned) return cur;
           return list[0] ? { id: list[0].id, status: list[0].status } : null;
         });
       } catch (e) {
@@ -248,23 +261,32 @@ export default function TransferContainerBoard({
     setDetailKey((k) => k + 1);
   };
 
+  // Typed or scanned TR number; the server accepts TR-000004, 4, 000004, tr-4 ...
   const onScanLookup = async () => {
     const code = scanCode.trim();
-    if (!code) return;
+    if (!code) {
+      setLookupError("Type the TR number from the bag label, e.g. TR-000004 or just 4.");
+      return;
+    }
     setLooking(true);
+    setLookupError("");
     try {
       const data = await lookupContainer(code, params);
       if (!data?.id) throw new Error("TR not found");
-      setSelected({ id: data.id, status: data.status });
+      setSelected({ id: data.id, status: data.status, pinned: true });
       setDetailKey((k) => k + 1);
       setScanCode("");
       message.success(`${data.display_number} opened`);
     } catch (e) {
-      message.error(e?.response?.data?.message || e?.message || "TR not found");
-      setScanCode("");
+      // Keep the typed text so it can be corrected.
+      setLookupError(e?.response?.data?.message || e?.message || "TR not found");
     } finally {
       setLooking(false);
-      setTimeout(() => scanRef.current?.focus?.(), 50);
+      // Focus and select: the next barcode scan replaces the text, typing still works.
+      setTimeout(() => {
+        scanRef.current?.focus?.();
+        scanRef.current?.select?.();
+      }, 50);
     }
   };
 
@@ -315,14 +337,22 @@ export default function TransferContainerBoard({
             <Input.Search
               ref={scanRef}
               prefix={<BarcodeOutlined />}
-              placeholder="Scan TR label (e.g. TR-000001)"
+              size="small"
+              placeholder="Optional: scan TR label or type its number (e.g. 4)"
               value={scanCode}
-              onChange={(e) => setScanCode(e.target.value)}
+              onChange={(e) => {
+                setScanCode(e.target.value);
+                if (lookupError) setLookupError("");
+              }}
               onSearch={onScanLookup}
               loading={looking}
+              status={lookupError ? "error" : undefined}
               enterButton="Open"
               allowClear
             />
+          ) : null}
+          {scanLookup && canReceive && lookupError ? (
+            <Alert type="error" showIcon style={{ padding: "4px 8px" }} message={lookupError} />
           ) : null}
           <Space.Compact style={{ width: "100%" }}>
             <Input
