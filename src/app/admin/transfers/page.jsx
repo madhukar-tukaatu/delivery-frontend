@@ -1899,9 +1899,7 @@ function GroupedOutboundView({ rows, selectedRowKeys, onSelectionChange, loading
                   ]}
                   dataSource={group.shipments}
                   scroll={{ x: 800 }}
-                  locale={{
-                    emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="No shipments in this group" />,
-                  }}
+                  locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="No shipments in this group" /> }}
                   pagination={false}
                 />
               </div>
@@ -1929,8 +1927,25 @@ export default function TransfersPage() {
   // HQ (super admin / main admin / admin) sees every branch's transfers.
   const isHq = !!isSuperAdmin || (roles || []).includes("main_admin");
 
-  // Tab management
-  const [activeTab, setActiveTab] = useState("outbound");
+  // Tab management - New structure: Transfer Ins / Transfer Outs / History with sub-tabs
+  const [activeParentTab, setActiveParentTab] = useState("transferOut"); // "transferIn", "transferOut", "history"
+  const [activeSubTab, setActiveSubTab] = useState("process"); // "process", "received", "completed"
+  
+  // Map parent tab + sub tab to the actual data tab
+  const getActiveTab = useCallback(() => {
+    switch (activeParentTab) {
+      case "transferIn":
+        return activeSubTab === "received" ? "received" : "inbound";
+      case "transferOut":
+        return activeSubTab === "completed" ? "completed" : "outbound";
+      case "history":
+        return "history";
+      default:
+        return "outbound";
+    }
+  }, [activeParentTab, activeSubTab]);
+  
+  const activeTab = getActiveTab();
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [dateRange, setDateRange] = useState([]);
@@ -1997,15 +2012,71 @@ export default function TransfersPage() {
     const sp = new URLSearchParams(window.location.search);
     const tab = sp.get("tab");
     const tr = Number(sp.get("tr") || 0);
-    const TABS = ["outbound", "sent", "inbound", "received", "completed", "history"];
+    const OLD_TABS = ["outbound", "sent", "inbound", "received", "completed", "history"];
     let last = null;
     try {
       last = window.sessionStorage.getItem("transfers:last-tab");
     } catch {
       last = null;
     }
-    if (tab && TABS.includes(tab)) setActiveTab(tab);
-    else if (last && TABS.includes(last)) setActiveTab(last);
+    
+    // Map old tab names to new parent/sub-tab structure
+    if (tab && OLD_TABS.includes(tab)) {
+      switch (tab) {
+        case "outbound":
+          setActiveParentTab("transferOut");
+          setActiveSubTab("process");
+          break;
+        case "sent":
+          setActiveParentTab("transferOut");
+          setActiveSubTab("completed");
+          break;
+        case "inbound":
+          setActiveParentTab("transferIn");
+          setActiveSubTab("process");
+          break;
+        case "received":
+          setActiveParentTab("transferIn");
+          setActiveSubTab("received");
+          break;
+        case "completed":
+          setActiveParentTab("transferOut");
+          setActiveSubTab("completed");
+          break;
+        case "history":
+          setActiveParentTab("history");
+          setActiveSubTab("process"); // default sub-tab for history
+          break;
+      }
+    } else if (last && OLD_TABS.includes(last)) {
+      // Fallback to last tab
+      switch (last) {
+        case "outbound":
+          setActiveParentTab("transferOut");
+          setActiveSubTab("process");
+          break;
+        case "sent":
+          setActiveParentTab("transferOut");
+          setActiveSubTab("completed");
+          break;
+        case "inbound":
+          setActiveParentTab("transferIn");
+          setActiveSubTab("process");
+          break;
+        case "received":
+          setActiveParentTab("transferIn");
+          setActiveSubTab("received");
+          break;
+        case "completed":
+          setActiveParentTab("transferOut");
+          setActiveSubTab("completed");
+          break;
+        case "history":
+          setActiveParentTab("history");
+          setActiveSubTab("process");
+          break;
+      }
+    }
     // The TR board of that tab selects the TR (receive flow opens in its detail).
     if (tr > 0) setDeepLinkTr(tr);
   }, []);
@@ -2014,11 +2085,12 @@ export default function TransfersPage() {
   useEffect(() => {
     if (typeof window === "undefined") return;
     try {
-      window.sessionStorage.setItem("transfers:last-tab", activeTab);
+      const lastTab = getActiveTab();
+      window.sessionStorage.setItem("transfers:last-tab", lastTab);
     } catch {
       // storage unavailable
     }
-  }, [activeTab]);
+  }, [activeParentTab, activeSubTab]);
 
   // Configured transfer route selection (required for outbound dispatch)
   const [availableRoutes, setAvailableRoutes] = useState([]);
@@ -2148,7 +2220,8 @@ export default function TransfersPage() {
   // Auto-select first next-hop with shipments when none selected (ops speed).
   // Also refresh the selected hop object after outbound reload.
   useEffect(() => {
-    if (viewMode !== "next_hop" || activeTab !== "outbound") return;
+    // Only apply to Transfer Outs -> Process tab
+    if (viewMode !== "next_hop" || activeParentTab !== "transferOut" || activeSubTab !== "process") return;
     // Shipment-driven groups only (no empty catalog seeds) so tab switches
     // cannot reselect / re-show empty hops.
     const groups = buildNextHopGroups(availableRoutes, outboundRows);
@@ -2178,7 +2251,7 @@ export default function TransfersPage() {
     setSelectedNextHopKey(first.key);
     setSelectedNextHop(first);
     setSelectedRowKeys(first.shipmentIds || []);
-  }, [outboundRows, availableRoutes, viewMode, activeTab, selectedNextHopKey]);
+  }, [outboundRows, availableRoutes, viewMode, activeParentTab, activeSubTab, selectedNextHopKey]);
 
   // Load outbound (optionally filtered by selected transfer route)
   const loadOutbound = useCallback(async (page = 1, pageSize = 20) => {
@@ -2427,7 +2500,9 @@ export default function TransfersPage() {
   const pageSizeNow = pagination.pageSize;
   const loadData = useCallback(async () => {
     setSelectedRowKeys([]);
-    switch (activeTab) {
+    // Map parent/sub tabs to actual data tabs
+    const actualTab = getActiveTab();
+    switch (actualTab) {
       case "outbound":
         await loadOutbound(pageCurrent, pageSizeNow);
         break;
@@ -2449,7 +2524,7 @@ export default function TransfersPage() {
       default:
         break;
     }
-  }, [activeTab, pageCurrent, pageSizeNow, loadOutbound, loadSent, loadInbound, loadReceived, loadCompleted, loadHistory]);
+  }, [activeParentTab, activeSubTab, pageCurrent, pageSizeNow, loadOutbound, loadSent, loadInbound, loadReceived, loadCompleted, loadHistory]);
 
   // Latest loadData for effects that must run only on their own triggers
   // (loadData changes after every page load; depending on it would loop).
@@ -2494,19 +2569,20 @@ export default function TransfersPage() {
   }, [serviceTypeFilter]);
 
   // Reload outbound when the selected transfer route changes
+  // Only applies to Transfer Outs -> Process tab
   useEffect(() => {
-    if (activeTab !== "outbound") return;
+    if (activeParentTab !== "transferOut" || activeSubTab !== "process") return;
     setPagination((p) => ({ ...p, current: 1 }));
     loadOutbound(1, pagination.pageSize);
     setSelectedRowKeys([]);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedTransferRouteId]);
+  }, [activeParentTab, activeSubTab, selectedTransferRouteId]);
 
   // Reload data when tab or search changes
   useEffect(() => {
     setPagination((p) => ({ ...p, current: 1 }));
     loadDataRef.current();
-  }, [activeTab, debouncedSearch]);
+  }, [activeParentTab, activeSubTab, debouncedSearch]);
 
   // Reload the open tab when the branch or a history filter changes
   // (skipped on first render: the tab/search effect above already loads).
@@ -3058,15 +3134,17 @@ export default function TransfersPage() {
     timelineColumn,
   ]);
 
-  // Row selection for outbound
+  // Row selection for outbound (only in Transfer Outs -> Process tab)
   const rowSelection =
-    activeTab === "outbound" && can?.("transfers.dispatch") && !hqAll
+    activeParentTab === "transferOut" && activeSubTab === "process" && can?.("transfers.dispatch") && !hqAll
       ? { selectedRowKeys, onChange: (keys) => setSelectedRowKeys(keys) }
       : undefined;
 
   // Get current data and columns based on tab
   const getCurrentData = () => {
-    switch (activeTab) {
+    // Map parent/sub tabs to actual data tabs
+    const actualTab = getActiveTab();
+    switch (actualTab) {
       case "outbound":
         return { rows: outboundRows, columns: outboundColumns, count: stats.outbound };
       case "sent":
@@ -3086,389 +3164,363 @@ export default function TransfersPage() {
 
   const { rows: currentRows, columns: currentColumns, count: currentCount } = getCurrentData();
 
-  // Tab items configuration
+  // Tab items configuration - New structure: Transfer Ins / Transfer Outs / History
   const tabItems = [
     {
-      key: "outbound",
+      key: "transferIn",
       label: (
         <span>
-          <SendOutlined /> Outbound ({stats.outbound})
+          <InboxOutlined /> Transfer Ins
         </span>
       ),
       children: (
-        <Card styles={{ body: { padding: 0 } }} style={{ borderRadius: 10 }}>
-          <TabGuide
-            type="info"
-            message="One TR per trip: every parcel whose NEXT hop is the same branch (last mile there + onward beyond it, any service) goes on one TR with the vehicle, rider and trip cost. The next branch checks the TR in and sorts it automatically."
-          />
-
-          <Card size="small" style={{ margin: 8, borderRadius: 8 }} styles={{ body: { padding: 10 } }}>
-            <Space direction="vertical" size={8} style={{ width: "100%" }}>
-              <Space wrap size={[8, 6]} style={{ width: "100%", justifyContent: "space-between" }}>
-                <Space wrap size={6}>
-                  <Text strong style={{ fontSize: 12 }}>Service</Text>
-                  <Select
-                    size="small"
-                    value={serviceTypeFilter}
-                    onChange={setServiceTypeFilter}
-                    style={{ minWidth: 130 }}
-                    options={[
-                      { value: "all", label: "All services" },
-                      { value: "standard", label: "Standard" },
-                      { value: "express", label: "Express" },
-                      { value: "same_day", label: "Same day" },
-                      { value: "flight", label: "Flight" },
-                    ]}
+        <Tabs
+          activeKey={activeSubTab}
+          onChange={setActiveSubTab}
+          items={[
+            {
+              key: "process",
+              label: (
+                <span>
+                  <CarOutlined /> Process ({stats.in_transit})
+                </span>
+              ),
+              children: (
+                <Card styles={{ body: { padding: 0 } }} style={{ borderRadius: 14 }}>
+                  <TabGuide
+                    type="info"
+                    message="TRs arriving at this branch. Scan the TR label (or pick a TR), check the seal, scan or tick the parcels that came, then Confirm receive: last-mile parcels are sorted for delivery here, onward parcels move to Outbound for your next TR, and unticked parcels are flagged missing."
                   />
-                  <Text strong style={{ fontSize: 12 }}>View</Text>
-                  <Select
-                    size="small"
-                    value={viewMode}
-                    onChange={(v) => {
-                      setViewMode(v);
-                      setSelectedNextHopKey(null);
-                      setSelectedNextHop(null);
-                      if (v === "next_hop") setSelectedTransferRouteId(null);
-                    }}
-                    style={{ minWidth: 160 }}
-                    options={[
-                      { value: "next_hop", label: "By next hop" },
-                      { value: "grouped", label: "By route" },
-                      { value: "flat", label: "Flat list" },
-                    ]}
+                  {viewToggle(inboundView, setInboundView, "Single parcels")}
+                  {inboundView === "tr" ? (
+                    <TransferContainerBoard
+                      {...trBoardProps}
+                      tabKey="inbound"
+                      direction="inbound"
+                      scanLookup
+                      highlightId={activeParentTab === "transferIn" && activeSubTab === "process" ? deepLinkTr : null}
+                      defaultStatuses="dispatched,in_transit,partially_received"
+                      statusOptions={[
+                        { value: "", label: "Arriving + received with missing" },
+                        { value: "dispatched,in_transit", label: "Arriving" },
+                        { value: "partially_received", label: "Received with missing shipments" },
+                      ]}
+                      emptyText="No TRs arriving"
+                    />
+                  ) : (
+                  <Table
+                    rowKey="id"
+                    size="middle"
+                    loading={loading && activeParentTab === "transferIn" && activeSubTab === "process"}
+                    columns={currentColumns}
+                    dataSource={currentRows}
+                    scroll={{ x: 900 }}
+                    locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Nothing arriving" /> }}
+                    pagination={{ pageSize: 20 }}
                   />
-                  <Badge
-                    count={viewMode === "next_hop" ? undefined : routesForCards.length}
-                    overflowCount={999}
-                    style={{ backgroundColor: "#1677ff" }}
-                    title="Routes from this branch"
-                  />
-                  <Button size="small" icon={<ReloadOutlined />} onClick={loadAvailableRoutes} loading={routesLoading}>
-                    Refresh
-                  </Button>
-                </Space>
-              </Space>
-
-              {viewMode === "next_hop" ? null : (
-                <RoutePickerCards
-                  routes={routesForCards}
-                  shipments={outboundRows}
-                  selectedRouteId={selectedTransferRouteId}
-                  onSelect={(id) => {
-                    setSelectedTransferRouteId(id);
-                    setSelectedNextHopKey(null);
-                    setSelectedNextHop(null);
-                  }}
-                  loading={routesLoading}
-                  serviceTypeFilter={serviceTypeFilter}
-                />
-              )}
-
-              {unmatchedOutbound.length > 0 && (
-                <UnmatchedParcelsAlert
-                  unmatched={unmatchedOutbound}
-                  hasMatchedHops={outboundRows.some((s) =>
-                    Number(resolveShipmentNextHop(s, availableRoutes)?.id || 0) > 0
                   )}
-                />
-              )}
+                </Card>
+              ),
+            },
+            {
+              key: "received",
+              label: (
+                <span>
+                  <InboxOutlined /> Received ({stats.received})
+                </span>
+              ),
+              children: (
+                <Card styles={{ body: { padding: 0 } }} style={{ borderRadius: 14 }}>
+                  <TabGuide
+                    type="success"
+                    message="TRs checked in at this branch with their counts and seal result; resolve missing parcels (Found / Lost) from the TR. By parcel shows each received parcel's current status: sorted, assigned to rider, out for delivery, delivered."
+                  />
+                  {viewToggle(receivedView, setReceivedView)}
+                  {receivedView === "tr" ? (
+                    <TransferContainerBoard
+                      {...trBoardProps}
+                      tabKey="received"
+                      direction="inbound_all"
+                      highlightId={activeParentTab === "transferIn" && activeSubTab === "received" ? deepLinkTr : null}
+                      defaultStatuses="received,partially_received"
+                      statusOptions={[
+                        { value: "", label: "Received (all present + with missing)" },
+                        { value: "partially_received", label: "Received with missing shipments" },
+                        { value: "received", label: "Fully received" },
+                      ]}
+                      emptyText="No TRs received yet"
+                    />
+                  ) : (
+                  <Table
+                    rowKey="id"
+                    size="middle"
+                    loading={loading && activeParentTab === "transferIn" && activeSubTab === "received"}
+                    columns={currentColumns}
+                    dataSource={currentRows}
+                    scroll={{ x: 1100 }}
+                    locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="No received transfers" /> }}
+                    pagination={{
+                      current: pagination.current,
+                      pageSize: pagination.pageSize,
+                      total: currentCount,
+                      showSizeChanger: true,
+                      showTotal: (t) => `${t} transfer${t === 1 ? "" : "s"}`,
+                      onChange: (p, ps) => loadReceived(p, ps),
+                    }}
+                  />
+                  )}
+                </Card>
+              ),
+            },
+          ]}
+        />
+      ),
+    },
+    {
+      key: "transferOut",
+      label: (
+        <span>
+          <SendOutlined /> Transfer Outs
+        </span>
+      ),
+      children: (
+        <Tabs
+          activeKey={activeSubTab}
+          onChange={setActiveSubTab}
+          items={[
+            {
+              key: "process",
+              label: (
+                <span>
+                  <SendOutlined /> Process ({stats.outbound})
+                </span>
+              ),
+              children: (
+                <Card styles={{ body: { padding: 0 } }} style={{ borderRadius: 10 }}>
+                  <TabGuide
+                    type="info"
+                    message="One TR per trip: every parcel whose NEXT hop is the same branch (last mile there + onward beyond it, any service) goes on one TR with the vehicle, rider and trip cost. The next branch checks the TR in and sorts it automatically."
+                  />
 
-              {viewMode !== "next_hop" ? (
-                selectedTransferRouteId ? (
-                  <Tag color="blue" style={{ margin: 0 }}>
-                    Filtering / dispatch locked to route #{selectedTransferRouteId}
-                  </Tag>
-                ) : (
-                  <Tag color="orange" style={{ margin: 0 }}>Select a route card before dispatching</Tag>
-                )
-              ) : null}
-            </Space>
-          </Card>
+                  <Card size="small" style={{ margin: 8, borderRadius: 8 }} styles={{ body: { padding: 10 } }}>
+                    <Space direction="vertical" size={8} style={{ width: "100%" }}>
+                      <Space wrap size={[8, 6]} style={{ width: "100%", justifyContent: "space-between" }}>
+                        <Space wrap size={6}>
+                          <Text strong style={{ fontSize: 12 }}>Service</Text>
+                          <Select
+                            size="small"
+                            value={serviceTypeFilter}
+                            onChange={setServiceTypeFilter}
+                            style={{ minWidth: 130 }}
+                            options={[
+                              { value: "all", label: "All services" },
+                              { value: "standard", label: "Standard" },
+                              { value: "express", label: "Express" },
+                              { value: "same_day", label: "Same day" },
+                              { value: "flight", label: "Flight" },
+                            ]}
+                          />
+                          <Text strong style={{ fontSize: 12 }}>View</Text>
+                          <Select
+                            size="small"
+                            value={viewMode}
+                            onChange={(v) => {
+                              setViewMode(v);
+                              setSelectedNextHopKey(null);
+                              setSelectedNextHop(null);
+                              if (v === "next_hop") setSelectedTransferRouteId(null);
+                            }}
+                            style={{ minWidth: 160 }}
+                            options={[
+                              { value: "next_hop", label: "By next hop" },
+                              { value: "grouped", label: "By route" },
+                              { value: "flat", label: "Flat list" },
+                            ]}
+                          />
+                          <Badge
+                            count={viewMode === "next_hop" ? undefined : routesForCards.length}
+                            overflowCount={999}
+                            style={{ backgroundColor: "#1677ff" }}
+                            title="Routes from this branch"
+                          />
+                          <Button size="small" icon={<ReloadOutlined />} onClick={loadAvailableRoutes} loading={routesLoading}>
+                            Refresh
+                          </Button>
+                        </Space>
+                      </Space>
 
-          {viewMode === "next_hop" ? (
-            <div style={{ padding: "0 8px 8px" }}>
-              <NextHopMasterDetail
-                routes={routesForCards}
-                shipments={outboundRows}
-                selectedNextHopKey={selectedNextHopKey}
-                loading={routesLoading || loading}
-                dispatching={submitting}
-                canDispatch={!!can?.("transfers.dispatch") && !hqAll}
-                selectedRowKeys={selectedRowKeys}
-                onSelectionChange={setSelectedRowKeys}
-                onSelect={(group) => {
-                  if (!group) {
-                    setSelectedNextHopKey(null);
-                    setSelectedNextHop(null);
-                    setSelectedRowKeys([]);
-                    return;
-                  }
-                  setSelectedNextHopKey(group.key);
-                  setSelectedNextHop(group);
-                  setSelectedTransferRouteId(null);
-                  setSelectedRowKeys(group.shipmentIds || []);
-                }}
-                onDispatch={(group) => handleDispatchNextHop(group)}
-                openTrByHop={openTrByHop}
-                onAddToOpen={handleAddToOpen}
-                onManageOpen={(tr) => setTrManager({ open: true, id: tr.id })}
-              />
-            </div>
-          ) : viewMode === "flat" ? (
-            <Table
-              rowKey="id"
-              size="small"
-              loading={loading}
-              dataSource={displayedOutbound}
-              columns={outboundColumns}
-              rowSelection={hqAll ? undefined : {
-                selectedRowKeys,
-                onChange: setSelectedRowKeys,
-                getCheckboxProps: (record) => {
-                  if (!selectedTransferRouteId) {
-                    return { disabled: true, title: "Select a transfer route first" };
-                  }
-                  const route = availableRoutes.find(
-                    (r) => Number(r.route_id ?? r.id) === Number(selectedTransferRouteId)
-                  );
-                  const ok = route ? shipmentMatchesRoute(record, route) : false;
-                  return {
-                    disabled: !ok,
-                    title: ok ? undefined : "Parcel does not match selected route / service",
-                  };
-                },
-              }}
-              pagination={{
-                current: pagination.current,
-                pageSize: pagination.pageSize,
-                total: pagination.total,
-                showSizeChanger: true,
-                onChange: (page, pageSize) => loadOutbound(page, pageSize),
-              }}
-              scroll={{ x: 1100 }}
-            />
-          ) : (
-            <GroupedOutboundView
-              rows={displayedOutbound}
-              selectedRowKeys={selectedRowKeys}
-              onSelectionChange={setSelectedRowKeys}
-              loading={loading}
-              pagination={{
-                current: pagination.current,
-                pageSize: pagination.pageSize,
-                total: pagination.total,
-                onChange: (page, pageSize) => loadOutbound(page, pageSize),
-              }}
-              onDispatchGroup={(group) => {
-                const routeId = group?.route?.id || group?.route?.route_id;
-                if (routeId) setSelectedTransferRouteId(Number(routeId));
-                const ids = (group?.shipments || []).map((s) => s.id);
-                setSelectedRowKeys(ids);
-              }}
-            />
-          )}
-        </Card>
-      ),
+                      {viewMode === "next_hop" ? null : (
+                        <RoutePickerCards
+                          routes={routesForCards}
+                          shipments={outboundRows}
+                          selectedRouteId={selectedTransferRouteId}
+                          onSelect={(id) => {
+                            setSelectedTransferRouteId(id);
+                            setSelectedNextHopKey(null);
+                            setSelectedNextHop(null);
+                          }}
+                          loading={routesLoading}
+                          serviceTypeFilter={serviceTypeFilter}
+                        />
+                      )}
 
-    },
-    {
-      key: "sent",
-      label: (
-        <span>
-          <SendOutlined /> Sent ({stats.sent ?? 0})
-        </span>
-      ),
-      children: (
-        <Card styles={{ body: { padding: 0 } }} style={{ borderRadius: 14 }}>
-          <TabGuide
-            type="info"
-            message="TRs this branch sent, one card per trip. Select a TR: open TRs (loaded, not yet sent) can be edited (add / remove parcels), dispatched or cancelled; sent TRs show the receiving branch's check-in (received / missing / extra) and seal result. Print the bag label or manifest from any TR."
-          />
-          {viewToggle(sentView, setSentView)}
-          {sentView === "tr" ? (
-            <TransferContainerBoard
-              {...trBoardProps}
-              tabKey="sent"
-              direction="outbound"
-              statusOptions={[
-                { value: "", label: "All TR statuses" },
-                { value: "open", label: "Open (loading)" },
-                { value: "dispatched,in_transit", label: "On the way" },
-                { value: "partially_received", label: "Received with missing shipments" },
-                { value: "received", label: "Received" },
-                { value: "cancelled", label: "Cancelled" },
-              ]}
-              emptyText="No TRs sent from this branch"
-            />
-          ) : (
-          <Table
-            rowKey="id"
-            size="middle"
-            loading={loading && activeTab === "sent"}
-            columns={currentColumns}
-            dataSource={currentRows}
-            scroll={{ x: 1100 }}
-            locale={{
-              emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Nothing sent from this branch" />,
-            }}
-            pagination={{
-              current: pagination.current,
-              pageSize: pagination.pageSize,
-              total: currentCount,
-              showSizeChanger: true,
-              showTotal: (t) => `${t} transfer${t === 1 ? "" : "s"}`,
-              onChange: (p, ps) => loadSent(p, ps),
-            }}
-          />
-          )}
-        </Card>
-      ),
-    },
-    {
-      key: "inbound",
-      label: (
-        <span>
-          <CarOutlined /> In Transit ({stats.in_transit})
-        </span>
-      ),
-      children: (
-        <Card styles={{ body: { padding: 0 } }} style={{ borderRadius: 14 }}>
-          <TabGuide
-            type="info"
-            message="TRs arriving at this branch. Scan the TR label (or pick a TR), check the seal, scan or tick the parcels that came, then Confirm receive: last-mile parcels are sorted for delivery here, onward parcels move to Outbound for your next TR, and unticked parcels are flagged missing."
-          />
-          {viewToggle(inboundView, setInboundView, "Single parcels")}
-          {inboundView === "tr" ? (
-            <TransferContainerBoard
-              {...trBoardProps}
-              tabKey="inbound"
-              direction="inbound"
-              scanLookup
-              highlightId={activeTab === "inbound" ? deepLinkTr : null}
-              defaultStatuses="dispatched,in_transit,partially_received"
-              statusOptions={[
-                { value: "", label: "Arriving + received with missing" },
-                { value: "dispatched,in_transit", label: "Arriving" },
-                { value: "partially_received", label: "Received with missing shipments" },
-              ]}
-              emptyText="No TRs arriving"
-            />
-          ) : (
-          <Table
-            rowKey="id"
-            size="middle"
-            loading={loading && activeTab === "inbound"}
-            columns={currentColumns}
-            dataSource={currentRows}
-            scroll={{ x: 900 }}
-            locale={{
-              emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Nothing arriving" />,
-            }}
-            pagination={{ pageSize: 20 }}
-          />
-          )}
-        </Card>
-      ),
-    },
-    {
-      key: "received",
-      label: (
-        <span>
-          <InboxOutlined /> Received ({stats.received})
-        </span>
-      ),
-      children: (
-        <Card styles={{ body: { padding: 0 } }} style={{ borderRadius: 14 }}>
-          <TabGuide
-            type="success"
-            message="TRs checked in at this branch with their counts and seal result; resolve missing parcels (Found / Lost) from the TR. By parcel shows each received parcel's current status: sorted, assigned to rider, out for delivery, delivered."
-          />
-          {viewToggle(receivedView, setReceivedView)}
-          {receivedView === "tr" ? (
-            <TransferContainerBoard
-              {...trBoardProps}
-              tabKey="received"
-              direction="inbound_all"
-              defaultStatuses="received,partially_received"
-              statusOptions={[
-                { value: "", label: "Received (all present + with missing)" },
-                { value: "partially_received", label: "Received with missing shipments" },
-                { value: "received", label: "Fully received" },
-              ]}
-              emptyText="No TRs received yet"
-            />
-          ) : (
-          <Table
-            rowKey="id"
-            size="middle"
-            loading={loading && activeTab === "received"}
-            columns={currentColumns}
-            dataSource={currentRows}
-            scroll={{ x: 1100 }}
-            locale={{
-              emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="No received transfers" />,
-            }}
-            pagination={{
-              current: pagination.current,
-              pageSize: pagination.pageSize,
-              total: currentCount,
-              showSizeChanger: true,
-              showTotal: (t) => `${t} transfer${t === 1 ? "" : "s"}`,
-              onChange: (p, ps) => loadReceived(p, ps),
-            }}
-          />
-          )}
-        </Card>
-      ),
-    },
-    {
-      key: "completed",
-      label: (
-        <span>
-          <CheckCircleOutlined /> Completed ({stats.completed})
-        </span>
-      ),
-      children: (
-        <Card styles={{ body: { padding: 0 } }} style={{ borderRadius: 14 }}>
-          <TabGuide
-            type="success"
-            message="Completed TRs (every parcel checked in at the next hop), sent or received by this branch. By parcel lists cross-branch transfers delivered to the customer."
-          />
-          {viewToggle(completedView, setCompletedView, "Delivered parcels")}
-          {completedView === "tr" ? (
-            <TransferContainerBoard
-              {...trBoardProps}
-              tabKey="completed"
-              direction="all"
-              defaultStatuses="received"
-              statusOptions={[{ value: "", label: "Fully received TRs" }]}
-              emptyText="No completed TRs"
-            />
-          ) : (
-          <Table
-            rowKey="id"
-            size="middle"
-            loading={loading && activeTab === "completed"}
-            columns={currentColumns}
-            dataSource={currentRows}
-            scroll={{ x: 900 }}
-            locale={{
-              emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="No completed transfers" />,
-            }}
-            pagination={{
-              current: pagination.current,
-              pageSize: pagination.pageSize,
-              total: currentCount,
-              showSizeChanger: true,
-              showTotal: (t) => `${t} transfer${t === 1 ? "" : "s"}`,
-              onChange: (p, ps) => {
-                setPagination((prev) => ({ ...prev, current: p, pageSize: ps }));
-                loadCompleted(p, ps);
-              },
-            }}
-          />
-          )}
-        </Card>
+                      {unmatchedOutbound.length > 0 && (
+                        <UnmatchedParcelsAlert
+                          unmatched={unmatchedOutbound}
+                          hasMatchedHops={outboundRows.some((s) =>
+                            Number(resolveShipmentNextHop(s, availableRoutes)?.id || 0) > 0
+                          )}
+                        />
+                      )}
+
+                      {viewMode !== "next_hop" ? (
+                        selectedTransferRouteId ? (
+                          <Tag color="blue" style={{ margin: 0 }}>
+                            Filtering / dispatch locked to route #{selectedTransferRouteId}
+                          </Tag>
+                        ) : (
+                          <Tag color="orange" style={{ margin: 0 }}>Select a route card before dispatching</Tag>
+                        )
+                      ) : null}
+                    </Space>
+                  </Card>
+
+                  {viewMode === "next_hop" ? (
+                    <div style={{ padding: "0 8px 8px" }}>
+                      <NextHopMasterDetail
+                        routes={routesForCards}
+                        shipments={outboundRows}
+                        selectedNextHopKey={selectedNextHopKey}
+                        loading={routesLoading || loading}
+                        dispatching={submitting}
+                        canDispatch={!!can?.("transfers.dispatch") && !hqAll}
+                        selectedRowKeys={selectedRowKeys}
+                        onSelectionChange={setSelectedRowKeys}
+                        onSelect={(group) => {
+                          if (!group) {
+                            setSelectedNextHopKey(null);
+                            setSelectedNextHop(null);
+                            setSelectedRowKeys([]);
+                            return;
+                          }
+                          setSelectedNextHopKey(group.key);
+                          setSelectedNextHop(group);
+                          setSelectedTransferRouteId(null);
+                          setSelectedRowKeys(group.shipmentIds || []);
+                        }}
+                        onDispatch={(group) => handleDispatchNextHop(group)}
+                        openTrByHop={openTrByHop}
+                        onAddToOpen={handleAddToOpen}
+                        onManageOpen={(tr) => setTrManager({ open: true, id: tr.id })}
+                      />
+                    </div>
+                  ) : viewMode === "flat" ? (
+                    <Table
+                      rowKey="id"
+                      size="small"
+                      loading={loading && activeParentTab === "transferOut" && activeSubTab === "process"}
+                      dataSource={displayedOutbound}
+                      columns={outboundColumns}
+                      rowSelection={hqAll ? undefined : {
+                        selectedRowKeys,
+                        onChange: setSelectedRowKeys,
+                        getCheckboxProps: (record) => {
+                          if (!selectedTransferRouteId) {
+                            return { disabled: true, title: "Select a transfer route first" };
+                          }
+                          const route = availableRoutes.find(
+                            (r) => Number(r.route_id ?? r.id) === Number(selectedTransferRouteId)
+                          );
+                          const ok = route ? shipmentMatchesRoute(record, route) : false;
+                          return {
+                            disabled: !ok,
+                            title: ok ? undefined : "Parcel does not match selected route / service",
+                          };
+                        },
+                      }}
+                      pagination={{
+                        current: pagination.current,
+                        pageSize: pagination.pageSize,
+                        total: pagination.total,
+                        showSizeChanger: true,
+                        onChange: (page, pageSize) => loadOutbound(page, pageSize),
+                      }}
+                      scroll={{ x: 1100 }}
+                    />
+                  ) : (
+                    <GroupedOutboundView
+                      rows={displayedOutbound}
+                      selectedRowKeys={selectedRowKeys}
+                      onSelectionChange={setSelectedRowKeys}
+                      loading={loading && activeParentTab === "transferOut" && activeSubTab === "process"}
+                      pagination={{
+                        current: pagination.current,
+                        pageSize: pagination.pageSize,
+                        total: pagination.total,
+                        onChange: (page, pageSize) => loadOutbound(page, pageSize),
+                      }}
+                      onDispatchGroup={(group) => {
+                        const routeId = group?.route?.id || group?.route?.route_id;
+                        if (routeId) setSelectedTransferRouteId(Number(routeId));
+                        const ids = (group?.shipments || []).map((s) => s.id);
+                        setSelectedRowKeys(ids);
+                      }}
+                    />
+                  )}
+                </Card>
+              ),
+            },
+            {
+              key: "completed",
+              label: (
+                <span>
+                  <CheckCircleOutlined /> Completed ({stats.completed})
+                </span>
+              ),
+              children: (
+                <Card styles={{ body: { padding: 0 } }} style={{ borderRadius: 14 }}>
+                  <TabGuide
+                    type="success"
+                    message="Completed TRs (every parcel checked in at the next hop), sent or received by this branch. By parcel lists cross-branch transfers delivered to the customer."
+                  />
+                  {viewToggle(completedView, setCompletedView, "Delivered parcels")}
+                  {completedView === "tr" ? (
+                    <TransferContainerBoard
+                      {...trBoardProps}
+                      tabKey="completed"
+                      direction="all"
+                      highlightId={activeParentTab === "transferOut" && activeSubTab === "completed" ? deepLinkTr : null}
+                      defaultStatuses="received"
+                      statusOptions={[{ value: "", label: "Fully received TRs" }]}
+                      emptyText="No completed TRs"
+                    />
+                  ) : (
+                  <Table
+                    rowKey="id"
+                    size="middle"
+                    loading={loading && activeParentTab === "transferOut" && activeSubTab === "completed"}
+                    columns={currentColumns}
+                    dataSource={currentRows}
+                    scroll={{ x: 900 }}
+                    locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="No completed transfers" /> }}
+                    pagination={{
+                      current: pagination.current,
+                      pageSize: pagination.pageSize,
+                      total: currentCount,
+                      showSizeChanger: true,
+                      showTotal: (t) => `${t} transfer${t === 1 ? "" : "s"}`,
+                      onChange: (p, ps) => {
+                        setPagination((prev) => ({ ...prev, current: p, pageSize: ps }));
+                        loadCompleted(p, ps);
+                      },
+                    }}
+                  />
+                  )}
+                </Card>
+              ),
+            },
+          ]}
+        />
       ),
     },
     {
@@ -3491,6 +3543,7 @@ export default function TransfersPage() {
               key={`history-${historyDirection}`}
               tabKey={`history-${historyDirection}`}
               direction={historyDirection === "sent" ? "outbound" : historyDirection === "received" ? "inbound_all" : "all"}
+              highlightId={activeParentTab === "history" ? deepLinkTr : null}
               defaultStatuses="received,partially_received,cancelled"
               statusOptions={[
                 { value: "", label: "Closed TRs (received / partial / cancelled)" },
@@ -3505,13 +3558,11 @@ export default function TransfersPage() {
           <Table
             rowKey="id"
             size="middle"
-            loading={loading && activeTab === "history"}
+            loading={loading && activeParentTab === "history"}
             columns={currentColumns}
             dataSource={currentRows}
             scroll={{ x: 1000 }}
-            locale={{
-              emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="No transfer history" />,
-            }}
+            locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="No transfer history" /> }}
             pagination={{
               current: pagination.current,
               pageSize: pagination.pageSize,
@@ -3624,7 +3675,7 @@ export default function TransfersPage() {
       <Row justify="space-between" align="middle" style={{ marginBottom: 12 }} gutter={[12, 12]}>
         <Col>
           {/* Date Range Filter (for Completed and History) */}
-          {activeTab !== "outbound" && (
+          {!(activeParentTab === "transferOut" && activeSubTab === "process") && (
             <RangePicker
               value={dateRange}
               onChange={setDateRange}
@@ -3669,12 +3720,11 @@ export default function TransfersPage() {
           )}
         </Col>
         <Col>
-          {/* Current-status filter (Sent / Received / History) */}
-          {((activeTab === "sent" && sentView === "parcel") ||
-            (activeTab === "received" && receivedView === "parcel") ||
-            activeTab === "history") && (
+          {/* Current-status filter (Received / History) */}
+          {(((activeParentTab === "transferIn" && activeSubTab === "received") && receivedView === "parcel") ||
+            activeParentTab === "history") && (
             <Space wrap>
-              {activeTab === "history" && (
+              {activeParentTab === "history" && (
                 <Select
                   value={historyDirection}
                   onChange={setHistoryDirection}
@@ -3686,7 +3736,7 @@ export default function TransfersPage() {
                   ]}
                 />
               )}
-              {!(activeTab === "history" && historyView === "tr") && (
+              {(!((activeParentTab === "history" && historyView === "tr"))) && (
               <Select
                 value={statusFilter}
                 onChange={setStatusFilter}
@@ -3710,7 +3760,7 @@ export default function TransfersPage() {
       </Row>
 
       {/* Bulk Action Bar (Outbound) */}
-      {activeTab === "outbound" && can?.("transfers.dispatch") && !hqAll && selectedRowKeys.length > 0 && (
+      {(activeParentTab === "transferOut" && activeSubTab === "process") && can?.("transfers.dispatch") && !hqAll && selectedRowKeys.length > 0 && (
         <div
           style={{
             display: "flex",
@@ -3772,8 +3822,8 @@ export default function TransfersPage() {
 
       {/* Tabs */}
       <Tabs
-        activeKey={activeTab}
-        onChange={setActiveTab}
+        activeKey={activeParentTab}
+        onChange={setActiveParentTab}
         items={tabItems}
       />
 

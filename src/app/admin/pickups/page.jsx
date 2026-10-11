@@ -1046,12 +1046,32 @@ export default function AdminPickupsPage() {
     return REJECTED_STATUSES.includes(String(s?.status ?? "").toLowerCase());
   };
   const isResolved = (s) => isReceived(s) || isRejected(s);
+
+  // Shipment statuses that indicate the parcel has moved past pickup verification
+  // and should not be offered for "Receive" at the pickup level.
+  const POST_PICKUP_STATUSES = [
+    "in_transit",
+    "sorted_for_delivery",
+    "sorted_for_transfer",
+    "received_at_origin_branch",
+    "received_at_origin",
+    "out_for_delivery",
+    "delivered",
+    "failed",
+  ];
+
+  const isPostPickup = (s) => POST_PICKUP_STATUSES.includes(String(s?.status ?? "").toLowerCase());
+
   const canReceive = (s) => {
+    // If shipment is already past pickup stage, don't allow receive
+    if (isPostPickup(s)) return false;
     const st = stateOf(s);
     if (st) return Boolean(st.can_receive);
     return !isResolved(s);
   };
   const canReject = (s) => {
+    // If shipment is already past pickup stage, don't allow reject
+    if (isPostPickup(s)) return false;
     const st = stateOf(s);
     if (st) return Boolean(st.can_reject);
     return !isResolved(s);
