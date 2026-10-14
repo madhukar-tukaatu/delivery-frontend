@@ -774,7 +774,7 @@ export default function ShipmentDetailDrawer({ open, shipmentId, onClose }) {
       </Card>
 
       <Row gutter={[12, 12]}>
-        <Col xs={12} sm={12} lg={6}>
+        <Col xs={12} sm={12} lg={8}>
           <MoneyStat
             title="Delivery charge"
             value={deliveryCharge}
@@ -782,7 +782,7 @@ export default function ShipmentDetailDrawer({ open, shipmentId, onClose }) {
           />
         </Col>
         
-        <Col xs={12} sm={12} lg={6}>
+        <Col xs={12} sm={12} lg={8}>
           <MoneyStat
             title="Collect from customer (POD total)"
             value={collectableAmount}
@@ -790,14 +790,14 @@ export default function ShipmentDetailDrawer({ open, shipmentId, onClose }) {
           />
         </Col>
         
-        <Col xs={12} sm={12} lg={6}>
+        <Col xs={12} sm={12} lg={8}>
           <MoneyStat
             title="Goods value (excl. delivery)"
             value={receivableAmount}
             color="#059669"
           />
         </Col>
-        <Col xs={12} sm={12} lg={6}>
+        {/* <Col xs={12} sm={12} lg={6}>
           <Card size="small" styles={{ body: { padding: "12px 16px" } }}>
             <Statistic
               title={
@@ -811,11 +811,11 @@ export default function ShipmentDetailDrawer({ open, shipmentId, onClose }) {
               valueStyle={{ fontSize: 18, fontWeight: 600 }}
             />
           </Card>
-        </Col>
+        </Col> */}
       </Row>
 
       {/* Distance & Journey Metrics */}
-      <Card
+      {/* <Card
         size="small"
         title={
           <Space size={8}>
@@ -907,7 +907,7 @@ export default function ShipmentDetailDrawer({ open, shipmentId, onClose }) {
             size="small"
           />
         </div>
-      </Card>
+      </Card> */}
 
       <SectionCard title="Current location" icon={<EnvironmentOutlined />}>
         <FieldDescriptions
