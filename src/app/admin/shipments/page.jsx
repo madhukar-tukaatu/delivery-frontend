@@ -305,20 +305,27 @@ export default function ShipmentsPage() {
       key: "route",
       width: 200,
       render: (_, record) => (
-        <Space size={0} style={{ fontSize: "12px" }}>
-          <Text ellipsis style={{ maxWidth: "70px" }} title={branchLabel(record.origin_branch || record.originBranch)}>
-            {branchLabel(
-              record.origin_branch ||
-              record.originBranch
-            )}
-          </Text>
-          <ArrowRightOutlined style={{ color: "#0891B2" }} />
-          <Text ellipsis style={{ maxWidth: "70px" }} title={branchLabel(record.destination_branch || record.destinationBranch)}>
-            {branchLabel(
-              record.destination_branch ||
-              record.destinationBranch
-            )}
-          </Text>
+        <Space direction="vertical" size={2}>
+          <Space size={4} style={{ fontSize: "12px" }}>
+            <Text ellipsis style={{ maxWidth: "75px" }} title={branchLabel(record.origin_branch || record.originBranch)}>
+              {branchLabel(
+                record.origin_branch ||
+                record.originBranch
+              )}
+            </Text>
+            <ArrowRightOutlined style={{ color: "#0891B2", fontSize: "10px" }} />
+            <Text ellipsis style={{ maxWidth: "75px" }} title={branchLabel(record.destination_branch || record.destinationBranch)}>
+              {branchLabel(
+                record.destination_branch ||
+                record.destinationBranch
+              )}
+            </Text>
+          </Space>
+          {Number(record.route_distance_km) > 0 && (
+            <Text type="secondary" style={{ fontSize: "11px" }}>
+              {Number(record.route_distance_km).toFixed(1)} km
+            </Text>
+          )}
         </Space>
       ),
     },

@@ -10,6 +10,7 @@ import {
   Divider,
   Drawer,
   Empty,
+  Progress,
   Row,
   Space,
   Spin,
@@ -28,6 +29,8 @@ import {
   CarOutlined,
   DollarOutlined,
   SwapOutlined,
+  HistoryOutlined,
+  FileTextOutlined,
 } from "@ant-design/icons";
 
 import ShipmentWorkflowActions from "@/features/workflow/components/ShipmentWorkflowActions";
@@ -45,7 +48,11 @@ import {
   labelForStatus,
 } from "@/config/workflowStatus";
 
-const { Title, Text } = Typography;
+const { Text, Paragraph, Title } = Typography;
+
+/* -------------------------------------------------------------------------- */
+/* Helpers                                                                    */
+/* -------------------------------------------------------------------------- */
 
 function firstValue(...values) {
   for (const value of values) {
@@ -62,26 +69,17 @@ function hasText(value) {
 
 function branchLabel(branch, fallbackId) {
   if (branch && typeof branch === "object") {
-    const name = firstValue(branch.name, branch.legal_name);
-    if (!name) return fallbackId ? `Branch #${fallbackId}` : null;
-    return branch.area ? `${name}, ${branch.area}` : name;
+    const name = firstValue(branch.name, branch.legal_name, branch.branch_name);
+    if (name) return branch.area ? `${name}, ${branch.area}` : name;
   }
-  if (fallbackId) return `Branch #${fallbackId}`;
+  if (typeof branch === "string" && branch.trim()) return branch;
+  if (fallbackId != null && fallbackId !== "") return `Branch #${fallbackId}`;
   return null;
 }
 
-function coordinateLabel(latitude, longitude) {
-  if (
-    latitude === null ||
-    latitude === undefined ||
-    longitude === null ||
-    longitude === undefined ||
-    latitude === "" ||
-    longitude === ""
-  ) {
-    return null;
-  }
-  return `${latitude}, ${longitude}`;
+function coordinateLabel(lat, lng) {
+  if (lat == null || lng == null || lat === "" || lng === "") return null;
+  return `${lat}, ${lng}`;
 }
 
 function moneyValue(...values) {
@@ -97,14 +95,53 @@ function displayOrDash(value) {
   return hasText(value) ? value : "—";
 }
 
+function parseJsonField(value) {
+  if (value == null) return null;
+  if (typeof value === "object") return value;
+  if (typeof value === "string") {
+    try {
+      return JSON.parse(value);
+    } catch {
+      return null;
+    }
+  }
+  return null;
+}
+
+const STATUS_STEPS = [
+  "pending",
+  "confirmed",
+  "pickup_requested",
+  "pickup_assigned",
+  "picked_up",
+  "received_at_origin",
+  "in_transit",
+  "received_at_destination",
+  "out_for_delivery",
+  "assigned_to_rider",
+  "delivered",
+];
+
+function getStatusProgress(status) {
+  if (!status) return 0;
+  if (status === "failed" || status === "cancelled") return 100;
+  const idx = STATUS_STEPS.indexOf(status);
+  if (idx === -1) return 0;
+  return Math.round(((idx + 1) / STATUS_STEPS.length) * 100);
+}
+
+/* -------------------------------------------------------------------------- */
+/* UI pieces                                                                  */
+/* -------------------------------------------------------------------------- */
+
 function SectionCard({ title, icon, children, extra }) {
   return (
     <Card
       size="small"
       title={
-        <Space>
+        <Space size={8}>
           {icon}
-          <span>{title}</span>
+          <span style={{ fontWeight: 600 }}>{title}</span>
         </Space>
       }
       extra={extra}
@@ -116,7 +153,9 @@ function SectionCard({ title, icon, children, extra }) {
 }
 
 function FieldDescriptions({ items, column = 1 }) {
-  const visible = items.filter((item) => item.show !== false && hasText(item.value));
+  const visible = items.filter(
+    (item) => item.show !== false && hasText(item.value)
+  );
   if (!visible.length) return null;
   return (
     <Descriptions bordered size="small" column={column}>
@@ -129,6 +168,29 @@ function FieldDescriptions({ items, column = 1 }) {
   );
 }
 
+function MoneyStat({ title, value, color, suffix }) {
+  return (
+    <Card size="small" styles={{ body: { padding: "12px 16px" } }}>
+      <Statistic
+        title={
+          <Text type="secondary" style={{ fontSize: 12 }}>
+            {title}
+          </Text>
+        }
+        value={value ?? 0}
+        precision={2}
+        prefix={suffix ? undefined : "NPR "}
+        suffix={suffix}
+        valueStyle={{ fontSize: 18, fontWeight: 600, color }}
+      />
+    </Card>
+  );
+}
+
+/* -------------------------------------------------------------------------- */
+/* Main                                                                       */
+/* -------------------------------------------------------------------------- */
+
 export default function ShipmentDetailDrawer({ open, shipmentId, onClose }) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -139,11 +201,12 @@ export default function ShipmentDetailDrawer({ open, shipmentId, onClose }) {
     try {
       setLoading(true);
       const response = await getAdminShipment(shipmentId);
-      // getAdminShipment already normalizes; normalize again is idempotent
       setData(normalizeShipmentDetailResponse(response));
     } catch (error) {
       console.error("Could not load shipment:", error);
-      message.error(error?.response?.data?.message ?? "Could not load shipment.");
+      message.error(
+        error?.response?.data?.message ?? "Could not load shipment."
+      );
       setData(null);
     } finally {
       setLoading(false);
@@ -164,13 +227,16 @@ export default function ShipmentDetailDrawer({ open, shipmentId, onClose }) {
       await load();
     } catch (error) {
       console.error("Workflow action failed:", error);
-      message.error(error?.response?.data?.message ?? "Workflow action failed.");
+      message.error(
+        error?.response?.data?.message ?? "Workflow action failed."
+      );
     } finally {
       setActionLoading(false);
     }
   };
 
-  const shipment = data?.shipment ?? null;
+  const shipment =
+    data?.shipment ?? data?.data ?? (data?.id ? data : null);
 
   const view = useMemo(() => {
     if (!shipment) return null;
@@ -179,15 +245,7 @@ export default function ShipmentDetailDrawer({ open, shipmentId, onClose }) {
       shipment.pickup_location ?? shipment.pickupLocation ?? null;
     const merchant = shipment.merchant ?? null;
     const hop =
-      shipment.hop_meta ??
-      shipment.hopMeta ??
-      data?.hop_meta ??
-      null;
-    const transferSummary =
-      shipment.transfer_summary ??
-      shipment.transferSummary ??
-      data?.transfer_summary ??
-      null;
+      shipment.hop_meta ?? shipment.hopMeta ?? data?.hop_meta ?? null;
 
     const originBranch =
       shipment.origin_branch ?? shipment.originBranch ?? null;
@@ -204,6 +262,70 @@ export default function ShipmentDetailDrawer({ open, shipmentId, onClose }) {
     const nextHopBranch =
       shipment.next_hop_branch ?? shipment.nextHopBranch ?? null;
 
+    const pathText = firstValue(hop?.path_text, shipment.path_text);
+    let pathOrigin = null;
+    let pathDestination = null;
+    const viaNames = [];
+    if (pathText && typeof pathText === "string") {
+      const parts = pathText
+        .split("→")
+        .map((p) => p.trim())
+        .filter(Boolean);
+      if (parts.length >= 1) pathOrigin = parts[0];
+      if (parts.length >= 2) pathDestination = parts[parts.length - 1];
+      if (parts.length > 2) viaNames.push(...parts.slice(1, -1));
+    }
+
+    const breakdown = parseJsonField(
+      shipment.delivery_charge_breakdown ?? shipment.deliveryChargeBreakdown
+    );
+    const extraDist = breakdown?.breakdown?.extra_delivery_distance
+      ?? breakdown?.extra_delivery_distance
+      ?? null;
+    const breakdownOrigin = breakdown?.pickup_branch?.name ?? null;
+    const breakdownDest = breakdown?.delivery_branch?.name ?? null;
+    const deliveryBranchDistanceKm = moneyValue(
+      breakdown?.delivery_branch?.distance_km,
+      extraDist?.delivery_distance_km
+    );
+    const extraDistanceKm = moneyValue(extraDist?.extra_distance_km);
+    const includedDistanceKm = moneyValue(extraDist?.included_distance_km);
+    const extraDistanceCharge = moneyValue(extraDist?.total);
+    const extraRatePerKm = moneyValue(extraDist?.rate_per_km);
+
+    const originLabel =
+      firstValue(
+        hop?.origin_name,
+        branchLabel(originBranch, null),
+        pathOrigin,
+        breakdownOrigin
+      ) || branchLabel(null, shipment.origin_branch_id);
+
+    const destinationLabel =
+      firstValue(
+        hop?.destination_name,
+        branchLabel(destinationBranch, null),
+        pathDestination,
+        breakdownDest
+      ) || branchLabel(null, shipment.destination_branch_id);
+
+    const currentLabel =
+      firstValue(
+        hop?.current_name,
+        hop?.current_branch_name,
+        branchLabel(currentBranch, null),
+        Number(shipment.current_branch_id) ===
+          Number(shipment.destination_branch_id)
+          ? destinationLabel
+          : null
+      ) || branchLabel(null, shipment.current_branch_id);
+
+    const nextHopLabel =
+      firstValue(hop?.next_hop_name, branchLabel(nextHopBranch, null)) ||
+      (shipment.next_hop_branch_id
+        ? branchLabel(null, shipment.next_hop_branch_id)
+        : null);
+
     const senderName = firstValue(
       shipment.sender_name,
       pickupLocation?.contact_person,
@@ -216,6 +338,11 @@ export default function ShipmentDetailDrawer({ open, shipmentId, onClose }) {
       shipment.sender_phone,
       pickupLocation?.phone,
       merchant?.phone
+    );
+    const senderEmail = firstValue(
+      shipment.sender_email,
+      pickupLocation?.email,
+      merchant?.email
     );
     const senderAddress = firstValue(
       shipment.sender_address,
@@ -236,19 +363,28 @@ export default function ShipmentDetailDrawer({ open, shipmentId, onClose }) {
       merchant?.area
     );
 
-    const hasSenderBlock = [senderName, senderPhone, senderAddress, senderCity, senderArea].some(
-      hasText
-    );
+    const hasSenderBlock = [
+      senderName,
+      senderPhone,
+      senderEmail,
+      senderAddress,
+      senderCity,
+      senderArea,
+      merchant?.name,
+      pickupLocation?.name,
+    ].some(hasText);
 
     const pickupLat = firstValue(
       shipment.pickup_lat,
       shipment.pickup_latitude,
-      pickupLocation?.latitude
+      pickupLocation?.latitude,
+      pickupLocation?.lat
     );
     const pickupLng = firstValue(
       shipment.pickup_lng,
       shipment.pickup_longitude,
-      pickupLocation?.longitude
+      pickupLocation?.longitude,
+      pickupLocation?.lng
     );
     const deliveryLat = firstValue(
       shipment.delivery_lat,
@@ -261,15 +397,29 @@ export default function ShipmentDetailDrawer({ open, shipmentId, onClose }) {
       shipment.receiver_longitude
     );
 
-    const trackingEvents =
+    const trackingEvents = Array.isArray(
       data?.tracking_events ??
-      shipment.tracking_events ??
-      shipment.trackingEvents ??
-      [];
-    const tasks = data?.tasks ?? shipment.tasks ?? [];
-    const statusLogs = data?.status_logs ?? shipment.status_logs ?? [];
-    const notifications = data?.notifications ?? shipment.notifications ?? [];
-    const routeSteps = shipment.route_steps ?? shipment.routeSteps ?? [];
+        shipment.tracking_events ??
+        shipment.trackingEvents
+    )
+      ? data?.tracking_events ??
+        shipment.tracking_events ??
+        shipment.trackingEvents
+      : [];
+
+    const tasks = Array.isArray(data?.tasks ?? shipment.tasks)
+      ? data?.tasks ?? shipment.tasks
+      : [];
+    const statusLogs = Array.isArray(
+      data?.status_logs ?? shipment.status_logs
+    )
+      ? data?.status_logs ?? shipment.status_logs
+      : [];
+    const notifications = Array.isArray(
+      data?.notifications ?? shipment.notifications
+    )
+      ? data?.notifications ?? shipment.notifications
+      : [];
 
     const priceBreakdown =
       data?.price_breakdown ??
@@ -283,66 +433,51 @@ export default function ShipmentDetailDrawer({ open, shipmentId, onClose }) {
       last_mile_fee: moneyValue(shipment.last_mile_fee),
       weight_fee: moneyValue(shipment.weight_fee),
       pod_charge: moneyValue(shipment.pod_charge),
-      delivery_charge: moneyValue(shipment.delivery_charge, shipment.delivery_fee),
+      delivery_charge: moneyValue(
+        shipment.delivery_charge,
+        shipment.delivery_fee
+      ),
     };
     const hasFeeColumns = Object.values(feeFromShipment).some(
       (v) => v !== null && v !== 0
     );
 
-    const packetProducts = Array.isArray(shipment.packet_products)
-      ? shipment.packet_products
-      : typeof shipment.packet_products === "string"
-        ? (() => {
-            try {
-              return JSON.parse(shipment.packet_products);
-            } catch {
-              return [];
-            }
-          })()
-        : [];
-
-    const originLabel =
-      branchLabel(originBranch, shipment.origin_branch_id) ||
-      hop?.origin_name ||
-      transferSummary?.origin;
-    const destinationLabel =
-      branchLabel(destinationBranch, shipment.destination_branch_id) ||
-      hop?.destination_name ||
-      transferSummary?.destination;
-    const currentLabel =
-      branchLabel(currentBranch, shipment.current_branch_id) ||
-      hop?.current_branch_name;
-    const nextHopLabel =
-      hop?.next_hop_name ||
-      transferSummary?.next_hop ||
-      branchLabel(nextHopBranch, shipment.next_hop_branch_id);
+    let packetProducts = shipment.packet_products ?? shipment.packetProducts;
+    packetProducts = parseJsonField(packetProducts);
+    if (!Array.isArray(packetProducts)) packetProducts = [];
 
     const isTransfer =
       shipment.is_transfer === true ||
+      hop != null ||
       (shipment.origin_branch_id &&
         shipment.destination_branch_id &&
-        Number(shipment.origin_branch_id) !== Number(shipment.destination_branch_id));
+        Number(shipment.origin_branch_id) !==
+          Number(shipment.destination_branch_id));
+
+    const isPod =
+      String(shipment.payment_type || "").toLowerCase() === "pod";
 
     return {
       pickupLocation,
       merchant,
       hop,
-      transferSummary,
       senderName,
       senderPhone,
+      senderEmail,
       senderAddress,
       senderCity,
       senderArea,
       hasSenderBlock,
+      merchantName: merchant?.name ?? null,
+      pickupLocationName: pickupLocation?.name ?? null,
       pickupLat,
       pickupLng,
       deliveryLat,
       deliveryLng,
-      trackingEvents: Array.isArray(trackingEvents) ? trackingEvents : [],
-      tasks: Array.isArray(tasks) ? tasks : [],
-      statusLogs: Array.isArray(statusLogs) ? statusLogs : [],
-      notifications: Array.isArray(notifications) ? notifications : [],
-      routeSteps: Array.isArray(routeSteps) ? routeSteps : [],
+      trackingEvents,
+      tasks,
+      statusLogs,
+      notifications,
       priceBreakdown,
       feeFromShipment,
       hasFeeColumns,
@@ -352,9 +487,28 @@ export default function ShipmentDetailDrawer({ open, shipmentId, onClose }) {
       currentLabel,
       nextHopLabel,
       originSubLabel: branchLabel(originSub, shipment.origin_sub_branch_id),
-      destinationSubLabel: branchLabel(destinationSub, shipment.destination_sub_branch_id),
-      currentSubLabel: branchLabel(currentSub, shipment.current_sub_branch_id),
+      destinationSubLabel: branchLabel(
+        destinationSub,
+        shipment.destination_sub_branch_id
+      ),
+      currentSubLabel: branchLabel(
+        currentSub,
+        shipment.current_sub_branch_id
+      ),
       isTransfer,
+      pathText,
+      viaNames,
+      transferStageLabel:
+        shipment.transfer_stage_label || shipment.transferStageLabel,
+      isPod,
+      // Distance / extra mile from destination branch
+      deliveryBranchDistanceKm,
+      extraDistanceKm,
+      includedDistanceKm,
+      extraDistanceCharge,
+      extraRatePerKm,
+      hasExtraMile:
+        extraDistanceKm != null && extraDistanceKm > 0,
     };
   }, [shipment, data]);
 
@@ -364,44 +518,65 @@ export default function ShipmentDetailDrawer({ open, shipmentId, onClose }) {
     <Drawer
       open={!!open}
       onClose={onClose}
-      width={Math.min(860, typeof window !== "undefined" ? window.innerWidth - 24 : 860)}
+      width={Math.min(
+        900,
+        typeof window !== "undefined" ? window.innerWidth - 24 : 900
+      )}
       destroyOnClose
       maskClosable
       title={
-        <Space direction="vertical" size={0}>
-          <Text strong style={{ fontSize: 16 }}>
-            {drawerTitle}
-          </Text>
-          {shipment?.merchant_order_id ? (
+        <Space direction="vertical" size={0} style={{ width: "100%" }}>
+          <Space align="center" wrap>
+            <Text strong style={{ fontSize: 17 }}>
+              {drawerTitle}
+            </Text>
+            {shipment?.status && (
+              <WorkflowStatusTag status={shipment.status} />
+            )}
+            {shipment?.payment_type && (
+              <Tag
+                color={
+                  String(shipment.payment_type).toLowerCase() === "pod"
+                    ? "gold"
+                    : "blue"
+                }
+              >
+                {String(shipment.payment_type).toUpperCase()}
+              </Tag>
+            )}
+            {shipment?.service_type && (
+              <Tag color="purple">
+                {String(shipment.service_type).replaceAll("_", " ")}
+              </Tag>
+            )}
+          </Space>
+          {shipment?.merchant_order_id && (
             <Text type="secondary" style={{ fontSize: 12 }}>
               Merchant order: {shipment.merchant_order_id}
+              {view?.merchantName ? ` · ${view.merchantName}` : ""}
             </Text>
-          ) : null}
+          )}
         </Space>
       }
       extra={
-        <Space wrap>
-          {shipment?.status ? <WorkflowStatusTag status={shipment.status} /> : null}
-          {shipment?.payment_type ? (
-            <Tag color={String(shipment.payment_type).toLowerCase() === "pod" ? "gold" : "blue"}>
-              {String(shipment.payment_type).toUpperCase()}
-            </Tag>
-          ) : null}
-          {shipment?.service_type ? (
-            <Tag color="purple">{String(shipment.service_type).replaceAll("_", " ")}</Tag>
-          ) : null}
-          <Button icon={<ReloadOutlined />} onClick={load} loading={loading}>
-            Refresh
-          </Button>
-        </Space>
+        <Button
+          icon={<ReloadOutlined />}
+          onClick={load}
+          loading={loading}
+          size="small"
+        >
+          Refresh
+        </Button>
       }
-      styles={{ body: { background: "#f7f8fa", padding: 16 } }}
+      styles={{
+        body: { background: "#f5f7fa", padding: "12px 16px 24px" },
+      }}
     >
       {loading ? (
         <Card>
           <Space>
             <Spin />
-            <Text>Loading shipment...</Text>
+            <Text>Loading shipment…</Text>
           </Space>
         </Card>
       ) : !shipment || !view ? (
@@ -410,177 +585,296 @@ export default function ShipmentDetailDrawer({ open, shipmentId, onClose }) {
         </Card>
       ) : (
         <Space direction="vertical" size={16} style={{ width: "100%" }}>
-          {/* Header summary */}
-          <Card>
-            <Row justify="space-between" align="middle" gutter={[16, 16]}>
-              <Col flex="auto">
-                <Space direction="vertical" size={4}>
-                  <Title level={4} style={{ margin: 0 }}>
-                    {shipment.tracking_number}
-                  </Title>
-                  <Space wrap size={[8, 4]}>
-                    <WorkflowStatusTag status={shipment.status} />
-                    {shipment.merchant_status ? (
-                      <Tag>Merchant: {labelForStatus(shipment.merchant_status)}</Tag>
-                    ) : null}
-                    {shipment.payment_type ? (
-                      <Tag color={String(shipment.payment_type).toLowerCase() === "pod" ? "gold" : "blue"}>
-                        {String(shipment.payment_type).toUpperCase()}
-                      </Tag>
-                    ) : null}
-                    {shipment.service_type ? (
-                      <Tag color="purple">{String(shipment.service_type).replaceAll("_", " ")}</Tag>
-                    ) : null}
-                    {shipment.pod_status && String(shipment.payment_type).toLowerCase() === "pod" ? (
-                      <Tag>POD: {labelForStatus(shipment.pod_status)}</Tag>
-                    ) : null}
-                    {view.isTransfer ? <Tag icon={<SwapOutlined />} color="orange">Transfer</Tag> : null}
-                  </Space>
-                  <Text type="secondary">
-                    {[
-                      shipment.merchant_order_id
-                        ? `Order ${shipment.merchant_order_id}`
-                        : null,
-                      view.merchant?.name ? `Merchant ${view.merchant.name}` : null,
-                      shipment.source ? `Source ${shipment.source}` : null,
-                      shipment.order_source ? `via ${shipment.order_source}` : null,
-                    ]
-                      .filter(Boolean)
-                      .join(" · ") || "—"}
-                  </Text>
-                </Space>
-              </Col>
-            </Row>
+          {/* ── Status ── */}
+          <Card size="small">
+            <Space direction="vertical" size={8} style={{ width: "100%" }}>
+              <Space wrap>
+                <WorkflowStatusTag status={shipment.status} />
+                {shipment.merchant_status && (
+                  <Tag>
+                    Merchant: {labelForStatus(shipment.merchant_status)}
+                  </Tag>
+                )}
+                {view.isTransfer && (
+                  <Tag icon={<SwapOutlined />} color="orange">
+                    {view.transferStageLabel || "Transfer"}
+                  </Tag>
+                )}
+                {shipment.pod_status && view.isPod && (
+                  <Tag>POD: {labelForStatus(shipment.pod_status)}</Tag>
+                )}
+              </Space>
+              <Progress
+                percent={getStatusProgress(shipment.status)}
+                status={
+                  shipment.status === "failed" ||
+                  shipment.status === "cancelled"
+                    ? "exception"
+                    : shipment.status === "delivered"
+                      ? "success"
+                      : "active"
+                }
+                size="small"
+                showInfo={false}
+              />
+              <Text type="secondary" style={{ fontSize: 12 }}>
+                {labelForStatus(shipment.status)}
+                {view.currentLabel
+                  ? ` · Currently at ${view.currentLabel}`
+                  : ""}
+              </Text>
+            </Space>
           </Card>
 
-          {/* Money stats */}
+          {/* ── Key figures ── */}
           <Row gutter={[12, 12]}>
-            <Col xs={12} md={6}>
-              <Card size="small">
-                <Statistic
-                  title="Delivery charge"
-                  value={moneyValue(shipment.delivery_charge, shipment.delivery_fee) ?? 0}
-                  precision={2}
-                  prefix="NPR "
-                />
-              </Card>
+            <Col xs={12} sm={6}>
+              <MoneyStat
+                title="Delivery charge"
+                value={moneyValue(
+                  shipment.delivery_charge,
+                  shipment.delivery_fee
+                )}
+                color="#0891B2"
+              />
             </Col>
-            <Col xs={12} md={6}>
-              <Card size="small">
-                <Statistic
-                  title="POD amount"
-                  value={moneyValue(shipment.pod_amount) ?? 0}
-                  precision={2}
-                  prefix="NPR "
-                />
-              </Card>
+            <Col xs={12} sm={6}>
+              <MoneyStat
+                title={view.isPod ? "POD amount" : "Payment amount"}
+                value={
+                  view.isPod
+                    ? moneyValue(shipment.pod_amount)
+                    : moneyValue(
+                        shipment.total_collectable_amount,
+                        shipment.total_collectable,
+                        shipment.pod_amount
+                      )
+                }
+                color="#D97706"
+              />
             </Col>
-            <Col xs={12} md={6}>
-              <Card size="small">
-                <Statistic
-                  title="Collectable"
-                  value={
-                    moneyValue(
-                      shipment.total_collectable_amount,
-                      shipment.total_collectable,
-                      shipment.pod_amount
-                    ) ?? 0
-                  }
-                  precision={2}
-                  prefix="NPR "
-                />
-              </Card>
+            <Col xs={12} sm={6}>
+              <MoneyStat
+                title="Declared value"
+                value={moneyValue(shipment.declared_value)}
+                color="#059669"
+              />
             </Col>
-            <Col xs={12} md={6}>
-              <Card size="small">
-                <Statistic
-                  title="Distance"
-                  value={moneyValue(shipment.route_distance_km) ?? 0}
-                  precision={2}
-                  suffix=" km"
-                />
-              </Card>
+            <Col xs={12} sm={6}>
+              <MoneyStat
+                title="Delivery distance"
+                value={
+                  view.deliveryBranchDistanceKm ??
+                  moneyValue(shipment.route_distance_km) ??
+                  0
+                }
+                color="#6366F1"
+                suffix=" km"
+              />
             </Col>
           </Row>
 
-          {/* Transfer / hop strip */}
-          {view.isTransfer || view.hop?.path_text || view.nextHopLabel ? (
+          {/* ── Extra mile (from destination branch) ── */}
+          {(view.hasExtraMile ||
+            view.extraDistanceCharge != null ||
+            view.includedDistanceKm != null) && (
+            <SectionCard
+              title="Last-mile distance (from destination branch)"
+              icon={<EnvironmentOutlined />}
+            >
+              <FieldDescriptions
+                column={{ xs: 1, sm: 2 }}
+                items={[
+                  {
+                    label: "Destination branch",
+                    value: view.destinationLabel,
+                  },
+                  {
+                    label: "Distance from branch to door",
+                    value:
+                      view.deliveryBranchDistanceKm != null
+                        ? `${view.deliveryBranchDistanceKm} km`
+                        : null,
+                  },
+                  {
+                    label: "Included in base rate",
+                    value:
+                      view.includedDistanceKm != null
+                        ? `${view.includedDistanceKm} km`
+                        : null,
+                  },
+                  {
+                    label: "Extra distance",
+                    value:
+                      view.extraDistanceKm != null
+                        ? `${view.extraDistanceKm} km`
+                        : null,
+                  },
+                  {
+                    label: "Rate per extra km",
+                    value:
+                      view.extraRatePerKm != null
+                        ? formatMoney(view.extraRatePerKm)
+                        : null,
+                  },
+                  {
+                    label: "Extra mile charge",
+                    value:
+                      view.extraDistanceCharge != null
+                        ? formatMoney(view.extraDistanceCharge)
+                        : null,
+                  },
+                ]}
+              />
+              {view.hasExtraMile && (
+                <Paragraph
+                  type="secondary"
+                  style={{ marginTop: 12, marginBottom: 0, fontSize: 12 }}
+                >
+                  Receiver is beyond the free radius from the destination
+                  branch. Extra {view.extraDistanceKm} km charged at{" "}
+                  {view.extraRatePerKm != null
+                    ? formatMoney(view.extraRatePerKm)
+                    : "—"}
+                  /km.
+                </Paragraph>
+              )}
+            </SectionCard>
+          )}
+
+          {/* ── Route / transfer ── */}
+          {(view.isTransfer || view.pathText || view.nextHopLabel) && (
             <SectionCard title="Transfer route" icon={<SwapOutlined />}>
-              <Space direction="vertical" size={8} style={{ width: "100%" }}>
-                <Space wrap>
+              <Space direction="vertical" size={12} style={{ width: "100%" }}>
+                <Space wrap size={[8, 8]}>
                   <Tag>{displayOrDash(view.originLabel)}</Tag>
                   <Text type="secondary">→</Text>
-                  {view.hop?.via?.length
-                    ? view.hop.via.map((name) => (
-                        <Tag key={name} color="cyan">
-                          via {name}
-                        </Tag>
-                      ))
-                    : null}
-                  <Tag color="blue">{displayOrDash(view.destinationLabel)}</Tag>
+                  {view.viaNames.map((name) => (
+                    <Tag key={name} color="cyan">
+                      via {name}
+                    </Tag>
+                  ))}
+                  <Tag color="blue">
+                    {displayOrDash(view.destinationLabel)}
+                  </Tag>
                 </Space>
-                {view.hop?.path_text || view.transferSummary?.path_text ? (
+                {view.pathText && (
+                  <Paragraph type="secondary" style={{ margin: 0 }}>
+                    Path: {view.pathText}
+                  </Paragraph>
+                )}
+                {(view.hop?.route_code || view.hop?.route_name) && (
                   <Text type="secondary">
-                    Path: {view.hop?.path_text || view.transferSummary?.path_text}
-                  </Text>
-                ) : null}
-                {(view.hop?.route_code || view.transferSummary?.route_code) && (
-                  <Text type="secondary">
-                    Route{" "}
-                    {view.hop?.route_code || view.transferSummary?.route_code}
-                    {view.hop?.route_name || view.transferSummary?.route_name
-                      ? ` · ${view.hop?.route_name || view.transferSummary?.route_name}`
+                    Route {view.hop?.route_code}
+                    {view.hop?.route_name
+                      ? ` · ${view.hop.route_name}`
                       : ""}
                   </Text>
                 )}
                 {view.nextHopLabel ? (
-                  <Text>
-                    <Badge status="processing" /> Next hop:{" "}
-                    <Text strong>{view.nextHopLabel}</Text>
-                    {view.hop?.in_transit_label ? (
-                      <Text type="secondary"> · {view.hop.in_transit_label}</Text>
-                    ) : null}
-                  </Text>
+                  <div>
+                    <Badge status="processing" />{" "}
+                    <Text>
+                      Next hop: <Text strong>{view.nextHopLabel}</Text>
+                      {view.hop?.in_transit_label && (
+                        <Text type="secondary">
+                          {" "}
+                          · {view.hop.in_transit_label}
+                        </Text>
+                      )}
+                    </Text>
+                  </div>
                 ) : view.hop?.in_transit_label ? (
                   <Text type="secondary">{view.hop.in_transit_label}</Text>
                 ) : null}
+                {view.transferStageLabel && (
+                  <Tag color="orange">{view.transferStageLabel}</Tag>
+                )}
               </Space>
             </SectionCard>
-          ) : null}
+          )}
 
-          {/* Branches */}
-          <SectionCard title="Shipment location" icon={<EnvironmentOutlined />}>
+          {/* ── Branches ── */}
+          <SectionCard
+            title="Branch assignments"
+            icon={<EnvironmentOutlined />}
+          >
             <FieldDescriptions
-              column={{ xs: 1, sm: 2, md: 3 }}
+              column={{ xs: 1, sm: 2 }}
               items={[
                 { label: "Origin", value: view.originLabel },
                 { label: "Destination", value: view.destinationLabel },
                 { label: "Current branch", value: view.currentLabel },
                 { label: "Next hop", value: view.nextHopLabel },
                 { label: "Origin sub-branch", value: view.originSubLabel },
-                { label: "Destination sub-branch", value: view.destinationSubLabel },
-                { label: "Current sub-branch", value: view.currentSubLabel },
+                {
+                  label: "Destination sub-branch",
+                  value: view.destinationSubLabel,
+                },
+                {
+                  label: "Current sub-branch",
+                  value: view.currentSubLabel,
+                },
               ]}
             />
-            {!view.originLabel && !view.destinationLabel && !view.currentLabel ? (
-              <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="No branch assignments yet" />
-            ) : null}
           </SectionCard>
 
-          {/* Parcel / payment meta */}
-          <SectionCard title="Parcel & payment" icon={<DollarOutlined />}>
+          {/* ── Workflow actions ── */}
+          <ShipmentWorkflowActions
+            shipment={shipment}
+            loading={actionLoading}
+            onReceiveOrigin={() =>
+              runAction(
+                () => receiveOriginSubBranch(shipment.id),
+                "Received at origin sub-branch."
+              )
+            }
+            onDispatchNext={() =>
+              runAction(
+                () => dispatchNextRouteStep(shipment.id),
+                "Next route step dispatched."
+              )
+            }
+            onReceiveCurrent={() =>
+              runAction(
+                () => receiveCurrentRouteStep(shipment.id),
+                "Current route step received."
+              )
+            }
+          />
+
+          {/* ── Parcel ── */}
+          <SectionCard title="Parcel details" icon={<FileTextOutlined />}>
             <FieldDescriptions
               column={{ xs: 1, sm: 2, md: 3 }}
               items={[
                 { label: "Service", value: shipment.service_type },
-                { label: "Payment", value: shipment.payment_type ? String(shipment.payment_type).toUpperCase() : null },
+                {
+                  label: "Payment",
+                  value: shipment.payment_type
+                    ? String(shipment.payment_type).toUpperCase()
+                    : null,
+                },
                 {
                   label: "Charge paid by",
                   value: shipment.delivery_charge_paid_by,
                 },
-                { label: "Parcel type", value: shipment.parcel_type || shipment.package_type },
-                { label: "Weight (kg)", value: shipment.weight != null ? String(shipment.weight) : null },
-                { label: "Quantity", value: shipment.quantity != null ? String(shipment.quantity) : null },
+                {
+                  label: "Parcel type",
+                  value: shipment.parcel_type || shipment.package_type,
+                },
+                {
+                  label: "Weight (kg)",
+                  value:
+                    shipment.weight != null ? String(shipment.weight) : null,
+                },
+                {
+                  label: "Quantity",
+                  value:
+                    shipment.quantity != null
+                      ? String(shipment.quantity)
+                      : null,
+                },
                 {
                   label: "Declared value",
                   value:
@@ -588,64 +882,114 @@ export default function ShipmentDetailDrawer({ open, shipmentId, onClose }) {
                       ? formatMoney(Number(shipment.declared_value))
                       : null,
                 },
-                { label: "Fragile", value: shipment.fragile != null ? (shipment.fragile ? "Yes" : "No") : null },
-                { label: "Description", value: shipment.description || shipment.package_description },
+                {
+                  label: "Fragile",
+                  value:
+                    shipment.fragile != null
+                      ? shipment.fragile
+                        ? "Yes"
+                        : "No"
+                      : null,
+                },
+                {
+                  label: "Description",
+                  value:
+                    shipment.description || shipment.package_description,
+                },
                 { label: "Remarks", value: shipment.remarks },
-                { label: "Special instructions", value: shipment.special_instructions },
+                {
+                  label: "Special instructions",
+                  value: shipment.special_instructions,
+                },
               ]}
             />
           </SectionCard>
 
-          {/* Sender / Receiver */}
-          <Row gutter={[12, 12]}>
-            {view.hasSenderBlock || coordinateLabel(view.pickupLat, view.pickupLng) ? (
+          {/* ── Sender + Receiver ── */}
+          <Row gutter={[16, 16]}>
+            {(view.hasSenderBlock ||
+              coordinateLabel(view.pickupLat, view.pickupLng)) && (
               <Col xs={24} lg={12}>
-                <SectionCard title="Sender / Pickup" icon={<ShopOutlined />}>
+                <SectionCard
+                  title="Sender / Pickup"
+                  icon={<ShopOutlined />}
+                >
                   <FieldDescriptions
                     items={[
-                      { label: "Name", value: view.senderName },
+                      { label: "Merchant", value: view.merchantName },
+                      {
+                        label: "Pickup location",
+                        value: view.pickupLocationName,
+                      },
+                      { label: "Contact name", value: view.senderName },
                       { label: "Phone", value: view.senderPhone },
+                      { label: "Email", value: view.senderEmail },
                       { label: "Address", value: view.senderAddress },
                       { label: "City", value: view.senderCity },
                       { label: "Area", value: view.senderArea },
                       {
                         label: "Coordinates",
-                        value: coordinateLabel(view.pickupLat, view.pickupLng),
-                      },
-                      {
-                        label: "Pickup location",
-                        value: view.pickupLocation?.name,
+                        value: coordinateLabel(
+                          view.pickupLat,
+                          view.pickupLng
+                        ),
                       },
                     ]}
                   />
                 </SectionCard>
               </Col>
-            ) : null}
-            <Col xs={24} lg={view.hasSenderBlock || coordinateLabel(view.pickupLat, view.pickupLng) ? 12 : 24}>
-              <SectionCard title="Receiver / Delivery" icon={<UserOutlined />}>
+            )}
+            <Col
+              xs={24}
+              lg={
+                view.hasSenderBlock ||
+                coordinateLabel(view.pickupLat, view.pickupLng)
+                  ? 12
+                  : 24
+              }
+            >
+              <SectionCard
+                title="Receiver / Delivery"
+                icon={<UserOutlined />}
+              >
                 <FieldDescriptions
                   items={[
                     {
                       label: "Name",
-                      value: firstValue(shipment.receiver_name, shipment.customer_name),
+                      value: firstValue(
+                        shipment.receiver_name,
+                        shipment.customer_name
+                      ),
                     },
                     {
                       label: "Phone",
-                      value: firstValue(shipment.receiver_phone, shipment.customer_phone),
+                      value: firstValue(
+                        shipment.receiver_phone,
+                        shipment.customer_phone
+                      ),
                     },
                     {
                       label: "Email",
-                      value: firstValue(shipment.receiver_email, shipment.customer_email),
+                      value: firstValue(
+                        shipment.receiver_email,
+                        shipment.customer_email
+                      ),
                     },
                     {
                       label: "Address",
-                      value: firstValue(shipment.receiver_address, shipment.delivery_address),
+                      value: firstValue(
+                        shipment.receiver_address,
+                        shipment.delivery_address
+                      ),
                     },
                     { label: "City", value: shipment.receiver_city },
                     { label: "Area", value: shipment.receiver_area },
                     {
                       label: "Coordinates",
-                      value: coordinateLabel(view.deliveryLat, view.deliveryLng),
+                      value: coordinateLabel(
+                        view.deliveryLat,
+                        view.deliveryLng
+                      ),
                     },
                   ]}
                 />
@@ -653,8 +997,8 @@ export default function ShipmentDetailDrawer({ open, shipmentId, onClose }) {
             </Col>
           </Row>
 
-          {/* Packet products */}
-          {view.packetProducts.length > 0 ? (
+          {/* ── Packet products ── */}
+          {view.packetProducts.length > 0 && (
             <SectionCard title="Packet products" icon={<ShopOutlined />}>
               <Table
                 size="small"
@@ -662,12 +1006,17 @@ export default function ShipmentDetailDrawer({ open, shipmentId, onClose }) {
                 pagination={false}
                 dataSource={view.packetProducts}
                 columns={[
-                  { title: "Name", dataIndex: "name", render: (v) => v || "—" },
+                  {
+                    title: "Name",
+                    dataIndex: "name",
+                    render: (v) => v || "—",
+                  },
                   { title: "Qty", dataIndex: "quantity", width: 70 },
                   {
                     title: "Unit price",
                     dataIndex: "unit_price",
-                    render: (v) => (v != null ? formatMoney(Number(v)) : "—"),
+                    render: (v) =>
+                      v != null ? formatMoney(Number(v)) : "—",
                   },
                   {
                     title: "Tracking",
@@ -677,62 +1026,60 @@ export default function ShipmentDetailDrawer({ open, shipmentId, onClose }) {
                 ]}
               />
             </SectionCard>
-          ) : null}
+          )}
 
-          {/* Workflow + route steps */}
-          <ShipmentWorkflowActions
-            shipment={shipment}
-            loading={actionLoading}
-            onReceiveOrigin={() =>
-              runAction(() => receiveOriginSubBranch(shipment.id), "Received at origin sub-branch.")
-            }
-            onDispatchNext={() =>
-              runAction(() => dispatchNextRouteStep(shipment.id), "Next route step dispatched.")
-            }
-            onReceiveCurrent={() =>
-              runAction(() => receiveCurrentRouteStep(shipment.id), "Current route step received.")
-            }
-          />
-
-          {/* Pricing */}
+          {/* ── Pricing ── */}
           {(view.priceBreakdown || view.hasFeeColumns) && (
-            <SectionCard title="Pricing breakdown" icon={<DollarOutlined />}>
+            <SectionCard
+              title="Pricing breakdown"
+              icon={<DollarOutlined />}
+            >
               {view.priceBreakdown ? (
                 <FieldDescriptions
                   column={2}
                   items={[
                     {
                       label: "Base pickup fee",
-                      value: formatMoney(Number(view.priceBreakdown.base_pickup_fee ?? 0)),
+                      value: formatMoney(
+                        Number(view.priceBreakdown.base_pickup_fee ?? 0)
+                      ),
                     },
                     {
                       label: "Base delivery fee",
-                      value: formatMoney(Number(view.priceBreakdown.base_delivery_fee ?? 0)),
+                      value: formatMoney(
+                        Number(view.priceBreakdown.base_delivery_fee ?? 0)
+                      ),
                     },
                     {
                       label: "Transfer fee",
-                      value: formatMoney(Number(view.priceBreakdown.base_transfer_fee ?? 0)),
+                      value: formatMoney(
+                        Number(view.priceBreakdown.base_transfer_fee ?? 0)
+                      ),
                     },
                     {
-                      label: "Pickup extra",
-                      value: formatMoney(Number(view.priceBreakdown.pickup_extra_charge ?? 0)),
-                    },
-                    {
-                      label: "Delivery extra",
-                      value: formatMoney(Number(view.priceBreakdown.delivery_extra_charge ?? 0)),
+                      label: "Delivery extra (extra mile)",
+                      value: formatMoney(
+                        Number(
+                          view.priceBreakdown.delivery_extra_charge ?? 0
+                        )
+                      ),
                     },
                     {
                       label: "Weight charge",
-                      value: formatMoney(Number(view.priceBreakdown.weight_charge ?? 0)),
+                      value: formatMoney(
+                        Number(view.priceBreakdown.weight_charge ?? 0)
+                      ),
                     },
                     {
                       label: "POD fee",
-                      value: formatMoney(Number(view.priceBreakdown.pod_fee ?? 0)),
+                      value: formatMoney(
+                        Number(view.priceBreakdown.pod_fee ?? 0)
+                      ),
                     },
                     {
                       label: "Final price",
                       value: (
-                        <strong>
+                        <Text strong>
                           {formatMoney(
                             Number(
                               view.priceBreakdown.final_price ??
@@ -740,7 +1087,7 @@ export default function ShipmentDetailDrawer({ open, shipmentId, onClose }) {
                                 0
                             )
                           )}
-                        </strong>
+                        </Text>
                       ),
                     },
                   ]}
@@ -797,24 +1144,36 @@ export default function ShipmentDetailDrawer({ open, shipmentId, onClose }) {
             </SectionCard>
           )}
 
-          {/* Tasks — only if data */}
-          {view.tasks.length > 0 ? (
+          {/* ── Tasks ── */}
+          {view.tasks.length > 0 && (
             <SectionCard title="Shipment tasks" icon={<CarOutlined />}>
               <Table
                 size="small"
                 rowKey="id"
                 dataSource={view.tasks}
                 pagination={false}
-                scroll={{ x: 800 }}
+                scroll={{ x: 700 }}
                 columns={[
-                  { title: "Task", dataIndex: "task_number", render: (v) => v || "—" },
-                  { title: "Type", dataIndex: "type", render: (v) => v || "—" },
+                  {
+                    title: "Task",
+                    dataIndex: "task_number",
+                    render: (v) => v || "—",
+                  },
+                  {
+                    title: "Type",
+                    dataIndex: "type",
+                    render: (v) => v || "—",
+                  },
                   {
                     title: "Status",
                     dataIndex: "status",
                     render: (v) => <WorkflowStatusTag status={v} />,
                   },
-                  { title: "Priority", dataIndex: "priority", render: (v) => v || "—" },
+                  {
+                    title: "Priority",
+                    dataIndex: "priority",
+                    render: (v) => v || "—",
+                  },
                   {
                     title: "Due",
                     dataIndex: "due_at",
@@ -823,20 +1182,25 @@ export default function ShipmentDetailDrawer({ open, shipmentId, onClose }) {
                 ]}
               />
             </SectionCard>
-          ) : null}
+          )}
 
-          {/* Tracking */}
-          {view.trackingEvents.length > 0 ? (
-            <SectionCard title="Tracking timeline" icon={<CarOutlined />}>
+          {/* ── Tracking ── */}
+          {view.trackingEvents.length > 0 && (
+            <SectionCard
+              title="Tracking timeline"
+              icon={<HistoryOutlined />}
+            >
               <Timeline
                 items={view.trackingEvents.map((event) => ({
                   color: event.status === "delivered" ? "green" : "blue",
                   children: (
                     <div>
-                      <strong>{labelForStatus(event.status)}</strong>
+                      <Text strong>{labelForStatus(event.status)}</Text>
                       <div>{event.description ?? event.note ?? "—"}</div>
-                      <Text type="secondary">
-                        {event.location_text ? `${event.location_text} · ` : ""}
+                      <Text type="secondary" style={{ fontSize: 12 }}>
+                        {event.location_text
+                          ? `${event.location_text} · `
+                          : ""}
                         {formatDateTime(event.created_at)}
                       </Text>
                     </div>
@@ -844,10 +1208,10 @@ export default function ShipmentDetailDrawer({ open, shipmentId, onClose }) {
                 }))}
               />
             </SectionCard>
-          ) : null}
+          )}
 
-          {/* Status logs */}
-          {view.statusLogs.length > 0 ? (
+          {/* ── Status logs ── */}
+          {view.statusLogs.length > 0 && (
             <SectionCard title="Status logs">
               <Table
                 size="small"
@@ -855,13 +1219,21 @@ export default function ShipmentDetailDrawer({ open, shipmentId, onClose }) {
                 dataSource={view.statusLogs}
                 pagination={false}
                 columns={[
-                  { title: "Old", dataIndex: "old_status", render: (v) => v || "—" },
+                  {
+                    title: "Old",
+                    dataIndex: "old_status",
+                    render: (v) => v || "—",
+                  },
                   {
                     title: "New",
                     dataIndex: "new_status",
                     render: (v) => <WorkflowStatusTag status={v} />,
                   },
-                  { title: "Note", dataIndex: "note", render: (v) => v || "—" },
+                  {
+                    title: "Note",
+                    dataIndex: "note",
+                    render: (v) => v || "—",
+                  },
                   {
                     title: "At",
                     dataIndex: "created_at",
@@ -870,10 +1242,10 @@ export default function ShipmentDetailDrawer({ open, shipmentId, onClose }) {
                 ]}
               />
             </SectionCard>
-          ) : null}
+          )}
 
-          {/* Notifications */}
-          {view.notifications.length > 0 ? (
+          {/* ── Notifications ── */}
+          {view.notifications.length > 0 && (
             <SectionCard title="Notifications">
               <Table
                 size="small"
@@ -881,9 +1253,21 @@ export default function ShipmentDetailDrawer({ open, shipmentId, onClose }) {
                 dataSource={view.notifications}
                 pagination={false}
                 columns={[
-                  { title: "Title", dataIndex: "title", render: (v) => v || "—" },
-                  { title: "Message", dataIndex: "message", render: (v) => v || "—" },
-                  { title: "Type", dataIndex: "type", render: (v) => v || "—" },
+                  {
+                    title: "Title",
+                    dataIndex: "title",
+                    render: (v) => v || "—",
+                  },
+                  {
+                    title: "Message",
+                    dataIndex: "message",
+                    render: (v) => v || "—",
+                  },
+                  {
+                    title: "Type",
+                    dataIndex: "type",
+                    render: (v) => v || "—",
+                  },
                   {
                     title: "Created",
                     dataIndex: "created_at",
@@ -892,7 +1276,7 @@ export default function ShipmentDetailDrawer({ open, shipmentId, onClose }) {
                 ]}
               />
             </SectionCard>
-          ) : null}
+          )}
         </Space>
       )}
     </Drawer>

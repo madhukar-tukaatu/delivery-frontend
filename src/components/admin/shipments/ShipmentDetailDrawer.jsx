@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useEffect, useMemo, useState } from "react";
 import {
@@ -15,7 +15,6 @@ import {
   Spin,
   Statistic,
   Table,
-  Tabs,
   Tag,
   Timeline,
   Typography,
@@ -32,7 +31,8 @@ import {
   InfoCircleOutlined,
   HistoryOutlined,
   FileTextOutlined,
-  CheckCircleOutlined,
+  CompassOutlined,
+  AimOutlined,
 } from "@ant-design/icons";
 
 import ShipmentWorkflowActions from "@/features/workflow/components/ShipmentWorkflowActions";
@@ -71,11 +71,7 @@ function hasText(value) {
 
 function branchLabel(branch, fallbackId) {
   if (branch && typeof branch === "object") {
-    const name = firstValue(
-      branch.name,
-      branch.legal_name,
-      branch.branch_name
-    );
+    const name = firstValue(branch.name, branch.legal_name, branch.branch_name);
     if (name) {
       return branch.area ? `${name}, ${branch.area}` : name;
     }
@@ -121,6 +117,37 @@ function parseJsonField(value) {
     } catch {
       return null;
     }
+  }
+  return null;
+}
+
+function haversineDistanceKm(lat1, lon1, lat2, lon2) {
+  if (lat1 == null || lon1 == null || lat2 == null || lon2 == null) return null;
+  const nLat1 = Number(lat1);
+  const nLon1 = Number(lon1);
+  const nLat2 = Number(lat2);
+  const nLon2 = Number(lon2);
+  if (Number.isNaN(nLat1) || Number.isNaN(nLon1) || Number.isNaN(nLat2) || Number.isNaN(nLon2)) return null;
+
+  const R = 6371; // Earth radius in km
+  const dLat = ((nLat2 - nLat1) * Math.PI) / 180;
+  const dLon = ((nLon2 - nLon1) * Math.PI) / 180;
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos((nLat1 * Math.PI) / 180) *
+      Math.cos((nLat2 * Math.PI) / 180) *
+      Math.sin(dLon / 2) *
+      Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return Math.round(R * c * 100) / 100;
+}
+
+function resolveBranchCoords(branch) {
+  if (!branch || typeof branch !== "object") return null;
+  const lat = branch.latitude ?? branch.office_latitude ?? branch.lat ?? null;
+  const lng = branch.longitude ?? branch.office_longitude ?? branch.lng ?? null;
+  if (lat != null && lng != null && !Number.isNaN(Number(lat)) && !Number.isNaN(Number(lng))) {
+    return { lat: Number(lat), lng: Number(lng) };
   }
   return null;
 }
@@ -172,7 +199,7 @@ function SectionCard({ title, icon, children, extra, style }) {
 
 function FieldDescriptions({ items, column = 1 }) {
   const visible = items.filter(
-    (item) => item.show !== false && hasText(item.value)
+    (item) => item.show !== false && hasText(item.value),
   );
   if (!visible.length) return null;
   return (
@@ -195,9 +222,21 @@ function MoneyStat({ title, value, color }) {
             {title}
           </Text>
         }
-        value={value ?? 0}
-        precision={2}
-        prefix="NPR "
+        value={
+          value === null || value === undefined || !Number.isFinite(Number(value))
+            ? "—"
+            : Number(value)
+        }
+        precision={
+          value === null || value === undefined || !Number.isFinite(Number(value))
+            ? undefined
+            : 2
+        }
+        prefix={
+          value === null || value === undefined || !Number.isFinite(Number(value))
+            ? ""
+            : "NPR "
+        }
         valueStyle={{ fontSize: 18, fontWeight: 600, color }}
       />
     </Card>
@@ -212,7 +251,6 @@ export default function ShipmentDetailDrawer({ open, shipmentId, onClose }) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
-  const [activeTab, setActiveTab] = useState("overview");
 
   const load = async () => {
     if (!shipmentId) return;
@@ -223,7 +261,7 @@ export default function ShipmentDetailDrawer({ open, shipmentId, onClose }) {
     } catch (error) {
       console.error("Could not load shipment:", error);
       message.error(
-        error?.response?.data?.message ?? "Could not load shipment."
+        error?.response?.data?.message ?? "Could not load shipment.",
       );
       setData(null);
     } finally {
@@ -233,7 +271,6 @@ export default function ShipmentDetailDrawer({ open, shipmentId, onClose }) {
 
   useEffect(() => {
     if (!open || !shipmentId) return;
-    setActiveTab("overview");
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, shipmentId]);
@@ -247,7 +284,7 @@ export default function ShipmentDetailDrawer({ open, shipmentId, onClose }) {
     } catch (error) {
       console.error("Workflow action failed:", error);
       message.error(
-        error?.response?.data?.message ?? "Workflow action failed."
+        error?.response?.data?.message ?? "Workflow action failed.",
       );
     } finally {
       setActionLoading(false);
@@ -255,8 +292,7 @@ export default function ShipmentDetailDrawer({ open, shipmentId, onClose }) {
   };
 
   // Support { data: {...} }, { shipment: {...} }, or flat model
-  const shipment =
-    data?.shipment ?? data?.data ?? (data?.id ? data : null);
+  const shipment = data?.shipment ?? data?.data ?? (data?.id ? data : null);
 
   const view = useMemo(() => {
     if (!shipment) return null;
@@ -264,8 +300,7 @@ export default function ShipmentDetailDrawer({ open, shipmentId, onClose }) {
     const pickupLocation =
       shipment.pickup_location ?? shipment.pickupLocation ?? null;
     const merchant = shipment.merchant ?? null;
-    const hop =
-      shipment.hop_meta ?? shipment.hopMeta ?? data?.hop_meta ?? null;
+    const hop = shipment.hop_meta ?? shipment.hopMeta ?? data?.hop_meta ?? null;
 
     const originBranch =
       shipment.origin_branch ?? shipment.originBranch ?? null;
@@ -298,7 +333,7 @@ export default function ShipmentDetailDrawer({ open, shipmentId, onClose }) {
     }
 
     const breakdown = parseJsonField(
-      shipment.delivery_charge_breakdown ?? shipment.deliveryChargeBreakdown
+      shipment.delivery_charge_breakdown ?? shipment.deliveryChargeBreakdown,
     );
     const breakdownOrigin = breakdown?.pickup_branch?.name ?? null;
     const breakdownDest = breakdown?.delivery_branch?.name ?? null;
@@ -308,7 +343,7 @@ export default function ShipmentDetailDrawer({ open, shipmentId, onClose }) {
         hop?.origin_name,
         branchLabel(originBranch, null),
         pathOrigin,
-        breakdownOrigin
+        breakdownOrigin,
       ) || branchLabel(null, shipment.origin_branch_id);
 
     const destinationLabel =
@@ -316,7 +351,7 @@ export default function ShipmentDetailDrawer({ open, shipmentId, onClose }) {
         hop?.destination_name,
         branchLabel(destinationBranch, null),
         pathDestination,
-        breakdownDest
+        breakdownDest,
       ) || branchLabel(null, shipment.destination_branch_id);
 
     const currentLabel =
@@ -327,7 +362,7 @@ export default function ShipmentDetailDrawer({ open, shipmentId, onClose }) {
         Number(shipment.current_branch_id) ===
           Number(shipment.destination_branch_id)
           ? destinationLabel
-          : null
+          : null,
       ) || branchLabel(null, shipment.current_branch_id);
 
     const nextHopLabel =
@@ -343,35 +378,35 @@ export default function ShipmentDetailDrawer({ open, shipmentId, onClose }) {
       pickupLocation?.name,
       merchant?.owner_name,
       merchant?.contact_person,
-      merchant?.name
+      merchant?.name,
     );
     const senderPhone = firstValue(
       shipment.sender_phone,
       pickupLocation?.phone,
-      merchant?.phone
+      merchant?.phone,
     );
     const senderEmail = firstValue(
       shipment.sender_email,
       pickupLocation?.email,
-      merchant?.email
+      merchant?.email,
     );
     const senderAddress = firstValue(
       shipment.sender_address,
       pickupLocation?.address,
       merchant?.pickup_address,
-      merchant?.address
+      merchant?.address,
     );
     const senderCity = firstValue(
       shipment.sender_city,
       pickupLocation?.city,
       merchant?.pickup_city,
-      merchant?.city
+      merchant?.city,
     );
     const senderArea = firstValue(
       shipment.sender_area,
       pickupLocation?.area,
       merchant?.pickup_area,
-      merchant?.area
+      merchant?.area,
     );
 
     const hasSenderBlock = [
@@ -389,52 +424,50 @@ export default function ShipmentDetailDrawer({ open, shipmentId, onClose }) {
       shipment.pickup_lat,
       shipment.pickup_latitude,
       pickupLocation?.latitude,
-      pickupLocation?.lat
+      pickupLocation?.lat,
     );
     const pickupLng = firstValue(
       shipment.pickup_lng,
       shipment.pickup_longitude,
       pickupLocation?.longitude,
-      pickupLocation?.lng
+      pickupLocation?.lng,
     );
     const deliveryLat = firstValue(
       shipment.delivery_lat,
       shipment.delivery_latitude,
-      shipment.receiver_latitude
+      shipment.receiver_latitude,
     );
     const deliveryLng = firstValue(
       shipment.delivery_lng,
       shipment.delivery_longitude,
-      shipment.receiver_longitude
+      shipment.receiver_longitude,
     );
 
     const trackingEvents = Array.isArray(
       data?.tracking_events ??
         shipment.tracking_events ??
-        shipment.trackingEvents
+        shipment.trackingEvents,
     )
-      ? data?.tracking_events ??
+      ? (data?.tracking_events ??
         shipment.tracking_events ??
-        shipment.trackingEvents
+        shipment.trackingEvents)
       : [];
 
     const tasks = Array.isArray(data?.tasks ?? shipment.tasks)
-      ? data?.tasks ?? shipment.tasks
+      ? (data?.tasks ?? shipment.tasks)
       : [];
-    const statusLogs = Array.isArray(
-      data?.status_logs ?? shipment.status_logs
-    )
-      ? data?.status_logs ?? shipment.status_logs
+    const statusLogs = Array.isArray(data?.status_logs ?? shipment.status_logs)
+      ? (data?.status_logs ?? shipment.status_logs)
       : [];
     const notifications = Array.isArray(
-      data?.notifications ?? shipment.notifications
+      data?.notifications ?? shipment.notifications,
     )
-      ? data?.notifications ?? shipment.notifications
+      ? (data?.notifications ?? shipment.notifications)
       : [];
     const routeSteps = Array.isArray(
-      shipment.route_steps ?? shipment.routeSteps
+      shipment.route_steps ?? shipment.routeSteps,
     )
-      ? shipment.route_steps ?? shipment.routeSteps
+      ? (shipment.route_steps ?? shipment.routeSteps)
       : [];
 
     const priceBreakdown =
@@ -451,11 +484,11 @@ export default function ShipmentDetailDrawer({ open, shipmentId, onClose }) {
       pod_charge: moneyValue(shipment.pod_charge),
       delivery_charge: moneyValue(
         shipment.delivery_charge,
-        shipment.delivery_fee
+        shipment.delivery_fee,
       ),
     };
     const hasFeeColumns = Object.values(feeFromShipment).some(
-      (v) => v !== null && v !== 0
+      (v) => v !== null && v !== 0,
     );
 
     let packetProducts = shipment.packet_products ?? shipment.packetProducts;
@@ -503,23 +536,204 @@ export default function ShipmentDetailDrawer({ open, shipmentId, onClose }) {
       originSubLabel: branchLabel(originSub, shipment.origin_sub_branch_id),
       destinationSubLabel: branchLabel(
         destinationSub,
-        shipment.destination_sub_branch_id
+        shipment.destination_sub_branch_id,
       ),
-      currentSubLabel: branchLabel(
-        currentSub,
-        shipment.current_sub_branch_id
-      ),
+      currentSubLabel: branchLabel(currentSub, shipment.current_sub_branch_id),
       isTransfer,
       pathText,
       viaNames,
       transferStageLabel:
         shipment.transfer_stage_label || shipment.transferStageLabel,
+      distanceData: (() => {
+        const serverDist = data?.distance_data ?? shipment.distance_data ?? null;
+
+        const originCoords =
+          resolveBranchCoords(originSub) ??
+          resolveBranchCoords(originBranch) ??
+          (hasText(pickupLat) && hasText(pickupLng)
+            ? { lat: Number(pickupLat), lng: Number(pickupLng) }
+            : null);
+
+        const destCoords =
+          resolveBranchCoords(destinationSub) ??
+          resolveBranchCoords(destinationBranch) ??
+          (hasText(deliveryLat) && hasText(deliveryLng)
+            ? { lat: Number(deliveryLat), lng: Number(deliveryLng) }
+            : null);
+
+        const currentCoords =
+          resolveBranchCoords(currentSub) ??
+          resolveBranchCoords(currentBranch) ??
+          originCoords;
+
+        // Sum route steps if defined
+        let routeStepsTotal = 0;
+        let routeStepsCovered = 0;
+        if (routeSteps.length > 0) {
+          for (const step of routeSteps) {
+            const stepDist = Number(step.distance_km || 0);
+            routeStepsTotal += stepDist;
+            const sStatus = String(step.status || "").toLowerCase();
+            if (
+              sStatus === "completed" ||
+              sStatus === "received" ||
+              step.completed_at
+            ) {
+              routeStepsCovered += stepDist;
+            }
+          }
+        }
+
+        let totalDist = moneyValue(shipment.route_distance_km);
+        if ((totalDist == null || totalDist <= 0) && routeStepsTotal > 0) {
+          totalDist = routeStepsTotal;
+        }
+        if ((totalDist == null || totalDist <= 0) && originCoords && destCoords) {
+          totalDist = haversineDistanceKm(
+            originCoords.lat,
+            originCoords.lng,
+            destCoords.lat,
+            destCoords.lng
+          );
+        }
+        totalDist = totalDist != null ? Math.round(totalDist * 100) / 100 : 0;
+
+        const statusStr = String(shipment.status || "").toLowerCase();
+        const isDelivered = statusStr === "delivered";
+        const isAtDestBranch =
+          [
+            "received_at_destination",
+            "received_at_destination_branch",
+            "received_at_destination_sub_branch",
+            "assigned_to_rider",
+            "out_for_delivery",
+            "delivered",
+          ].includes(statusStr) ||
+          (shipment.current_branch_id &&
+            shipment.destination_branch_id &&
+            Number(shipment.current_branch_id) ===
+              Number(shipment.destination_branch_id));
+
+        let coveredDist = 0;
+        let distFromDest = totalDist;
+        let progressPct = 0;
+
+        if (serverDist) {
+          totalDist = Number(serverDist.total_distance_km ?? totalDist);
+          coveredDist = Number(serverDist.covered_distance_km ?? 0);
+          distFromDest = Number(
+            serverDist.distance_from_destination_branch_km ?? 0
+          );
+          progressPct = Number(serverDist.progress_percent ?? 0);
+        } else if (isDelivered) {
+          coveredDist = totalDist;
+          distFromDest = 0;
+          progressPct = 100;
+        } else if (isAtDestBranch) {
+          distFromDest = 0;
+          coveredDist =
+            routeStepsCovered > 0
+              ? Math.max(routeStepsCovered, totalDist * 0.9)
+              : totalDist * 0.9;
+          progressPct =
+            totalDist > 0 ? Math.round((coveredDist / totalDist) * 100) : 90;
+        } else if (
+          statusStr === "in_transit" ||
+          statusStr === "received_at_transit_hub"
+        ) {
+          if (currentCoords && destCoords) {
+            distFromDest =
+              haversineDistanceKm(
+                currentCoords.lat,
+                currentCoords.lng,
+                destCoords.lat,
+                destCoords.lng
+              ) ?? Math.max(0, totalDist - routeStepsCovered);
+          } else {
+            distFromDest = Math.max(0, totalDist - routeStepsCovered);
+          }
+          coveredDist =
+            routeStepsCovered > 0
+              ? routeStepsCovered
+              : Math.max(0, totalDist - distFromDest);
+          progressPct =
+            totalDist > 0
+              ? Math.min(
+                  95,
+                  Math.max(15, Math.round((coveredDist / totalDist) * 100))
+                )
+              : 50;
+        } else if (
+          [
+            "picked_up",
+            "received_at_origin",
+            "received_at_origin_branch",
+            "sorted_for_transfer",
+          ].includes(statusStr)
+        ) {
+          if (originCoords && destCoords) {
+            distFromDest =
+              haversineDistanceKm(
+                originCoords.lat,
+                originCoords.lng,
+                destCoords.lat,
+                destCoords.lng
+              ) ?? totalDist;
+          } else {
+            distFromDest = totalDist;
+          }
+          coveredDist = Math.min(totalDist * 0.1, 5);
+          progressPct = 10;
+        } else {
+          if (originCoords && destCoords) {
+            distFromDest =
+              haversineDistanceKm(
+                originCoords.lat,
+                originCoords.lng,
+                destCoords.lat,
+                destCoords.lng
+              ) ?? totalDist;
+          } else {
+            distFromDest = totalDist;
+          }
+          coveredDist = 0;
+          progressPct = 0;
+        }
+
+        return {
+          totalDistanceKm: Math.round(totalDist * 100) / 100,
+          coveredDistanceKm: Math.round(coveredDist * 100) / 100,
+          distanceFromDestinationBranchKm:
+            Math.round(distFromDest * 100) / 100,
+          progressPercent: progressPct,
+          isAtDestinationBranch: isAtDestBranch,
+          isDelivered,
+        };
+      })(),
     };
   }, [shipment, data]);
 
   const drawerTitle = shipment?.tracking_number || "Shipment details";
 
-  /* ---- tabs ---- */
+  // Financial rules for this application:
+  // - pod_amount is the TOTAL amount the courier collects from the customer.
+  // - delivery_charge is the delivery fee included in that total.
+  // - goods/merchant receivable value excludes the delivery charge.
+  const deliveryCharge = moneyValue(
+    shipment?.delivery_charge,
+    shipment?.delivery_fee,
+  );
+  const isPodShipment =
+    String(shipment?.payment_type ?? shipment?.payment_method ?? "")
+      .toLowerCase() === "pod";
+  const podAmount = moneyValue(shipment?.pod_amount);
+  const collectableAmount = isPodShipment ? podAmount : null;
+  const receivableAmount =
+    collectableAmount != null && deliveryCharge != null
+      ? Math.max(0, collectableAmount - deliveryCharge)
+      : moneyValue(shipment?.merchandise_value, shipment?.items_subtotal);
+
+  /* ---- drawer sections ---- */
 
   const overviewTab = view && (
     <Space direction="vertical" size={16} style={{ width: "100%" }}>
@@ -560,47 +774,140 @@ export default function ShipmentDetailDrawer({ open, shipmentId, onClose }) {
       </Card>
 
       <Row gutter={[12, 12]}>
-        <Col xs={12} sm={6}>
+        <Col xs={12} sm={12} lg={6}>
           <MoneyStat
             title="Delivery charge"
-            value={moneyValue(shipment.delivery_charge, shipment.delivery_fee)}
+            value={deliveryCharge}
             color="#0891B2"
           />
         </Col>
-        <Col xs={12} sm={6}>
+        
+        <Col xs={12} sm={12} lg={6}>
           <MoneyStat
-            title="POD amount"
-            value={moneyValue(shipment.pod_amount)}
+            title="Collect from customer (POD total)"
+            value={collectableAmount}
             color="#D97706"
           />
         </Col>
-        <Col xs={12} sm={6}>
+        
+        <Col xs={12} sm={12} lg={6}>
           <MoneyStat
-            title="Collectable"
-            value={moneyValue(
-              shipment.total_collectable_amount,
-              shipment.total_collectable,
-              shipment.pod_amount
-            )}
+            title="Goods value (excl. delivery)"
+            value={receivableAmount}
             color="#059669"
           />
         </Col>
-        <Col xs={12} sm={6}>
+        <Col xs={12} sm={12} lg={6}>
           <Card size="small" styles={{ body: { padding: "12px 16px" } }}>
             <Statistic
               title={
                 <Text type="secondary" style={{ fontSize: 12 }}>
-                  Distance
+                  Route distance
                 </Text>
               }
-              value={moneyValue(shipment.route_distance_km) ?? 0}
-              precision={2}
-              suffix=" km"
+              value={view.distanceData.totalDistanceKm || "—"}
+              precision={view.distanceData.totalDistanceKm ? 2 : undefined}
+              suffix={view.distanceData.totalDistanceKm ? " km" : ""}
               valueStyle={{ fontSize: 18, fontWeight: 600 }}
             />
           </Card>
         </Col>
       </Row>
+
+      {/* Distance & Journey Metrics */}
+      <Card
+        size="small"
+        title={
+          <Space size={8}>
+            <CompassOutlined style={{ color: "#0891B2" }} />
+            <span style={{ fontWeight: 600 }}>Distance & Journey Progress</span>
+          </Space>
+        }
+        extra={
+          view.distanceData.isAtDestinationBranch ? (
+            <Tag color="green" icon={<AimOutlined />}>
+              {view.distanceData.isDelivered ? "Delivered" : "At Destination Branch"}
+            </Tag>
+          ) : view.distanceData.coveredDistanceKm > 0 ? (
+            <Tag color="processing">In Transit</Tag>
+          ) : (
+            <Tag color="default">Pending Dispatch</Tag>
+          )
+        }
+      >
+        <Row gutter={[16, 16]} align="middle">
+          <Col xs={24} sm={8}>
+            <Statistic
+              title={<Text type="secondary" style={{ fontSize: 12 }}>Total Route Distance</Text>}
+              value={view.distanceData.totalDistanceKm}
+              precision={2}
+              suffix="km"
+              valueStyle={{ fontSize: 20, fontWeight: 700, color: "#1E293B" }}
+            />
+            <Text type="secondary" style={{ fontSize: 11 }}>
+              Full planned route path
+            </Text>
+          </Col>
+
+          <Col xs={24} sm={8}>
+            <Statistic
+              title={<Text type="secondary" style={{ fontSize: 12 }}>Total Distance Covered</Text>}
+              value={view.distanceData.coveredDistanceKm}
+              precision={2}
+              suffix="km"
+              valueStyle={{ fontSize: 20, fontWeight: 700, color: "#0891B2" }}
+            />
+            <Text type="secondary" style={{ fontSize: 11 }}>
+              {view.distanceData.progressPercent}% traveled so far
+            </Text>
+          </Col>
+
+          <Col xs={24} sm={8}>
+            <Statistic
+              title={<Text type="secondary" style={{ fontSize: 12 }}>Distance from Destination Branch</Text>}
+              value={view.distanceData.isAtDestinationBranch ? 0 : view.distanceData.distanceFromDestinationBranchKm}
+              precision={2}
+              suffix={view.distanceData.isAtDestinationBranch ? "km (Arrived)" : "km remaining"}
+              valueStyle={{
+                fontSize: 20,
+                fontWeight: 700,
+                color: view.distanceData.isAtDestinationBranch ? "#10B981" : "#D97706",
+              }}
+            />
+            <Text style={{ fontSize: 11, color: view.distanceData.isAtDestinationBranch ? "#10B981" : "#64748B" }}>
+              {view.distanceData.isAtDestinationBranch
+                ? "Parcel reached destination branch"
+                : `${view.distanceData.distanceFromDestinationBranchKm} km to reach destination branch`}
+            </Text>
+          </Col>
+        </Row>
+
+        <div style={{ marginTop: 14, paddingTop: 12, borderTop: "1px solid #F1F5F9" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+            <Space size={4}>
+              <EnvironmentOutlined style={{ color: "#64748B", fontSize: 12 }} />
+              <Text type="secondary" style={{ fontSize: 12 }}>
+                Origin: <Text strong>{view.originLabel || "Origin Branch"}</Text>
+              </Text>
+            </Space>
+            <Space size={4}>
+              <AimOutlined style={{ color: "#10B981", fontSize: 12 }} />
+              <Text type="secondary" style={{ fontSize: 12 }}>
+                Destination: <Text strong>{view.destinationLabel || "Destination Branch"}</Text>
+              </Text>
+            </Space>
+          </div>
+          <Progress
+            percent={view.distanceData.progressPercent}
+            strokeColor={{
+              "0%": "#0891B2",
+              "100%": "#10B981",
+            }}
+            status={view.distanceData.isDelivered ? "success" : "active"}
+            size="small"
+          />
+        </div>
+      </Card>
 
       <SectionCard title="Current location" icon={<EnvironmentOutlined />}>
         <FieldDescriptions
@@ -618,14 +925,12 @@ export default function ShipmentDetailDrawer({ open, shipmentId, onClose }) {
             { label: "Current sub-branch", value: view.currentSubLabel },
           ]}
         />
-        {!view.originLabel &&
-          !view.destinationLabel &&
-          !view.currentLabel && (
-            <Empty
-              image={Empty.PRESENTED_IMAGE_SIMPLE}
-              description="No branch assignments yet"
-            />
-          )}
+        {!view.originLabel && !view.destinationLabel && !view.currentLabel && (
+          <Empty
+            image={Empty.PRESENTED_IMAGE_SIMPLE}
+            description="No branch assignments yet"
+          />
+        )}
       </SectionCard>
 
       <SectionCard title="Parcel summary" icon={<FileTextOutlined />}>
@@ -737,7 +1042,7 @@ export default function ShipmentDetailDrawer({ open, shipmentId, onClose }) {
         </SectionCard>
       )}
 
-      <SectionCard title="Branch assignments" icon={<EnvironmentOutlined />}>
+      <SectionCard title="Branch assignments & Distances" icon={<EnvironmentOutlined />}>
         <FieldDescriptions
           column={{ xs: 1, sm: 2 }}
           items={[
@@ -751,6 +1056,22 @@ export default function ShipmentDetailDrawer({ open, shipmentId, onClose }) {
               value: view.destinationSubLabel,
             },
             { label: "Current sub-branch", value: view.currentSubLabel },
+            {
+              label: "Total route distance",
+              value: view.distanceData.totalDistanceKm
+                ? `${view.distanceData.totalDistanceKm} km`
+                : "—",
+            },
+            {
+              label: "Distance covered",
+              value: `${view.distanceData.coveredDistanceKm} km (${view.distanceData.progressPercent}%)`,
+            },
+            {
+              label: "Distance to destination branch",
+              value: view.distanceData.isAtDestinationBranch
+                ? "0.00 km (At destination branch)"
+                : `${view.distanceData.distanceFromDestinationBranchKm} km remaining`,
+            },
           ]}
         />
       </SectionCard>
@@ -761,19 +1082,19 @@ export default function ShipmentDetailDrawer({ open, shipmentId, onClose }) {
         onReceiveOrigin={() =>
           runAction(
             () => receiveOriginSubBranch(shipment.id),
-            "Received at origin sub-branch."
+            "Received at origin sub-branch.",
           )
         }
         onDispatchNext={() =>
           runAction(
             () => dispatchNextRouteStep(shipment.id),
-            "Next route step dispatched."
+            "Next route step dispatched.",
           )
         }
         onReceiveCurrent={() =>
           runAction(
             () => receiveCurrentRouteStep(shipment.id),
-            "Current route step received."
+            "Current route step received.",
           )
         }
       />
@@ -812,8 +1133,7 @@ export default function ShipmentDetailDrawer({ open, shipmentId, onClose }) {
       <Col
         xs={24}
         lg={
-          view.hasSenderBlock ||
-          coordinateLabel(view.pickupLat, view.pickupLng)
+          view.hasSenderBlock || coordinateLabel(view.pickupLat, view.pickupLng)
             ? 12
             : 24
         }
@@ -825,28 +1145,28 @@ export default function ShipmentDetailDrawer({ open, shipmentId, onClose }) {
                 label: "Name",
                 value: firstValue(
                   shipment.receiver_name,
-                  shipment.customer_name
+                  shipment.customer_name,
                 ),
               },
               {
                 label: "Phone",
                 value: firstValue(
                   shipment.receiver_phone,
-                  shipment.customer_phone
+                  shipment.customer_phone,
                 ),
               },
               {
                 label: "Email",
                 value: firstValue(
                   shipment.receiver_email,
-                  shipment.customer_email
+                  shipment.customer_email,
                 ),
               },
               {
                 label: "Address",
                 value: firstValue(
                   shipment.receiver_address,
-                  shipment.delivery_address
+                  shipment.delivery_address,
                 ),
               },
               { label: "City", value: shipment.receiver_city },
@@ -878,8 +1198,7 @@ export default function ShipmentDetailDrawer({ open, shipmentId, onClose }) {
                 {
                   title: "Unit price",
                   dataIndex: "unit_price",
-                  render: (v) =>
-                    v != null ? formatMoney(Number(v)) : "—",
+                  render: (v) => (v != null ? formatMoney(Number(v)) : "—"),
                 },
                 {
                   title: "Tracking",
@@ -894,123 +1213,119 @@ export default function ShipmentDetailDrawer({ open, shipmentId, onClose }) {
     </Row>
   );
 
-  const pricingTab =
-    view &&
-    (view.priceBreakdown || view.hasFeeColumns) && (
-      <SectionCard title="Pricing breakdown" icon={<DollarOutlined />}>
-        {view.priceBreakdown ? (
-          <FieldDescriptions
-            column={2}
-            items={[
-              {
-                label: "Base pickup fee",
-                value: formatMoney(
-                  Number(view.priceBreakdown.base_pickup_fee ?? 0)
-                ),
-              },
-              {
-                label: "Base delivery fee",
-                value: formatMoney(
-                  Number(view.priceBreakdown.base_delivery_fee ?? 0)
-                ),
-              },
-              {
-                label: "Transfer fee",
-                value: formatMoney(
-                  Number(view.priceBreakdown.base_transfer_fee ?? 0)
-                ),
-              },
-              {
-                label: "Pickup extra",
-                value: formatMoney(
-                  Number(view.priceBreakdown.pickup_extra_charge ?? 0)
-                ),
-              },
-              {
-                label: "Delivery extra",
-                value: formatMoney(
-                  Number(view.priceBreakdown.delivery_extra_charge ?? 0)
-                ),
-              },
-              {
-                label: "Weight charge",
-                value: formatMoney(
-                  Number(view.priceBreakdown.weight_charge ?? 0)
-                ),
-              },
-              {
-                label: "POD fee",
-                value: formatMoney(
-                  Number(view.priceBreakdown.pod_fee ?? 0)
-                ),
-              },
-              {
-                label: "Final price",
-                value: (
-                  <Text strong>
-                    {formatMoney(
-                      Number(
-                        view.priceBreakdown.final_price ??
-                          shipment.delivery_charge ??
-                          0
-                      )
-                    )}
-                  </Text>
-                ),
-              },
-            ]}
-          />
-        ) : (
-          <FieldDescriptions
-            column={2}
-            items={[
-              {
-                label: "Pickup fee",
-                value:
-                  view.feeFromShipment.pickup_fee != null
-                    ? formatMoney(view.feeFromShipment.pickup_fee)
-                    : null,
-              },
-              {
-                label: "Route fee",
-                value:
-                  view.feeFromShipment.route_fee != null
-                    ? formatMoney(view.feeFromShipment.route_fee)
-                    : null,
-              },
-              {
-                label: "Last-mile fee",
-                value:
-                  view.feeFromShipment.last_mile_fee != null
-                    ? formatMoney(view.feeFromShipment.last_mile_fee)
-                    : null,
-              },
-              {
-                label: "Weight fee",
-                value:
-                  view.feeFromShipment.weight_fee != null
-                    ? formatMoney(view.feeFromShipment.weight_fee)
-                    : null,
-              },
-              {
-                label: "POD charge",
-                value:
-                  view.feeFromShipment.pod_charge != null
-                    ? formatMoney(view.feeFromShipment.pod_charge)
-                    : null,
-              },
-              {
-                label: "Delivery charge",
-                value:
-                  view.feeFromShipment.delivery_charge != null
-                    ? formatMoney(view.feeFromShipment.delivery_charge)
-                    : null,
-              },
-            ]}
-          />
-        )}
-      </SectionCard>
-    );
+  const pricingTab = view && (view.priceBreakdown || view.hasFeeColumns) && (
+    <SectionCard title="Pricing breakdown" icon={<DollarOutlined />}>
+      {view.priceBreakdown ? (
+        <FieldDescriptions
+          column={2}
+          items={[
+            {
+              label: "Base pickup fee",
+              value: formatMoney(
+                Number(view.priceBreakdown.base_pickup_fee ?? 0),
+              ),
+            },
+            {
+              label: "Base delivery fee",
+              value: formatMoney(
+                Number(view.priceBreakdown.base_delivery_fee ?? 0),
+              ),
+            },
+            {
+              label: "Transfer fee",
+              value: formatMoney(
+                Number(view.priceBreakdown.base_transfer_fee ?? 0),
+              ),
+            },
+            {
+              label: "Pickup extra",
+              value: formatMoney(
+                Number(view.priceBreakdown.pickup_extra_charge ?? 0),
+              ),
+            },
+            {
+              label: "Delivery extra",
+              value: formatMoney(
+                Number(view.priceBreakdown.delivery_extra_charge ?? 0),
+              ),
+            },
+            {
+              label: "Weight charge",
+              value: formatMoney(
+                Number(view.priceBreakdown.weight_charge ?? 0),
+              ),
+            },
+            {
+              label: "POD fee",
+              value: formatMoney(Number(view.priceBreakdown.pod_fee ?? 0)),
+            },
+            {
+              label: "Final price",
+              value: (
+                <Text strong>
+                  {formatMoney(
+                    Number(
+                      view.priceBreakdown.final_price ??
+                        shipment.delivery_charge ??
+                        0,
+                    ),
+                  )}
+                </Text>
+              ),
+            },
+          ]}
+        />
+      ) : (
+        <FieldDescriptions
+          column={2}
+          items={[
+            {
+              label: "Pickup fee",
+              value:
+                view.feeFromShipment.pickup_fee != null
+                  ? formatMoney(view.feeFromShipment.pickup_fee)
+                  : null,
+            },
+            {
+              label: "Route fee",
+              value:
+                view.feeFromShipment.route_fee != null
+                  ? formatMoney(view.feeFromShipment.route_fee)
+                  : null,
+            },
+            {
+              label: "Last-mile fee",
+              value:
+                view.feeFromShipment.last_mile_fee != null
+                  ? formatMoney(view.feeFromShipment.last_mile_fee)
+                  : null,
+            },
+            {
+              label: "Weight fee",
+              value:
+                view.feeFromShipment.weight_fee != null
+                  ? formatMoney(view.feeFromShipment.weight_fee)
+                  : null,
+            },
+            {
+              label: "POD charge",
+              value:
+                view.feeFromShipment.pod_charge != null
+                  ? formatMoney(view.feeFromShipment.pod_charge)
+                  : null,
+            },
+            {
+              label: "Delivery charge",
+              value:
+                view.feeFromShipment.delivery_charge != null
+                  ? formatMoney(view.feeFromShipment.delivery_charge)
+                  : null,
+            },
+          ]}
+        />
+      )}
+    </SectionCard>
+  );
 
   const activityTab = view && (
     <Space direction="vertical" size={16} style={{ width: "100%" }}>
@@ -1154,7 +1469,7 @@ export default function ShipmentDetailDrawer({ open, shipmentId, onClose }) {
       onClose={onClose}
       width={Math.min(
         920,
-        typeof window !== "undefined" ? window.innerWidth - 24 : 920
+        typeof window !== "undefined" ? window.innerWidth - 24 : 920,
       )}
       destroyOnClose
       maskClosable
@@ -1164,9 +1479,7 @@ export default function ShipmentDetailDrawer({ open, shipmentId, onClose }) {
             <Text strong style={{ fontSize: 17 }}>
               {drawerTitle}
             </Text>
-            {shipment?.status && (
-              <WorkflowStatusTag status={shipment.status} />
-            )}
+            {shipment?.status && <WorkflowStatusTag status={shipment.status} />}
             {shipment?.payment_type && (
               <Tag
                 color={
@@ -1206,8 +1519,8 @@ export default function ShipmentDetailDrawer({ open, shipmentId, onClose }) {
         body: {
           background: "#f5f7fa",
           padding: "12px 16px 24px",
-          display: "flex",
-          flexDirection: "column",
+          display: "block",
+          overflowY: "auto",
         },
       }}
     >
@@ -1223,79 +1536,24 @@ export default function ShipmentDetailDrawer({ open, shipmentId, onClose }) {
           <Empty description="Shipment not found" />
         </Card>
       ) : (
-        <Tabs
-          activeKey={activeTab}
-          onChange={setActiveTab}
-          type="card"
-          size="small"
-          style={{ flex: 1 }}
-          items={[
-            {
-              key: "overview",
-              label: (
-                <Space size={6}>
-                  <CheckCircleOutlined />
-                  Overview
-                </Space>
-              ),
-              children: overviewTab,
-            },
-            {
-              key: "route",
-              label: (
-                <Space size={6}>
-                  <SwapOutlined />
-                  Route & Actions
-                </Space>
-              ),
-              children: routeTab,
-            },
-            {
-              key: "parties",
-              label: (
-                <Space size={6}>
-                  <UserOutlined />
-                  Parties & Items
-                </Space>
-              ),
-              children: partiesTab,
-            },
-            ...(view.priceBreakdown || view.hasFeeColumns
-              ? [
-                  {
-                    key: "pricing",
-                    label: (
-                      <Space size={6}>
-                        <DollarOutlined />
-                        Pricing
-                      </Space>
-                    ),
-                    children: pricingTab,
-                  },
-                ]
-              : []),
-            {
-              key: "activity",
-              label: (
-                <Space size={6}>
-                  <HistoryOutlined />
-                  Activity
-                  {(view.trackingEvents.length > 0 ||
-                    view.tasks.length > 0) && (
-                    <Badge
-                      count={
-                        view.trackingEvents.length + view.tasks.length
-                      }
-                      size="small"
-                      style={{ backgroundColor: "#0891B2" }}
-                    />
-                  )}
-                </Space>
-              ),
-              children: activityTab,
-            },
-          ]}
-        />
+        <Space
+          direction="vertical"
+          size={16}
+          style={{ width: "100%", paddingBottom: 8 }}
+        >
+          {overviewTab}
+          {routeTab}
+          {partiesTab}
+          {pricingTab || (
+            <SectionCard title="Pricing breakdown" icon={<DollarOutlined />}>
+              <Empty
+                image={Empty.PRESENTED_IMAGE_SIMPLE}
+                description="Pricing breakdown is not available for this shipment"
+              />
+            </SectionCard>
+          )}
+          {activityTab}
+        </Space>
       )}
     </Drawer>
   );
