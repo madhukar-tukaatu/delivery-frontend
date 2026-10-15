@@ -714,24 +714,73 @@ export default function ShipmentDetailDrawer({ open, shipmentId, onClose }) {
       distanceData: (() => {
         const serverDist = data?.distance_data ?? shipment.distance_data ?? null;
 
-        const originCoords =
+        const customerCoords =
+          hasText(deliveryLat) && hasText(deliveryLng)
+            ? { lat: Number(deliveryLat), lng: Number(deliveryLng) }
+            : null;
+
+        const originBranchCoords =
           resolveBranchCoords(originSub) ??
           resolveBranchCoords(originBranch) ??
           (hasText(pickupLat) && hasText(pickupLng)
             ? { lat: Number(pickupLat), lng: Number(pickupLng) }
             : null);
 
-        const destCoords =
+        const destBranchCoords =
           resolveBranchCoords(destinationSub) ??
-          resolveBranchCoords(destinationBranch) ??
-          (hasText(deliveryLat) && hasText(deliveryLng)
-            ? { lat: Number(deliveryLat), lng: Number(deliveryLng) }
-            : null);
+          resolveBranchCoords(destinationBranch);
 
         const currentCoords =
           resolveBranchCoords(currentSub) ??
           resolveBranchCoords(currentBranch) ??
-          originCoords;
+          originBranchCoords;
+
+        // 1. Maintain distance value from origin branch to destination of customer
+        let originToCustomerDistance = null;
+        if (shipment.route_distance_km && Number(shipment.route_distance_km) > 0) {
+          originToCustomerDistance = Math.round(Number(shipment.route_distance_km) * 100) / 100;
+        } else if (originBranchCoords && customerCoords) {
+          originToCustomerDistance = haversineDistanceKm(
+            originBranchCoords.lat,
+            originBranchCoords.lng,
+            customerCoords.lat,
+            customerCoords.lng
+          );
+        }
+
+        // 2. Extra mile from destination: Destination branch to customer destination
+        const extraDistObj =
+          priceBreakdown?.breakdown?.extra_delivery_distance ||
+          priceBreakdown?.extra_delivery_distance ||
+          priceBreakdown?.extra_distance ||
+          (typeof shipment.delivery_charge_breakdown === "object"
+            ? shipment.delivery_charge_breakdown?.extra_delivery_distance
+            : null);
+
+        let destToCustomerDistance = null;
+        if (extraDistObj?.delivery_distance_km != null) {
+          destToCustomerDistance = Math.round(Number(extraDistObj.delivery_distance_km) * 100) / 100;
+        } else if (destBranchCoords && customerCoords) {
+          destToCustomerDistance = haversineDistanceKm(
+            destBranchCoords.lat,
+            destBranchCoords.lng,
+            customerCoords.lat,
+            customerCoords.lng
+          );
+        }
+
+        // 3. Base distance included in base fare (e.g. 5.0 km)
+        const baseDistanceKm = Number(
+          extraDistObj?.included_distance_km ?? 5.0
+        );
+
+        // 4. Extra mile from destination, excluding the base distance
+        let extraMileKm = 0;
+        if (extraDistObj?.extra_distance_km != null) {
+          extraMileKm = Math.round(Number(extraDistObj.extra_distance_km) * 100) / 100;
+        } else if (destToCustomerDistance != null) {
+          extraMileKm = Math.max(0, Math.round((destToCustomerDistance - baseDistanceKm) * 100) / 100);
+        }
 
         // Sum route steps if defined
         let routeStepsTotal = 0;
@@ -751,29 +800,29 @@ export default function ShipmentDetailDrawer({ open, shipmentId, onClose }) {
           }
         }
 
-        let totalDist = moneyValue(shipment.route_distance_km);
+        let totalDist = originToCustomerDistance ?? moneyValue(shipment.route_distance_km);
         if (
           isSameBranchShipment &&
           (totalDist == null || totalDist > 20 || totalDist <= 0) &&
-          originCoords &&
-          destCoords
+          originBranchCoords &&
+          customerCoords
         ) {
           totalDist = haversineDistanceKm(
-            originCoords.lat,
-            originCoords.lng,
-            destCoords.lat,
-            destCoords.lng,
+            originBranchCoords.lat,
+            originBranchCoords.lng,
+            customerCoords.lat,
+            customerCoords.lng,
           );
         }
         if ((totalDist == null || totalDist <= 0) && routeStepsTotal > 0) {
           totalDist = routeStepsTotal;
         }
-        if ((totalDist == null || totalDist <= 0) && originCoords && destCoords) {
+        if ((totalDist == null || totalDist <= 0) && originBranchCoords && customerCoords) {
           totalDist = haversineDistanceKm(
-            originCoords.lat,
-            originCoords.lng,
-            destCoords.lat,
-            destCoords.lng,
+            originBranchCoords.lat,
+            originBranchCoords.lng,
+            customerCoords.lat,
+            customerCoords.lng,
           );
         }
         totalDist = totalDist != null ? Math.round(totalDist * 100) / 100 : 0;
@@ -800,17 +849,6 @@ export default function ShipmentDetailDrawer({ open, shipmentId, onClose }) {
 
         if (serverDist) {
           totalDist = Number(serverDist.total_distance_km ?? totalDist);
-          if (isSameBranchShipment && totalDist > 20 && originCoords && destCoords) {
-            totalDist =
-              Math.round(
-                haversineDistanceKm(
-                  originCoords.lat,
-                  originCoords.lng,
-                  destCoords.lat,
-                  destCoords.lng,
-                ) * 100,
-              ) / 100;
-          }
           coveredDist = Number(serverDist.covered_distance_km ?? 0);
           if (coveredDist > totalDist) coveredDist = totalDist;
           distFromDest = Number(
@@ -833,13 +871,14 @@ export default function ShipmentDetailDrawer({ open, shipmentId, onClose }) {
           statusStr === "in_transit" ||
           statusStr === "received_at_transit_hub"
         ) {
-          if (currentCoords && destCoords) {
+          if (currentCoords && (destBranchCoords || customerCoords)) {
+            const target = destBranchCoords || customerCoords;
             distFromDest =
               haversineDistanceKm(
                 currentCoords.lat,
                 currentCoords.lng,
-                destCoords.lat,
-                destCoords.lng
+                target.lat,
+                target.lng
               ) ?? Math.max(0, totalDist - routeStepsCovered);
           } else {
             distFromDest = Math.max(0, totalDist - routeStepsCovered);
@@ -863,13 +902,14 @@ export default function ShipmentDetailDrawer({ open, shipmentId, onClose }) {
             "sorted_for_transfer",
           ].includes(statusStr)
         ) {
-          if (originCoords && destCoords) {
+          if (originBranchCoords && (destBranchCoords || customerCoords)) {
+            const target = destBranchCoords || customerCoords;
             distFromDest =
               haversineDistanceKm(
-                originCoords.lat,
-                originCoords.lng,
-                destCoords.lat,
-                destCoords.lng
+                originBranchCoords.lat,
+                originBranchCoords.lng,
+                target.lat,
+                target.lng
               ) ?? totalDist;
           } else {
             distFromDest = totalDist;
@@ -877,13 +917,14 @@ export default function ShipmentDetailDrawer({ open, shipmentId, onClose }) {
           coveredDist = Math.min(totalDist * 0.1, 5);
           progressPct = 10;
         } else {
-          if (originCoords && destCoords) {
+          if (originBranchCoords && (destBranchCoords || customerCoords)) {
+            const target = destBranchCoords || customerCoords;
             distFromDest =
               haversineDistanceKm(
-                originCoords.lat,
-                originCoords.lng,
-                destCoords.lat,
-                destCoords.lng
+                originBranchCoords.lat,
+                originBranchCoords.lng,
+                target.lat,
+                target.lng
               ) ?? totalDist;
           } else {
             distFromDest = totalDist;
@@ -894,6 +935,10 @@ export default function ShipmentDetailDrawer({ open, shipmentId, onClose }) {
 
         return {
           totalDistanceKm: Math.round(totalDist * 100) / 100,
+          originToCustomerKm: originToCustomerDistance,
+          destinationToCustomerKm: destToCustomerDistance,
+          baseDistanceKm: baseDistanceKm,
+          extraMileKm: extraMileKm,
           coveredDistanceKm: Math.round(coveredDist * 100) / 100,
           distanceFromDestinationBranchKm:
             Math.round(distFromDest * 100) / 100,
@@ -998,12 +1043,12 @@ export default function ShipmentDetailDrawer({ open, shipmentId, onClose }) {
                 : podAmount)
             : null);
 
-  // Amount the rider collects at customer doorstep
+  // Amount the rider collects at customer doorstep (actual pod_amount from shipment data)
   const collectableAmount = isPodShipment
-    ? (totalCollectable != null
-        ? totalCollectable
-        : podAmount != null
-          ? podAmount
+    ? (podAmount != null
+        ? podAmount
+        : totalCollectable != null
+          ? totalCollectable
           : (goodsValue ?? 0) + (isPaidByCustomer ? (deliveryCharge ?? 0) : 0))
     : 0;
 
@@ -1427,9 +1472,41 @@ export default function ShipmentDetailDrawer({ open, shipmentId, onClose }) {
             },
             { label: "Current sub-branch", value: view.currentSubRibbon || view.currentSubLabel },
             {
-              label: "Total route distance",
-              value: view.distanceData.totalDistanceKm
-                ? `${view.distanceData.totalDistanceKm} km`
+              label: "Route distance (Origin → Customer)",
+              value: (view.distanceData.originToCustomerKm ?? view.distanceData.totalDistanceKm)
+                ? `${view.distanceData.originToCustomerKm ?? view.distanceData.totalDistanceKm} km`
+                : "—",
+            },
+            {
+              label: "Destination branch → Customer",
+              value: view.distanceData.destinationToCustomerKm != null
+                ? `${view.distanceData.destinationToCustomerKm} km`
+                : "—",
+            },
+            {
+              label: "Base covered distance",
+              value: `${view.distanceData.baseDistanceKm ?? 5} km (Included in base fare)`,
+            },
+            {
+              label: "Extra mile from destination",
+              value: view.distanceData.extraMileKm != null
+                ? (
+                    <Space size={6} wrap>
+                      <Text
+                        strong
+                        style={{
+                          color: view.distanceData.extraMileKm > 0 ? "#d97706" : "#059669",
+                        }}
+                      >
+                        {view.distanceData.extraMileKm > 0
+                          ? `+${view.distanceData.extraMileKm} km extra`
+                          : "0 km (Within base coverage)"}
+                      </Text>
+                      {view.distanceData.extraMileKm > 0 && (
+                        <Tag color="orange">Excludes {view.distanceData.baseDistanceKm ?? 5} km base</Tag>
+                      )}
+                    </Space>
+                  )
                 : "—",
             },
             {
@@ -1635,10 +1712,22 @@ export default function ShipmentDetailDrawer({ open, shipmentId, onClose }) {
             },
             {
               label: "Extra distance charge",
-              show: Number(view.priceBreakdown.delivery_extra_charge ?? 0) > 0,
-              value: view.priceBreakdown.extra_distance_km
-                ? `${formatMoney(Number(view.priceBreakdown.delivery_extra_charge))} (${view.priceBreakdown.extra_distance_km} km extra)`
-                : formatMoney(Number(view.priceBreakdown.delivery_extra_charge)),
+              show:
+                Number(view.priceBreakdown.delivery_extra_charge ?? 0) > 0 ||
+                Boolean(view.priceBreakdown.extra_distance_km) ||
+                (view.distanceData?.extraMileKm != null && view.distanceData.extraMileKm > 0),
+              value: (
+                <Space direction="vertical" size={2}>
+                  <Text strong>
+                    {formatMoney(Number(view.priceBreakdown.delivery_extra_charge ?? 0))}
+                  </Text>
+                  {(view.priceBreakdown.extra_distance_km || view.distanceData?.extraMileKm > 0) && (
+                    <Text type="secondary" style={{ fontSize: 12 }}>
+                      +{view.priceBreakdown.extra_distance_km ?? view.distanceData.extraMileKm} km extra mile (Excluding {view.distanceData?.baseDistanceKm ?? 5} km base distance)
+                    </Text>
+                  )}
+                </Space>
+              ),
             },
             {
               label: "Weight charge",
