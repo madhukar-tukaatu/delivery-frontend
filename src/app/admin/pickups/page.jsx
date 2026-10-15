@@ -17,6 +17,7 @@ import {
   Empty,
   Form,
   Input,
+  InputNumber,
   Modal,
   Row,
   Select,
@@ -518,6 +519,8 @@ export default function AdminPickupsPage() {
   const [resendOpen, setResendOpen] = useState(false);
   const [rejectOpen, setRejectOpen] = useState(false);
   const [rejectTarget, setRejectTarget] = useState(null);
+  const [receiveOpen, setReceiveOpen] = useState(false);
+  const [receiveTarget, setReceiveTarget] = useState(null);
   const [submitting, setSubmitting] = useState(false);
   const [receivingId, setReceivingId] = useState(null);
   const [fixOpen, setFixOpen] = useState(false);
@@ -530,6 +533,26 @@ export default function AdminPickupsPage() {
   const [cancelForm] = Form.useForm();
   const [resendForm] = Form.useForm();
   const [rejectForm] = Form.useForm();
+  const [receiveForm] = Form.useForm();
+
+  const [formWeights, setFormWeights] = useState({
+    actual: 1.5,
+    l: 0,
+    w: 0,
+    h: 0,
+  });
+
+  const volumetricCalculated = useMemo(() => {
+    if (formWeights.l > 0 && formWeights.w > 0 && formWeights.h > 0) {
+      return Number(((formWeights.l * formWeights.w * formWeights.h) / 5000).toFixed(2));
+    }
+    return 0;
+  }, [formWeights.l, formWeights.w, formWeights.h]);
+
+  const chargeableCalculated = useMemo(() => {
+    const act = Number(formWeights.actual) || 0;
+    return Number(Math.max(act, volumetricCalculated).toFixed(2));
+  }, [formWeights.actual, volumetricCalculated]);
 
   useEffect(() => {
     const t = setTimeout(() => setDebouncedSearch(search.trim()), 400);
@@ -803,14 +826,19 @@ export default function AdminPickupsPage() {
     message.success("Copied to clipboard.");
   };
 
-  const handleReceive = async (shipmentId) => {
+  const executeReceive = async (shipmentId, payload = {}) => {
     if (!detail || !shipmentId) return;
     setReceivingId(shipmentId);
+    setSubmitting(true);
     try {
       await receivePickupShipment(getPickupId(detail), shipmentId, {
         note: "Verified and received at origin branch.",
+        ...payload,
       });
       message.success("Shipment received at origin branch.");
+      setReceiveOpen(false);
+      setReceiveTarget(null);
+      receiveForm.resetFields();
       await afterMutation();
     } catch (error) {
       message.error(
@@ -818,7 +846,49 @@ export default function AdminPickupsPage() {
       );
     } finally {
       setReceivingId(null);
+      setSubmitting(false);
     }
+  };
+
+  const openReceive = (shipment) => {
+    setReceiveTarget(shipment);
+    const act = Number(shipment.actual_weight || shipment.weight || 1.5);
+    const l = Number(shipment.length_cm || 0);
+    const w = Number(shipment.width_cm || 0);
+    const h = Number(shipment.height_cm || 0);
+    setFormWeights({ actual: act, l, w, h });
+    receiveForm.setFieldsValue({
+      actual_weight: act,
+      length_cm: l > 0 ? l : undefined,
+      width_cm: w > 0 ? w : undefined,
+      height_cm: h > 0 ? h : undefined,
+      note: "Verified and received at origin branch.",
+    });
+    setReceiveOpen(true);
+  };
+
+  const submitVerifiedReceive = async () => {
+    const values = await receiveForm.validateFields();
+    if (!receiveTarget) return;
+    await executeReceive(receiveTarget.id, {
+      actual_weight: values.actual_weight,
+      length_cm: values.length_cm || 0,
+      width_cm: values.width_cm || 0,
+      height_cm: values.height_cm || 0,
+      note: values.note,
+    });
+  };
+
+  const submitSkipReceive = async () => {
+    if (!receiveTarget) return;
+    await executeReceive(receiveTarget.id, {
+      note: "Received at origin branch (weight check skipped).",
+    });
+  };
+
+  const handleReceive = async (shipmentId) => {
+    // Kept as backward compatibility if called directly
+    await executeReceive(shipmentId);
   };
 
   // "Fix pickup status": preview first, then apply (audited on the server).
@@ -1841,7 +1911,7 @@ export default function AdminPickupsPage() {
                                     size="small"
                                     icon={<CheckCircleOutlined />}
                                     loading={receivingId === s.id}
-                                    onClick={() => handleReceive(s.id)}
+                                    onClick={() => openReceive(s)}
                                     style={{ background: "#10B981", borderColor: "#10B981" }}
                                   >
                                     Receive
@@ -2147,6 +2217,199 @@ export default function AdminPickupsPage() {
             />
           </Form.Item>
         </Form>
+      </Modal>
+
+      {/* Receive & Weight Verification Modal */}
+      <Modal
+        title={
+          <Space>
+            <CheckCircleOutlined style={{ color: "#10B981" }} />
+            <span>
+              Receive & Verify Weight · {receiveTarget?.tracking_number || `#${receiveTarget?.id}`}
+            </span>
+          </Space>
+        }
+        open={receiveOpen}
+        onCancel={() => {
+          if (!submitting) {
+            setReceiveOpen(false);
+            setReceiveTarget(null);
+            receiveForm.resetFields();
+          }
+        }}
+        width={560}
+        footer={[
+          <Button
+            key="cancel"
+            onClick={() => {
+              setReceiveOpen(false);
+              setReceiveTarget(null);
+              receiveForm.resetFields();
+            }}
+            disabled={submitting}
+          >
+            Cancel
+          </Button>,
+          <Button
+            key="skip"
+            onClick={submitSkipReceive}
+            loading={submitting}
+            title="Receive without re-weighing or updating dimensions"
+          >
+            Skip & Receive
+          </Button>,
+          <Button
+            key="verify"
+            type="primary"
+            onClick={submitVerifiedReceive}
+            loading={submitting}
+            style={{ background: "#10B981", borderColor: "#10B981" }}
+          >
+            Verify & Receive
+          </Button>,
+        ]}
+      >
+        {receiveTarget ? (
+          <Space direction="vertical" size={14} style={{ width: "100%", marginTop: 8 }}>
+            <Alert
+              type="info"
+              showIcon
+              message="Intake Weight & Dimensions Check"
+              description={
+                <div style={{ fontSize: 13, marginTop: 4 }}>
+                  <div>
+                    Declared at checkout: <b>{receiveTarget.weight ?? 1.5} kg</b> |
+                    Current Delivery Charge: <b>NPR {receiveTarget.delivery_charge ?? 0}</b>
+                  </div>
+                  <div style={{ marginTop: 2, color: "#475569" }}>
+                    The system compares the <b>actual scale weight</b> with the <b>volumetric weight</b> (L×W×H / 5000). Whichever is higher becomes the billable chargeable weight. If changed, the delivery charge will be recalculated and the store will be notified via webhook.
+                  </div>
+                </div>
+              }
+            />
+
+            <Form
+              form={receiveForm}
+              layout="vertical"
+              onValuesChange={(_, all) => {
+                setFormWeights({
+                  actual: Number(all.actual_weight) || 0,
+                  l: Number(all.length_cm) || 0,
+                  w: Number(all.width_cm) || 0,
+                  h: Number(all.height_cm) || 0,
+                });
+              }}
+            >
+              <Form.Item
+                name="actual_weight"
+                label={<b>Actual Scale Weight (kg)</b>}
+                rules={[{ required: true, message: "Enter actual scale weight" }]}
+                extra="Physical weight measured on the scale at branch intake."
+              >
+                <InputNumber
+                  style={{ width: "100%" }}
+                  min={0.01}
+                  step={0.1}
+                  precision={2}
+                  placeholder="e.g. 1.50"
+                  addonAfter="kg"
+                />
+              </Form.Item>
+
+              <div style={{ marginBottom: 8 }}>
+                <Text strong>Dimensions (optional for volumetric weight):</Text>
+              </div>
+
+              <Row gutter={8}>
+                <Col span={8}>
+                  <Form.Item name="length_cm" label="Length (cm)">
+                    <InputNumber
+                      style={{ width: "100%" }}
+                      min={0}
+                      precision={1}
+                      placeholder="L (cm)"
+                      addonAfter="cm"
+                    />
+                  </Form.Item>
+                </Col>
+                <Col span={8}>
+                  <Form.Item name="width_cm" label="Width (cm)">
+                    <InputNumber
+                      style={{ width: "100%" }}
+                      min={0}
+                      precision={1}
+                      placeholder="W (cm)"
+                      addonAfter="cm"
+                    />
+                  </Form.Item>
+                </Col>
+                <Col span={8}>
+                  <Form.Item name="height_cm" label="Height (cm)">
+                    <InputNumber
+                      style={{ width: "100%" }}
+                      min={0}
+                      precision={1}
+                      placeholder="H (cm)"
+                      addonAfter="cm"
+                    />
+                  </Form.Item>
+                </Col>
+              </Row>
+
+              <Card
+                size="small"
+                style={{
+                  background: "#F8FAFC",
+                  borderColor: "#E2E8F0",
+                  borderRadius: 8,
+                  marginBottom: 16,
+                }}
+              >
+                <Row align="middle" justify="space-between">
+                  <Col>
+                    <div style={{ fontSize: 12, color: "#64748B" }}>Volumetric Weight:</div>
+                    <div style={{ fontWeight: 600, fontSize: 14 }}>
+                      {volumetricCalculated > 0 ? `${volumetricCalculated} kg` : "—"}
+                    </div>
+                  </Col>
+                  <Col>
+                    <div style={{ fontSize: 12, color: "#64748B" }}>Actual Weight:</div>
+                    <div style={{ fontWeight: 600, fontSize: 14 }}>
+                      {Number(formWeights.actual || 0).toFixed(2)} kg
+                    </div>
+                  </Col>
+                  <Col>
+                    <div style={{ fontSize: 12, color: "#0F172A", fontWeight: 600 }}>
+                      Chargeable Billable Weight:
+                    </div>
+                    <Tag
+                      color={
+                        volumetricCalculated > (Number(formWeights.actual) || 0)
+                          ? "purple"
+                          : "blue"
+                      }
+                      style={{ fontSize: 14, padding: "2px 8px", fontWeight: 700 }}
+                    >
+                      {chargeableCalculated} kg
+                    </Tag>
+                  </Col>
+                </Row>
+                <div style={{ fontSize: 11, color: "#64748B", marginTop: 6 }}>
+                  {volumetricCalculated > (Number(formWeights.actual) || 0)
+                    ? "⚡ Volumetric weight is higher and will be used as final billable weight."
+                    : "⚖️ Actual scale weight is higher or equal and will be used as final billable weight."}
+                </div>
+              </Card>
+
+              <Form.Item name="note" label="Intake Remarks / Note">
+                <Input.TextArea
+                  rows={2}
+                  placeholder="Optional branch verification note..."
+                />
+              </Form.Item>
+            </Form>
+          </Space>
+        ) : null}
       </Modal>
     </div>
   );

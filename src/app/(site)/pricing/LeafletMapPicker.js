@@ -25,6 +25,24 @@ function ClickHandler({ onMapClick }) {
   return null;
 }
 
+/* Map resize & invalidation handler */
+function MapResizeHandler() {
+  const map = useMap();
+  useEffect(() => {
+    map.invalidateSize();
+    const timer = setTimeout(() => {
+      map.invalidateSize();
+    }, 260);
+    const handleResize = () => map.invalidateSize();
+    window.addEventListener("resize", handleResize);
+    return () => {
+      clearTimeout(timer);
+      window.removeEventListener("resize", handleResize);
+    };
+  }, [map]);
+  return null;
+}
+
 export default function LeafletMapPicker({ coords, onMapClick }) {
   return (
     <MapContainer
@@ -38,6 +56,7 @@ export default function LeafletMapPicker({ coords, onMapClick }) {
         attribution="© OpenStreetMap contributors"
       />
       <MapSync coords={coords} />
+      <MapResizeHandler />
       <ClickHandler onMapClick={onMapClick} />
       <Marker
         position={[coords.lat, coords.lng]}

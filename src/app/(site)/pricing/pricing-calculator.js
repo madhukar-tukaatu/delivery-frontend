@@ -2,6 +2,7 @@
 import "./pricing-calculator.css";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import dynamic from "next/dynamic";
 import { AlertCircle, ChevronDown, Loader2, MapPin, Navigation, X } from "lucide-react";
 import { getDeliveryEstimate } from "@/services/pricingEstimateService";
@@ -46,23 +47,55 @@ function useDialogFocus(onClose) {
   const dialogRef = useRef(null);
   const closeRef = useRef(onClose);
   closeRef.current = onClose;
+
   useEffect(() => {
-    const previous = document.activeElement;
-    const dialog = dialogRef.current;
-    const focusable = () => Array.from(dialog.querySelectorAll('button:not(:disabled), input:not(:disabled), a[href], [tabindex="0"]')).filter(el => el.getClientRects().length);
-    focusable()[0]?.focus();
-    function onKeyDown(event) {
-      if (event.key === "Escape") { event.preventDefault(); closeRef.current(); }
-      if (event.key === "Tab") {
-        const items = focusable();
-        const first = items[0], last = items[items.length - 1];
-        if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus(); }
-        else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); }
+    let cleanup = null;
+    const timer = setTimeout(() => {
+      const dialog = dialogRef.current;
+      if (!dialog) return;
+
+      const previous = typeof document !== "undefined" ? document.activeElement : null;
+      const focusable = () =>
+        Array.from(
+          dialog.querySelectorAll(
+            'button:not(:disabled), input:not(:disabled), a[href], [tabindex="0"]'
+          )
+        ).filter((el) => el.getClientRects().length);
+
+      focusable()[0]?.focus();
+
+      function onKeyDown(event) {
+        if (event.key === "Escape") {
+          event.preventDefault();
+          closeRef.current();
+        }
+        if (event.key === "Tab") {
+          const items = focusable();
+          const first = items[0],
+            last = items[items.length - 1];
+          if (event.shiftKey && document.activeElement === first) {
+            event.preventDefault();
+            last?.focus();
+          } else if (!event.shiftKey && document.activeElement === last) {
+            event.preventDefault();
+            first?.focus();
+          }
+        }
       }
-    }
-    dialog.addEventListener("keydown", onKeyDown);
-    return () => { dialog.removeEventListener("keydown", onKeyDown); previous?.focus(); };
+
+      dialog.addEventListener("keydown", onKeyDown);
+      cleanup = () => {
+        dialog.removeEventListener("keydown", onKeyDown);
+        previous?.focus();
+      };
+    }, 50);
+
+    return () => {
+      clearTimeout(timer);
+      if (cleanup) cleanup();
+    };
   }, []);
+
   return dialogRef;
 }
 
@@ -74,6 +107,14 @@ function MapPickerModal({ label, initial, onConfirm, onClose }) {
   const [suggestions, setSuggestions] = useState([]);
   const [searching, setSearching] = useState(false);
   const debounceRef = useRef(null);
+
+  useEffect(() => {
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = prevOverflow;
+    };
+  }, []);
 
   useEffect(() => {
     reverseGeocode(coords.lat, coords.lng).then(setAddress);
@@ -104,7 +145,9 @@ function MapPickerModal({ label, initial, onConfirm, onClose }) {
     setSearch("");
   }
 
-  return (
+  if (typeof document === "undefined") return null;
+
+  return createPortal(
     <div className="map-overlay" onClick={(e) => e.target === e.currentTarget && onClose()}>
       <div className="map-modal" ref={dialogRef} role="dialog" aria-modal="true" aria-label={label}>
         <div className="map-modal-header">
@@ -135,7 +178,7 @@ function MapPickerModal({ label, initial, onConfirm, onClose }) {
         <div className="map-footer">
           <div className="map-coords-display">
             <Navigation className="h-3.5 w-3.5 text-blue-500 shrink-0" />
-            <span>{coords.lat.toFixed(5)}, {coords.lng.toFixed(5)}</span>
+            <span className="shrink-0">{coords.lat.toFixed(5)}, {coords.lng.toFixed(5)}</span>
             {address && <span className="map-addr-preview">- {address.split(",").slice(0, 2).join(", ")}</span>}
           </div>
           <button
@@ -147,7 +190,8 @@ function MapPickerModal({ label, initial, onConfirm, onClose }) {
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
 
@@ -444,7 +488,18 @@ function ResultDisplay({ result, loading }) {
 /* ── Details Modal ──────────────────────────────────────────────────── */
 function DetailsModal({ result, onClose }) {
   const dialogRef = useDialogFocus(onClose);
-  return (
+
+  useEffect(() => {
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = prevOverflow;
+    };
+  }, []);
+
+  if (typeof document === "undefined") return null;
+
+  return createPortal(
     <div className="details-modal-overlay" onClick={(e) => e.target === e.currentTarget && onClose()}>
       <div className="details-modal" ref={dialogRef} role="dialog" aria-modal="true" aria-label="Delivery estimate details">
         <div className="details-modal-header">
@@ -627,6 +682,7 @@ function DetailsModal({ result, onClose }) {
           </div>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

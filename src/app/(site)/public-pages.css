@@ -1,4 +1,4 @@
-.public-site { --ink:#0b1f33; --brand:#1677b8; --sun:#f4c542; background:#fff; color:var(--ink); font-family:Inter,system-ui,sans-serif; }
+.public-site { --ink:#0b1f33; --brand:#1677b8; --sun:#f4c542; background:#fff; color:var(--ink); font-family:Inter,system-ui,sans-serif; overflow-x: clip; max-width: 100vw; }
 .public-site :is(a,button,input,textarea,select):focus-visible { outline:3px solid #1677b8; outline-offset:4px; }
 .public-site main { min-width:0; }
 .public-site main section[id] { scroll-margin-top:96px; }
@@ -93,9 +93,9 @@
   .public-hero-description { line-height: 1.75; }
 }
 @media (max-width: 480px) {
-  .public-hero h1 { font-size: clamp(32px,9vw,40px); line-height: 1.12; }
-  .public-hero-actions { flex-direction: column; }
-  .public-hero-actions > a { width: 100%; }
+  .public-hero h1 { font-size: clamp(28px, 8.5vw, 38px); line-height: 1.15; word-break: break-word; }
+  .public-hero-actions { flex-direction: column; width: 100%; }
+  .public-hero-actions > :is(a, button) { width: 100%; justify-content: center; }
 }
 
 /* ── Mobile App Layout & Touch Polish ── */

@@ -213,15 +213,16 @@ function FieldDescriptions({ items, column = 1 }) {
   );
 }
 
-function MoneyStat({ title, value, color }) {
+function MoneyStat({ title, value, color, tag }) {
   return (
     <Card size="small" styles={{ body: { padding: "12px 16px" } }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 4 }}>
+        <Text type="secondary" style={{ fontSize: 12 }}>
+          {title}
+        </Text>
+        {tag}
+      </div>
       <Statistic
-        title={
-          <Text type="secondary" style={{ fontSize: 12 }}>
-            {title}
-          </Text>
-        }
         value={
           value === null || value === undefined || !Number.isFinite(Number(value))
             ? "—"
@@ -716,9 +717,11 @@ export default function ShipmentDetailDrawer({ open, shipmentId, onClose }) {
   const drawerTitle = shipment?.tracking_number || "Shipment details";
 
   // Financial rules for this application:
-  // - pod_amount is the TOTAL amount the courier collects from the customer.
-  // - delivery_charge is the delivery fee included in that total.
-  // - goods/merchant receivable value excludes the delivery charge.
+  // Financial rules:
+  // - delivery_charge: the delivery fee.
+  // - Free delivery: can be by Admin (Marketplace) or Store (Merchant).
+  // - When delivery is free, customer pays ONLY the declared goods POD amount.
+  // - Goods value for free delivery is 100% of declared amount (delivery fee is NOT deducted).
   const deliveryCharge = moneyValue(
     shipment?.delivery_charge,
     shipment?.delivery_fee,
@@ -727,11 +730,40 @@ export default function ShipmentDetailDrawer({ open, shipmentId, onClose }) {
     String(shipment?.payment_type ?? shipment?.payment_method ?? "")
       .toLowerCase() === "pod";
   const podAmount = moneyValue(shipment?.pod_amount);
-  const collectableAmount = isPodShipment ? podAmount : null;
-  const receivableAmount =
-    collectableAmount != null && deliveryCharge != null
-      ? Math.max(0, collectableAmount - deliveryCharge)
-      : moneyValue(shipment?.merchandise_value, shipment?.items_subtotal);
+  const totalCollectable = moneyValue(
+    shipment?.total_collectable_amount,
+    shipment?.total_collectable,
+  );
+
+  const paidBy = String(shipment?.delivery_charge_paid_by ?? "customer").toLowerCase().trim();
+  const freeBy = String(shipment?.delivery_free_by ?? "none").toLowerCase().trim();
+
+  const isFreeDeliveryByAdmin = freeBy === "marketplace" || paidBy === "admin";
+  const isFreeDeliveryByStore = freeBy === "store" || ["merchant", "store", "seller", "free", "free_delivery"].includes(paidBy);
+  const isFreeDelivery = isFreeDeliveryByAdmin || isFreeDeliveryByStore;
+
+  // Amount the rider collects at door
+  const collectableAmount = isPodShipment
+    ? (totalCollectable != null ? totalCollectable : podAmount)
+    : 0;
+
+  // Declared goods value
+  const declaredValue = moneyValue(
+    shipment?.declared_value,
+    shipment?.merchandise_value,
+    shipment?.items_subtotal,
+  );
+
+  let receivableAmount = declaredValue;
+  if (receivableAmount == null) {
+    if (isFreeDelivery) {
+      receivableAmount = podAmount;
+    } else if (collectableAmount != null && deliveryCharge != null && collectableAmount > deliveryCharge) {
+      receivableAmount = Math.max(0, collectableAmount - deliveryCharge);
+    } else {
+      receivableAmount = podAmount;
+    }
+  }
 
   /* ---- drawer sections ---- */
 
@@ -753,6 +785,12 @@ export default function ShipmentDetailDrawer({ open, shipmentId, onClose }) {
               String(shipment.payment_type).toLowerCase() === "pod" && (
                 <Tag>POD: {labelForStatus(shipment.pod_status)}</Tag>
               )}
+            {isFreeDeliveryByAdmin && (
+              <Tag color="purple">Free Delivery (Admin)</Tag>
+            )}
+            {isFreeDeliveryByStore && (
+              <Tag color="cyan">Free Delivery (Store)</Tag>
+            )}
           </Space>
           <Progress
             percent={getStatusProgress(shipment.status)}
@@ -779,6 +817,15 @@ export default function ShipmentDetailDrawer({ open, shipmentId, onClose }) {
             title="Delivery charge"
             value={deliveryCharge}
             color="#0891B2"
+            tag={
+              isFreeDeliveryByAdmin ? (
+                <Tag color="purple" style={{ margin: 0, fontSize: 10 }}>Free (Admin)</Tag>
+              ) : isFreeDeliveryByStore ? (
+                <Tag color="cyan" style={{ margin: 0, fontSize: 10 }}>Free (Store)</Tag>
+              ) : (
+                <Tag color="blue" style={{ margin: 0, fontSize: 10 }}>Customer</Tag>
+              )
+            }
           />
         </Col>
         
@@ -787,14 +834,26 @@ export default function ShipmentDetailDrawer({ open, shipmentId, onClose }) {
             title="Collect from customer (POD total)"
             value={collectableAmount}
             color="#D97706"
+            tag={
+              !isPodShipment ? (
+                <Tag color="green" style={{ margin: 0, fontSize: 10 }}>Prepaid</Tag>
+              ) : isFreeDelivery ? (
+                <Tag color="gold" style={{ margin: 0, fontSize: 10 }}>Goods Only</Tag>
+              ) : null
+            }
           />
         </Col>
         
         <Col xs={12} sm={12} lg={8}>
           <MoneyStat
-            title="Goods value (excl. delivery)"
+            title={isFreeDelivery ? "Goods value (Full declared)" : "Goods value (excl. delivery)"}
             value={receivableAmount}
             color="#059669"
+            tag={
+              isFreeDelivery ? (
+                <Tag color="success" style={{ margin: 0, fontSize: 10 }}>No Deduction</Tag>
+              ) : null
+            }
           />
         </Col>
         {/* <Col xs={12} sm={12} lg={6}>
@@ -946,15 +1005,52 @@ export default function ShipmentDetailDrawer({ open, shipmentId, onClose }) {
             },
             {
               label: "Charge paid by",
-              value: shipment.delivery_charge_paid_by,
+              value: isFreeDeliveryByAdmin
+                ? "Admin (Marketplace Free Delivery)"
+                : isFreeDeliveryByStore
+                  ? "Store (Merchant Free Delivery)"
+                  : "Customer",
+            },
+            {
+              label: "Free delivery",
+              value: isFreeDeliveryByAdmin ? (
+                <Tag color="purple">Yes (Marketplace / Admin)</Tag>
+              ) : isFreeDeliveryByStore ? (
+                <Tag color="cyan">Yes (Store)</Tag>
+              ) : (
+                "No"
+              ),
             },
             {
               label: "Parcel type",
               value: shipment.parcel_type || shipment.package_type,
             },
             {
-              label: "Weight (kg)",
-              value: shipment.weight != null ? String(shipment.weight) : null,
+              label: "Weight",
+              value: shipment.weight != null ? `${shipment.weight} kg` : null,
+            },
+            {
+              label: "Actual weight",
+              show: shipment.actual_weight != null && Number(shipment.actual_weight) > 0,
+              value: shipment.actual_weight != null ? `${shipment.actual_weight} kg` : null,
+            },
+            {
+              label: "Volumetric weight",
+              show: shipment.volumetric_weight != null && Number(shipment.volumetric_weight) > 0,
+              value: shipment.volumetric_weight != null ? `${shipment.volumetric_weight} kg` : null,
+            },
+            {
+              label: "Chargeable weight",
+              show: shipment.chargeable_weight != null && Number(shipment.chargeable_weight) > 0,
+              value: shipment.chargeable_weight != null ? `${shipment.chargeable_weight} kg` : null,
+            },
+            {
+              label: "Dimensions (L×W×H)",
+              show: Boolean(shipment.length_cm && shipment.width_cm && shipment.height_cm),
+              value:
+                shipment.length_cm && shipment.width_cm && shipment.height_cm
+                  ? `${shipment.length_cm} × ${shipment.width_cm} × ${shipment.height_cm} cm`
+                  : null,
             },
             {
               label: "Quantity",
@@ -1273,6 +1369,20 @@ export default function ShipmentDetailDrawer({ open, shipmentId, onClose }) {
                 </Text>
               ),
             },
+            {
+              label: "Fee covered by",
+              value: isFreeDeliveryByAdmin ? (
+                <Tag color="purple">Admin / Marketplace (Free Delivery)</Tag>
+              ) : isFreeDeliveryByStore ? (
+                <Tag color="cyan">Store / Merchant (Free Delivery)</Tag>
+              ) : (
+                <Tag color="blue">Customer</Tag>
+              ),
+            },
+            {
+              label: "Customer delivery fee",
+              value: isFreeDelivery ? "NPR 0.00 (Free Delivery)" : formatMoney(Number(shipment.delivery_charge ?? 0)),
+            },
           ]}
         />
       ) : (
@@ -1320,6 +1430,20 @@ export default function ShipmentDetailDrawer({ open, shipmentId, onClose }) {
                 view.feeFromShipment.delivery_charge != null
                   ? formatMoney(view.feeFromShipment.delivery_charge)
                   : null,
+            },
+            {
+              label: "Fee covered by",
+              value: isFreeDeliveryByAdmin ? (
+                <Tag color="purple">Admin / Marketplace (Free Delivery)</Tag>
+              ) : isFreeDeliveryByStore ? (
+                <Tag color="cyan">Store / Merchant (Free Delivery)</Tag>
+              ) : (
+                <Tag color="blue">Customer</Tag>
+              ),
+            },
+            {
+              label: "Customer delivery fee",
+              value: isFreeDelivery ? "NPR 0.00 (Free Delivery)" : formatMoney(Number(shipment.delivery_charge ?? 0)),
             },
           ]}
         />
