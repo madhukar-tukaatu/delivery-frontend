@@ -254,3 +254,27 @@ export function normalizeShipmentDetailResponse(response) {
       [],
   };
 }
+
+/**
+ * Preview delivery location recalculation.
+ */
+export async function previewDeliveryLocation(shipmentId, payload) {
+  const response = await api.post(
+    `/admin/shipments/${shipmentId}/delivery-location/preview`,
+    payload
+  );
+
+  return response.data?.data ?? response.data;
+}
+
+/**
+ * Update delivery location and recalculate charges.
+ */
+export async function updateDeliveryLocation(shipmentId, payload) {
+  const response = await api.put(
+    `/admin/shipments/${shipmentId}/delivery-location`,
+    payload
+  );
+
+  return response.data?.data ?? response.data;
+}

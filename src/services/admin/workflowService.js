@@ -89,3 +89,21 @@ export async function updateShipmentTaskStatus(
 
   return response.data?.data ?? response.data;
 }
+
+export async function previewDeliveryLocation(shipmentId, payload) {
+  const response = await api.post(
+    `/admin/shipments/${shipmentId}/delivery-location/preview`,
+    payload
+  );
+
+  return response.data?.data ?? response.data;
+}
+
+export async function updateDeliveryLocation(shipmentId, payload) {
+  const response = await api.put(
+    `/admin/shipments/${shipmentId}/delivery-location`,
+    payload
+  );
+
+  return response.data?.data ?? response.data;
+}
