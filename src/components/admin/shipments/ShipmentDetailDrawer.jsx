@@ -66,7 +66,76 @@ function firstValue(...values) {
 }
 
 function hasText(value) {
-  return value !== null && value !== undefined && String(value).trim() !== "";
+  if (value === null || value === undefined) return false;
+  if (typeof value === "object") return true;
+  return String(value).trim() !== "";
+}
+
+function BranchRibbonTag({ name, id, color = "geekblue" }) {
+  if (!name && !id) return null;
+
+  const ribbonColor =
+    color === "blue"
+      ? "#1677ff"
+      : color === "geekblue"
+        ? "#2f54eb"
+        : color === "cyan"
+          ? "#13c2c2"
+          : color === "green"
+            ? "#52c41a"
+            : color === "orange"
+              ? "#fa8c16"
+              : color === "purple"
+                ? "#722ed1"
+                : "#2f54eb";
+
+  return (
+    <span
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        borderRadius: 4,
+        border: `1px solid ${ribbonColor}40`,
+        boxShadow: "0 1px 2px rgba(0, 0, 0, 0.04)",
+        overflow: "hidden",
+        fontSize: 12,
+        lineHeight: "22px",
+        verticalAlign: "middle",
+        maxWidth: "100%",
+      }}
+    >
+      <span
+        style={{
+          background: ribbonColor,
+          color: "#ffffff",
+          fontWeight: 600,
+          padding: "1px 9px",
+          display: "inline-block",
+          letterSpacing: 0.2,
+          whiteSpace: "nowrap",
+          textOverflow: "ellipsis",
+          overflow: "hidden",
+        }}
+      >
+        {name || `Branch #${id}`}
+      </span>
+      {id && name && (
+        <span
+          style={{
+            padding: "1px 7px",
+            color: "#475569",
+            fontWeight: 600,
+            fontSize: 11,
+            background: "#f8fafc",
+            borderLeft: `1px solid ${ribbonColor}30`,
+            whiteSpace: "nowrap",
+          }}
+        >
+          #{id}
+        </span>
+      )}
+    </span>
+  );
 }
 
 function branchLabel(branch, fallbackId) {
@@ -339,75 +408,168 @@ export default function ShipmentDetailDrawer({ open, shipmentId, onClose }) {
     const breakdownOrigin = breakdown?.pickup_branch?.name ?? null;
     const breakdownDest = breakdown?.delivery_branch?.name ?? null;
 
-    const originLabel =
-      firstValue(
-        hop?.origin_name,
-        branchLabel(originBranch, null),
-        pathOrigin,
-        breakdownOrigin,
-      ) || branchLabel(null, shipment.origin_branch_id);
+    const originName = firstValue(
+      originBranch?.name,
+      originBranch?.legal_name,
+      originBranch?.branch_name,
+      shipment.origin_branch_name,
+      hop?.origin_name,
+      pathOrigin,
+      breakdownOrigin,
+    );
+    const originId = shipment.origin_branch_id ?? originBranch?.id ?? null;
+    const originLabel = originName
+      ? (originBranch?.area ? `${originName}, ${originBranch.area}` : originName)
+      : (originId ? `Branch #${originId}` : null);
+    const originRibbon = (originName || originId) ? (
+      <BranchRibbonTag name={originName} id={originId} color="blue" />
+    ) : null;
 
-    const destinationLabel =
-      firstValue(
-        hop?.destination_name,
-        branchLabel(destinationBranch, null),
-        pathDestination,
-        breakdownDest,
-      ) || branchLabel(null, shipment.destination_branch_id);
+    const destinationId = shipment.destination_branch_id ?? destinationBranch?.id ?? null;
 
-    const currentLabel =
-      firstValue(
-        hop?.current_name,
-        hop?.current_branch_name,
-        branchLabel(currentBranch, null),
-        Number(shipment.current_branch_id) ===
-          Number(shipment.destination_branch_id)
-          ? destinationLabel
-          : null,
-      ) || branchLabel(null, shipment.current_branch_id);
+    const isSameBranchShipment = Boolean(
+      originId && destinationId && String(originId) === String(destinationId),
+    );
 
-    const nextHopLabel =
-      firstValue(hop?.next_hop_name, branchLabel(nextHopBranch, null)) ||
-      (shipment.next_hop_branch_id
-        ? branchLabel(null, shipment.next_hop_branch_id)
-        : null);
+    const destinationName = isSameBranchShipment
+      ? firstValue(
+          destinationBranch?.name,
+          destinationBranch?.legal_name,
+          destinationBranch?.branch_name,
+          shipment.destination_branch_name,
+          originName,
+        )
+      : firstValue(
+          destinationBranch?.name,
+          destinationBranch?.legal_name,
+          destinationBranch?.branch_name,
+          shipment.destination_branch_name,
+          hop?.destination_name,
+          pathDestination,
+          breakdownDest,
+        );
+    const destinationLabel = destinationName
+      ? (destinationBranch?.area ? `${destinationName}, ${destinationBranch.area}` : destinationName)
+      : (destinationId ? `Branch #${destinationId}` : null);
+    const destinationRibbon = (destinationName || destinationId) ? (
+      <BranchRibbonTag name={destinationName} id={destinationId} color="geekblue" />
+    ) : null;
 
-    // Sender: shipment → pickup location → merchant
-    const senderName = firstValue(
-      shipment.sender_name,
-      pickupLocation?.contact_person,
-      pickupLocation?.name,
-      merchant?.owner_name,
-      merchant?.contact_person,
+    const currentName = firstValue(
+      currentBranch?.name,
+      currentBranch?.legal_name,
+      currentBranch?.branch_name,
+      shipment.current_branch_name,
+      hop?.current_name,
+      hop?.current_branch_name,
+      originId && destinationId && String(originId) === String(destinationId) ? originName : null,
+    );
+    const currentId =
+      shipment.current_branch_id ??
+      currentBranch?.id ??
+      (originId && destinationId && String(originId) === String(destinationId) ? originId : null);
+    const currentLabel = currentName
+      ? (currentBranch?.area ? `${currentName}, ${currentBranch.area}` : currentName)
+      : (currentId ? `Branch #${currentId}` : null);
+    const currentRibbon = (currentName || currentId) ? (
+      <BranchRibbonTag name={currentName} id={currentId} color="cyan" />
+    ) : null;
+
+    const nextHopName = firstValue(
+      nextHopBranch?.name,
+      nextHopBranch?.legal_name,
+      shipment.next_hop_branch_name,
+      hop?.next_hop_name,
+    );
+    const nextHopId = shipment.next_hop_branch_id ?? nextHopBranch?.id ?? null;
+    const nextHopLabel = nextHopName
+      ? (nextHopBranch?.area ? `${nextHopName}, ${nextHopBranch.area}` : nextHopName)
+      : (nextHopId ? `Branch #${nextHopId}` : null);
+    const nextHopRibbon = (nextHopName || nextHopId) ? (
+      <BranchRibbonTag name={nextHopName} id={nextHopId} color="orange" />
+    ) : null;
+
+    const originSubName = firstValue(
+      originSub?.name,
+      originSub?.legal_name,
+      shipment.origin_sub_branch_name,
+    );
+    const originSubId = shipment.origin_sub_branch_id ?? originSub?.id ?? null;
+    const originSubLabel = originSubName || (originSubId ? `Branch #${originSubId}` : null);
+    const originSubRibbon = (originSubName || originSubId) ? (
+      <BranchRibbonTag name={originSubName} id={originSubId} color="purple" />
+    ) : null;
+
+    const destinationSubName = firstValue(
+      destinationSub?.name,
+      destinationSub?.legal_name,
+      shipment.destination_sub_branch_name,
+    );
+    const destinationSubId = shipment.destination_sub_branch_id ?? destinationSub?.id ?? null;
+    const destinationSubLabel = destinationSubName || (destinationSubId ? `Branch #${destinationSubId}` : null);
+    const destinationSubRibbon = (destinationSubName || destinationSubId) ? (
+      <BranchRibbonTag name={destinationSubName} id={destinationSubId} color="purple" />
+    ) : null;
+
+    const currentSubName = firstValue(
+      currentSub?.name,
+      currentSub?.legal_name,
+      shipment.current_sub_branch_name,
+    );
+    const currentSubId = shipment.current_sub_branch_id ?? currentSub?.id ?? null;
+    const currentSubLabel = currentSubName || (currentSubId ? `Branch #${currentSubId}` : null);
+    const currentSubRibbon = (currentSubName || currentSubId) ? (
+      <BranchRibbonTag name={currentSubName} id={currentSubId} color="purple" />
+    ) : null;
+
+    // Parties / Pickup resolution:
+    // Priority: pickupLocation model -> merchant model -> shipment root fields
+    const merchantName = firstValue(
       merchant?.name,
+      merchant?.business_name,
+      merchant?.store_name,
+      shipment.merchant_name,
+    );
+
+    const pickupLocationName = firstValue(
+      pickupLocation?.name,
+      shipment.pickup_location_name,
+    );
+
+    const senderName = firstValue(
+      pickupLocation?.contact_person,
+      merchant?.contact_person,
+      merchant?.owner_name,
+      merchant?.name,
+      shipment.sender_name,
     );
     const senderPhone = firstValue(
-      shipment.sender_phone,
       pickupLocation?.phone,
       merchant?.phone,
+      shipment.sender_phone,
     );
     const senderEmail = firstValue(
-      shipment.sender_email,
       pickupLocation?.email,
       merchant?.email,
+      shipment.sender_email,
     );
     const senderAddress = firstValue(
-      shipment.sender_address,
       pickupLocation?.address,
       merchant?.pickup_address,
       merchant?.address,
+      shipment.sender_address,
     );
     const senderCity = firstValue(
-      shipment.sender_city,
       pickupLocation?.city,
       merchant?.pickup_city,
       merchant?.city,
+      shipment.sender_city,
     );
     const senderArea = firstValue(
-      shipment.sender_area,
       pickupLocation?.area,
       merchant?.pickup_area,
       merchant?.area,
+      shipment.sender_area,
     );
 
     const hasSenderBlock = [
@@ -417,8 +579,8 @@ export default function ShipmentDetailDrawer({ open, shipmentId, onClose }) {
       senderAddress,
       senderCity,
       senderArea,
-      merchant?.name,
-      pickupLocation?.name,
+      merchantName,
+      pickupLocationName,
     ].some(hasText);
 
     const pickupLat = firstValue(
@@ -515,8 +677,8 @@ export default function ShipmentDetailDrawer({ open, shipmentId, onClose }) {
       senderCity,
       senderArea,
       hasSenderBlock,
-      merchantName: merchant?.name ?? null,
-      pickupLocationName: pickupLocation?.name ?? null,
+      merchantName,
+      pickupLocationName,
       pickupLat,
       pickupLng,
       deliveryLat,
@@ -534,12 +696,16 @@ export default function ShipmentDetailDrawer({ open, shipmentId, onClose }) {
       destinationLabel,
       currentLabel,
       nextHopLabel,
-      originSubLabel: branchLabel(originSub, shipment.origin_sub_branch_id),
-      destinationSubLabel: branchLabel(
-        destinationSub,
-        shipment.destination_sub_branch_id,
-      ),
-      currentSubLabel: branchLabel(currentSub, shipment.current_sub_branch_id),
+      originSubLabel,
+      destinationSubLabel,
+      currentSubLabel,
+      originRibbon,
+      destinationRibbon,
+      currentRibbon,
+      nextHopRibbon,
+      originSubRibbon,
+      destinationSubRibbon,
+      currentSubRibbon,
       isTransfer,
       pathText,
       viaNames,
@@ -586,6 +752,19 @@ export default function ShipmentDetailDrawer({ open, shipmentId, onClose }) {
         }
 
         let totalDist = moneyValue(shipment.route_distance_km);
+        if (
+          isSameBranchShipment &&
+          (totalDist == null || totalDist > 20 || totalDist <= 0) &&
+          originCoords &&
+          destCoords
+        ) {
+          totalDist = haversineDistanceKm(
+            originCoords.lat,
+            originCoords.lng,
+            destCoords.lat,
+            destCoords.lng,
+          );
+        }
         if ((totalDist == null || totalDist <= 0) && routeStepsTotal > 0) {
           totalDist = routeStepsTotal;
         }
@@ -594,7 +773,7 @@ export default function ShipmentDetailDrawer({ open, shipmentId, onClose }) {
             originCoords.lat,
             originCoords.lng,
             destCoords.lat,
-            destCoords.lng
+            destCoords.lng,
           );
         }
         totalDist = totalDist != null ? Math.round(totalDist * 100) / 100 : 0;
@@ -621,9 +800,21 @@ export default function ShipmentDetailDrawer({ open, shipmentId, onClose }) {
 
         if (serverDist) {
           totalDist = Number(serverDist.total_distance_km ?? totalDist);
+          if (isSameBranchShipment && totalDist > 20 && originCoords && destCoords) {
+            totalDist =
+              Math.round(
+                haversineDistanceKm(
+                  originCoords.lat,
+                  originCoords.lng,
+                  destCoords.lat,
+                  destCoords.lng,
+                ) * 100,
+              ) / 100;
+          }
           coveredDist = Number(serverDist.covered_distance_km ?? 0);
+          if (coveredDist > totalDist) coveredDist = totalDist;
           distFromDest = Number(
-            serverDist.distance_from_destination_branch_km ?? 0
+            serverDist.distance_from_destination_branch_km ?? 0,
           );
           progressPct = Number(serverDist.progress_percent ?? 0);
         } else if (isDelivered) {
@@ -716,12 +907,15 @@ export default function ShipmentDetailDrawer({ open, shipmentId, onClose }) {
 
   const drawerTitle = shipment?.tracking_number || "Shipment details";
 
-  // Financial rules for this application:
-  // Financial rules:
-  // - delivery_charge: the delivery fee.
-  // - Free delivery: can be by Admin (Marketplace) or Store (Merchant).
-  // - When delivery is free, customer pays ONLY the declared goods POD amount.
-  // - Goods value for free delivery is 100% of declared amount (delivery fee is NOT deducted).
+  // Financial & Pricing rules:
+  // - delivery_charge: the delivery fee amount.
+  // - delivery_free_by: indicates if a free delivery coupon/promotion was applied ('marketplace', 'store', or 'none').
+  // - delivery_charge_paid_by: who covers the delivery fee ('customer', 'merchant', or 'admin').
+  //   * Note: Merchant or Admin covering the delivery charge does NOT mean a free delivery coupon was applied.
+  // - Goods value: exact packet products total (or declared goods value) - never deducted.
+  // - Collect from customer (POD):
+  //   * When customer pays delivery fee: Goods value + delivery charge.
+  //   * When delivery is free or paid by merchant/admin: Goods value only.
   const deliveryCharge = moneyValue(
     shipment?.delivery_charge,
     shipment?.delivery_fee,
@@ -738,32 +932,80 @@ export default function ShipmentDetailDrawer({ open, shipmentId, onClose }) {
   const paidBy = String(shipment?.delivery_charge_paid_by ?? "customer").toLowerCase().trim();
   const freeBy = String(shipment?.delivery_free_by ?? "none").toLowerCase().trim();
 
-  const isFreeDeliveryByAdmin = freeBy === "marketplace" || paidBy === "admin";
-  const isFreeDeliveryByStore = freeBy === "store" || ["merchant", "store", "seller", "free", "free_delivery"].includes(paidBy);
-  const isFreeDelivery = isFreeDeliveryByAdmin || isFreeDeliveryByStore;
+  // Free delivery coupon / promo flags (ONLY true if delivery_free_by is explicitly store/merchant or marketplace/admin)
+  const isFreeDeliveryByAdmin = freeBy === "marketplace" || freeBy === "admin";
+  const isFreeDeliveryByStore = freeBy === "store" || freeBy === "merchant";
+  const hasFreeDeliveryCoupon = isFreeDeliveryByAdmin || isFreeDeliveryByStore;
+  const isFreeDelivery = hasFreeDeliveryCoupon;
 
-  // Amount the rider collects at door
-  const collectableAmount = isPodShipment
-    ? (totalCollectable != null ? totalCollectable : podAmount)
-    : 0;
+  // Who actually pays/covers the delivery charge invoice
+  const isPaidByMerchant =
+    !isFreeDeliveryByAdmin &&
+    (isFreeDeliveryByStore || ["merchant", "store", "seller"].includes(paidBy));
+  const isPaidByAdmin =
+    isFreeDeliveryByAdmin || paidBy === "admin" || paidBy === "marketplace";
+  const isPaidByCustomer = !isPaidByMerchant && !isPaidByAdmin;
+
+  // Calculate packet products total (exact sum of all packet products: qty * unit_price)
+  const packetProductsTotal = useMemo(() => {
+    const list = view?.packetProducts || [];
+    if (!list.length) return null;
+    let sum = 0;
+    let hasValid = false;
+    for (const item of list) {
+      const qty = Number(item.quantity ?? 1) || 1;
+      const unitPrice = moneyValue(item.unit_price, item.price);
+      if (unitPrice != null && unitPrice > 0) {
+        sum += qty * unitPrice;
+        hasValid = true;
+      }
+    }
+    return hasValid ? Math.round(sum * 100) / 100 : null;
+  }, [view?.packetProducts]);
 
   // Declared goods value
-  const declaredValue = moneyValue(
+  const rawDeclaredValue = moneyValue(
     shipment?.declared_value,
     shipment?.merchandise_value,
     shipment?.items_subtotal,
   );
 
-  let receivableAmount = declaredValue;
-  if (receivableAmount == null) {
-    if (isFreeDelivery) {
-      receivableAmount = podAmount;
-    } else if (collectableAmount != null && deliveryCharge != null && collectableAmount > deliveryCharge) {
-      receivableAmount = Math.max(0, collectableAmount - deliveryCharge);
-    } else {
-      receivableAmount = podAmount;
-    }
-  }
+  // If customer pays delivery fee and raw declared value equals POD total/collectable amount,
+  // it indicates the store sent the gross total (goods + delivery) inside declared_value.
+  const isDeclaredGrossTotal = Boolean(
+    isPaidByCustomer &&
+    (deliveryCharge ?? 0) > 0 &&
+    rawDeclaredValue != null &&
+    (
+      (totalCollectable != null && Math.abs(rawDeclaredValue - totalCollectable) < 0.01) ||
+      (podAmount != null && Math.abs(rawDeclaredValue - podAmount) < 0.01)
+    )
+  );
+
+  const netDeclaredValue = isDeclaredGrossTotal
+    ? Math.max(0, Math.round((rawDeclaredValue - (deliveryCharge ?? 0)) * 100) / 100)
+    : rawDeclaredValue;
+
+  // Exact Goods Value: prefer packet products total, then net declared value, then fallback
+  const goodsValue =
+    packetProductsTotal != null && packetProductsTotal > 0
+      ? packetProductsTotal
+      : netDeclaredValue != null
+        ? netDeclaredValue
+        : (isPodShipment
+            ? (isPaidByCustomer && (deliveryCharge ?? 0) > 0 && podAmount != null && Math.abs(podAmount - (totalCollectable ?? podAmount)) < 0.01
+                ? Math.max(0, Math.round((podAmount - deliveryCharge) * 100) / 100)
+                : podAmount)
+            : null);
+
+  // Amount the rider collects at customer doorstep
+  const collectableAmount = isPodShipment
+    ? (totalCollectable != null
+        ? totalCollectable
+        : podAmount != null
+          ? podAmount
+          : (goodsValue ?? 0) + (isPaidByCustomer ? (deliveryCharge ?? 0) : 0))
+    : 0;
 
   /* ---- drawer sections ---- */
 
@@ -786,10 +1028,16 @@ export default function ShipmentDetailDrawer({ open, shipmentId, onClose }) {
                 <Tag>POD: {labelForStatus(shipment.pod_status)}</Tag>
               )}
             {isFreeDeliveryByAdmin && (
-              <Tag color="purple">Free Delivery (Admin)</Tag>
+              <Tag color="purple">Free Delivery (Marketplace Coupon)</Tag>
             )}
             {isFreeDeliveryByStore && (
-              <Tag color="cyan">Free Delivery (Store)</Tag>
+              <Tag color="cyan">Free Delivery (Store Coupon)</Tag>
+            )}
+            {!hasFreeDeliveryCoupon && isPaidByMerchant && (
+              <Tag color="cyan">Delivery Paid by Merchant</Tag>
+            )}
+            {!hasFreeDeliveryCoupon && isPaidByAdmin && (
+              <Tag color="purple">Delivery Paid by Admin</Tag>
             )}
           </Space>
           <Progress
@@ -819,11 +1067,15 @@ export default function ShipmentDetailDrawer({ open, shipmentId, onClose }) {
             color="#0891B2"
             tag={
               isFreeDeliveryByAdmin ? (
-                <Tag color="purple" style={{ margin: 0, fontSize: 10 }}>Free (Admin)</Tag>
+                <Tag color="purple" style={{ margin: 0, fontSize: 10 }}>Free (Marketplace)</Tag>
               ) : isFreeDeliveryByStore ? (
                 <Tag color="cyan" style={{ margin: 0, fontSize: 10 }}>Free (Store)</Tag>
+              ) : isPaidByMerchant ? (
+                <Tag color="cyan" style={{ margin: 0, fontSize: 10 }}>Paid by Merchant</Tag>
+              ) : isPaidByAdmin ? (
+                <Tag color="purple" style={{ margin: 0, fontSize: 10 }}>Paid by Admin</Tag>
               ) : (
-                <Tag color="blue" style={{ margin: 0, fontSize: 10 }}>Customer</Tag>
+                <Tag color="blue" style={{ margin: 0, fontSize: 10 }}>Paid by Customer</Tag>
               )
             }
           />
@@ -837,21 +1089,33 @@ export default function ShipmentDetailDrawer({ open, shipmentId, onClose }) {
             tag={
               !isPodShipment ? (
                 <Tag color="green" style={{ margin: 0, fontSize: 10 }}>Prepaid</Tag>
-              ) : isFreeDelivery ? (
-                <Tag color="gold" style={{ margin: 0, fontSize: 10 }}>Goods Only</Tag>
-              ) : null
+              ) : isPaidByCustomer ? (
+                <Tag color="gold" style={{ margin: 0, fontSize: 10 }}>Products + Delivery</Tag>
+              ) : (
+                <Tag color="gold" style={{ margin: 0, fontSize: 10 }}>Products Only</Tag>
+              )
             }
           />
         </Col>
         
         <Col xs={12} sm={12} lg={8}>
           <MoneyStat
-            title={isFreeDelivery ? "Goods value (Full declared)" : "Goods value (excl. delivery)"}
-            value={receivableAmount}
+            title={
+              packetProductsTotal != null && packetProductsTotal > 0
+                ? "Products price (Packet total)"
+                : isDeclaredGrossTotal
+                  ? "Products price (excl. delivery)"
+                  : "Products price"
+            }
+            value={goodsValue}
             color="#059669"
             tag={
-              isFreeDelivery ? (
-                <Tag color="success" style={{ margin: 0, fontSize: 10 }}>No Deduction</Tag>
+              packetProductsTotal != null && packetProductsTotal > 0 ? (
+                <Tag color="success" style={{ margin: 0, fontSize: 10 }}>Packet Total</Tag>
+              ) : isDeclaredGrossTotal ? (
+                <Tag color="success" style={{ margin: 0, fontSize: 10 }}>Excl. Delivery</Tag>
+              ) : netDeclaredValue != null ? (
+                <Tag color="success" style={{ margin: 0, fontSize: 10 }}>Declared Value</Tag>
               ) : null
             }
           />
@@ -972,16 +1236,16 @@ export default function ShipmentDetailDrawer({ open, shipmentId, onClose }) {
         <FieldDescriptions
           column={{ xs: 1, sm: 2 }}
           items={[
-            { label: "Origin", value: view.originLabel },
-            { label: "Destination", value: view.destinationLabel },
-            { label: "Current branch", value: view.currentLabel },
-            { label: "Next hop", value: view.nextHopLabel },
-            { label: "Origin sub-branch", value: view.originSubLabel },
+            { label: "Origin", value: view.originRibbon || view.originLabel },
+            { label: "Destination", value: view.destinationRibbon || view.destinationLabel },
+            { label: "Current branch", value: view.currentRibbon || view.currentLabel },
+            { label: "Next hop", value: view.nextHopRibbon || view.nextHopLabel },
+            { label: "Origin sub-branch", value: view.originSubRibbon || view.originSubLabel },
             {
               label: "Destination sub-branch",
-              value: view.destinationSubLabel,
+              value: view.destinationSubRibbon || view.destinationSubLabel,
             },
-            { label: "Current sub-branch", value: view.currentSubLabel },
+            { label: "Current sub-branch", value: view.currentSubRibbon || view.currentSubLabel },
           ]}
         />
         {!view.originLabel && !view.destinationLabel && !view.currentLabel && (
@@ -1005,20 +1269,24 @@ export default function ShipmentDetailDrawer({ open, shipmentId, onClose }) {
             },
             {
               label: "Charge paid by",
-              value: isFreeDeliveryByAdmin
-                ? "Admin (Marketplace Free Delivery)"
-                : isFreeDeliveryByStore
-                  ? "Store (Merchant Free Delivery)"
+              value: isPaidByMerchant
+                ? isFreeDeliveryByStore
+                  ? "Merchant / Store (Free Delivery Coupon)"
+                  : "Merchant / Store"
+                : isPaidByAdmin
+                  ? isFreeDeliveryByAdmin
+                    ? "Admin / Marketplace (Free Delivery Coupon)"
+                    : "Admin / Marketplace"
                   : "Customer",
             },
             {
               label: "Free delivery",
               value: isFreeDeliveryByAdmin ? (
-                <Tag color="purple">Yes (Marketplace / Admin)</Tag>
+                <Tag color="purple">Yes (Marketplace Coupon)</Tag>
               ) : isFreeDeliveryByStore ? (
-                <Tag color="cyan">Yes (Store)</Tag>
+                <Tag color="cyan">Yes (Store Coupon)</Tag>
               ) : (
-                "No"
+                <Tag color="default">No</Tag>
               ),
             },
             {
@@ -1059,10 +1327,16 @@ export default function ShipmentDetailDrawer({ open, shipmentId, onClose }) {
             },
             {
               label: "Declared value",
-              value:
-                moneyValue(shipment.declared_value) != null
-                  ? formatMoney(Number(shipment.declared_value))
-                  : null,
+              value: (() => {
+                if (packetProductsTotal != null && packetProductsTotal > 0) {
+                  return `${formatMoney(packetProductsTotal)} (Packet total)`;
+                }
+                if (isDeclaredGrossTotal) {
+                  return `${formatMoney(netDeclaredValue)} (excl. delivery)`;
+                }
+                const val = rawDeclaredValue ?? moneyValue(shipment.declared_value);
+                return val != null ? formatMoney(Number(val)) : null;
+              })(),
             },
             {
               label: "Fragile",
@@ -1142,16 +1416,16 @@ export default function ShipmentDetailDrawer({ open, shipmentId, onClose }) {
         <FieldDescriptions
           column={{ xs: 1, sm: 2 }}
           items={[
-            { label: "Origin", value: view.originLabel },
-            { label: "Destination", value: view.destinationLabel },
-            { label: "Current branch", value: view.currentLabel },
-            { label: "Next hop", value: view.nextHopLabel },
-            { label: "Origin sub-branch", value: view.originSubLabel },
+            { label: "Origin", value: view.originRibbon || view.originLabel },
+            { label: "Destination", value: view.destinationRibbon || view.destinationLabel },
+            { label: "Current branch", value: view.currentRibbon || view.currentLabel },
+            { label: "Next hop", value: view.nextHopRibbon || view.nextHopLabel },
+            { label: "Origin sub-branch", value: view.originSubRibbon || view.originSubLabel },
             {
               label: "Destination sub-branch",
-              value: view.destinationSubLabel,
+              value: view.destinationSubRibbon || view.destinationSubLabel,
             },
-            { label: "Current sub-branch", value: view.currentSubLabel },
+            { label: "Current sub-branch", value: view.currentSubRibbon || view.currentSubLabel },
             {
               label: "Total route distance",
               value: view.distanceData.totalDistanceKm
@@ -1202,15 +1476,15 @@ export default function ShipmentDetailDrawer({ open, shipmentId, onClose }) {
       {(view.hasSenderBlock ||
         coordinateLabel(view.pickupLat, view.pickupLng)) && (
         <Col xs={24} lg={12}>
-          <SectionCard title="Sender / Pickup" icon={<ShopOutlined />}>
+          <SectionCard title="Pickup" icon={<ShopOutlined />}>
             <FieldDescriptions
               items={[
-                { label: "Merchant", value: view.merchantName },
+                { label: "Merchant / Store", value: view.merchantName },
                 {
                   label: "Pickup location",
                   value: view.pickupLocationName,
                 },
-                { label: "Contact name", value: view.senderName },
+                { label: "Contact person", value: view.senderName },
                 { label: "Phone", value: view.senderPhone },
                 { label: "Email", value: view.senderEmail },
                 { label: "Address", value: view.senderAddress },
@@ -1297,11 +1571,37 @@ export default function ShipmentDetailDrawer({ open, shipmentId, onClose }) {
                   render: (v) => (v != null ? formatMoney(Number(v)) : "—"),
                 },
                 {
+                  title: "Total",
+                  key: "total_price",
+                  width: 120,
+                  render: (_, row) => {
+                    const q = Number(row.quantity ?? 1) || 1;
+                    const p = moneyValue(row.unit_price, row.price);
+                    return p != null ? formatMoney(q * p) : "—";
+                  },
+                },
+                {
                   title: "Tracking",
                   dataIndex: "product_tracking_number",
                   render: (v) => v || "—",
                 },
               ]}
+              summary={() => {
+                if (packetProductsTotal == null) return null;
+                return (
+                  <Table.Summary.Row style={{ background: "#FAFAFA", fontWeight: 600 }}>
+                    <Table.Summary.Cell index={0} colSpan={3} style={{ textAlign: "right" }}>
+                      Packet products total:
+                    </Table.Summary.Cell>
+                    <Table.Summary.Cell index={1}>
+                      <Text strong style={{ color: "#059669" }}>
+                        {formatMoney(packetProductsTotal)}
+                      </Text>
+                    </Table.Summary.Cell>
+                    <Table.Summary.Cell index={2} />
+                  </Table.Summary.Row>
+                );
+              }}
             />
           </SectionCard>
         </Col>
@@ -1316,43 +1616,54 @@ export default function ShipmentDetailDrawer({ open, shipmentId, onClose }) {
           column={2}
           items={[
             {
-              label: "Base pickup fee",
+              label: "Pricing route",
+              show: Boolean(
+                view.priceBreakdown.pickup_branch_name ||
+                view.priceBreakdown.delivery_branch_name
+              ),
+              value: `${view.priceBreakdown.pickup_branch_name || view.originLabel || "Origin"} → ${view.priceBreakdown.delivery_branch_name || view.destinationLabel || "Destination"} (${view.priceBreakdown.same_branch ? "Local / Same Branch" : "Inter-Branch Transfer"})`,
+            },
+            {
+              label: "Route base rate",
               value: formatMoney(
-                Number(view.priceBreakdown.base_pickup_fee ?? 0),
+                Number(
+                  view.priceBreakdown.route_base_rate ??
+                  view.priceBreakdown.base_delivery_fee ??
+                  0,
+                ),
               ),
             },
             {
-              label: "Base delivery fee",
-              value: formatMoney(
-                Number(view.priceBreakdown.base_delivery_fee ?? 0),
-              ),
-            },
-            {
-              label: "Transfer fee",
-              value: formatMoney(
-                Number(view.priceBreakdown.base_transfer_fee ?? 0),
-              ),
-            },
-            {
-              label: "Pickup extra",
-              value: formatMoney(
-                Number(view.priceBreakdown.pickup_extra_charge ?? 0),
-              ),
-            },
-            {
-              label: "Delivery extra",
-              value: formatMoney(
-                Number(view.priceBreakdown.delivery_extra_charge ?? 0),
-              ),
+              label: "Extra distance charge",
+              show: Number(view.priceBreakdown.delivery_extra_charge ?? 0) > 0,
+              value: view.priceBreakdown.extra_distance_km
+                ? `${formatMoney(Number(view.priceBreakdown.delivery_extra_charge))} (${view.priceBreakdown.extra_distance_km} km extra)`
+                : formatMoney(Number(view.priceBreakdown.delivery_extra_charge)),
             },
             {
               label: "Weight charge",
+              show: Number(view.priceBreakdown.weight_charge ?? 0) > 0,
               value: formatMoney(
                 Number(view.priceBreakdown.weight_charge ?? 0),
               ),
             },
             {
+              label: "Fragile fee",
+              show: Number(view.priceBreakdown.fragile_charge ?? 0) > 0,
+              value: formatMoney(
+                Number(view.priceBreakdown.fragile_charge ?? 0),
+              ),
+            },
+            {
+              label: "Expedited fee",
+              show: Number(view.priceBreakdown.same_day_charge || view.priceBreakdown.express_charge || 0) > 0,
+              value: formatMoney(
+                Number(view.priceBreakdown.same_day_charge || view.priceBreakdown.express_charge || 0),
+              ),
+            },
+            {
               label: "POD fee",
+              show: isPodShipment || Number(view.priceBreakdown.pod_fee ?? 0) > 0,
               value: formatMoney(Number(view.priceBreakdown.pod_fee ?? 0)),
             },
             {
@@ -1371,17 +1682,27 @@ export default function ShipmentDetailDrawer({ open, shipmentId, onClose }) {
             },
             {
               label: "Fee covered by",
-              value: isFreeDeliveryByAdmin ? (
-                <Tag color="purple">Admin / Marketplace (Free Delivery)</Tag>
-              ) : isFreeDeliveryByStore ? (
-                <Tag color="cyan">Store / Merchant (Free Delivery)</Tag>
+              value: isPaidByMerchant ? (
+                isFreeDeliveryByStore ? (
+                  <Tag color="cyan">Merchant / Store (Free Delivery Coupon)</Tag>
+                ) : (
+                  <Tag color="cyan">Merchant / Store</Tag>
+                )
+              ) : isPaidByAdmin ? (
+                isFreeDeliveryByAdmin ? (
+                  <Tag color="purple">Admin / Marketplace (Free Delivery Coupon)</Tag>
+                ) : (
+                  <Tag color="purple">Admin / Marketplace</Tag>
+                )
               ) : (
                 <Tag color="blue">Customer</Tag>
               ),
             },
             {
               label: "Customer delivery fee",
-              value: isFreeDelivery ? "NPR 0.00 (Free Delivery)" : formatMoney(Number(shipment.delivery_charge ?? 0)),
+              value: !isPaidByCustomer
+                ? `NPR 0.00 (${isFreeDeliveryByAdmin ? "Free - Marketplace Coupon" : isFreeDeliveryByStore ? "Free - Store Coupon" : isPaidByMerchant ? "Paid by Merchant" : "Paid by Admin"})`
+                : formatMoney(Number(shipment.delivery_charge ?? 0)),
             },
           ]}
         />
@@ -1433,17 +1754,27 @@ export default function ShipmentDetailDrawer({ open, shipmentId, onClose }) {
             },
             {
               label: "Fee covered by",
-              value: isFreeDeliveryByAdmin ? (
-                <Tag color="purple">Admin / Marketplace (Free Delivery)</Tag>
-              ) : isFreeDeliveryByStore ? (
-                <Tag color="cyan">Store / Merchant (Free Delivery)</Tag>
+              value: isPaidByMerchant ? (
+                isFreeDeliveryByStore ? (
+                  <Tag color="cyan">Merchant / Store (Free Delivery Coupon)</Tag>
+                ) : (
+                  <Tag color="cyan">Merchant / Store</Tag>
+                )
+              ) : isPaidByAdmin ? (
+                isFreeDeliveryByAdmin ? (
+                  <Tag color="purple">Admin / Marketplace (Free Delivery Coupon)</Tag>
+                ) : (
+                  <Tag color="purple">Admin / Marketplace</Tag>
+                )
               ) : (
                 <Tag color="blue">Customer</Tag>
               ),
             },
             {
               label: "Customer delivery fee",
-              value: isFreeDelivery ? "NPR 0.00 (Free Delivery)" : formatMoney(Number(shipment.delivery_charge ?? 0)),
+              value: !isPaidByCustomer
+                ? `NPR 0.00 (${isFreeDeliveryByAdmin ? "Free - Marketplace Coupon" : isFreeDeliveryByStore ? "Free - Store Coupon" : isPaidByMerchant ? "Paid by Merchant" : "Paid by Admin"})`
+                : formatMoney(Number(shipment.delivery_charge ?? 0)),
             },
           ]}
         />
