@@ -22,6 +22,7 @@ import { PartitionOutlined, PlusOutlined, ReloadOutlined, DeleteOutlined } from 
 import AdminPageHeader from "@/components/admin/ui/AdminPageHeader";
 import BranchScopeNotice, { useIsFinanceHq } from "@/components/admin/billing/BranchScopeNotice";
 import api from "@/lib/api";
+import { ShipmentLink } from "@/components/admin/shipments/ShipmentDrawerProvider";
 
 const { Text, Paragraph } = Typography;
 
@@ -252,7 +253,7 @@ export default function BranchSharesPage() {
               title: "Shipment",
               render: (_, r) => (
                 <Space direction="vertical" size={0}>
-                  <a href={`/admin/shipments/${r.shipment_id}`}>{r.shipment?.tracking_number || `#${r.shipment_id}`}</a>
+                  <ShipmentLink id={r.shipment_id}>{r.shipment?.tracking_number || `#${r.shipment_id}`}</ShipmentLink>
                   <Text type="secondary" style={{ fontSize: 11 }}>
                     {r.shipment?.delivered_at ? new Date(r.shipment.delivered_at).toLocaleDateString() : "-"}
                   </Text>

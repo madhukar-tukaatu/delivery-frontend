@@ -50,7 +50,8 @@ function readSaved(key) {
 }
 
 function TrCard({ c, selected, direction, onClick }) {
-  const other = direction === "inbound" || direction === "inbound_all" ? c.from_branch?.id : c.to_branch?.id;
+  const incoming = direction === "inbound" || direction === "inbound_all" || (direction === "all" && c.viewer_direction === "in");
+  const other = incoming ? c.from_branch?.id : c.to_branch?.id;
   const accent = accentFor(other);
   const vehicle = [vehicleLabel(c.vehicle_type), c.vehicle_number].filter(Boolean).join(" · ");
   const carrier = c.rider?.name || c.driver_name;
@@ -90,6 +91,11 @@ function TrCard({ c, selected, direction, onClick }) {
         <div style={{ flex: 1, minWidth: 0 }}>
           <Space size={4} wrap style={{ marginBottom: 2 }}>
             <Text strong style={{ fontSize: 13 }}>{c.display_number}</Text>
+            {direction === "all" && c.viewer_direction ? (
+              <Tag color={c.viewer_direction === "out" ? "blue" : "green"} style={{ margin: 0, fontSize: 11 }}>
+                {c.viewer_direction === "out" ? "Out" : "In"}
+              </Tag>
+            ) : null}
             <TrStatusTag status={c.status} missing={c.missing_count} />
             <SealTag c={c} />
           </Space>
@@ -158,6 +164,7 @@ export default function TransferContainerBoard({
   search = "",
   dateFrom = null,
   dateTo = null,
+  serviceType = null,
   reloadKey = 0,
   canReceive = false,
   canDispatch = false,
@@ -218,6 +225,7 @@ export default function TransferContainerBoard({
           search: (trSearch || search || "").trim() || undefined,
           date_from: dateFrom || undefined,
           date_to: dateTo || undefined,
+          service_type: serviceType || undefined,
           ...params,
         };
         const st = status || defaultStatuses;
@@ -244,7 +252,7 @@ export default function TransferContainerBoard({
         setLoading(false);
       }
     },
-    [direction, trSearch, search, dateFrom, dateTo, params, status, defaultStatuses]
+    [direction, trSearch, search, dateFrom, dateTo, serviceType, params, status, defaultStatuses]
   );
 
   useEffect(() => {

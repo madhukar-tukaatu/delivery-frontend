@@ -9,6 +9,7 @@ import {
   Empty,
   Input,
   Modal,
+  Segmented,
   Select,
   Space,
   Table,
@@ -32,6 +33,7 @@ import {
   DollarOutlined,
   ArrowRightOutlined,
   NodeIndexOutlined,
+  UnorderedListOutlined,
 } from "@ant-design/icons";
 import { usePermissions } from "@/hooks/usePermission";
 import {
@@ -48,9 +50,10 @@ import AreaAssignmentMap from "@/features/routing/AreaAssignmentMap";
 import StatCard, { StatCardGrid } from "@/components/admin/ui/StatCard";
 import { formatMerchantLabel } from "@/lib/merchantLabel";
 import { refreshMenuBadges } from "@/hooks/useMenuBadges";
-import { CreateRunModal } from "@/components/admin/delivery-runs/DeliveryRunBoard";
+import { CreateRunModal, DeliveryRunsBoard, RunJoinPicker, useRunSuggestions } from "@/components/admin/delivery-runs/DeliveryRunBoard";
 import DeliveryRunDetail from "@/components/admin/delivery-runs/DeliveryRunDetail";
 import { RUN_STATUS_META } from "@/components/admin/delivery-runs/runMeta";
+import { collectAmount } from "@/lib/collectAmount";
 
 const { Text } = Typography;
 const BRAND = "#0891B2";
@@ -148,7 +151,7 @@ function moneyFollowUp(shipment = {}) {
   const podStatus = String(shipment.pod_status || "").toLowerCase();
   const settlementStatus = String(shipment.settlement_status || "").toLowerCase();
   const pod = isPod(paymentType);
-  const amount = Number(shipment.total_collectable_amount || shipment.pod_amount || 0);
+  const amount = collectAmount(shipment);
 
   if (settlementStatus === "settled" || settlementStatus === "processing") {
     return {
@@ -245,6 +248,7 @@ export default function DeliveriesPage() {
   const [urlReady, setUrlReady] = useState(false);
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [viewMode, setViewMode] = useState("map");
 
   const [rows, setRows] = useState([]);
   const [mapOpen, setMapOpen] = useState(true);
@@ -263,6 +267,8 @@ export default function DeliveriesPage() {
   const [ridersLoading, setRidersLoading] = useState(false);
   const [selectedRider, setSelectedRider] = useState(null);
   const [submitting, setSubmitting] = useState(false);
+  // Rider still collecting a run: "run" = add to it (default), "individual" = old per-parcel assign.
+  const [assignRunMode, setAssignRunMode] = useState("run");
 
   // Multi-select for bulk assignment / delivery runs (table + map share it).
   const [selectedRowKeys, setSelectedRowKeys] = useState([]);
@@ -270,6 +276,7 @@ export default function DeliveriesPage() {
 
   // Delivery run (DR) actions live inside this view.
   const [createRunOpen, setCreateRunOpen] = useState(false);
+  const [createRunRiderId, setCreateRunRiderId] = useState(null);
   const [openRunId, setOpenRunId] = useState(null);
 
   // Per-status caches: { [cacheKey]: result } - cleared by `version`.
@@ -446,6 +453,7 @@ export default function DeliveriesPage() {
       setBulkMode(false);
       setAssignTarget(delivery);
       setSelectedRider(null);
+      setAssignRunMode("run");
       setAssignOpen(true);
       await loadRidersFor(delivery.id);
     },
@@ -457,6 +465,7 @@ export default function DeliveriesPage() {
     setBulkMode(true);
     setAssignTarget(null);
     setSelectedRider(null);
+    setAssignRunMode("run");
     setAssignOpen(true);
     // Load rider pool from the first selected delivery (same branch in practice).
     await loadRidersFor(selectedRowKeys[0]);
@@ -469,19 +478,25 @@ export default function DeliveriesPage() {
     }
     setSubmitting(true);
     try {
+      const extra = assignRiderRun ? { run_mode: assignRunMode } : {};
       if (bulkMode) {
-        const res = await bulkAssignDeliveries(selectedRider, selectedRowKeys);
+        const res = await bulkAssignDeliveries(selectedRider, selectedRowKeys, extra);
         const assigned = res?.assigned?.length ?? 0;
+        const joined = res?.joined_run?.length ?? 0;
         const skipped = res?.skipped ? Object.keys(res.skipped).length : 0;
-        message.success(
-          skipped === 0
-            ? `${assigned} deliveries assigned.`
-            : `${assigned} assigned, ${skipped} skipped.`,
-        );
+        if (joined) {
+          message.success(res._message || `${joined} added to the rider's run.`, 6);
+        } else {
+          message.success(
+            skipped === 0
+              ? `${assigned} deliveries assigned.`
+              : `${assigned} assigned, ${skipped} skipped.`,
+          );
+        }
         setSelectedRowKeys([]);
       } else {
-        await assignDeliveryRider(assignTarget.id, selectedRider);
-        message.success("Rider assigned.");
+        const res = await assignDeliveryRider(assignTarget.id, selectedRider, extra);
+        message.success(res?.merged ? res._message || "Added to the rider's run." : "Rider assigned.", res?.merged ? 6 : 3);
       }
       setAssignOpen(false);
       setAssignTarget(null);
@@ -603,7 +618,7 @@ export default function DeliveriesPage() {
         render: (_, r) => {
           const s = r.shipment ?? {};
           const pod = isPod(s.payment_type);
-          const amount = Number(s.total_collectable_amount || s.pod_amount || 0);
+          const amount = collectAmount(s);
           const delivered = r.status === "delivered";
           const follow = delivered ? moneyFollowUp(s) : null;
 
@@ -688,6 +703,18 @@ export default function DeliveriesPage() {
           const follow = r.status === "delivered" ? moneyFollowUp(r.shipment ?? {}) : null;
           const onRun = !!r.delivery_run?.active;
 
+          // Parcel bound for this branch but handled (sorted / assigned /
+          // delivered) by another branch: shown here, view-only.
+          if (r.handled_elsewhere) {
+            return (
+              <Tooltip title="This parcel's final destination is your branch, but another branch handles its delivery. View-only here.">
+                <Tag color="purple" style={{ margin: 0 }}>
+                  Handled by {r.handling_branch?.name || "another branch"}
+                </Tag>
+              </Tooltip>
+            );
+          }
+
           return (
             <Space size={4} wrap>
               {onRun && ["pending", "assigned"].includes(r.status) && (
@@ -741,7 +768,7 @@ export default function DeliveriesPage() {
         onChange: (keys) => setSelectedRowKeys(keys),
         getCheckboxProps: (record) => ({
           // Only pending / assigned deliveries that are not already on an active DR.
-          disabled: !["pending", "assigned"].includes(record.status) || !!record.delivery_run?.active,
+          disabled: !["pending", "assigned"].includes(record.status) || !!record.delivery_run?.active || !!record.handled_elsewhere,
         }),
       }
     : undefined;
@@ -753,9 +780,38 @@ export default function DeliveriesPage() {
   const runBranchId = branchId || (runBranches.length === 1 ? runBranches[0] : null);
   const runCod = runnable.reduce((sum, r) => {
     const s = r.shipment ?? {};
-    return sum + (isPod(s.payment_type) ? Number(s.total_collectable_amount || s.pod_amount || 0) : 0);
+    return sum + (isPod(s.payment_type) ? collectAmount(s) : 0);
   }, 0);
   const canCreateRun = !!(isSuperAdmin || can?.("deliveries.assign"));
+
+  // Assign modal: un-started runs these parcels can join (rider still bagging) + riders on the road.
+  const assignShipmentIds = bulkMode
+    ? selectedRows.map((r) => r.shipment_id).filter(Boolean)
+    : assignTarget?.shipment_id
+    ? [assignTarget.shipment_id]
+    : [];
+  const assignSuggestions = useRunSuggestions(assignOpen, assignShipmentIds, branchId || null);
+  const assignRiderRun = selectedRider
+    ? assignSuggestions.runs.find((r) => Number(r.rider?.id) === Number(selectedRider))
+    : null;
+  const assignJoinPicker = (
+    <RunJoinPicker
+      suggestions={assignSuggestions}
+      riderId={selectedRider}
+      mode={assignRunMode}
+      onModeChange={setAssignRunMode}
+      onPickRider={(id) => setSelectedRider(id)}
+      joinValue="run"
+      otherValue="individual"
+      otherLabel="Assign individually (outside the run)"
+      onRoadNote="Parcels cannot be added to a run that is out for delivery, so they are assigned individually. Or create a new DR for the rider's next trip."
+    />
+  );
+  const riderOptionLabel = (r) => {
+    const own = assignSuggestions.runs.find((x) => Number(x.rider?.id) === Number(r.id));
+    const road = !own && assignSuggestions.onRoad.find((x) => Number(x.rider?.id) === Number(r.id));
+    return `${r.name}${r.phone ? ` | ${r.phone}` : ""} - ${r.active_deliveries_count ?? 0} active${own ? ` · collecting ${own.run_number}` : road ? " · on the road" : ""}`;
+  };
 
   const openCreateRun = () => {
     if (!runnable.length) {
@@ -783,16 +839,18 @@ export default function DeliveriesPage() {
     <div style={{ padding: 16, background: "#f7f8fa", minHeight: "100%" }}>
       <AdminPageHeader
         title="Deliveries"
-        subtitle="Assign riders, track last-mile, and follow cash POD / settlement after delivery"
+        subtitle="Organize shipments into Delivery Runs (DR), monitor live route maps, and reconcile legacy parcels"
         actions={
-          <Space>
-            <Button
-              icon={<EnvironmentOutlined />}
-              type={mapOpen ? "primary" : "default"}
-              onClick={() => setMapOpen((open) => !open)}
-            >
-              Map
-            </Button>
+          <Space wrap>
+            <Segmented
+              value={viewMode}
+              onChange={setViewMode}
+              options={[
+                { label: <Space size={4}><EnvironmentOutlined /><span>Routing Map</span></Space>, value: "map" },
+                { label: <Space size={4}><CarOutlined /><span>Delivery Runs (DR)</span></Space>, value: "runs" },
+                { label: <Space size={4}><UnorderedListOutlined /><span>Individual Shipments (Legacy)</span></Space>, value: "list" },
+              ]}
+            />
             <Button icon={<ReloadOutlined />} onClick={refresh}>
               Refresh
             </Button>
@@ -800,7 +858,9 @@ export default function DeliveriesPage() {
         }
       />
 
-      {mapOpen && (
+      {viewMode === "runs" ? (
+        <DeliveryRunsBoard branchId={branchId} canManage={canCreateRun} />
+      ) : viewMode === "map" ? (
         <AreaAssignmentMap
           mode="delivery"
           loading={mapLoading}
@@ -815,7 +875,9 @@ export default function DeliveriesPage() {
           onAssign={async (riderId, ids) => {
             const res = await bulkAssignDeliveries(riderId, ids);
             const skipped = Object.keys(res?.skipped || {}).length;
-            if (skipped) {
+            if (res?.joined_run?.length) {
+              message.success(res._message || "Added to the rider's run.", 6);
+            } else if (skipped) {
               message.warning(`${res?.assigned?.length || 0} assigned, ${skipped} skipped.`);
             } else {
               message.success("Rider assigned.");
@@ -823,6 +885,11 @@ export default function DeliveriesPage() {
             setSelectedRowKeys([]);
             setSelectedRider(null);
             refresh();
+          }}
+          onCreateRun={(ids, riderId) => {
+            setSelectedRowKeys(ids);
+            setCreateRunRiderId(riderId || null);
+            setCreateRunOpen(true);
           }}
           stops={mapRows.map((row) => {
             const shipment = row.shipment ?? {};
@@ -848,7 +915,8 @@ export default function DeliveriesPage() {
             };
           })}
         />
-      )}
+      ) : (
+        <>
 
       <Card className="admin-card" style={{ marginBottom: 12 }}>
         <Space wrap>
@@ -1030,6 +1098,8 @@ export default function DeliveriesPage() {
           }}
         />
       </Card>
+        </>
+      )}
 
       {/* Create DR & assign rider */}
       <CreateRunModal
@@ -1037,10 +1107,15 @@ export default function DeliveriesPage() {
         shipmentIds={runnable.map((r) => r.shipment_id)}
         codTotal={runCod}
         branchId={runBranchId}
+        initialRiderId={createRunRiderId}
         requireRider
-        onClose={() => setCreateRunOpen(false)}
+        onClose={() => {
+          setCreateRunOpen(false);
+          setCreateRunRiderId(null);
+        }}
         onCreated={(id) => {
           setCreateRunOpen(false);
+          setCreateRunRiderId(null);
           setSelectedRowKeys([]);
           refresh();
           if (id) openRun(id);
@@ -1053,6 +1128,7 @@ export default function DeliveriesPage() {
         onCancel={() => setOpenRunId(null)}
         footer={null}
         width={1100}
+        zIndex={990}
         destroyOnHidden
         title={<Space><NodeIndexOutlined style={{ color: BRAND }} />Delivery run</Space>}
       >
@@ -1073,7 +1149,13 @@ export default function DeliveriesPage() {
         onCancel={() => { setAssignOpen(false); setAssignTarget(null); setBulkMode(false); }}
         onOk={submitAssign}
         confirmLoading={submitting}
-        okText={bulkMode ? `Assign ${selectedRowKeys.length} to rider` : "Assign rider"}
+        okText={
+          assignRiderRun && assignRunMode === "run"
+            ? `Add to ${assignRiderRun.run_number}`
+            : bulkMode
+            ? `Assign ${selectedRowKeys.length} to rider`
+            : "Assign rider"
+        }
         okButtonProps={{ disabled: !selectedRider }}
       >
         {bulkMode ? (
@@ -1094,14 +1176,18 @@ export default function DeliveriesPage() {
                 loading={ridersLoading}
                 placeholder="Select a rider"
                 value={selectedRider}
-                onChange={setSelectedRider}
+                onChange={(v) => {
+                  setSelectedRider(v);
+                  setAssignRunMode("run");
+                }}
                 options={riders.map((r) => ({
                   value: r.id,
-                  label: `${r.name}${r.phone ? ` | ${r.phone}` : ""} - ${r.active_deliveries_count ?? 0} active`,
+                  label: riderOptionLabel(r),
                 }))}
                 notFoundContent={ridersLoading ? "Loading..." : "No riders at this branch"}
               />
             </div>
+            {assignJoinPicker}
             <Text type="secondary" style={{ fontSize: 11 }}>
               Deliveries not in a ready/assigned state will be skipped automatically.
             </Text>
@@ -1121,7 +1207,7 @@ export default function DeliveriesPage() {
                 </Text>
                 {isPod(assignTarget.shipment?.payment_type) ? (
                   <Tag color="volcano" style={{ margin: 0, width: "fit-content" }}>
-                    <DollarOutlined /> Collect {money(assignTarget.shipment?.total_collectable_amount || assignTarget.shipment?.pod_amount)}
+                    <DollarOutlined /> Collect {money(collectAmount(assignTarget.shipment))}
                   </Tag>
                 ) : (
                   <Tag color="green" style={{ margin: 0, width: "fit-content" }}>Prepaid - nothing to collect</Tag>
@@ -1136,14 +1222,18 @@ export default function DeliveriesPage() {
                 loading={ridersLoading}
                 placeholder="Select a rider"
                 value={selectedRider}
-                onChange={setSelectedRider}
+                onChange={(v) => {
+                  setSelectedRider(v);
+                  setAssignRunMode("run");
+                }}
                 options={riders.map((r) => ({
                   value: r.id,
-                  label: `${r.name}${r.phone ? ` | ${r.phone}` : ""} - ${r.active_deliveries_count ?? 0} active`,
+                  label: riderOptionLabel(r),
                 }))}
                 notFoundContent={ridersLoading ? "Loading..." : "No riders at this branch"}
               />
             </div>
+            {assignJoinPicker}
           </Space>
         ) : null}
       </Modal>

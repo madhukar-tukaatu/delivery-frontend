@@ -23,6 +23,7 @@ import AdminPageHeader from "@/components/admin/ui/AdminPageHeader";
 import BranchScopeNotice, { useIsFinanceHq } from "@/components/admin/billing/BranchScopeNotice";
 import { usePermissions } from "@/hooks/usePermission";
 import api from "@/lib/api";
+import { ShipmentLink } from "@/components/admin/shipments/ShipmentDrawerProvider";
 
 const { Text, Paragraph } = Typography;
 
@@ -243,7 +244,7 @@ export default function InterBranchSettlementsPage() {
               pagination={false}
               dataSource={detail.lines || []}
               columns={[
-                { title: "Shipment", render: (_, l) => <a href={`/admin/shipments/${l.shipment_id}`}>{l.shipment?.tracking_number || `#${l.shipment_id}`}</a> },
+                { title: "Shipment", render: (_, l) => <ShipmentLink id={l.shipment_id}>{l.shipment?.tracking_number || `#${l.shipment_id}`}</ShipmentLink> },
                 { title: "Role", dataIndex: "role" },
                 { title: "Share", dataIndex: "share_amount", align: "right", render: money },
                 { title: "Transport", dataIndex: "transport_amount", align: "right", render: money },

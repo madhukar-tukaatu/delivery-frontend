@@ -641,7 +641,8 @@ export async function staffCancelPickup(
     );
   }
 
-  if (!reason || !String(reason).trim()) {
+  const text = typeof reason === 'object' && reason !== null ? reason.reason : reason;
+  if (!text || !String(text).trim()) {
     throw new Error(
       "A cancellation reason is required."
     );
@@ -650,9 +651,30 @@ export async function staffCancelPickup(
   const response = await api.post(
     `/staff/pickups/${id}/cancel`,
     {
-      reason: String(reason).trim(),
+      reason: String(text).trim(),
     }
   );
+
+  return unwrap(response);
+}
+
+/**
+ * Mark pickup as failed from rider side.
+ *
+ * POST /staff/pickups/{id}/fail
+ */
+export async function staffFailPickup(id, reason) {
+  if (!id) {
+    throw new Error("Pickup ID is required.");
+  }
+  const text = typeof reason === 'object' && reason !== null ? reason.reason : reason;
+  if (!text || !String(text).trim()) {
+    throw new Error("A failure reason is required.");
+  }
+
+  const response = await api.post(`/staff/pickups/${id}/fail`, {
+    reason: String(text).trim(),
+  });
 
   return unwrap(response);
 }

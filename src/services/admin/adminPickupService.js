@@ -209,10 +209,14 @@ export async function getPickup(requestNumber) {
 |--------------------------------------------------------------------------
 */
 
-export async function getPickupRiders() {
+export async function getPickupRiders(pickupId = null) {
   try {
+    // There is no /admin/pickups/riders route: use the per-pickup assignable
+    // staff list when we know the pickup, otherwise the run riders list.
     const response = await api.get(
-      "/admin/pickups/riders"
+      pickupId
+        ? `/admin/pickups/${encodeURIComponent(pickupId)}/assignable-staff`
+        : "/admin/pickups/runs/riders"
     );
 
     const payload =

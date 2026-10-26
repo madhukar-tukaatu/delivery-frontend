@@ -4,6 +4,15 @@ function unwrap(response) {
   return response?.data?.data ?? response?.data ?? null;
 }
 
+/** Payload plus the API message (e.g. "Added 2 parcels to DR-...") as _message. */
+function withMessage(response) {
+  const payload = unwrap(response);
+  if (payload && typeof payload === "object" && !Array.isArray(payload)) {
+    return { ...payload, _message: response?.data?.message || "" };
+  }
+  return payload;
+}
+
 function normalizeList(response, params = {}) {
   const payload = unwrap(response);
 
@@ -73,24 +82,26 @@ export async function getAssignableRiders(deliveryId) {
 /**
  * Assign a rider to a delivery.
  *
- * POST /admin/deliveries/{id}/assign  { rider_id }
+ * POST /admin/deliveries/{id}/assign  { rider_id, run_mode? }
+ * run_mode: auto (default: joins the rider's un-started delivery run) | run | individual.
  */
-export async function assignDeliveryRider(deliveryId, riderId) {
+export async function assignDeliveryRider(deliveryId, riderId, extra = {}) {
   if (!deliveryId) throw new Error("Delivery ID is required.");
   if (!riderId) throw new Error("Rider ID is required.");
   const response = await api.post(`/admin/deliveries/${deliveryId}/assign`, {
     rider_id: riderId,
+    ...extra,
   });
-  return unwrap(response);
+  return withMessage(response);
 }
 
 /**
  * Assign many deliveries to one rider.
  *
- * POST /admin/deliveries/bulk-assign  { rider_id, delivery_ids: [] }
- * Returns { assigned: number[], skipped: { [id]: reason } }
+ * POST /admin/deliveries/bulk-assign  { rider_id, delivery_ids: [], run_mode? }
+ * Returns { assigned: number[], skipped: { [id]: reason }, run?, joined_run?: shipment ids, _message }
  */
-export async function bulkAssignDeliveries(riderId, deliveryIds) {
+export async function bulkAssignDeliveries(riderId, deliveryIds, extra = {}) {
   if (!riderId) throw new Error("Rider ID is required.");
   if (!Array.isArray(deliveryIds) || deliveryIds.length === 0) {
     throw new Error("Select at least one delivery.");
@@ -98,8 +109,9 @@ export async function bulkAssignDeliveries(riderId, deliveryIds) {
   const response = await api.post("/admin/deliveries/bulk-assign", {
     rider_id: riderId,
     delivery_ids: deliveryIds,
+    ...extra,
   });
-  return unwrap(response);
+  return withMessage(response);
 }
 
 /**

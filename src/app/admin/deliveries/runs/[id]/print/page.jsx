@@ -129,7 +129,7 @@ export default function DeliveryRunPrintPage() {
             Print
           </Button>
           {run && ["open", "assigned"].includes(run.status) ? (
-            <Text type="warning">Not dispatched yet: parcels can still change.</Text>
+            <Text type="warning">Not started yet: the rider is collecting and bagging; parcels can still change.</Text>
           ) : null}
         </Space>
       </div>
@@ -178,8 +178,8 @@ export default function DeliveryRunPrintPage() {
               {vehicle || "-"}
             </div>
             <div style={{ gridColumn: "1 / span 2" }}>
-              <b>Dispatched</b>
-              {fmtDate(run.dispatched_at)}
+              <b>Started</b>
+              {fmtDate(run.started_at || run.dispatched_at)}
             </div>
           </div>
         </div>
@@ -214,8 +214,8 @@ export default function DeliveryRunPrintPage() {
               {fmtDate(run.created_at)}
             </div>
             <div>
-              <b>Dispatched</b>
-              {fmtDate(run.dispatched_at)}
+              <b>Started</b>
+              {fmtDate(run.started_at || run.dispatched_at)}
             </div>
           </div>
 
@@ -223,6 +223,7 @@ export default function DeliveryRunPrintPage() {
             <thead>
               <tr>
                 <th style={{ width: 22 }}>#</th>
+                <th style={{ width: 34 }}>Bag</th>
                 <th style={{ width: 110 }}>Tracking</th>
                 <th>Receiver / phone</th>
                 <th>Address</th>
@@ -235,6 +236,9 @@ export default function DeliveryRunPrintPage() {
               {items.map((i) => (
                 <tr key={i.item_id}>
                   <td>{i.sequence}</td>
+                  <td style={{ textAlign: "center", fontSize: 16, lineHeight: 1 }}>
+                    {i.status === "queued" ? "\u2610" : "\u2611"}
+                  </td>
                   <td style={{ fontFamily: "monospace", fontWeight: 700 }}>
                     {i.tracking_number || `#${i.shipment_id}`}
                     {i.attempt > 1 ? <div style={{ fontWeight: 400 }}>attempt {i.attempt}</div> : null}

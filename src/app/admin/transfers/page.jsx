@@ -1922,6 +1922,29 @@ function GroupedOutboundView({ rows, selectedRowKeys, onSelectionChange, loading
   );
 }
 
+/** "2 TRs", "1 parcel": badge counts always carry their unit. */
+function countLabel(n, unit) {
+  const v = Number(n || 0);
+  return `${v} ${unit}${v === 1 ? "" : "s"}`;
+}
+
+const DIRECTION_META = {
+  out: { color: "blue", label: "Out", tip: "This branch sent the parcel on a TR" },
+  in: { color: "green", label: "In", tip: "This branch received the parcel on a TR" },
+  in_out: { color: "purple", label: "In + Out", tip: "Received here and sent on (transit hub)" },
+  out_pending: { color: "orange", label: "Out (to send)", tip: "Waiting here to be sent on a TR" },
+};
+
+function DirectionTag({ direction }) {
+  const m = DIRECTION_META[direction];
+  if (!m) return <Text type="secondary">-</Text>;
+  return (
+    <Tooltip title={m.tip}>
+      <Tag color={m.color} style={{ margin: 0 }}>{m.label}</Tag>
+    </Tooltip>
+  );
+}
+
 export default function TransfersPage() {
   const { can, isSuperAdmin, roles } = usePermissions();
   // HQ (super admin / main admin / admin) sees every branch's transfers.
@@ -2434,6 +2457,10 @@ export default function TransfersPage() {
       }
       if (serviceTypeFilter && serviceTypeFilter !== "all") receivedParams.service_type = serviceTypeFilter;
       if (statusFilter !== "all") receivedParams.status = statusFilter;
+      if (dateRange?.length === 2) {
+        receivedParams.date_from = dateRange[0].format("YYYY-MM-DD");
+        receivedParams.date_to = dateRange[1].format("YYYY-MM-DD");
+      }
       const res = await getReceivedTransfers(receivedParams);
       setReceivedRows(res.list || []);
       setPagination((p) => ({ ...p, current: res.currentPage || page, pageSize, total: Number(res.total ?? 0) }));
@@ -2442,7 +2469,7 @@ export default function TransfersPage() {
     } finally {
       setLoading(false);
     }
-  }, [debouncedSearch, serviceTypeFilter, statusFilter, selectedBranchId]);
+  }, [debouncedSearch, serviceTypeFilter, statusFilter, dateRange, selectedBranchId]);
 
   // Load completed
   const loadCompleted = useCallback(async (page = 1, pageSize = 20) => {
@@ -2452,6 +2479,7 @@ export default function TransfersPage() {
       if (selectedBranchId) {
         params.branch_id = selectedBranchId;
       }
+      if (serviceTypeFilter && serviceTypeFilter !== "all") params.service_type = serviceTypeFilter;
       if (dateRange?.length === 2) {
         params.date_from = dateRange[0].format("YYYY-MM-DD");
         params.date_to = dateRange[1].format("YYYY-MM-DD");
@@ -2464,7 +2492,7 @@ export default function TransfersPage() {
     } finally {
       setLoading(false);
     }
-  }, [debouncedSearch, dateRange, selectedBranchId]);
+  }, [debouncedSearch, dateRange, serviceTypeFilter, selectedBranchId]);
 
   // Load history
   const loadHistory = useCallback(async (page = 1, pageSize = 20) => {
@@ -2610,21 +2638,22 @@ export default function TransfersPage() {
     search: debouncedSearch,
     dateFrom: dateRange?.length === 2 ? dateRange[0].format("YYYY-MM-DD") : null,
     dateTo: dateRange?.length === 2 ? dateRange[1].format("YYYY-MM-DD") : null,
+    serviceType: serviceTypeFilter && serviceTypeFilter !== "all" ? serviceTypeFilter : null,
     reloadKey: trReloadKey,
     canReceive: !!can?.("transfers.receive") && !hqAll,
     canDispatch: !!can?.("transfers.dispatch") && !hqAll,
     onDispatchOpen: (c) => handleDispatchOpenTr(c),
     onChanged: () => loadStats(),
   };
-  const viewToggle = (value, onChange, parcelLabel = "By parcel") => (
+  const viewToggle = (value, onChange, parcelLabel = "By parcel", trCount = null, parcelCount = null) => (
     <Space size={6} style={{ padding: "8px 8px 0" }}>
       <Segmented
         size="small"
         value={value}
         onChange={onChange}
         options={[
-          { value: "tr", label: "By TR" },
-          { value: "parcel", label: parcelLabel },
+          { value: "tr", label: trCount == null ? "By TR" : `By TR (${trCount})` },
+          { value: "parcel", label: parcelCount == null ? parcelLabel : `${parcelLabel} (${parcelCount})` },
         ]}
       />
     </Space>
@@ -3119,6 +3148,12 @@ export default function TransfersPage() {
   // History columns: the branch's transfer events + current status
   const historyColumns = withHq([
     shipmentColumn,
+    {
+      title: "In / Out",
+      key: "direction",
+      width: 110,
+      render: (_, s) => <DirectionTag direction={s.transfer_info?.direction} />,
+    },
     routeColumn,
     {
       title: "Branch Transfer Events",
@@ -3154,7 +3189,7 @@ export default function TransfersPage() {
       case "received":
         return { rows: receivedRows, columns: receivedColumns, count: pagination.total };
       case "completed":
-        return { rows: completedRows, columns: completedColumns, count: stats.completed };
+        return { rows: completedRows, columns: completedColumns, count: pagination.total };
       case "history":
         return { rows: historyRows, columns: historyColumns, count: pagination.total };
       default:
@@ -3182,7 +3217,7 @@ export default function TransfersPage() {
               key: "process",
               label: (
                 <span>
-                  <CarOutlined /> Process ({stats.in_transit})
+                  <CarOutlined /> Process ({countLabel(stats.in_transit_trs ?? stats.in_transit, "TR")})
                 </span>
               ),
               children: (
@@ -3191,7 +3226,7 @@ export default function TransfersPage() {
                     type="info"
                     message="TRs arriving at this branch. Scan the TR label (or pick a TR), check the seal, scan or tick the parcels that came, then Confirm receive: last-mile parcels are sorted for delivery here, onward parcels move to Outbound for your next TR, and unticked parcels are flagged missing."
                   />
-                  {viewToggle(inboundView, setInboundView, "Single parcels")}
+                  {viewToggle(inboundView, setInboundView, "Single parcels", stats.in_transit_trs, stats.in_transit)}
                   {inboundView === "tr" ? (
                     <TransferContainerBoard
                       {...trBoardProps}
@@ -3226,7 +3261,7 @@ export default function TransfersPage() {
               key: "received",
               label: (
                 <span>
-                  <InboxOutlined /> Received ({stats.received})
+                  <InboxOutlined /> Received ({countLabel(stats.received_trs ?? stats.received, "TR")})
                 </span>
               ),
               children: (
@@ -3235,7 +3270,7 @@ export default function TransfersPage() {
                     type="success"
                     message="TRs checked in at this branch with their counts and seal result; resolve missing parcels (Found / Lost) from the TR. By parcel shows each received parcel's current status: sorted, assigned to rider, out for delivery, delivered."
                   />
-                  {viewToggle(receivedView, setReceivedView)}
+                  {viewToggle(receivedView, setReceivedView, "By parcel", stats.received_trs, stats.received)}
                   {receivedView === "tr" ? (
                     <TransferContainerBoard
                       {...trBoardProps}
@@ -3292,7 +3327,7 @@ export default function TransfersPage() {
               key: "process",
               label: (
                 <span>
-                  <SendOutlined /> Process ({stats.outbound})
+                  <SendOutlined /> Process ({countLabel(stats.outbound, "parcel")})
                 </span>
               ),
               children: (
@@ -3474,25 +3509,29 @@ export default function TransfersPage() {
               key: "completed",
               label: (
                 <span>
-                  <CheckCircleOutlined /> Completed ({stats.completed})
+                  <CheckCircleOutlined /> Completed ({countLabel(stats.completed_trs ?? stats.completed, "TR")})
                 </span>
               ),
               children: (
                 <Card styles={{ body: { padding: 0 } }} style={{ borderRadius: 14 }}>
                   <TabGuide
                     type="success"
-                    message="Completed TRs (every parcel checked in at the next hop), sent or received by this branch. By parcel lists cross-branch transfers delivered to the customer."
+                    message="TRs this branch SENT that the next hop has checked in (fully, or with missing parcels). Delivered parcels lists parcels this branch sent on a TR that were later delivered at another branch. Parcels received here are under Transfer Ins > Received."
                   />
-                  {viewToggle(completedView, setCompletedView, "Delivered parcels")}
+                  {viewToggle(completedView, setCompletedView, "Delivered parcels", stats.completed_trs, stats.completed_parcels ?? stats.completed)}
                   {completedView === "tr" ? (
                     <TransferContainerBoard
                       {...trBoardProps}
-                      tabKey="completed"
-                      direction="all"
+                      tabKey="completed-out"
+                      direction="outbound"
                       highlightId={activeParentTab === "transferOut" && activeSubTab === "completed" ? deepLinkTr : null}
-                      defaultStatuses="received"
-                      statusOptions={[{ value: "", label: "Fully received TRs" }]}
-                      emptyText="No completed TRs"
+                      defaultStatuses="received,partially_received"
+                      statusOptions={[
+                        { value: "", label: "Checked in (all present + with missing)" },
+                        { value: "received", label: "Fully received" },
+                        { value: "partially_received", label: "Received with missing shipments" },
+                      ]}
+                      emptyText="No TRs sent from this branch have been checked in yet"
                     />
                   ) : (
                   <Table
@@ -3502,7 +3541,7 @@ export default function TransfersPage() {
                     columns={currentColumns}
                     dataSource={currentRows}
                     scroll={{ x: 900 }}
-                    locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="No completed transfers" /> }}
+                    locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="No parcels sent from this branch have been delivered yet" /> }}
                     pagination={{
                       current: pagination.current,
                       pageSize: pagination.pageSize,
@@ -3534,7 +3573,7 @@ export default function TransfersPage() {
         <Card styles={{ body: { padding: 0 } }} style={{ borderRadius: 14 }}>
           <TabGuide
             type="info"
-            message="Closed TRs this branch sent or received: counts, seal result and missing-parcel resolution (Found / Lost) per TR, or each parcel's transfer events and current status (By parcel)."
+            message="Closed TRs this branch sent (Out) or received (In): counts, seal result and missing-parcel resolution (Found / Lost) per TR, or each parcel's transfer events and current status (By parcel). Use the Sent / Received filter to see one direction."
           />
           {viewToggle(historyView, setHistoryView)}
           {historyView === "tr" ? (

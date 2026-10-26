@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { collectAmount } from "@/lib/collectAmount";
 import {
   Alert,
   Avatar,
@@ -36,6 +37,7 @@ import {
   ReloadOutlined,
   SearchOutlined,
   UnorderedListOutlined,
+  CarOutlined,
 } from "@ant-design/icons";
 import {
   staffAcceptDelivery,
@@ -58,6 +60,13 @@ import {
 } from "@/lib/podCheckout";
 import styles from "./deliveries.module.css";
 import StaffRunPanel from "@/components/staff/StaffRunPanel";
+import { runErrorText } from "@/services/admin/deliveryRunService";
+
+/** Parcel sits on a DR run the rider is still collecting: it leaves via Bag + Start run. */
+function onCollectingRun(delivery) {
+  const r = delivery?.delivery_run;
+  return Boolean(r && r.active !== false && ["open", "assigned"].includes(r.status));
+}
 import { refreshMenuBadges } from "@/hooks/useMenuBadges";
 
 const STATUS_COLORS = {
@@ -216,14 +225,8 @@ function isPodDelivery(delivery) {
 
 function collectableAmount(delivery) {
   const shipment = delivery?.shipment || {};
-
-  return Number(
-    shipment.total_collectable_amount ||
-      shipment.total_collectable ||
-      delivery?.total_collectable ||
-      shipment.pod_amount ||
-      0
-  );
+  // Same amount as the shipment drawer (backend collect_amount, pod_amount first).
+  return collectAmount({ payment_type: paymentTypeOf(delivery), ...shipment });
 }
 
 function isCollectable(delivery) {
@@ -414,6 +417,8 @@ function CustomerReceiptFields() {
 
 export default function StaffDeliveriesPage() {
   const [rows, setRows] = useState([]);
+  const [staffTab, setStaffTab] = useState("runs");
+  const [activeRunCount, setActiveRunCount] = useState(null);
   const [loading, setLoading] = useState(false);
   const [failedRow, setFailedRow] = useState(null);
   const [selectedDelivery, setSelectedDelivery] = useState(null);
@@ -663,20 +668,20 @@ export default function StaffDeliveriesPage() {
     paymentSession?.status,
   ]);
 
-  async function run(action, actionKey = "") {
+  async function run(action, actionKey = "", successMessage = "") {
     if (actionKey && busyAction) return false;
 
     if (actionKey) setBusyAction(actionKey);
 
     try {
       const result = await action();
-      message.success("Updated.");
+      message.success(successMessage || "Updated.");
       setFailedRow(null);
       form.resetFields();
       await load();
       return result ?? true;
     } catch (e) {
-      message.error(e?.response?.data?.message || "Action failed.");
+      message.error(runErrorText(e, "Action failed."), 5);
       return false;
     } finally {
       if (actionKey) setBusyAction("");
@@ -879,6 +884,12 @@ export default function StaffDeliveriesPage() {
     [rows]
   );
 
+  // Active individual deliveries (not waiting on a DR run that is still collecting).
+  const legacyActiveCount = useMemo(
+    () => rows.filter((r) => ["assigned", "accepted", "out_for_delivery"].includes(r.status) && !onCollectingRun(r)).length,
+    [rows]
+  );
+
   const statusTabs = [
     { label: `All (${statusCounts.all})`, value: "all" },
     {
@@ -939,6 +950,7 @@ export default function StaffDeliveriesPage() {
                   <Tag color={delivery.delivery_run.active ? "purple" : "default"} style={{ marginLeft: 8, fontFamily: "monospace" }}>
                     {delivery.delivery_run.run_number}
                     {delivery.delivery_run.sequence ? ` · stop ${delivery.delivery_run.sequence}` : ""}
+                    {onCollectingRun(delivery) ? (delivery.delivery_run.item_status === "bagged" ? " · bagged" : " · to bag") : ""}
                   </Tag>
                 ) : null}
               </div>
@@ -1065,7 +1077,7 @@ export default function StaffDeliveriesPage() {
               <Button
                 size="small"
                 type="primary"
-                disabled={delivery.status !== "assigned" || !!busyAction}
+                disabled={delivery.status !== "assigned" || !!busyAction || onCollectingRun(delivery)}
                 loading={busyAction === `accept:${delivery.id}`}
                 onClick={() => run(() => staffAcceptDelivery(delivery.id), `accept:${delivery.id}`)}
               >
@@ -1075,7 +1087,8 @@ export default function StaffDeliveriesPage() {
                 size="small"
                 disabled={
                   !!busyAction ||
-                  !["accepted", "assigned"].includes(delivery.status)
+                  !["accepted", "assigned"].includes(delivery.status) ||
+                  onCollectingRun(delivery)
                 }
                 loading={busyAction === `out:${delivery.id}`}
                 onClick={() => run(() => staffOutForDelivery(delivery.id), `out:${delivery.id}`)}
@@ -1352,12 +1365,22 @@ export default function StaffDeliveriesPage() {
           )}
 
           <div style={{ marginTop: "24px" }}>
+            {onCollectingRun(delivery) ? (
+              <Alert
+                type="info"
+                showIcon
+                style={{ marginBottom: 12 }}
+                message={`On ${delivery.delivery_run.run_number}: ${
+                  delivery.delivery_run.item_status === "bagged" ? "bagged" : "collect and bag it"
+                } in My Active Run, then tap Start run.`}
+              />
+            ) : null}
             <Space direction="vertical" style={{ width: "100%" }}>
               <Button
                 block
                 size="large"
                 type="primary"
-                disabled={delivery.status !== "assigned" || !!busyAction}
+                disabled={delivery.status !== "assigned" || !!busyAction || onCollectingRun(delivery)}
                 loading={busyAction === `accept:${delivery.id}`}
                 onClick={() => run(() => staffAcceptDelivery(delivery.id), `accept:${delivery.id}`)}
               >
@@ -1368,7 +1391,8 @@ export default function StaffDeliveriesPage() {
                 size="large"
                 disabled={
                   !!busyAction ||
-                  !["accepted", "assigned"].includes(delivery.status)
+                  !["accepted", "assigned"].includes(delivery.status) ||
+                  onCollectingRun(delivery)
                 }
                 loading={busyAction === `out:${delivery.id}`}
                 onClick={() => run(() => staffOutForDelivery(delivery.id), `out:${delivery.id}`)}
@@ -1424,9 +1448,69 @@ export default function StaffDeliveriesPage() {
 
   return (
     <>
-      <StaffRunPanel deliveries={rows} onOpenDelivery={setSelectedDelivery} onChanged={load} />
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, flexWrap: "wrap", marginBottom: 16 }}>
+        <div style={{ maxWidth: "100%", overflowX: "auto" }}>
+          <Segmented
+            value={staffTab}
+            onChange={setStaffTab}
+            size="middle"
+            options={[
+              {
+                label: (
+                  <Space size={6}>
+                    <CarOutlined />
+                    <span>My runs{activeRunCount ? ` (${activeRunCount})` : ""}</span>
+                  </Space>
+                ),
+                value: "runs",
+              },
+              {
+                label: (
+                  <Space size={6}>
+                    <UnorderedListOutlined />
+                    <span>All deliveries{legacyActiveCount ? ` (${legacyActiveCount} active)` : ""}</span>
+                  </Space>
+                ),
+                value: "list",
+              },
+            ]}
+          />
+        </div>
+        <Button icon={<ReloadOutlined />} loading={loading} onClick={load}>
+          Refresh
+        </Button>
+      </div>
 
-      <Row gutter={[12, 12]} style={{ marginBottom: "16px" }}>
+      {staffTab === "runs" ? (
+        <StaffRunPanel
+          deliveries={rows}
+          onOpenDelivery={setSelectedDelivery}
+          onChanged={load}
+          busyAction={busyAction}
+          onRunsLoaded={(list) => setActiveRunCount(list.length)}
+          legacyActiveCount={legacyActiveCount}
+          onShowList={() => {
+            setFilterStatus("all");
+            setStaffTab("list");
+          }}
+          onDeliveryAction={(delivery, action) => {
+            if (!delivery?.id) return;
+            if (action === "accept") {
+              run(() => staffAcceptDelivery(delivery.id), `accept:${delivery.id}`, "Delivery accepted.");
+            } else if (action === "out") {
+              run(() => staffOutForDelivery(delivery.id), `out:${delivery.id}`, "Out for delivery.");
+            } else if (action === "arrive") {
+              arriveAtLocation(delivery);
+            } else if (action === "complete") {
+              openDeliveryConfirmation(delivery);
+            } else if (action === "fail") {
+              setFailedRow(delivery);
+            }
+          }}
+        />
+      ) : (
+        <>
+          <Row gutter={[12, 12]} style={{ marginBottom: "16px" }}>
         {[
           {
             title: "Assigned",
@@ -1490,7 +1574,7 @@ export default function StaffDeliveriesPage() {
           </Button>
         }
       >
-        <div style={{ marginBottom: "16px" }}>
+        <div style={{ marginBottom: "16px", maxWidth: "100%", overflowX: "auto" }}>
           <Segmented
             options={statusTabs}
             value={filterStatus}
@@ -1498,8 +1582,6 @@ export default function StaffDeliveriesPage() {
               setFilterStatus(value);
               setCurrentPage(1);
             }}
-            block
-            style={{ width: "100%" }}
           />
         </div>
 
@@ -1561,6 +1643,8 @@ export default function StaffDeliveriesPage() {
           <div>{paginatedRows.map(renderDetailedCard)}</div>
         )}
       </Spin>
+        </>
+      )}
 
       {renderDetailedDrawer(selectedDelivery)}
 

@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { Button, Card, Col, Empty, Input, List, Row, Select, Space, Tag, Typography, message } from 'antd';
-import { EnvironmentOutlined, ShopOutlined } from '@ant-design/icons';
+import { CarOutlined, EnvironmentOutlined, SendOutlined, ShopOutlined, UserOutlined } from '@ant-design/icons';
 import { MapContainer, Marker, Polyline, Popup, TileLayer, useMap } from 'react-leaflet';
 import L from 'leaflet';
 
@@ -154,6 +154,7 @@ export default function AreaAssignmentMapInner({
   ridersLoading = false,
   onLoadRiders,
   onAssign,
+  onCreateRun = null,
   // Optional server-side status filter. When onStatusChange is given, the
   // legend / Status select drive the page's filter (lazy fetch per status)
   // instead of filtering the already-loaded pins.
@@ -388,42 +389,85 @@ export default function AreaAssignmentMapInner({
               <Button onClick={() => { setRoute(null); setRiderId(null); onSelectedIdsChange?.([]); }}>Clear</Button>
             </Space>
             {selectedIds.length > 0 && (
-              <Space direction="vertical" style={{ width: '100%' }} size={6}>
-                <Text>{assignableSelected.length} ready to assign</Text>
-                <Select
-                  showSearch
-                  optionFilterProp="label"
-                  style={{ width: '100%' }}
-                  loading={ridersLoading}
-                  placeholder="Assign to rider"
-                  value={riderId}
-                  onChange={setRiderId}
-                  options={riders.map((rider) => ({
-                    value: rider.id,
-                    label: rider.name + (rider.phone ? ' | ' + rider.phone : ''),
-                  }))}
-                  notFoundContent={ridersLoading ? 'Loading riders...' : 'No riders for this branch'}
-                />
-                <Button
-                  type="primary"
-                  block
-                  disabled={!riderId || !onAssign || assignableSelected.length === 0}
-                  loading={assigning}
-                  onClick={async () => {
-                    if (!riderId || !onAssign) return;
-                    setAssigning(true);
-                    try {
-                      await onAssign(riderId, assignableSelected);
-                      setRiderId(null);
-                      setRoute(null);
-                    } finally {
-                      setAssigning(false);
-                    }
-                  }}
-                >
-                  Assign selected
-                </Button>
-              </Space>
+              <Card
+                size="small"
+                style={{
+                  background: '#f0fdf4',
+                  borderColor: '#86efac',
+                  borderRadius: 8,
+                  marginTop: 6,
+                }}
+              >
+                <Space direction="vertical" style={{ width: '100%' }} size={8}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <Text strong style={{ color: '#166534' }}>
+                      {assignableSelected.length} {noun} selected
+                    </Text>
+                    <Tag color="green">Ready</Tag>
+                  </div>
+
+                  <Select
+                    showSearch
+                    allowClear
+                    optionFilterProp="label"
+                    style={{ width: '100%' }}
+                    loading={ridersLoading}
+                    placeholder="Assign to rider (optional for run)"
+                    value={riderId}
+                    onChange={setRiderId}
+                    options={riders.map((rider) => ({
+                      value: rider.id,
+                      label: rider.name + (rider.phone ? ' | ' + rider.phone : ''),
+                    }))}
+                    notFoundContent={ridersLoading ? 'Loading riders...' : 'No riders for this branch'}
+                  />
+
+                  {/* Primary: Create DR / PR button */}
+                  <Button
+                    type="primary"
+                    block
+                    icon={<CarOutlined />}
+                    style={{ background: '#0891b2', borderColor: '#0891b2', fontWeight: 600 }}
+                    disabled={assignableSelected.length === 0}
+                    onClick={() => {
+                      if (onCreateRun) {
+                        onCreateRun(assignableSelected, riderId);
+                      } else if (onAssign && riderId) {
+                        onAssign(riderId, assignableSelected);
+                      } else {
+                        message.info("Select a rider to assign.");
+                      }
+                    }}
+                  >
+                    {mode === 'delivery'
+                      ? `Create DR-Run · ${assignableSelected.length} parcel${assignableSelected.length === 1 ? '' : 's'}`
+                      : `Create PR-Run · ${assignableSelected.length} stop${assignableSelected.length === 1 ? '' : 's'}`}
+                  </Button>
+
+                  {/* Secondary: Direct Assign to Rider */}
+                  {onAssign && (
+                    <Button
+                      block
+                      size="small"
+                      disabled={!riderId || assignableSelected.length === 0}
+                      loading={assigning}
+                      onClick={async () => {
+                        if (!riderId || !onAssign) return;
+                        setAssigning(true);
+                        try {
+                          await onAssign(riderId, assignableSelected);
+                          setRiderId(null);
+                          setRoute(null);
+                        } finally {
+                          setAssigning(false);
+                        }
+                      }}
+                    >
+                      Direct Assign to Rider
+                    </Button>
+                  )}
+                </Space>
+              </Card>
             )}
             {route && (
               <div>

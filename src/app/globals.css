@@ -77,6 +77,24 @@ a {
   border-color: #0e7490 !important;
   box-shadow: 0 4px 12px rgba(8, 145, 178, 0.3) !important;
 }
+/* Primary + ghost buttons: the teal fill above made their teal label invisible.
+ * Keep them outlined: white background, teal border and text. */
+.ant-btn-primary.ant-btn-background-ghost {
+  background-color: #ffffff !important;
+  border-color: var(--primary) !important;
+  color: var(--primary) !important;
+  box-shadow: none !important;
+}
+.ant-btn-primary.ant-btn-background-ghost:not(:disabled):hover {
+  background-color: #ecfeff !important;
+  border-color: #0e7490 !important;
+  color: #0e7490 !important;
+}
+.ant-btn-primary.ant-btn-background-ghost:disabled {
+  background-color: #f8fafc !important;
+  border-color: #e2e8f0 !important;
+  color: rgba(0, 0, 0, 0.25) !important;
+}
 
 /* Table styling */
 .ant-table {

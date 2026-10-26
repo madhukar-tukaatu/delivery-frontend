@@ -1,0 +1,521 @@
+/* Admin › Shipments — compact modern layout */
+
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 100%;
+  min-width: 0;
+}
+
+.headerActions {
+  display: inline-flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+/* ---------- Status donut ---------- */
+.chartCard {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 10px 14px;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+}
+
+.donutWrap {
+  position: relative;
+  flex: 0 0 132px;
+  width: 132px;
+  height: 132px;
+}
+
+.donutEmpty {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  border: 18px solid #f1f5f9;
+}
+
+.donutCenter {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  text-align: center;
+  line-height: 1.1;
+}
+
+.donutCenter strong {
+  font-size: 22px;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.donutCenter span {
+  max-width: 78px;
+  font-size: 10px;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.legend {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.legendHead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.legendTitle {
+  font-size: 12px;
+  font-weight: 700;
+  color: #0f172a;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.legendMeta {
+  font-size: 12px;
+  color: #64748b;
+}
+
+.legendMeta b {
+  color: #059669;
+}
+
+.legendGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  gap: 4px 8px;
+}
+
+.legendItem {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  min-width: 0;
+  padding: 4px 8px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: #f8fafc;
+  font-size: 12px;
+  color: #334155;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.15s, border-color 0.15s, opacity 0.15s;
+}
+
+.legendItem:hover {
+  background: #eef6fb;
+  border-color: #bae6fd;
+}
+
+.legendItemActive {
+  background: #ecfeff;
+  border-color: #0891b2;
+}
+
+.legendItemDim {
+  opacity: 0.55;
+}
+
+.legendLabel {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.legendCount {
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.legendPct {
+  min-width: 40px;
+  text-align: right;
+  color: #94a3b8;
+  font-size: 11px;
+}
+
+.dot {
+  flex: 0 0 8px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+/* ---------- Toolbar (always visible) ---------- */
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 10px;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+}
+
+.search {
+  flex: 1 1 260px;
+  min-width: 220px;
+  max-width: 360px;
+}
+
+.fStatus {
+  width: 190px;
+}
+
+.fSmall {
+  width: 112px;
+}
+
+.fMerchant {
+  width: 180px;
+}
+
+.fBranch {
+  width: 150px;
+}
+
+.fDate {
+  width: 240px;
+}
+
+.optionRow {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+}
+
+.optionCount {
+  margin-left: auto;
+  font-size: 11px;
+  color: #64748b;
+}
+
+/* ---------- Table ---------- */
+.tableCard {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.tableHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 12px;
+  border-bottom: 1px solid #eef2f7;
+  font-size: 12px;
+  color: #475569;
+}
+
+.tableHead > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.headLink {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-weight: 600;
+  color: #0891b2;
+}
+
+.activePill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 1px 8px;
+  border: 1px solid #0891b2;
+  border-radius: 999px;
+  background: #ecfeff;
+  color: #0e7490;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.table :global(.ant-table-thead > tr > th) {
+  padding: 6px 8px !important;
+  background: #f8fafc !important;
+  font-size: 11px;
+  font-weight: 700;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.table :global(.ant-table-tbody > tr > td) {
+  padding: 5px 8px !important;
+  font-size: 12px;
+  vertical-align: middle;
+}
+
+.table :global(.ant-table-tbody > tr:hover > td) {
+  background: #f0f9ff !important;
+}
+
+.table :global(.ant-table-pagination) {
+  margin: 8px 12px !important;
+}
+
+.rowDelivered > td:first-child {
+  box-shadow: inset 3px 0 0 #10b981;
+}
+
+.rowFailed > td:first-child {
+  box-shadow: inset 3px 0 0 #ef4444;
+}
+
+.cellStack {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  line-height: 1.3;
+}
+
+.alignRight {
+  align-items: flex-end;
+}
+
+.ellipsis {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.muted {
+  font-size: 11px;
+  color: #94a3b8;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.trackingRow {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.trackingLink {
+  padding: 0;
+  border: 0;
+  background: none;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12px;
+  font-weight: 700;
+  color: #0e7490;
+  cursor: pointer;
+}
+
+.trackingLink:hover {
+  text-decoration: underline;
+}
+
+.copyIcon {
+  font-size: 11px;
+  color: #94a3b8;
+  cursor: pointer;
+}
+
+.copyIcon:hover {
+  color: #0891b2;
+}
+
+.chipRow {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  flex: 0 0 auto;
+  padding: 0 6px;
+  height: 18px;
+  border-radius: 4px;
+  background: #f1f5f9;
+  color: #475569;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+
+.chipExpress {
+  background: #fef3c7;
+  color: #b45309;
+}
+
+.chipLastMile {
+  background: #dcfce7;
+  color: #15803d;
+}
+
+.chipTransfer {
+  background: #ffedd5;
+  color: #c2410c;
+}
+
+.chipPod {
+  background: #e0f2fe;
+  color: #0369a1;
+}
+
+.chipPrepaid {
+  background: #ede9fe;
+  color: #6d28d9;
+}
+
+.routeRow {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+  font-weight: 500;
+}
+
+.routeRow > .ellipsis {
+  max-width: 45%;
+}
+
+.routeArrow {
+  flex: 0 0 auto;
+  font-size: 10px;
+  color: #0891b2;
+}
+
+.phone {
+  margin-left: 6px;
+  font-weight: 400;
+  color: #0e7490;
+}
+
+.amount {
+  font-weight: 700;
+  color: #0f172a;
+  white-space: nowrap;
+}
+
+.statusChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+  padding: 2px 8px;
+  border: 1px solid color-mix(in srgb, var(--status-color) 35%, transparent);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--status-color) 10%, #fff);
+  color: #1e293b;
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
+}
+
+.actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.iconAction {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  color: #475569;
+}
+
+.iconAction:hover {
+  border-color: #0891b2;
+  color: #0891b2;
+}
+
+/* ---------- Responsive ---------- */
+@media (max-width: 900px) {
+  .search {
+    max-width: none;
+    flex-basis: 100%;
+  }
+
+  .fStatus,
+  .fMerchant,
+  .fBranch,
+  .fDate {
+    flex: 1 1 160px;
+    width: auto;
+  }
+
+  .fSmall {
+    flex: 1 1 100px;
+    width: auto;
+  }
+}
+
+@media (max-width: 600px) {
+  .chartCard {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .donutWrap {
+    align-self: center;
+  }
+
+  .legendGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .fStatus,
+  .fMerchant,
+  .fBranch,
+  .fSmall {
+    flex: 1 1 calc(50% - 6px);
+    min-width: 0;
+  }
+
+  .fDate {
+    flex: 1 1 100%;
+  }
+}

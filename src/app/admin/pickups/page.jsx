@@ -20,6 +20,7 @@ import {
   InputNumber,
   Modal,
   Row,
+  Segmented,
   Select,
   Space,
   Table,
@@ -47,6 +48,7 @@ import {
   ExclamationCircleOutlined,
   CopyOutlined,
   RightOutlined,
+  UnorderedListOutlined,
 } from "@ant-design/icons";
 
 import {
@@ -65,8 +67,10 @@ import {
 
 import AdminPageHeader from "@/components/admin/ui/AdminPageHeader";
 import AreaAssignmentMap from "@/features/routing/AreaAssignmentMap";
+import PickupRunBoard, { CreatePickupRunModal } from "@/components/admin/pickup-runs/PickupRunBoard";
 import { formatMerchantLabel } from "@/lib/merchantLabel";
 import { getMerchants } from "@/services/merchant/merchantService";
+import { usePermissions } from "@/hooks/usePermission";
 
 const { Title, Text } = Typography;
 
@@ -471,10 +475,14 @@ function Field({ label, children }) {
 */
 
 export default function AdminPickupsPage() {
+  const { branchId } = usePermissions();
   const [activeTab, setActiveTab] = useState(DEFAULT_TAB);
   const [urlReady, setUrlReady] = useState(false);
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [viewMode, setViewMode] = useState("map");
+  const [createRunModalOpen, setCreateRunModalOpen] = useState(false);
+  const [mapChosenRiderId, setMapChosenRiderId] = useState(null);
 
   const [rows, setRows] = useState([]);
   const [mapOpen, setMapOpen] = useState(true);
@@ -665,7 +673,7 @@ export default function AdminPickupsPage() {
   }, [loadSummary]);
 
   useEffect(() => {
-    if (!mapOpen || !urlReady) return undefined;
+    if ((!mapOpen && viewMode !== "map") || !urlReady) return undefined;
     let cancelled = false;
     (async () => {
       setMapLoading(true);
@@ -700,13 +708,16 @@ export default function AdminPickupsPage() {
     return () => {
       cancelled = true;
     };
-  }, [urlReady, mapOpen, mapTick, activeTab, debouncedSearch, dateFrom, dateTo, merchantFilter]);
+  }, [urlReady, mapOpen, viewMode, mapTick, activeTab, debouncedSearch, dateFrom, dateTo, merchantFilter]);
 
-  const openDetail = useCallback(async (pickup) => {
+  const openDetail = useCallback(async (pickupOrId) => {
+    // Run views (Runs tab, route map) pass a bare pickup_request_id.
+    const pickup =
+      pickupOrId && typeof pickupOrId === "object" ? pickupOrId : { id: pickupOrId };
     const id = getPickupId(pickup);
     if (!id) return;
     setDrawerOpen(true);
-    setDetail(pickup);
+    setDetail(typeof pickupOrId === "object" ? pickup : null);
     setDetailLoading(true);
     try {
       const fresh = await getPickup(id);
@@ -1217,20 +1228,22 @@ export default function AdminPickupsPage() {
   ].filter((t) => t.value);
 
   return (
-    <div style={{ padding: 24, background: "#f7f8fa", minHeight: "100%" }}>
+    <div style={{ padding: 16, background: "#f7f8fa", minHeight: "100%" }}>
       {/* Header */}
       <AdminPageHeader
         title="Pickups"
-        subtitle="Monitor the pickup lifecycle across every branch"
+        subtitle="Organize pickups into structured Pickup Runs (PR), monitor live route maps, and reconcile legacy requests"
         actions={
-          <Space>
-            <Button
-              icon={<EnvironmentOutlined />}
-              type={mapOpen ? "primary" : "default"}
-              onClick={() => setMapOpen((open) => !open)}
-            >
-              Map
-            </Button>
+          <Space wrap>
+            <Segmented
+              value={viewMode}
+              onChange={setViewMode}
+              options={[
+                { label: <Space size={4}><EnvironmentOutlined /><span>Routing Map</span></Space>, value: "map" },
+                { label: <Space size={4}><CarOutlined /><span>Pickup Runs (PR)</span></Space>, value: "runs" },
+                { label: <Space size={4}><UnorderedListOutlined /><span>Individual Pickups (Legacy)</span></Space>, value: "list" },
+              ]}
+            />
             <Button
               icon={<ReloadOutlined />}
               onClick={() => {
@@ -1244,7 +1257,9 @@ export default function AdminPickupsPage() {
         }
       />
 
-      {mapOpen && (
+      {viewMode === "runs" ? (
+        <PickupRunBoard branchId={branchId || null} onOpenPickup={openDetail} />
+      ) : viewMode === "map" ? (
         <AreaAssignmentMap
           mode="pickup"
           loading={mapLoading}
@@ -1289,23 +1304,55 @@ export default function AdminPickupsPage() {
             load(pagination.current, pagination.pageSize);
             loadSummary();
           }}
-          stops={mapRows.map((pickup) => ({
-            id: getPickupId(pickup),
-            title: getRequestNumber(pickup),
-            subtitle: `${getMerchantName(pickup)} · ${pickup.parcel_quantity ?? 0} packets`,
-            area: pickup.pickup_area || pickup.pickup_city || "Unknown area",
-            address: pickup.pickup_address || "",
-            lat: pickup.pickup_lat,
-            lng: pickup.pickup_lng,
-            status: pickup.status,
-            statusLabel: (STATUS_META[String(pickup.status || "").toLowerCase()] || {}).label || pickup.status,
-            color: (STATUS_META[String(pickup.status || "").toLowerCase()] || {}).hex || "#6B7280",
-            riderName: pickup.assigned_staff?.name || pickup.assignedStaff?.name || "",
-            riderRole: pickup.assigned_staff?.role || pickup.assignedStaff?.role || "",
-          }))}
+          onCreateRun={(ids, riderId) => {
+            setMapSelected(ids);
+            setMapChosenRiderId(riderId || null);
+            setCreateRunModalOpen(true);
+          }}
+          stops={mapRows.map((pickup) => {
+            const loc = getLocation(pickup);
+            const lat =
+              pickup.pickup_lat ??
+              pickup.pickupLatitude ??
+              loc?.latitude ??
+              loc?.lat ??
+              null;
+            const lng =
+              pickup.pickup_lng ??
+              pickup.pickupLongitude ??
+              loc?.longitude ??
+              loc?.lng ??
+              null;
+            const area =
+              pickup.pickup_area ||
+              pickup.pickup_city ||
+              loc?.area ||
+              loc?.city ||
+              "Unknown area";
+            const address =
+              pickup.pickup_address ||
+              loc?.address ||
+              loc?.street ||
+              "";
+            const stLower = String(pickup.status || "").toLowerCase();
+            return {
+              id: getPickupId(pickup),
+              title: getRequestNumber(pickup),
+              subtitle: `${getMerchantName(pickup)} · ${pickup.parcel_quantity ?? 0} packets`,
+              area,
+              address,
+              lat,
+              lng,
+              status: pickup.status,
+              statusLabel: (STATUS_META[stLower] || {}).label || pickup.status,
+              color: (STATUS_META[stLower] || {}).hex || "#6B7280",
+              riderName: pickup.assigned_staff?.name || pickup.assignedStaff?.name || "",
+              riderRole: pickup.assigned_staff?.role || pickup.assignedStaff?.role || "",
+            };
+          })}
         />
-      )}
-
+      ) : (
+        <>
       <Card className="admin-card" style={{ marginBottom: 16 }}>
         <Space wrap>
           <Input
@@ -1537,8 +1584,11 @@ export default function AdminPickupsPage() {
           }}
         />
       </div>
+        </>
+      )}
 
-      {/* Detail Drawer */}
+      {/* Detail Drawer + action modals: rendered for every view (list, map, runs) so
+          "Open PR" from the Runs tab / route map can open the drawer. */}
       <Drawer
         open={drawerOpen}
         width={Math.min(
@@ -2411,6 +2461,42 @@ export default function AdminPickupsPage() {
           </Space>
         ) : null}
       </Modal>
+
+      {/* Create Pickup Run (PR-RUN) Modal - accessible from both Runs and Map views */}
+      <CreatePickupRunModal
+        open={createRunModalOpen}
+        branchId={branchId || null}
+        initialSelectedIds={mapSelected}
+        initialRiderId={mapChosenRiderId}
+        initialItems={mapRows
+          .filter((p) => mapSelected.includes(getPickupId(p)))
+          .map((p) => {
+            const loc = getLocation(p);
+            return {
+              id: getPickupId(p),
+              pickup_request_id: getPickupId(p),
+              request_number: getRequestNumber(p),
+              pickup_name: getMerchantName(p),
+              pickup_area: p.pickup_area || p.pickup_city || loc?.area || loc?.city || "Map Selected",
+              pickup_address: p.pickup_address || loc?.address || "Selected from map",
+              parcel_quantity: p.parcel_quantity || 1,
+              branch_id: p.pickup_sub_branch_id || p.pickup_branch_id || p.branch_id || branchId,
+            };
+          })}
+        onClose={() => {
+          setCreateRunModalOpen(false);
+          setMapChosenRiderId(null);
+        }}
+        onCreated={() => {
+          setCreateRunModalOpen(false);
+          setMapChosenRiderId(null);
+          setMapSelected([]);
+          setMapTick((n) => n + 1);
+          load(pagination.current, pagination.pageSize);
+          loadSummary();
+          setViewMode("runs");
+        }}
+      />
     </div>
   );
 }

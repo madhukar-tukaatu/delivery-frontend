@@ -48,6 +48,8 @@ import {
   failPickup,
 } from "@/services/admin/adminPickupService";
 
+import { useShipmentDrawer } from "@/components/admin/shipments/ShipmentDrawerProvider";
+
 const {
   Title,
   Text,
@@ -218,6 +220,9 @@ export default function PickupDetailPage() {
   const router =
     useRouter();
 
+  const { openShipment } =
+    useShipmentDrawer();
+
   const pickupId =
     params?.id;
 
@@ -308,7 +313,7 @@ export default function PickupDetailPage() {
       setRidersLoading(true);
 
       const result =
-        await getPickupRiders();
+        await getPickupRiders(pickup?.id || pickupId);
 
       setRiders(
         Array.isArray(result)
@@ -706,8 +711,8 @@ export default function PickupDetailPage() {
             return (
               <Button
                 onClick={() =>
-                  router.push(
-                    `/admin/shipments/${shipmentId}`
+                  openShipment(
+                    shipmentId
                   )
                 }
               >
@@ -717,7 +722,7 @@ export default function PickupDetailPage() {
           },
         },
       ],
-      [router]
+      [router, openShipment]
     );
 
   /*

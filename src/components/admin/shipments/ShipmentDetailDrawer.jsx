@@ -22,6 +22,7 @@ import {
 } from "antd";
 import {
   ReloadOutlined,
+  PrinterOutlined,
   EnvironmentOutlined,
   ShopOutlined,
   UserOutlined,
@@ -37,6 +38,8 @@ import {
 
 import ShipmentWorkflowActions from "@/features/workflow/components/ShipmentWorkflowActions";
 import WorkflowStatusTag from "@/features/workflow/components/WorkflowStatusTag";
+import ShipmentTransferHops from "@/components/admin/shipments/ShipmentTransferHops";
+import BranchShareBreakdown from "@/components/admin/shipments/BranchShareBreakdown";
 import {
   dispatchNextRouteStep,
   getAdminShipment,
@@ -321,6 +324,26 @@ export default function ShipmentDetailDrawer({ open, shipmentId, onClose }) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
+  // ~720px on desktop, full width on phones.
+  const [viewportWidth, setViewportWidth] = useState(
+    typeof window !== "undefined" ? window.innerWidth : 1280,
+  );
+
+  useEffect(() => {
+    if (typeof window === "undefined") return undefined;
+    const onResize = () => setViewportWidth(window.innerWidth);
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, []);
+
+  const isMobile = viewportWidth < 768;
+
+  const printLabel = () => {
+    const id = shipment?.id ?? shipmentId;
+    if (id && typeof window !== "undefined") {
+      window.open(`/admin/shipments/${id}/print`, "_blank", "noopener");
+    }
+  };
 
   const load = async () => {
     if (!shipmentId) return;
@@ -2011,10 +2034,8 @@ export default function ShipmentDetailDrawer({ open, shipmentId, onClose }) {
     <Drawer
       open={!!open}
       onClose={onClose}
-      width={Math.min(
-        920,
-        typeof window !== "undefined" ? window.innerWidth - 24 : 920,
-      )}
+      placement="right"
+      width={isMobile ? "100%" : Math.min(720, viewportWidth - 24)}
       destroyOnClose
       maskClosable
       title={
@@ -2050,16 +2071,33 @@ export default function ShipmentDetailDrawer({ open, shipmentId, onClose }) {
         </Space>
       }
       extra={
-        <Button
-          icon={<ReloadOutlined />}
-          onClick={load}
-          loading={loading}
-          size="small"
-        >
-          Refresh
-        </Button>
+        <Space size={6} wrap>
+          <Button
+            icon={<PrinterOutlined />}
+            onClick={printLabel}
+            disabled={!shipment}
+            size="small"
+          >
+            {isMobile ? null : "Print label"}
+          </Button>
+          <Button
+            icon={<ReloadOutlined />}
+            onClick={load}
+            loading={loading}
+            size="small"
+          >
+            {isMobile ? null : "Refresh"}
+          </Button>
+        </Space>
       }
       styles={{
+        header: {
+          position: "sticky",
+          top: 0,
+          zIndex: 2,
+          background: "#fff",
+          padding: isMobile ? "10px 12px" : "12px 16px",
+        },
         body: {
           background: "#f5f7fa",
           padding: "12px 16px 24px",
@@ -2087,6 +2125,7 @@ export default function ShipmentDetailDrawer({ open, shipmentId, onClose }) {
         >
           {overviewTab}
           {routeTab}
+          <ShipmentTransferHops shipmentId={shipment.id ?? shipmentId} />
           {partiesTab}
           {pricingTab || (
             <SectionCard title="Pricing breakdown" icon={<DollarOutlined />}>
@@ -2096,6 +2135,7 @@ export default function ShipmentDetailDrawer({ open, shipmentId, onClose }) {
               />
             </SectionCard>
           )}
+          <BranchShareBreakdown shipmentId={shipment.id ?? shipmentId} />
           {activityTab}
         </Space>
       )}

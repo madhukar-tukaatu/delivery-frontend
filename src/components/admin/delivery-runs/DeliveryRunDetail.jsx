@@ -13,6 +13,7 @@ import {
   Modal,
   Popconfirm,
   Row,
+  Segmented,
   Select,
   Space,
   Spin,
@@ -29,6 +30,7 @@ import {
   ArrowUpOutlined,
   CheckCircleOutlined,
   DeleteOutlined,
+  EnvironmentOutlined,
   OrderedListOutlined,
   PlusOutlined,
   PrinterOutlined,
@@ -36,12 +38,13 @@ import {
   StopOutlined,
   UserSwitchOutlined,
 } from "@ant-design/icons";
+import { useShipmentDrawer } from "@/components/admin/shipments/ShipmentDrawerProvider";
+import RunRouteMap from "@/components/maps/RunRouteMap";
 import {
   addRunItems,
   assignRunRider,
   cancelRun,
   closeRun,
-  dispatchRun,
   getDeliveryRun,
   getReadyForDelivery,
   getRunRiders,
@@ -148,6 +151,11 @@ export default function DeliveryRunDetail({ runId, branchId = null, canManage = 
   const [cancelReason, setCancelReason] = useState("");
   const [closeModal, setCloseModal] = useState(false);
   const [closeForm, setCloseForm] = useState({ cash_received: 0, deposit_cash: true, notes: "", items: {} });
+  const [mapModal, setMapModal] = useState(false);
+  // Global shipment drawer (admin layout). It renders at zIndex 1000, so the
+  // run modals here sit at 990 to keep the drawer on top.
+  const { openShipment } = useShipmentDrawer();
+  const [detailTab, setDetailTab] = useState("table");
 
   const load = useCallback(async () => {
     if (!runId) return;
@@ -167,6 +175,22 @@ export default function DeliveryRunDetail({ runId, branchId = null, canManage = 
     setSelectedKeys([]);
     load();
   }, [load]);
+
+  // Live bag progress while the rider collects (and stop updates while out).
+  const liveStatus = run?.status;
+  useEffect(() => {
+    if (!runId || !["assigned", "out_for_delivery"].includes(liveStatus)) return undefined;
+    const id = setInterval(async () => {
+      if (typeof document !== "undefined" && document.visibilityState !== "visible") return;
+      try {
+        const data = await getDeliveryRun(runId, branchId);
+        if (data?.id) setRun(data);
+      } catch {
+        // keep the last good copy
+      }
+    }, 15000);
+    return () => clearInterval(id);
+  }, [runId, branchId, liveStatus]);
 
   const items = useMemo(() => (run?.items || []).filter((i) => i.status !== "removed"), [run]);
   const removed = useMemo(() => (run?.items || []).filter((i) => i.status === "removed"), [run]);
@@ -296,6 +320,11 @@ export default function DeliveryRunDetail({ runId, branchId = null, canManage = 
           <Text strong style={{ fontFamily: "monospace" }}>
             {r.tracking_number || `#${r.shipment_id}`}
           </Text>
+          {r.is_new ? (
+            <Tag color="magenta" style={{ marginLeft: 6, fontSize: 10 }}>
+              New
+            </Tag>
+          ) : null}
           <div style={{ fontSize: 12 }}>
             {r.receiver_name || "-"}
             {r.receiver_phone ? (
@@ -379,6 +408,14 @@ export default function DeliveryRunDetail({ runId, branchId = null, canManage = 
           extra={
             <Space wrap>
               <Button
+                icon={<EnvironmentOutlined />}
+                type="primary"
+                ghost
+                onClick={() => setMapModal(true)}
+              >
+                Route Map
+              </Button>
+              <Button
                 icon={<PrinterOutlined />}
                 href={`/admin/deliveries/runs/${run.id}/print?type=sheet${branchId ? `&branch_id=${branchId}` : ""}`}
                 target="_blank"
@@ -442,7 +479,7 @@ export default function DeliveryRunDetail({ runId, branchId = null, canManage = 
               {fmtDate(run.created_at)}
               {run.created_by?.name ? ` · ${run.created_by.name}` : ""}
             </Descriptions.Item>
-            <Descriptions.Item label="Dispatched">{fmtDate(run.dispatched_at)}</Descriptions.Item>
+            <Descriptions.Item label="Started">{fmtDate(run.started_at || run.dispatched_at)}</Descriptions.Item>
             {run.closed_at ? (
               <>
                 <Descriptions.Item label="Closed">
@@ -479,6 +516,31 @@ export default function DeliveryRunDetail({ runId, branchId = null, canManage = 
             ) : null}
           </Descriptions>
 
+          {run.status === "assigned" ? (
+            <Alert
+              type={run.can_start ? "success" : "info"}
+              showIcon
+              style={{ marginBottom: 12 }}
+              message={`Rider collecting: Bagged ${run.bagged_count ?? 0}/${(run.bagged_count ?? 0) + (run.to_bag_count ?? 0)}`}
+              description={
+                run.can_start
+                  ? `${run.rider?.name || "The rider"} has bagged every parcel and can start the run.`
+                  : `${run.rider?.name || "The rider"} bags each parcel in the warehouse (Staff > Deliveries) and starts the run when all are bagged. You can still add/remove parcels or change the rider until then; that un-bags affected parcels.`
+              }
+            />
+          ) : null}
+          {run.status === "assigned" && Number(run.new_count) > 0 ? (
+            <Alert
+              type="warning"
+              showIcon
+              style={{ marginBottom: 12 }}
+              message={`${run.new_count} new parcel${Number(run.new_count) === 1 ? "" : "s"} added to ${run.run_number} after the rider started bagging`}
+              description={`${run.rider?.name || "The rider"} has to collect and bag ${Number(run.new_count) === 1 ? "it" : "them"} (or report missing) before Start unlocks. Marked New below.`}
+            />
+          ) : null}
+          {run.status === "open" ? (
+            <Alert type="warning" showIcon style={{ marginBottom: 12 }} message="No rider yet. Assign a rider so they can collect and bag the parcels." />
+          ) : null}
           {run.status === "completed" ? (
             <Alert
               type="info"
@@ -515,18 +577,6 @@ export default function DeliveryRunDetail({ runId, branchId = null, canManage = 
                   <Button icon={<OrderedListOutlined />} loading={busy === "seq"} onClick={() => act("seq", () => sequenceRun(run.id, null, branchId))}>
                     Auto order by area
                   </Button>
-                  <Popconfirm
-                    title={`Hand ${run.run_number} to ${run.rider?.name || "the rider"}?`}
-                    description={`${items.length} parcel(s) go out for delivery. COD to collect: ${rs(run.cod_expected)}.`}
-                    disabled={!run.rider || !items.length}
-                    onConfirm={() => act("dispatch", () => dispatchRun(run.id, {}, branchId))}
-                  >
-                    <Tooltip title={!run.rider ? "Assign a rider first" : !items.length ? "Add parcels first" : ""}>
-                      <Button type="primary" icon={<SendOutlined />} disabled={!run.rider || !items.length} loading={busy === "dispatch"}>
-                        Dispatch run
-                      </Button>
-                    </Tooltip>
-                  </Popconfirm>
                   <Button danger icon={<StopOutlined />} onClick={() => { setCancelReason(""); setCancelModal(true); }}>
                     Cancel run
                   </Button>
@@ -540,20 +590,47 @@ export default function DeliveryRunDetail({ runId, branchId = null, canManage = 
             </Space>
           ) : null}
 
-          <Table
-            size="small"
-            rowKey="item_id"
-            columns={columns}
-            dataSource={items}
-            pagination={false}
-            scroll={{ x: 760 }}
-            rowSelection={
-              editable
-                ? { selectedRowKeys: selectedKeys, onChange: setSelectedKeys }
-                : undefined
-            }
-            locale={{ emptyText: "No parcels on this run" }}
-          />
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12, marginTop: 4 }}>
+            <Segmented
+              value={detailTab}
+              onChange={setDetailTab}
+              options={[
+                { label: `Stops Table (${items.length})`, value: "table" },
+                { label: "Route Map & Stops", value: "map" },
+              ]}
+            />
+            {detailTab === "map" && (
+              <Text type="secondary" style={{ fontSize: 12 }}>
+                🏢 Branch Start ➔ {items.length} delivery stop{items.length === 1 ? "" : "s"} on road path
+              </Text>
+            )}
+          </div>
+
+          {detailTab === "map" ? (
+            <div style={{ borderRadius: 8, overflow: "hidden", border: "1px solid #f0f0f0", marginBottom: 12 }}>
+              <RunRouteMap
+                run={run}
+                mode="delivery"
+                onOpenDelivery={(id) => id && openShipment(id)}
+                height="500px"
+              />
+            </div>
+          ) : (
+            <Table
+              size="small"
+              rowKey="item_id"
+              columns={columns}
+              dataSource={items}
+              pagination={false}
+              scroll={{ x: 760 }}
+              rowSelection={
+                editable
+                  ? { selectedRowKeys: selectedKeys, onChange: setSelectedKeys }
+                  : undefined
+              }
+              locale={{ emptyText: "No parcels on this run" }}
+            />
+          )}
 
           {removed.length ? (
             <div style={{ marginTop: 8 }}>
@@ -573,18 +650,38 @@ export default function DeliveryRunDetail({ runId, branchId = null, canManage = 
         confirmLoading={busy === "rider"}
         okButtonProps={{ disabled: !riderForm.rider_user_id }}
         onOk={async () => {
-          const ok = await act("rider", () =>
-            assignRunRider(
-              run.id,
-              {
-                rider_user_id: riderForm.rider_user_id,
-                vehicle_type: riderForm.vehicle_type || null,
-                vehicle_number: riderForm.vehicle_number || null,
-              },
-              branchId
-            )
-          );
-          if (ok) setRiderModal(false);
+          const payload = {
+            rider_user_id: riderForm.rider_user_id,
+            vehicle_type: riderForm.vehicle_type || null,
+            vehicle_number: riderForm.vehicle_number || null,
+          };
+          // The rider may already be collecting another run here: confirm a second run first.
+          setBusy("rider");
+          try {
+            const res = await assignRunRider(run.id, payload, branchId);
+            afterChange(res?.data, res?.message);
+            setRiderModal(false);
+          } catch (e) {
+            const errors = e?.response?.data?.errors || {};
+            const otherId = Array.isArray(errors.existing_run_id) ? errors.existing_run_id[0] : null;
+            if (e?.response?.status === 422 && otherId) {
+              Modal.confirm({
+                title: "Rider already has a run that has not started",
+                content: runErrorText(e),
+                okText: "Give a second run",
+                cancelText: "Back",
+                zIndex: 1100,
+                onOk: async () => {
+                  const ok = await act("rider", () => assignRunRider(run.id, { ...payload, allow_second_run: true }, branchId));
+                  if (ok) setRiderModal(false);
+                },
+              });
+            } else {
+              message.error(runErrorText(e));
+            }
+          } finally {
+            setBusy("");
+          }
         }}
         destroyOnHidden
       >
@@ -806,6 +903,27 @@ export default function DeliveryRunDetail({ runId, branchId = null, canManage = 
             />
           </div>
         </Space>
+      </Modal>
+
+      <Modal
+        title={`Route Map · ${run?.run_number || "Delivery Run"}`}
+        open={mapModal}
+        width={960}
+        zIndex={990}
+        onCancel={() => setMapModal(false)}
+        footer={[
+          <Button key="close" type="primary" onClick={() => setMapModal(false)}>
+            Close Map
+          </Button>,
+        ]}
+        destroyOnHidden
+      >
+        <RunRouteMap
+                run={run}
+                mode="delivery"
+                onOpenDelivery={(id) => id && openShipment(id)}
+                height="540px"
+              />
       </Modal>
     </Spin>
   );
