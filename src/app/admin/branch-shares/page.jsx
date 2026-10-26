@@ -22,7 +22,9 @@ import { PartitionOutlined, PlusOutlined, ReloadOutlined, DeleteOutlined } from 
 import AdminPageHeader from "@/components/admin/ui/AdminPageHeader";
 import BranchScopeNotice, { useIsFinanceHq } from "@/components/admin/billing/BranchScopeNotice";
 import api from "@/lib/api";
-import { ShipmentLink } from "@/components/admin/shipments/ShipmentDrawerProvider";
+import { formatRs } from "@/components/admin/billing/financeKit";
+import ShipmentSplitTable from "@/components/admin/billing/ShipmentSplitTable";
+import ShipmentSettlementDrawer from "@/components/admin/billing/ShipmentSettlementDrawer";
 
 const { Text, Paragraph } = Typography;
 
@@ -30,9 +32,6 @@ function unwrap(r) {
   return r?.data?.data ?? r?.data ?? r;
 }
 
-const money = (v) => `Rs ${Number(v || 0).toFixed(2)}`;
-const STATUS_COLORS = { pending: "orange", on_statement: "blue", settled: "green" };
-const ROLE_COLORS = { origin: "geekblue", transit: "purple", delivery: "cyan" };
 
 function ShareTableEditor({ isHq }) {
   const [rows, setRows] = useState([]);
@@ -150,20 +149,31 @@ export default function BranchSharesPage() {
   const isHq = useIsFinanceHq();
   const [rows, setRows] = useState([]);
   const [summary, setSummary] = useState({});
+  const [viewerIds, setViewerIds] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [pagination, setPagination] = useState({ current: 1, pageSize: 50, total: 0 });
+  const [pagination, setPagination] = useState({ current: 1, pageSize: 25, total: 0 });
   const [filters, setFilters] = useState({ status: undefined, role: undefined, search: "", range: null });
+  const [settleId, setSettleId] = useState(null);
 
   async function load(page = 1, pageSize = pagination.pageSize) {
     setLoading(true);
     try {
+      // One row per shipment (server-side grouping); ?flat=1 still returns one row per share.
       const params = { page, per_page: pageSize, status: filters.status, role: filters.role, search: filters.search || undefined };
       if (filters.range?.[0]) params.from = filters.range[0].format("YYYY-MM-DD");
       if (filters.range?.[1]) params.to = filters.range[1].format("YYYY-MM-DD");
-      const d = unwrap(await api.get("/admin/branch-shares", { params }));
-      const p = d?.shares || {};
+      let d;
+      try {
+        d = unwrap(await api.get("/admin/branch-shares", { params }));
+      } catch (e) {
+        // Branch managers often have inter-branch settlement access but not branch_shares.view.
+        if (e?.response?.status !== 403) throw e;
+        d = unwrap(await api.get("/admin/inter-branch-settlements/shipments", { params }));
+      }
+      const p = d?.shipments || {};
       setRows(p?.data || []);
       setSummary(d?.summary || {});
+      setViewerIds((d?.viewer_branch_ids || []).map(Number));
       setPagination({ current: p?.current_page || page, pageSize: p?.per_page || pageSize, total: p?.total || 0 });
     } catch (e) {
       message.error(e?.response?.data?.message || "Could not load branch shares.");
@@ -176,6 +186,8 @@ export default function BranchSharesPage() {
     load(1);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filters.status, filters.role, filters.range]);
+
+  const mine = viewerIds.length > 0;
 
   return (
     <Space direction="vertical" size={16} style={{ width: "100%" }}>
@@ -197,16 +209,30 @@ export default function BranchSharesPage() {
         />
       ) : null}
 
-      <Row gutter={16}>
-        <Col xs={12} md={6}><Card><Statistic title="Share rows" value={summary?.rows || 0} /></Card></Col>
-        <Col xs={12} md={6}><Card><Statistic title="Allocation" prefix="Rs" precision={2} value={summary?.allocation || 0} /></Card></Col>
-        <Col xs={12} md={6}><Card><Statistic title="HQ commission" prefix="Rs" precision={2} value={summary?.hq_commission || 0} /></Card></Col>
-        <Col xs={12} md={6}><Card><Statistic title="Net to branches" prefix="Rs" precision={2} value={summary?.net || 0} /></Card></Col>
+      <Row gutter={[16, 16]}>
+        <Col xs={12} md={6}><Card><Statistic title="Shipments" value={summary?.shipments || 0} /></Card></Col>
+        <Col xs={12} md={6}><Card><Statistic title="Fare" prefix="Rs" precision={2} value={summary?.fare || 0} /></Card></Col>
+        {mine ? (
+          <>
+            <Col xs={12} md={6}><Card><Statistic title="Your share" prefix="Rs" precision={2} value={summary?.your_allocation || 0} /></Card></Col>
+            <Col xs={12} md={6}>
+              <Card>
+                <Statistic title="Your net (after HQ)" prefix="Rs" precision={2} value={summary?.your_net || 0} />
+                <Text type="secondary" style={{ fontSize: 12 }}>HQ {formatRs(summary?.your_hq_commission)}</Text>
+              </Card>
+            </Col>
+          </>
+        ) : (
+          <>
+            <Col xs={12} md={6}><Card><Statistic title="HQ commission" prefix="Rs" precision={2} value={summary?.hq_commission || 0} /></Card></Col>
+            <Col xs={12} md={6}><Card><Statistic title="Net to branches" prefix="Rs" precision={2} value={summary?.net || 0} /></Card></Col>
+          </>
+        )}
       </Row>
 
       <ShareTableEditor isHq={isHq} />
 
-      <Card title="Per-shipment allocation">
+      <Card title="Per-shipment allocation" extra={<Text type="secondary">Click a row for the per-branch split, the tracking number for the full breakdown</Text>}>
         <Space wrap style={{ marginBottom: 12 }}>
           <Input.Search
             allowClear
@@ -218,8 +244,8 @@ export default function BranchSharesPage() {
           />
           <Select
             allowClear
-            placeholder="Status"
-            style={{ width: 150 }}
+            placeholder={mine ? "Your share status" : "Status"}
+            style={{ width: 170 }}
             value={filters.status}
             onChange={(v) => setFilters((f) => ({ ...f, status: v }))}
             options={[
@@ -230,8 +256,8 @@ export default function BranchSharesPage() {
           />
           <Select
             allowClear
-            placeholder="Role"
-            style={{ width: 130 }}
+            placeholder={mine ? "Your role" : "Role"}
+            style={{ width: 140 }}
             value={filters.role}
             onChange={(v) => setFilters((f) => ({ ...f, role: v }))}
             options={[
@@ -242,61 +268,18 @@ export default function BranchSharesPage() {
           />
           <DatePicker.RangePicker value={filters.range} onChange={(v) => setFilters((f) => ({ ...f, range: v }))} />
         </Space>
-        <Table
-          rowKey="id"
+        <ShipmentSplitTable
+          rows={rows}
           loading={loading}
-          dataSource={rows}
-          scroll={{ x: 1200 }}
-          pagination={{ ...pagination, onChange: (p, ps) => load(p, ps) }}
-          columns={[
-            {
-              title: "Shipment",
-              render: (_, r) => (
-                <Space direction="vertical" size={0}>
-                  <ShipmentLink id={r.shipment_id}>{r.shipment?.tracking_number || `#${r.shipment_id}`}</ShipmentLink>
-                  <Text type="secondary" style={{ fontSize: 11 }}>
-                    {r.shipment?.delivered_at ? new Date(r.shipment.delivered_at).toLocaleDateString() : "-"}
-                  </Text>
-                </Space>
-              ),
-            },
-            { title: "Branch", render: (_, r) => r.branch?.name || `#${r.branch_id}` },
-            {
-              title: "Role",
-              render: (_, r) => (
-                <Tag color={ROLE_COLORS[r.role]}>{r.role} {r.position}/{r.branch_count}</Tag>
-              ),
-            },
-            { title: "Fare", dataIndex: "fare_amount", align: "right", render: money },
-            { title: "%", dataIndex: "percent", align: "right", render: (v) => `${Number(v)}%` },
-            { title: "Share", dataIndex: "share_amount", align: "right", render: money },
-            { title: "Transport", dataIndex: "transport_amount", align: "right", render: money },
-            { title: "Extra km", dataIndex: "extra_distance_amount", align: "right", render: money },
-            { title: "Allocation", dataIndex: "allocation_amount", align: "right", render: (v) => <Text strong>{money(v)}</Text> },
-            { title: "HQ", dataIndex: "hq_commission_amount", align: "right", render: money },
-            { title: "Net", dataIndex: "net_amount", align: "right", render: money },
-            {
-              title: "Collected by",
-              render: (_, r) => (
-                <Space direction="vertical" size={0}>
-                  <Text>{r.collecting_branch?.name || (r.collecting_branch_id ? `#${r.collecting_branch_id}` : "-")}</Text>
-                  <Text type="secondary" style={{ fontSize: 11 }}>{String(r.collection_mode || "").replace("_", " ")}</Text>
-                </Space>
-              ),
-            },
-            {
-              title: "Status",
-              dataIndex: "status",
-              render: (v, r) => (
-                <Space direction="vertical" size={0}>
-                  <Tag color={STATUS_COLORS[v]}>{v === "on_statement" ? "on statement" : v}</Tag>
-                  {(r.flags || []).length ? <Text type="warning" style={{ fontSize: 11 }}>{r.flags.join(", ")}</Text> : null}
-                </Space>
-              ),
-            },
-          ]}
+          pagination={pagination}
+          onChange={(p, ps) => load(p, ps)}
+          showYours={mine}
+          viewerIds={viewerIds}
+          onOpen={setSettleId}
         />
       </Card>
+
+      <ShipmentSettlementDrawer open={!!settleId} shipmentId={settleId} onClose={() => setSettleId(null)} />
     </Space>
   );
 }

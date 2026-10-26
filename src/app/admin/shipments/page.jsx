@@ -32,6 +32,7 @@ import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip as ChartTooltip } fro
 import api from "@/lib/api";
 import { normalizeShipmentListResponse } from "@/services/merchant/merchantShipmentService";
 import { formatMerchantLabel } from "@/lib/merchantLabel";
+import { collectAmount } from "@/lib/collectAmount";
 import { labelForStatus } from "@/config/workflowStatus";
 import { usePermissions } from "@/hooks/usePermission";
 import AdminPageHeader from "@/components/admin/ui/AdminPageHeader";
@@ -136,10 +137,7 @@ function money(value) {
   return `NPR ${amount.toLocaleString("en-IN", { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
 }
 
-function collectable(record) {
-  const value = record.total_collectable_amount ?? record.total_collectable ?? record.pod_amount;
-  return Number(value || 0);
-}
+
 
 function readFilters(searchParams) {
   const filters = {};
@@ -463,7 +461,7 @@ function ShipmentsPageInner() {
         "Phone",
         "Address",
         "Payment",
-        "Collectable",
+        "Collect (POD)",
         "Status",
         "Created",
       ];
@@ -480,7 +478,7 @@ function ShipmentsPageInner() {
           row.receiver_phone,
           row.delivery_address,
           row.payment_type,
-          collectable(row),
+          collectAmount(row),
           statusLabel(row.status),
           row.created_at ? dayjs(row.created_at).format("YYYY-MM-DD HH:mm") : "",
         ]
@@ -615,9 +613,13 @@ function ShipmentsPageInner() {
       render: (_, record) => {
         const type = record.payment_type || "";
         const isPod = type === "pod";
+        // Same rule as the shipment drawer / backend Shipment::collect_amount.
+        const collect = collectAmount(record);
         return (
           <div className={`${styles.cellStack} ${styles.alignRight}`}>
-            <span className={styles.amount}>{isPod ? money(collectable(record)) : money(record.delivery_charge)}</span>
+            <Tooltip title={collect > 0 ? "Collect from customer (POD total)" : "Nothing to collect at the door"}>
+              <span className={collect > 0 ? styles.amount : styles.muted}>{money(collect)}</span>
+            </Tooltip>
             <span className={`${styles.chip} ${isPod ? styles.chipPod : styles.chipPrepaid}`}>
               {type ? (isPod ? "POD" : type.replaceAll("_", " ")) : "-"}
             </span>

@@ -47,6 +47,7 @@ import {
   receiveOriginSubBranch,
 } from "@/services/workflowService";
 import { normalizeShipmentDetailResponse } from "@/services/merchantShipmentService";
+import { collectAmount } from "@/lib/collectAmount";
 import {
   formatDateTime,
   formatMoney,
@@ -1067,13 +1068,13 @@ export default function ShipmentDetailDrawer({ open, shipmentId, onClose }) {
             : null);
 
   // Amount the rider collects at customer doorstep (actual pod_amount from shipment data)
-  const collectableAmount = isPodShipment
-    ? (podAmount != null
-        ? podAmount
-        : totalCollectable != null
-          ? totalCollectable
-          : (goodsValue ?? 0) + (isPaidByCustomer ? (deliveryCharge ?? 0) : 0))
-    : 0;
+  // Shared rule (lib/collectAmount = backend Shipment::collect_amount) so the
+  // shipments list, CSV export and this drawer always show the same POD amount.
+  const ruleCollectAmount = collectAmount(shipment);
+  const collectableAmount =
+    ruleCollectAmount > 0 || !isPodShipment || podAmount != null || totalCollectable != null
+      ? ruleCollectAmount
+      : (goodsValue ?? 0) + (isPaidByCustomer ? (deliveryCharge ?? 0) : 0);
 
   /* ---- drawer sections ---- */
 
