@@ -1089,7 +1089,7 @@ export default function ShipmentDetailDrawer({ open, shipmentId, onClose }) {
             )}
             {view.isTransfer && (
               <Tag icon={<SwapOutlined />} color="orange">
-                {view.transferStageLabel || "Transfer"}
+                {view.transferStageLabel ? `Transfer · ${view.transferStageLabel}` : "Transfer"}
               </Tag>
             )}
             {shipment.pod_status &&
