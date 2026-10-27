@@ -1,0 +1,58 @@
+name: Deploy Frontend (Demo)
+
+on:
+  push:
+    branches:
+      - deploy
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Deploy frontend to Dev VPS
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.DEV_VPS_HOST }}
+          username: ${{ secrets.DEV_VPS_USERNAME }}
+          password: ${{ secrets.DEV_VPS_PASSWORD }}
+          port: ${{ secrets.DEV_VPS_PORT || 22 }}
+          command_timeout: 30m
+          script_stop: true
+          script: |
+            set -e
+
+            echo "Moving to frontend repo..."
+            cd /var/www/delivery/delivery-frontend
+
+            echo "Fixing root-owned frontend files..."
+            DEPLOY_UID=$(id -u)
+            DEPLOY_GID=$(id -g)
+
+            docker run --rm \
+              -v /var/www/delivery/delivery-frontend:/app \
+              alpine:3.20 \
+              sh -c "chown -R ${DEPLOY_UID}:${DEPLOY_GID} /app && rm -rf /app/.pnpm-store /app/node_modules /app/.next"
+
+            echo "Fixing frontend git remote..."
+            git remote set-url origin git@github.com:madhukar-tukaatu/delivery-frontend.git || true
+
+            echo "Pulling latest frontend code..."
+            git fetch origin deploy
+            git reset --hard origin/deploy
+            git clean -fd
+
+            echo "Moving to deployment repo..."
+            cd /var/www/delivery/delivery-deployment
+
+            echo "Building frontend..."
+            docker compose --env-file .env.production build --no-cache frontend
+
+            echo "Starting frontend..."
+            docker compose --env-file .env.production up -d frontend
+
+            echo "Checking frontend container..."
+            docker ps --filter "name=delivery-frontend"
+
+            echo "Frontend Dev deploy completed."
+

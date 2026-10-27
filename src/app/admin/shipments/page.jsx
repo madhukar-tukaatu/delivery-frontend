@@ -137,7 +137,17 @@ function money(value) {
   return `NPR ${amount.toLocaleString("en-IN", { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
 }
 
+// Route distance: keep decimals for short hops so 0.02 km does not read as "0 km".
+function formatKm(value) {
+  const km = Number(value);
+  if (!Number.isFinite(km) || km <= 0) return null;
+  const digits = km < 1 ? 2 : km < 10 ? 1 : 0;
+  return `${Number(km.toFixed(digits))} km`;
+}
 
+function orderRef(record) {
+  return record.merchant_order_id || record.order_reference || record.external_order_id || null;
+}
 
 function readFilters(searchParams) {
   const filters = {};
@@ -468,7 +478,7 @@ function ShipmentsPageInner() {
       const lines = all.map((row) =>
         [
           row.tracking_number,
-          row.merchant_order_id || row.order_reference,
+          orderRef(row),
           formatMerchantLabel(row),
           row.service_type,
           branchName(row.origin_branch || row.originBranch),
@@ -536,9 +546,9 @@ function ShipmentsPageInner() {
               <span className={`${styles.chip} ${transfer ? styles.chipTransfer : styles.chipLastMile}`}>
                 {transfer ? `Transfer${record.transfer_stage_label ? ` · ${record.transfer_stage_label}` : ""}` : "Last-mile"}
               </span>
-              {record.merchant_order_id ? (
-                <span className={styles.muted} title={record.merchant_order_id}>
-                  {record.merchant_order_id}
+              {orderRef(record) ? (
+                <span className={styles.muted} title={orderRef(record)}>
+                  {orderRef(record)}
                 </span>
               ) : null}
             </span>
@@ -566,7 +576,7 @@ function ShipmentsPageInner() {
         const destination = branchName(record.destination_branch || record.destinationBranch) || "-";
         const current = branchName(record.current_branch || record.currentBranch);
         const nextHop = branchName(record.next_hop_branch || record.nextHopBranch);
-        const km = Number(record.route_distance_km) > 0 ? `${Number(record.route_distance_km).toFixed(0)} km` : null;
+        const km = formatKm(record.route_distance_km);
         return (
           <div className={styles.cellStack}>
             <span className={styles.routeRow}>
