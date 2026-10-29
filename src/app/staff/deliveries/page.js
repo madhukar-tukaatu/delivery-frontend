@@ -67,6 +67,8 @@ function onCollectingRun(delivery) {
   const r = delivery?.delivery_run;
   return Boolean(r && r.active !== false && ["open", "assigned"].includes(r.status));
 }
+import { getUser } from "@/lib/auth";
+import { useStaffSocket } from "@/hooks/useStaffSocket";
 import { refreshMenuBadges } from "@/hooks/useMenuBadges";
 
 const STATUS_COLORS = {
@@ -567,6 +569,21 @@ export default function StaffDeliveriesPage() {
   useEffect(() => {
     load();
   }, []);
+
+  const [currentUserId, setCurrentUserId] = useState(() => getUser()?.id);
+  useEffect(() => {
+    const u = getUser();
+    if (u?.id) setCurrentUserId(u.id);
+  }, []);
+
+  useStaffSocket(currentUserId, {
+    onDeliveryAssigned: () => {
+      load();
+    },
+    onDeliveryUpdated: () => {
+      load();
+    },
+  });
 
   useEffect(() => {
     if (

@@ -1,8 +1,13 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { message } from "antd";
 import { getEcho } from "@/lib/echo";
 
 export function useStaffSocket(userId, { onPickupAssigned, onPickupUpdated, onDeliveryAssigned, onDeliveryUpdated } = {}) {
+  const cbs = useRef({ onPickupAssigned, onPickupUpdated, onDeliveryAssigned, onDeliveryUpdated });
+  useEffect(() => {
+    cbs.current = { onPickupAssigned, onPickupUpdated, onDeliveryAssigned, onDeliveryUpdated };
+  }, [onPickupAssigned, onPickupUpdated, onDeliveryAssigned, onDeliveryUpdated]);
+
   useEffect(() => {
     if (!userId) return;
 
@@ -14,24 +19,24 @@ export function useStaffSocket(userId, { onPickupAssigned, onPickupUpdated, onDe
 
     channel.listen(".pickup.assigned", (event) => {
       message.success(`New pickup: ${event.tracking_number || event.id}`);
-      onPickupAssigned?.(event);
+      cbs.current.onPickupAssigned?.(event);
     });
 
     channel.listen(".pickup.status.updated", (event) => {
-      onPickupUpdated?.(event);
+      cbs.current.onPickupUpdated?.(event);
     });
 
     channel.listen(".delivery.assigned", (event) => {
       message.success(`New delivery: ${event.tracking_number || event.id}`);
-      onDeliveryAssigned?.(event);
+      cbs.current.onDeliveryAssigned?.(event);
     });
 
     channel.listen(".delivery.status.updated", (event) => {
-      onDeliveryUpdated?.(event);
+      cbs.current.onDeliveryUpdated?.(event);
     });
 
     return () => {
       echo.leave(channelName);
     };
-  }, [userId, onPickupAssigned, onPickupUpdated, onDeliveryAssigned, onDeliveryUpdated]);
+  }, [userId]);
 }

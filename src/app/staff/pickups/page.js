@@ -48,6 +48,8 @@ import {
   staffGetPickups,
   staffGetPickup,
 } from "@/services/deliveryOperationsApi";
+import { getUser } from "@/lib/auth";
+import { useStaffSocket } from "@/hooks/useStaffSocket";
 import StaffPickupRunPanel from "@/components/staff/StaffPickupRunPanel";
 
 const { Text } = Typography;
@@ -236,6 +238,23 @@ export default function StaffPickupsPage() {
   useEffect(() => {
     load();
   }, [load]);
+
+  const [currentUserId, setCurrentUserId] = useState(() => getUser()?.id);
+  useEffect(() => {
+    const u = getUser();
+    if (u?.id) setCurrentUserId(u.id);
+  }, []);
+
+  useStaffSocket(currentUserId, {
+    onPickupAssigned: () => {
+      load();
+      refreshRuns();
+    },
+    onPickupUpdated: () => {
+      load();
+      refreshRuns();
+    },
+  });
 
   /*
   |--------------------------------------------------------------------------

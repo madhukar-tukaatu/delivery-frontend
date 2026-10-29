@@ -35,6 +35,7 @@ import { formatMerchantLabel } from "@/lib/merchantLabel";
 import { collectAmount } from "@/lib/collectAmount";
 import { labelForStatus } from "@/config/workflowStatus";
 import { usePermissions } from "@/hooks/usePermission";
+import { useAdminDashboardSocket } from "@/hooks/useAdminDashboardSocket";
 import AdminPageHeader from "@/components/admin/ui/AdminPageHeader";
 import { useShipmentDrawer } from "@/components/admin/shipments/ShipmentDrawerProvider";
 
@@ -309,6 +310,10 @@ function ShipmentsPageInner() {
   const [facets, setFacets] = useState({ merchants: [], branches: [] });
   const [searchText, setSearchText] = useState(filters.search || "");
   const [reloadKey, setReloadKey] = useState(0);
+
+  useAdminDashboardSocket({
+    onRefresh: () => setReloadKey((k) => k + 1),
+  });
 
   const requestRef = useRef(0);
   const searchTimer = useRef(null);

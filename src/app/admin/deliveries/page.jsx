@@ -36,6 +36,7 @@ import {
   UnorderedListOutlined,
 } from "@ant-design/icons";
 import { usePermissions } from "@/hooks/usePermission";
+import { useAdminDashboardSocket } from "@/hooks/useAdminDashboardSocket";
 import {
   getDeliveries,
   getDeliverySummary,
@@ -426,6 +427,12 @@ export default function DeliveriesPage() {
     setVersion((v) => v + 1);
     refreshMenuBadges();
   }, []);
+
+  useAdminDashboardSocket({
+    onRefresh: () => {
+      refresh();
+    },
+  });
 
   const changeStatus = useCallback((key) => {
     setStatusTab(STATUS_TABS.some((t) => t.key === key) ? key : "all");

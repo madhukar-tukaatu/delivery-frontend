@@ -1,39 +1,50 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { message } from "antd";
 import { getEcho } from "@/lib/echo";
 
-export function useAdminDashboardSocket({ onRefresh } = {}) {
+export function useAdminDashboardSocket({ onRefresh, channelName = "admin.dashboard", showToasts = true } = {}) {
+  const onRefreshRef = useRef(onRefresh);
+  useEffect(() => {
+    onRefreshRef.current = onRefresh;
+  }, [onRefresh]);
+
   useEffect(() => {
     const echo = getEcho();
     if (!echo) return;
 
-    const channel = echo.private("admin.dashboard");
+    const channel = echo.private(channelName);
 
     channel.listen(".shipment.status.updated", (event) => {
-      message.info(`Shipment ${event.tracking_number || event.id} updated`);
-      onRefresh?.(event);
+      if (showToasts && (event.tracking_number || event.id)) {
+        message.info(`Shipment ${event.tracking_number || event.id} updated`);
+      }
+      onRefreshRef.current?.(event);
     });
 
     channel.listen(".pickup.assigned", (event) => {
-      message.success(`New pickup assigned: ${event.tracking_number || event.id}`);
-      onRefresh?.(event);
+      if (showToasts) {
+        message.success(`New pickup assigned: ${event.tracking_number || event.id}`);
+      }
+      onRefreshRef.current?.(event);
     });
 
     channel.listen(".pickup.status.updated", (event) => {
-      onRefresh?.(event);
+      onRefreshRef.current?.(event);
     });
 
     channel.listen(".delivery.assigned", (event) => {
-      message.success(`New delivery assigned: ${event.tracking_number || event.id}`);
-      onRefresh?.(event);
+      if (showToasts) {
+        message.success(`New delivery assigned: ${event.tracking_number || event.id}`);
+      }
+      onRefreshRef.current?.(event);
     });
 
     channel.listen(".delivery.status.updated", (event) => {
-      onRefresh?.(event);
+      onRefreshRef.current?.(event);
     });
 
     return () => {
-      echo.leave("admin.dashboard");
+      echo.leave(channelName);
     };
-  }, [onRefresh]);
+  }, [channelName, showToasts]);
 }

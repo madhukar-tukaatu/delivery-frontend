@@ -71,6 +71,7 @@ import PickupRunBoard, { CreatePickupRunModal } from "@/components/admin/pickup-
 import { formatMerchantLabel } from "@/lib/merchantLabel";
 import { getMerchants } from "@/services/merchant/merchantService";
 import { usePermissions } from "@/hooks/usePermission";
+import { useAdminDashboardSocket } from "@/hooks/useAdminDashboardSocket";
 
 const { Title, Text } = Typography;
 
@@ -671,6 +672,13 @@ export default function AdminPickupsPage() {
   useEffect(() => {
     loadSummary();
   }, [loadSummary]);
+
+  useAdminDashboardSocket({
+    onRefresh: () => {
+      load(pagination.current, pagination.pageSize);
+      loadSummary();
+    },
+  });
 
   useEffect(() => {
     if ((!mapOpen && viewMode !== "map") || !urlReady) return undefined;
