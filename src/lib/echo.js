@@ -116,7 +116,7 @@ function getReverbConfig() {
             window.location.hostname ===
             "localhost"
                 ? "http://localhost:8081"
-                : "https://api.tukaatuexpress.com"
+                : (process.env.NEXT_PUBLIC_API_BASE_URL ? new URL(process.env.NEXT_PUBLIC_API_BASE_URL).origin : `${window.location.protocol}//${window.location.hostname}:8081`)
         );
 
     return {
