@@ -11,7 +11,6 @@ import {
   Select,
   Space,
   Switch,
-  Title ,
   Table,
   Tabs,
   Tag,
@@ -22,7 +21,7 @@ import api from "@/lib/api";
 import { usePermissions } from "@/hooks/usePermission";
 import { getBranches } from "@/services/admin/adminBranchService";
 
-const { Text, Paragraph } = Typography;
+const { Title, Text, Paragraph } = Typography;
 
 function unwrap(response) {
   return response?.data?.data ?? response?.data ?? response;
