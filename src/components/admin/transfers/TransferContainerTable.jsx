@@ -114,7 +114,7 @@ function ContainerItems({ containerId, params }) {
             );
           },
         },
-        { title: "Cost share", dataIndex: "transport_cost", align: "right", render: money },
+        { title: "Transport", key: "transport", align: "center", render: () => <Tag color="cyan" style={{ margin: 0 }}>HQ Funded</Tag> },
         { title: "Received", dataIndex: "received_at", render: fmt },
       ]}
     />
@@ -295,7 +295,19 @@ export default function TransferContainerTable({
         </Space>
       ),
     },
-    { title: "Trip cost", dataIndex: "transport_cost", align: "right", width: 100, render: money },
+    {
+      title: "Transport",
+      key: "transport",
+      align: "center",
+      width: 120,
+      render: () => (
+        <Tooltip title="Line-haul and fleet costs are 100% financed by HQ central pool. Zero branch deduction.">
+          <Tag color="success" style={{ margin: 0, fontWeight: 600 }}>
+            HQ Financed
+          </Tag>
+        </Tooltip>
+      ),
+    },
     { title: "Status", dataIndex: "status", width: 140, render: (s) => <TrStatusTag status={s} /> },
     {
       title: "",

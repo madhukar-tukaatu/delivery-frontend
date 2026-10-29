@@ -21,12 +21,24 @@ const DEFAULT_ZOOM = 7;
    ========================================================================== */
 
 function isValidCoordinate(latitude, longitude) {
+  if (
+    latitude === null ||
+    latitude === undefined ||
+    latitude === "" ||
+    longitude === null ||
+    longitude === undefined ||
+    longitude === ""
+  ) {
+    return false;
+  }
+
   const lat = Number(latitude);
   const lng = Number(longitude);
 
   return (
     Number.isFinite(lat) &&
     Number.isFinite(lng) &&
+    !(lat === 0 && lng === 0) &&
     lat >= -90 &&
     lat <= 90 &&
     lng >= -180 &&
@@ -151,12 +163,7 @@ function isCoordinatePair(value) {
   return (
     Array.isArray(value) &&
     value.length >= 2 &&
-    Number.isFinite(
-      Number(value[0])
-    ) &&
-    Number.isFinite(
-      Number(value[1])
-    )
+    isValidCoordinate(value[0], value[1])
   );
 }
 

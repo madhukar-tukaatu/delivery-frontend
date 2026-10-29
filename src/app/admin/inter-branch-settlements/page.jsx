@@ -5,12 +5,14 @@ import {
   Alert,
   Button,
   Card,
+  Col ,
   DatePicker,
   Descriptions,
   Drawer,
   Input,
   Modal,
   Popconfirm,
+  Row,
   Segmented,
   Select,
   Skeleton,
@@ -29,6 +31,11 @@ import {
   ThunderboltOutlined,
   ArrowRightOutlined,
   BankOutlined,
+  InfoCircleOutlined,
+  FileTextOutlined,
+  ArrowUpOutlined,
+  ArrowDownOutlined,
+  CheckCircleOutlined,
 } from "@ant-design/icons";
 import AdminPageHeader from "@/components/admin/ui/AdminPageHeader";
 import StatCard, { StatCardGrid } from "@/components/admin/ui/StatCard";
@@ -49,6 +56,7 @@ import {
 import { RoutePath } from "@/components/admin/billing/interBranchKit";
 import ShipmentSettlementDrawer from "@/components/admin/billing/ShipmentSettlementDrawer";
 import ShipmentSplitTable from "@/components/admin/billing/ShipmentSplitTable";
+import CounterpartyBreakdownDrawer from "@/components/admin/billing/CounterpartyBreakdownDrawer";
 
 const { Text, Paragraph } = Typography;
 
@@ -88,7 +96,7 @@ function NetAmount({ v }) {
 
 /* ---------- Branch position: per counterparty ---------- */
 
-function CounterpartyTable({ data, loading, onStatements, onShipments }) {
+function CounterpartyTable({ data, loading, onStatements, onShipments, onOpenBreakdown, viewBranchName }) {
   const rows = data?.counterparties || [];
   const bucket = (side, key) => ({
     dataIndex: [side, key],
@@ -98,7 +106,24 @@ function CounterpartyTable({ data, loading, onStatements, onShipments }) {
   });
   const totals = data?.totals || {};
   const columns = [
-    { title: "Counterparty branch", dataIndex: "branch_name", fixed: "left", width: 200, render: (v) => <Text strong>{v}</Text> },
+    {
+      title: "Counterparty branch",
+      dataIndex: "branch_name",
+      fixed: "left",
+      width: 220,
+      render: (v, r) => (
+        <Space direction="vertical" size={2}>
+          <Text strong>{v}</Text>
+          {toNumber(r.net_due) < 0 ? (
+            <Tag color="volcano" style={{ fontSize: 10 }}>You owe them</Tag>
+          ) : toNumber(r.net_due) > 0 ? (
+            <Tag color="green" style={{ fontSize: 10 }}>They owe you</Tag>
+          ) : (
+            <Tag style={{ fontSize: 10 }}>Settled</Tag>
+          )}
+        </Space>
+      ),
+    },
     {
       title: "You pay them",
       children: [
@@ -135,10 +160,19 @@ function CounterpartyTable({ data, loading, onStatements, onShipments }) {
       },
     },
     {
-      title: "",
-      width: 170,
+      title: "Actions",
+      width: 230,
       render: (_, r) => (
-        <Space size={4}>
+        <Space size={4} wrap>
+          <Button
+            size="small"
+            type="primary"
+            ghost
+            icon={<FileTextOutlined />}
+            onClick={() => onOpenBreakdown?.(r.branch_id, r.branch_name)}
+          >
+            Breakdown
+          </Button>
           <Button size="small" onClick={() => onStatements(r.branch_id)}>Statements</Button>
           <Button size="small" onClick={() => onShipments(r.branch_id)}>Shipments</Button>
         </Space>
@@ -147,39 +181,129 @@ function CounterpartyTable({ data, loading, onStatements, onShipments }) {
   ];
   const sum = (side, key) => toNumber(totals?.[side]?.[key]);
   return (
-    <Table
-      rowKey="branch_id"
-      size="middle"
-      loading={loading}
-      dataSource={rows}
-      columns={columns}
-      pagination={false}
-      bordered
-      scroll={{ x: 1300 }}
-      locale={{ emptyText: <EmptyState title="Nothing between branches" hint="This branch has no shares with other branches in this period." /> }}
-      summary={() =>
-        rows.length ? (
-          <Table.Summary fixed>
-            <Table.Summary.Row style={{ background: "#fafafa" }}>
-              <Table.Summary.Cell index={0}><Text strong>Total</Text></Table.Summary.Cell>
-              {["unsettled", "on_statement", "paid"].map((k, i) => (
-                <Table.Summary.Cell key={`p${k}`} index={1 + i} align="right"><Amount v={sum("to_pay", k)} type="danger" strong /></Table.Summary.Cell>
-              ))}
-              {["unsettled", "on_statement", "paid"].map((k, i) => (
-                <Table.Summary.Cell key={`r${k}`} index={4 + i} align="right"><Amount v={sum("to_receive", k)} type="success" strong /></Table.Summary.Cell>
-              ))}
-              <Table.Summary.Cell index={7} align="right"><NetAmount v={totals.net_due} /></Table.Summary.Cell>
-              <Table.Summary.Cell index={8} align="right">
-                <Text type="secondary" style={{ fontSize: 12 }}>
-                  {formatRs(toNumber(totals.pending_bill_pay) + toNumber(totals.pending_bill_receive))}
+    <Space direction="vertical" size={12} style={{ width: "100%" }}>
+      {/* Branch Manager Settlement Explainer Card */}
+      <Card
+        size="small"
+        style={{
+          background: "linear-gradient(90deg, #f0f5ff 0%, #fbfdff 100%)",
+          border: "1px solid #adc6ff",
+        }}
+      >
+        <Row gutter={[16, 12]} align="middle">
+          <Col xs={24} md={16}>
+            <Space align="start">
+              <InfoCircleOutlined style={{ color: "#1677ff", fontSize: 18, marginTop: 3 }} />
+              <div>
+                <Text strong style={{ fontSize: 14, color: "#0958d9", display: "block" }}>
+                  How Settlements Work for {viewBranchName || "Your Branch"}:
                 </Text>
-              </Table.Summary.Cell>
-              <Table.Summary.Cell index={9} />
-            </Table.Summary.Row>
-          </Table.Summary>
-        ) : null
-      }
-    />
+                <Paragraph type="secondary" style={{ margin: "2px 0 0 0", fontSize: 12 }}>
+                  The branch that collected the delivery charge (or merchant invoice) pays the other branches their earned shares.
+                  You pay other branches when you collected fees for parcels they delivered. Other branches pay you when they collected fees for parcels you delivered.
+                  Line-haul TR vehicle transport is 100% managed and funded directly by HQ.
+                </Paragraph>
+              </div>
+            </Space>
+          </Col>
+          <Col xs={24} md={8} style={{ textAlign: "right" }}>
+            <Space wrap>
+              {toNumber(totals.to_pay?.due) > 0 && (
+                <Tag color="volcano" style={{ padding: "4px 8px", fontSize: 12 }}>
+                  To Pay: {formatRs(totals.to_pay?.due)}
+                </Tag>
+              )}
+              {toNumber(totals.to_receive?.due) > 0 && (
+                <Tag color="green" style={{ padding: "4px 8px", fontSize: 12 }}>
+                  To Receive: {formatRs(totals.to_receive?.due)}
+                </Tag>
+              )}
+              <Tag color={toNumber(totals.net_due) <= 0 ? "red" : "blue"} style={{ padding: "4px 8px", fontSize: 12, fontWeight: "bold" }}>
+                Net: {formatRs(totals.net_due)}
+              </Tag>
+            </Space>
+          </Col>
+        </Row>
+      </Card>
+
+      <Table
+        rowKey="branch_id"
+        size="middle"
+        loading={loading}
+        dataSource={rows}
+        columns={columns}
+        pagination={false}
+        bordered
+        scroll={{ x: 1350 }}
+        expandable={{
+          expandedRowRender: (r) => {
+            const isPayable = toNumber(r.net_due) < 0;
+            return (
+              <Card size="small" style={{ background: "#fafafa", margin: "4px 0" }}>
+                <Row justify="space-between" align="middle" gutter={[12, 12]}>
+                  <Col xs={24} md={16}>
+                    <Text strong style={{ color: isPayable ? "#cf1322" : "#389e0d", fontSize: 13, display: "block", marginBottom: 4 }}>
+                      {isPayable ? "📤 Outgoing Payable Explanation:" : "📥 Incoming Receivable Explanation:"}
+                    </Text>
+                    <Paragraph type="secondary" style={{ margin: 0, fontSize: 12 }}>
+                      {isPayable ? (
+                        <>
+                          <strong>{viewBranchName || "Kathmandu"}</strong> collected delivery charges from merchants for shipments delivered by <strong>{r.branch_name}</strong>.
+                          You owe <strong>{r.branch_name}</strong> their delivery share ({formatRs(Math.abs(toNumber(r.net_due)))} net after 5% HQ commission).
+                        </>
+                      ) : (
+                        <>
+                          <strong>{r.branch_name}</strong> collected delivery charges for shipments that <strong>{viewBranchName || "Kathmandu"}</strong> delivered.
+                          They owe you your net delivery share ({formatRs(Math.abs(toNumber(r.net_due)))}).
+                        </>
+                      )}
+                    </Paragraph>
+                  </Col>
+                  <Col xs={24} md={8} style={{ textAlign: "right" }}>
+                    <Space wrap>
+                      <Button
+                        size="small"
+                        type="primary"
+                        icon={<FileTextOutlined />}
+                        onClick={() => onOpenBreakdown?.(r.branch_id, r.branch_name)}
+                      >
+                        Itemized Breakdown
+                      </Button>
+                      <Button size="small" onClick={() => onStatements(r.branch_id)}>
+                        View Statement
+                      </Button>
+                    </Space>
+                  </Col>
+                </Row>
+              </Card>
+            );
+          },
+        }}
+        locale={{ emptyText: <EmptyState title="Nothing between branches" hint="This branch has no shares with other branches in this period." /> }}
+        summary={() =>
+          rows.length ? (
+            <Table.Summary fixed>
+              <Table.Summary.Row style={{ background: "#fafafa" }}>
+                <Table.Summary.Cell index={0}><Text strong>Total</Text></Table.Summary.Cell>
+                {["unsettled", "on_statement", "paid"].map((k, i) => (
+                  <Table.Summary.Cell key={`p${k}`} index={1 + i} align="right"><Amount v={sum("to_pay", k)} type="danger" strong /></Table.Summary.Cell>
+                ))}
+                {["unsettled", "on_statement", "paid"].map((k, i) => (
+                  <Table.Summary.Cell key={`r${k}`} index={4 + i} align="right"><Amount v={sum("to_receive", k)} type="success" strong /></Table.Summary.Cell>
+                ))}
+                <Table.Summary.Cell index={7} align="right"><NetAmount v={totals.net_due} /></Table.Summary.Cell>
+                <Table.Summary.Cell index={8} align="right">
+                  <Text type="secondary" style={{ fontSize: 12 }}>
+                    {formatRs(toNumber(totals.pending_bill_pay) + toNumber(totals.pending_bill_receive))}
+                  </Text>
+                </Table.Summary.Cell>
+                <Table.Summary.Cell index={9} />
+              </Table.Summary.Row>
+            </Table.Summary>
+          ) : null
+        }
+      />
+    </Space>
   );
 }
 
@@ -302,6 +426,7 @@ export default function InterBranchSettlementsPage() {
   const [detail, setDetail] = useState(null);
   const [detailLoading, setDetailLoading] = useState(false);
   const [settleId, setSettleId] = useState(null);
+  const [cpDrawer, setCpDrawer] = useState({ open: false, id: null, name: "" });
   const [payRef, setPayRef] = useState({ open: false, id: null, ref: "" });
   const [hamro, setHamro] = useState(null);
   const [genRange, setGenRange] = useState(null);
@@ -681,6 +806,8 @@ export default function InterBranchSettlementsPage() {
                   <CounterpartyTable
                     data={position}
                     loading={posLoading}
+                    viewBranchName={viewBranchName}
+                    onOpenBreakdown={(id, name) => setCpDrawer({ open: true, id, name })}
                     onStatements={(id) => {
                       setStFilters((f) => ({ ...f, counterparty: id }));
                       setTab("statements");
@@ -939,6 +1066,16 @@ export default function InterBranchSettlementsPage() {
       </Drawer>
 
       <ShipmentSettlementDrawer open={!!settleId} shipmentId={settleId} onClose={() => setSettleId(null)} />
+
+      <CounterpartyBreakdownDrawer
+        open={cpDrawer.open}
+        onClose={() => setCpDrawer({ open: false, id: null, name: "" })}
+        viewBranchId={viewBranch}
+        viewBranchName={viewBranchName}
+        counterpartyId={cpDrawer.id}
+        counterpartyName={cpDrawer.name}
+        onOpenShipment={(id) => setSettleId(id)}
+      />
 
       <Modal
         open={payRef.open}

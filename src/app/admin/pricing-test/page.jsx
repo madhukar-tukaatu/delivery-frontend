@@ -38,6 +38,7 @@ import {
   LoadingOutlined,
   PlusOutlined,
   ReloadOutlined,
+  SearchOutlined,
   ShopOutlined,
   SwapOutlined,
   TruckOutlined,
@@ -233,6 +234,17 @@ function validCoordinate(
   latitude,
   longitude,
 ) {
+  if (
+    latitude === null ||
+    latitude === undefined ||
+    latitude === "" ||
+    longitude === null ||
+    longitude === undefined ||
+    longitude === ""
+  ) {
+    return false;
+  }
+
   const lat =
     Number(latitude);
 
@@ -242,11 +254,35 @@ function validCoordinate(
   return (
     Number.isFinite(lat) &&
     Number.isFinite(lng) &&
+    !(lat === 0 && lng === 0) &&
     lat >= -90 &&
     lat <= 90 &&
     lng >= -180 &&
     lng <= 180
   );
+}
+
+function parseCoordinatePair(value) {
+  if (!value || typeof value !== "string") {
+    return null;
+  }
+
+  const match = value
+    .trim()
+    .match(
+      /^(?:lat[:=\s]*)?(-?\d+(?:\.\d+)?)[,\s]+(?:lng[:=\s]*|lon[:=\s]*)?(-?\d+(?:\.\d+)?)$/i
+    );
+
+  if (match) {
+    const lat = Number(match[1]);
+    const lng = Number(match[2]);
+
+    if (validCoordinate(lat, lng)) {
+      return { latitude: lat, longitude: lng };
+    }
+  }
+
+  return null;
 }
 
 /* ==========================================================================
@@ -544,19 +580,70 @@ function LocationPickerModal({
     location,
     setLocation,
   ] = useState(
-    initialLocation || null,
+    initialLocation &&
+      validCoordinate(
+        initialLocation.latitude,
+        initialLocation.longitude,
+      )
+      ? initialLocation
+      : null,
   );
+
+  const [latInput, setLatInput] = useState(
+    initialLocation &&
+      validCoordinate(
+        initialLocation.latitude,
+        initialLocation.longitude,
+      )
+      ? Number(initialLocation.latitude).toFixed(6)
+      : "",
+  );
+
+  const [lngInput, setLngInput] = useState(
+    initialLocation &&
+      validCoordinate(
+        initialLocation.latitude,
+        initialLocation.longitude,
+      )
+      ? Number(initialLocation.longitude).toFixed(6)
+      : "",
+  );
+
+  const [addressInput, setAddressInput] = useState(
+    initialLocation?.address || "",
+  );
+  const [searchQuery, setSearchQuery] = useState("");
+  const [isSearching, setIsSearching] = useState(false);
+  const [searchResults, setSearchResults] = useState([]);
+  const [searchError, setSearchError] = useState("");
+
+  const searchAbortRef = useRef(null);
 
   useEffect(() => {
     if (open) {
-      setLocation(
-        initialLocation || null,
+      const hasValid =
+        initialLocation &&
+        validCoordinate(
+          initialLocation.latitude,
+          initialLocation.longitude,
+        );
+      setLocation(hasValid ? initialLocation : null);
+      setLatInput(
+        hasValid
+          ? Number(initialLocation.latitude).toFixed(6)
+          : "",
       );
+      setLngInput(
+        hasValid
+          ? Number(initialLocation.longitude).toFixed(6)
+          : "",
+      );
+      setAddressInput(initialLocation?.address || "");
+      setSearchQuery("");
+      setSearchResults([]);
+      setSearchError("");
     }
-  }, [
-    open,
-    initialLocation,
-  ]);
+  }, [open, initialLocation]);
 
   const selectedPoint =
     location &&
@@ -565,49 +652,221 @@ function LocationPickerModal({
       location.longitude,
     )
       ? [
-          Number(
-            location.latitude,
-          ),
-          Number(
-            location.longitude,
-          ),
+          Number(location.latitude),
+          Number(location.longitude),
         ]
       : null;
 
-  const handleSelect =
-    useCallback(
-      (point) => {
-        setLocation(point);
-      },
-      [],
-    );
+  const reverseGeocode = useCallback(async (latitude, longitude) => {
+    try {
+      const url = `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${encodeURIComponent(
+        latitude,
+      )}&lon=${encodeURIComponent(longitude)}`;
+      const res = await fetch(url, {
+        headers: { "Accept-Language": "en" },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data?.display_name) {
+          setAddressInput(data.display_name);
+          setLocation((prev) => ({
+            ...prev,
+            address: data.display_name,
+          }));
+        }
+      }
+    } catch {
+      // Gracefully ignore network errors
+    }
+  }, []);
 
-  const handleConfirm =
-    useCallback(() => {
-      if (!selectedPoint) {
-        return;
+  const handleSelect = useCallback(
+    (point) => {
+      const lat = Number(point.latitude);
+      const lng = Number(point.longitude);
+      if (validCoordinate(lat, lng)) {
+        setLocation((prev) => ({
+          ...prev,
+          latitude: lat,
+          longitude: lng,
+        }));
+        setLatInput(lat.toFixed(6));
+        setLngInput(lng.toFixed(6));
+        reverseGeocode(lat, lng);
+      }
+    },
+    [reverseGeocode],
+  );
+
+  const handleLatChange = (value) => {
+    const coords = parseCoordinatePair(value);
+    if (coords) {
+      setLatInput(coords.latitude.toFixed(6));
+      setLngInput(coords.longitude.toFixed(6));
+      setLocation((prev) => ({
+        ...prev,
+        latitude: coords.latitude,
+        longitude: coords.longitude,
+      }));
+      reverseGeocode(coords.latitude, coords.longitude);
+      return;
+    }
+
+    setLatInput(value);
+    const parsedLat = Number(value);
+    const parsedLng = Number(lngInput);
+    if (validCoordinate(parsedLat, parsedLng)) {
+      setLocation((prev) => ({
+        ...prev,
+        latitude: parsedLat,
+        longitude: parsedLng,
+      }));
+    }
+  };
+
+  const handleLngChange = (value) => {
+    const coords = parseCoordinatePair(value);
+    if (coords) {
+      setLatInput(coords.latitude.toFixed(6));
+      setLngInput(coords.longitude.toFixed(6));
+      setLocation((prev) => ({
+        ...prev,
+        latitude: coords.latitude,
+        longitude: coords.longitude,
+      }));
+      reverseGeocode(coords.latitude, coords.longitude);
+      return;
+    }
+
+    setLngInput(value);
+    const parsedLat = Number(latInput);
+    const parsedLng = Number(value);
+    if (validCoordinate(parsedLat, parsedLng)) {
+      setLocation((prev) => ({
+        ...prev,
+        latitude: parsedLat,
+        longitude: parsedLng,
+      }));
+    }
+  };
+
+  const handleAddressChange = (value) => {
+    setAddressInput(value);
+    setLocation((prev) => ({
+      ...prev,
+      address: value,
+    }));
+  };
+
+  const handleSearch = async (queryText) => {
+    const cleanQuery = (queryText || searchQuery || "").trim();
+    if (!cleanQuery) return;
+
+    setSearchError("");
+
+    const coords = parseCoordinatePair(cleanQuery);
+    if (coords) {
+      setLatInput(coords.latitude.toFixed(6));
+      setLngInput(coords.longitude.toFixed(6));
+      setLocation((prev) => ({
+        ...prev,
+        latitude: coords.latitude,
+        longitude: coords.longitude,
+      }));
+      setSearchResults([]);
+      reverseGeocode(coords.latitude, coords.longitude);
+      return;
+    }
+
+    if (searchAbortRef.current) {
+      searchAbortRef.current.abort();
+    }
+    searchAbortRef.current = new AbortController();
+
+    setIsSearching(true);
+    try {
+      let url = `https://nominatim.openstreetmap.org/search?format=jsonv2&limit=5&countrycodes=np&q=${encodeURIComponent(
+        cleanQuery,
+      )}`;
+      let res = await fetch(url, {
+        signal: searchAbortRef.current.signal,
+        headers: { "Accept-Language": "en" },
+      });
+      let data = await res.json();
+
+      if (!data || !data.length) {
+        url = `https://nominatim.openstreetmap.org/search?format=jsonv2&limit=5&q=${encodeURIComponent(
+          cleanQuery,
+        )}`;
+        res = await fetch(url, {
+          signal: searchAbortRef.current.signal,
+          headers: { "Accept-Language": "en" },
+        });
+        data = await res.json();
       }
 
-      onSelect({
-        latitude:
-          selectedPoint[0],
+      if (data && data.length > 0) {
+        setSearchResults(data);
+        const first = data[0];
+        const lat = Number(first.lat);
+        const lng = Number(first.lon);
+        if (validCoordinate(lat, lng)) {
+          setLocation({
+            latitude: lat,
+            longitude: lng,
+            address: first.display_name,
+          });
+          setLatInput(lat.toFixed(6));
+          setLngInput(lng.toFixed(6));
+          setAddressInput(first.display_name);
+        }
+      } else {
+        setSearchError(
+          "No location found. Try entering coordinates or another query.",
+        );
+        setSearchResults([]);
+      }
+    } catch (err) {
+      if (err.name !== "AbortError") {
+        setSearchError(
+          "Location search failed. You can enter coordinates directly.",
+        );
+      }
+    } finally {
+      setIsSearching(false);
+    }
+  };
 
-        longitude:
-          selectedPoint[1],
-
-        address:
-          location?.address ||
-          `${selectedPoint[0].toFixed(
-            6,
-          )}, ${selectedPoint[1].toFixed(
-            6,
-          )}`,
+  const handleSelectSearchResult = (item) => {
+    const lat = Number(item.lat);
+    const lng = Number(item.lon);
+    if (validCoordinate(lat, lng)) {
+      setLocation({
+        latitude: lat,
+        longitude: lng,
+        address: item.display_name,
       });
-    }, [
-      selectedPoint,
-      location,
-      onSelect,
-    ]);
+      setLatInput(lat.toFixed(6));
+      setLngInput(lng.toFixed(6));
+      setAddressInput(item.display_name);
+      setSearchResults([]);
+    }
+  };
+
+  const handleConfirm = useCallback(() => {
+    if (!selectedPoint) {
+      return;
+    }
+
+    onSelect({
+      latitude: selectedPoint[0],
+      longitude: selectedPoint[1],
+      address:
+        addressInput.trim() ||
+        location?.address ||
+        `${selectedPoint[0].toFixed(6)}, ${selectedPoint[1].toFixed(6)}`,
+    });
+  }, [selectedPoint, addressInput, location, onSelect]);
 
   return (
     <Modal
@@ -615,47 +874,76 @@ function LocationPickerModal({
       onCancel={onCancel}
       destroyOnClose
       centered
-      width={900}
+      width={940}
       title={title}
       footer={
         <Space>
-          <Button
-            onClick={onCancel}
-          >
-            Cancel
-          </Button>
+          <Button onClick={onCancel}>Cancel</Button>
 
           <Button
             type="primary"
             disabled={!selectedPoint}
-            onClick={
-              handleConfirm
-            }
+            onClick={handleConfirm}
           >
             Use This Location
           </Button>
         </Space>
       }
     >
+      <div className="picker-search-container">
+        <Input.Search
+          placeholder="Search location, place, or enter coordinates (e.g. Kalimati, Kathmandu or 27.696, 85.296)"
+          allowClear
+          enterButton="Search"
+          loading={isSearching}
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          onSearch={(val) => handleSearch(val)}
+        />
+        {searchResults.length > 0 && (
+          <div className="picker-search-dropdown">
+            {searchResults.map((item, idx) => (
+              <div
+                key={idx}
+                className="picker-search-item"
+                onClick={() => handleSelectSearchResult(item)}
+              >
+                <span className="picker-search-item-title">
+                  {item.name || item.display_name.split(",")[0]}
+                </span>
+                <span className="picker-search-item-sub">
+                  {item.display_name}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
+        {searchError && (
+          <div
+            style={{
+              color: "#ff4d4f",
+              fontSize: "11px",
+              marginTop: "4px",
+            }}
+          >
+            {searchError}
+          </div>
+        )}
+      </div>
+
       <div className="picker-layout">
         <div className="picker-map">
           <PricingMap
             mode={mode}
-            selectedLocation={
-              location
-            }
-            onSelect={
-              handleSelect
-            }
-            height={480}
+            selectedLocation={location}
+            onSelect={handleSelect}
+            height={460}
             className="picker-leaflet-map"
           />
 
           <div className="picker-help">
             <span>
-              Click anywhere on
-              the map to select
-              the exact location.
+              Click anywhere on the map or enter coordinates to select location.
             </span>
           </div>
         </div>
@@ -671,48 +959,52 @@ function LocationPickerModal({
               : "Pickup location"}
           </Title>
 
-          <Text type="secondary">
-            Select the exact point
-            from the map. These
-            coordinates are sent
-            to the pricing engine.
+          <Text
+            type="secondary"
+            style={{
+              fontSize: "11px",
+              marginBottom: "12px",
+            }}
+          >
+            Enter coordinates, search by place, or select directly from the map.
           </Text>
 
-          <Divider />
+          <Divider style={{ margin: "10px 0" }} />
 
-          <div className="coordinate-box">
-            <Text type="secondary">
-              Latitude
-            </Text>
-
-            <Text strong>
-              {selectedPoint
-                ? selectedPoint[0].toFixed(
-                    6,
-                  )
-                : "-"}
-            </Text>
+          <div className="picker-input-group">
+            <label>Latitude</label>
+            <Input
+              size="small"
+              placeholder="e.g. 27.696011"
+              value={latInput}
+              onChange={(e) => handleLatChange(e.target.value)}
+            />
           </div>
 
-          <div className="coordinate-box">
-            <Text type="secondary">
-              Longitude
-            </Text>
+          <div className="picker-input-group">
+            <label>Longitude</label>
+            <Input
+              size="small"
+              placeholder="e.g. 85.296800"
+              value={lngInput}
+              onChange={(e) => handleLngChange(e.target.value)}
+            />
+          </div>
 
-            <Text strong>
-              {selectedPoint
-                ? selectedPoint[1].toFixed(
-                    6,
-                  )
-                : "-"}
-            </Text>
+          <div className="picker-input-group">
+            <label>Address Name</label>
+            <Input.TextArea
+              rows={2}
+              size="small"
+              placeholder="Address / Area name"
+              value={addressInput}
+              onChange={(e) => handleAddressChange(e.target.value)}
+            />
           </div>
 
           <div className="coordinate-note">
             <span>
-              Coordinates are sent
-              directly to the pricing
-              simulator.
+              Coordinates are sent directly to the pricing engine and map route.
             </span>
           </div>
         </div>
@@ -730,6 +1022,7 @@ function LocationCard({
   location,
   onMap,
   onAddressChange,
+  onCoordinateChange,
 }) {
   const isPickup =
     type === "pickup";
@@ -739,6 +1032,72 @@ function LocationCard({
       location?.latitude,
       location?.longitude,
     );
+
+  const [latStr, setLatStr] = useState(
+    hasLocation ? String(location.latitude) : "",
+  );
+  const [lngStr, setLngStr] = useState(
+    hasLocation ? String(location.longitude) : "",
+  );
+
+  useEffect(() => {
+    if (
+      validCoordinate(
+        location?.latitude,
+        location?.longitude,
+      )
+    ) {
+      setLatStr(String(location.latitude));
+      setLngStr(String(location.longitude));
+    } else {
+      setLatStr("");
+      setLngStr("");
+    }
+  }, [location?.latitude, location?.longitude]);
+
+  const handleLatChange = (value) => {
+    const coords = parseCoordinatePair(value);
+    if (coords) {
+      setLatStr(String(coords.latitude));
+      setLngStr(String(coords.longitude));
+      onCoordinateChange?.(coords.latitude, coords.longitude);
+      return;
+    }
+
+    setLatStr(value);
+    const parsedLat = Number(value);
+    const parsedLng = Number(lngStr);
+    if (validCoordinate(parsedLat, parsedLng)) {
+      onCoordinateChange?.(parsedLat, parsedLng);
+    }
+  };
+
+  const handleLngChange = (value) => {
+    const coords = parseCoordinatePair(value);
+    if (coords) {
+      setLatStr(String(coords.latitude));
+      setLngStr(String(coords.longitude));
+      onCoordinateChange?.(coords.latitude, coords.longitude);
+      return;
+    }
+
+    setLngStr(value);
+    const parsedLat = Number(latStr);
+    const parsedLng = Number(value);
+    if (validCoordinate(parsedLat, parsedLng)) {
+      onCoordinateChange?.(parsedLat, parsedLng);
+    }
+  };
+
+  const handleAddressChange = (value) => {
+    onAddressChange?.(value);
+    const coords = parseCoordinatePair(value);
+    if (coords) {
+      setLatStr(String(coords.latitude));
+      setLngStr(String(coords.longitude));
+      onCoordinateChange?.(coords.latitude, coords.longitude);
+    }
+  };
 
   return (
     <div
@@ -782,7 +1141,7 @@ function LocationCard({
             ""
           }
           onChange={(event) =>
-            onAddressChange(
+            handleAddressChange(
               event.target.value,
             )
           }
@@ -793,20 +1152,40 @@ function LocationCard({
           }
         />
 
-        {hasLocation && (
-          <Text
-            type="secondary"
-            className="coordinate-text"
-          >
-            {Number(
-              location.latitude,
-            ).toFixed(6)}
-            {", "}
-            {Number(
-              location.longitude,
-            ).toFixed(6)}
-          </Text>
-        )}
+        <div className="location-coordinates-row">
+          <Input
+            size="small"
+            prefix={
+              <span
+                style={{
+                  color: "#8c8c8c",
+                  fontSize: "11px",
+                }}
+              >
+                Lat:
+              </span>
+            }
+            placeholder="Latitude (e.g. 27.696011)"
+            value={latStr}
+            onChange={(e) => handleLatChange(e.target.value)}
+          />
+          <Input
+            size="small"
+            prefix={
+              <span
+                style={{
+                  color: "#8c8c8c",
+                  fontSize: "11px",
+                }}
+              >
+                Lng:
+              </span>
+            }
+            placeholder="Longitude (e.g. 85.296800)"
+            value={lngStr}
+            onChange={(e) => handleLngChange(e.target.value)}
+          />
+        </div>
       </div>
 
       <Button
@@ -1886,8 +2265,8 @@ export default function PricingTestPage() {
                 location.longitude,
 
               address:
-                current.address ||
                 location.address ||
+                current.address ||
                 "",
             }),
           );
@@ -1911,14 +2290,16 @@ export default function PricingTestPage() {
                 location.longitude,
 
               pickup_address:
+                location.address ||
                 stores[
                   picker.storeIndex
                 ]
                   ?.pickup_address ||
-                location.address ||
                 "",
             },
           );
+
+          setResult(null);
         }
 
         closePicker();
@@ -2447,6 +2828,18 @@ export default function PricingTestPage() {
                     }),
                   )
                 }
+                onCoordinateChange={(
+                  latitude,
+                  longitude,
+                ) =>
+                  setDelivery(
+                    (current) => ({
+                      ...current,
+                      latitude,
+                      longitude,
+                    }),
+                  )
+                }
               />
 
               <div className="route-divider">
@@ -2566,6 +2959,20 @@ export default function PricingTestPage() {
                             {
                               pickup_address:
                                 address,
+                            },
+                          )
+                        }
+                        onCoordinateChange={(
+                          latitude,
+                          longitude,
+                        ) =>
+                          updateStore(
+                            storeIndex,
+                            {
+                              pickup_latitude:
+                                latitude,
+                              pickup_longitude:
+                                longitude,
                             },
                           )
                         }

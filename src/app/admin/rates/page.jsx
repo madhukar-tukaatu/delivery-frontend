@@ -1,11 +1,12 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-
 import {
   Button,
   Card,
   Col,
+  Descriptions,
+  Divider,
   Input,
   Popconfirm,
   Row,
@@ -17,7 +18,6 @@ import {
   Typography,
   message,
 } from "antd";
-
 import {
   CheckCircleOutlined,
   DeleteOutlined,
@@ -25,20 +25,23 @@ import {
   EyeOutlined,
   PlusOutlined,
   ReloadOutlined,
+  ThunderboltOutlined,
+  CalculatorOutlined,
+  CarOutlined,
+  SafetyCertificateOutlined,
+  InfoCircleOutlined,
+  FieldTimeOutlined,
 } from "@ant-design/icons";
-
 import { useRouter } from "next/navigation";
-
 import {
   activatePricingSettings,
   deletePricingSettings,
   getPricingSettings,
 } from "@/services/admin/adminPricingConfigurationService";
-
 import { pricingErrorMessage, toBoolean } from "@/lib/pricing-settings-utils";
-
 import AdminPageHeader from "@/components/admin/ui/AdminPageHeader";
 import StatCard, { StatCardGrid } from "@/components/admin/ui/StatCard";
+import PricingCalculationExampleCard from "@/components/admin/rate-admin/PricingCalculationExampleCard";
 
 const { Title, Text } = Typography;
 
@@ -47,34 +50,21 @@ export default function PricingSettingsListPage() {
 
   const [active, setActive] = useState(null);
   const [history, setHistory] = useState([]);
-
   const [loading, setLoading] = useState(false);
   const [actionId, setActionId] = useState(null);
-
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState();
 
   const loadData = useCallback(async () => {
     try {
       setLoading(true);
-
-      const result = await getPricingSettings({
-        page: 1,
-        per_page: 100,
-      });
-
+      const result = await getPricingSettings({ page: 1, per_page: 100 });
       setActive(result?.active ?? null);
-
-      setHistory(
-        Array.isArray(result?.history?.data) ? result.history.data : [],
-      );
+      setHistory(Array.isArray(result?.history?.data) ? result.history.data : []);
     } catch (error) {
       setActive(null);
       setHistory([]);
-
-      message.error(
-        pricingErrorMessage(error, "Could not load pricing settings."),
-      );
+      message.error(pricingErrorMessage(error, "Could not load pricing settings."));
     } finally {
       setLoading(false);
     }
@@ -86,18 +76,13 @@ export default function PricingSettingsListPage() {
 
   const filteredRows = useMemo(() => {
     const query = search.trim().toLowerCase();
-
     return history.filter((row) => {
       const matchesSearch =
         !query ||
-        String(row.name || "")
-          .toLowerCase()
-          .includes(query) ||
+        String(row.name || "").toLowerCase().includes(query) ||
         String(row.id).includes(query);
-
       const matchesStatus =
         status === undefined || toBoolean(row.is_active) === status;
-
       return matchesSearch && matchesStatus;
     });
   }, [history, search, status]);
@@ -105,16 +90,11 @@ export default function PricingSettingsListPage() {
   const activateVersion = async (row) => {
     try {
       setActionId(row.id);
-
       await activatePricingSettings(row.id);
-
       message.success("Pricing version activated.");
-
       await loadData();
     } catch (error) {
-      message.error(
-        pricingErrorMessage(error, "Could not activate the pricing version."),
-      );
+      message.error(pricingErrorMessage(error, "Could not activate the pricing version."));
     } finally {
       setActionId(null);
     }
@@ -123,16 +103,11 @@ export default function PricingSettingsListPage() {
   const removeVersion = async (row) => {
     try {
       setActionId(row.id);
-
       await deletePricingSettings(row.id);
-
       message.success("Inactive pricing version deleted.");
-
       await loadData();
     } catch (error) {
-      message.error(
-        pricingErrorMessage(error, "Could not delete the pricing version."),
-      );
+      message.error(pricingErrorMessage(error, "Could not delete the pricing version."));
     } finally {
       setActionId(null);
     }
@@ -142,121 +117,154 @@ export default function PricingSettingsListPage() {
     {
       title: "Pricing Version",
       key: "version",
-      width: 260,
-
+      width: 250,
       render: (_, row) => (
         <Space direction="vertical" size={2}>
-          <Text strong>{row.name || `Pricing Version ${row.id}`}</Text>
-
-          <Text type="secondary" style={{ fontSize: 12 }}>
-            Version ID: {row.id}
+          <Space>
+            <Text strong style={{ fontSize: 13 }}>{row.name || `Pricing Version ${row.id}`}</Text>
+            {toBoolean(row.is_active) ? (
+              <Tag color="green" icon={<CheckCircleOutlined />}>Active</Tag>
+            ) : null}
+          </Space>
+          <Text type="secondary" style={{ fontSize: 11 }}>
+            Version ID: #{row.id}
           </Text>
         </Space>
       ),
     },
-
     {
-      title: "Included Limits",
+      title: "Base Allowances",
       key: "limits",
-      width: 190,
-
+      width: 170,
       render: (_, row) => (
-        <Space direction="vertical" size={2}>
-          <Text>{Number(row.base_weight_kg).toFixed(2)} kg</Text>
-
-          <Text>{Number(row.base_distance_km).toFixed(2)} km</Text>
+        <Space direction="vertical" size={0}>
+          <Text style={{ fontSize: 12 }}>Weight: <strong>{Number(row.base_weight_kg || 1.5).toFixed(2)} kg</strong></Text>
+          <Text style={{ fontSize: 12 }}>Radius: <strong>{Number(row.base_distance_km || 5.0).toFixed(2)} km</strong></Text>
         </Space>
       ),
     },
-
     {
-      title: "Extra Weight",
+      title: "Excess Weight",
       key: "weight",
-      width: 220,
-
+      width: 200,
       render: (_, row) => (
-        <Space direction="vertical" size={2}>
-          <Text>
-            Local: NPR {Number(row.local_extra_weight_rate).toFixed(2)}
-            /kg
+        <Space direction="vertical" size={0}>
+          <Text style={{ fontSize: 12 }}>
+            Local: <strong style={{ color: "#0369a1" }}>NPR {Number(row.local_extra_weight_rate || 20).toFixed(2)}/kg</strong>
           </Text>
-
-          <Text>
-            Transfer: NPR {Number(row.transfer_extra_weight_rate).toFixed(2)}
-            /kg
+          <Text style={{ fontSize: 12 }}>
+            Transfer: <strong style={{ color: "#4338ca" }}>NPR {Number(row.transfer_extra_weight_rate || 30).toFixed(2)}/kg</strong>
           </Text>
         </Space>
       ),
     },
-
     {
-      title: "Per KM",
+      title: "Per KM Rate",
       dataIndex: "extra_distance_rate",
-      width: 130,
-
-      render: (value) => `NPR ${Number(value).toFixed(2)}`,
+      width: 120,
+      render: (v) => (
+        <Text strong style={{ color: "#0284c7" }}>
+          NPR {Number(v || 6).toFixed(2)}/km
+        </Text>
+      ),
     },
-
     {
-      title: "Special Rules",
+      title: "Express Speed",
+      key: "express",
+      width: 170,
+      render: (_, row) => {
+        const enabled = toBoolean(row.express_enabled);
+        if (!enabled) return <Tag color="default">Disabled</Tag>;
+        return (
+          <Space direction="vertical" size={0}>
+            <Text style={{ fontSize: 11 }}>Local: <strong>x{Number(row.local_express_multiplier || 1.25).toFixed(2)}</strong></Text>
+            <Text style={{ fontSize: 11 }}>Transfer: <strong>x{Number(row.transfer_express_multiplier || 1.5).toFixed(2)}</strong></Text>
+          </Space>
+        );
+      },
+    },
+    {
+      title: "Same Day Speed",
+      key: "sameday",
+      width: 190,
+      render: (_, row) => {
+        const enabled = toBoolean(row.same_day_enabled);
+        if (!enabled) return <Tag color="default">Disabled</Tag>;
+        return (
+          <Space direction="vertical" size={0}>
+            <Text style={{ fontSize: 11 }}>Local: <strong>x{Number(row.local_same_day_multiplier || 1.5).toFixed(2)}</strong> · Transfer: <strong>x{Number(row.transfer_same_day_multiplier || 2.0).toFixed(2)}</strong></Text>
+            <Text type="secondary" style={{ fontSize: 10 }}>Cutoff: {row.same_day_cutoff_time || "12:00:00"}</Text>
+          </Space>
+        );
+      },
+    },
+    {
+      title: "Fragile & Pickup",
       key: "special",
-      width: 240,
-
+      width: 210,
       render: (_, row) => (
-        <Space wrap size={[4, 4]}>
+        <Space direction="vertical" size={2}>
           {toBoolean(row.fragile_enabled) ? (
-            <Tag color="orange">
-              Fragile x{Number(row.fragile_multiplier).toFixed(2)}
+            <Tag color="orange" style={{ margin: 0 }}>
+              Fragile x{Number(row.fragile_multiplier || 1.5).toFixed(2)}
             </Tag>
-          ) : null}
-
-          {toBoolean(row.same_day_enabled) ? (
-            <Tag color="purple">Same Day</Tag>
-          ) : null}
+          ) : (
+            <Tag style={{ margin: 0 }}>Fragile Off</Tag>
+          )}
 
           {toBoolean(row.pickup_charge_enabled) ? (
-            <Tag color="blue">Pickup Rule</Tag>
-          ) : null}
-
-          <Tag color="green">VAT Included</Tag>
+            <Text type="secondary" style={{ fontSize: 11 }}>
+              Pickup NPR {Number(row.small_pickup_charge || 50).toFixed(0)} (&lt;{row.minimum_free_pickup_packets ?? 3} pkts)
+            </Text>
+          ) : (
+            <Text type="secondary" style={{ fontSize: 11 }}>Free Pickup</Text>
+          )}
         </Space>
       ),
     },
-
     {
-      title: "Status",
-      dataIndex: "is_active",
-      width: 110,
-
-      render: (value) =>
-        toBoolean(value) ? (
-          <Tag color="green" icon={<CheckCircleOutlined />}>
-            Active
-          </Tag>
-        ) : (
-          <Tag>Inactive</Tag>
-        ),
+      title: "Tax & Rounding",
+      key: "tax_rounding",
+      width: 170,
+      render: (_, row) => {
+        const vatEnabled = toBoolean(row.vat_enabled ?? false);
+        return (
+          <Space direction="vertical" size={0}>
+            {vatEnabled ? (
+              <Tag color="green" style={{ margin: 0 }}>
+                {Number(row.vat_percentage || 13).toFixed(0)}% {toBoolean(row.vat_inclusive ?? true) ? "Inclusive" : "Added"}
+              </Tag>
+            ) : (
+              <Tag color="default" style={{ margin: 0 }}>
+                VAT Disabled (0%)
+              </Tag>
+            )}
+            <Text type="secondary" style={{ fontSize: 11, marginTop: 2 }}>
+              Rounding: {row.money_rounding || "round"}
+            </Text>
+          </Space>
+        );
+      },
     },
-
     {
       title: "Created",
       dataIndex: "created_at",
-      width: 180,
-
-      render: (value) => (value ? new Date(value).toLocaleString() : "-"),
+      width: 160,
+      render: (v) => (
+        <Text type="secondary" style={{ fontSize: 11 }}>
+          {v ? new Date(v).toLocaleString() : "-"}
+        </Text>
+      ),
     },
-
     {
       title: "Actions",
       key: "actions",
       fixed: "right",
-      width: 310,
-
+      width: 260,
       render: (_, row) => {
         const isActive = toBoolean(row.is_active);
-
         return (
-          <Space wrap>
+          <Space wrap size={4}>
             <Button
               size="small"
               icon={<EyeOutlined />}
@@ -264,7 +272,6 @@ export default function PricingSettingsListPage() {
             >
               View
             </Button>
-
             <Button
               size="small"
               icon={<EditOutlined />}
@@ -272,7 +279,6 @@ export default function PricingSettingsListPage() {
             >
               New Version
             </Button>
-
             {!isActive ? (
               <Button
                 size="small"
@@ -283,15 +289,12 @@ export default function PricingSettingsListPage() {
                 Activate
               </Button>
             ) : null}
-
             {!isActive ? (
               <Popconfirm
                 title="Delete this inactive version?"
                 description="This action cannot be undone."
                 okText="Delete"
-                okButtonProps={{
-                  danger: true,
-                }}
+                okButtonProps={{ danger: true }}
                 onConfirm={() => removeVersion(row)}
               >
                 <Button
@@ -312,9 +315,9 @@ export default function PricingSettingsListPage() {
     <Space direction="vertical" size={16} style={{ width: "100%" }}>
       <AdminPageHeader
         title="Pricing Settings"
-        subtitle="Manage global delivery pricing rules through controlled pricing versions."
+        subtitle="Manage global delivery pricing rules through controlled pricing versions. Governs weight thresholds, distance, multipliers, and tax."
         actions={
-          <>
+          <Space>
             <Button icon={<ReloadOutlined />} onClick={loadData}>
               Refresh
             </Button>
@@ -325,10 +328,11 @@ export default function PricingSettingsListPage() {
             >
               Add Pricing Version
             </Button>
-          </>
+          </Space>
         }
       />
 
+      {/* Top Stat Cards */}
       <StatCardGrid>
         <StatCard
           label="Active Version"
@@ -336,73 +340,99 @@ export default function PricingSettingsListPage() {
           variant="primary"
         />
         <StatCard
-          label="Included Weight"
-          value={`${Number(active?.base_weight_kg || 0).toFixed(2)} kg`}
+          label="Included Allowances"
+          value={`${Number(active?.base_weight_kg || 1.5).toFixed(2)} kg · ${Number(active?.base_distance_km || 5).toFixed(2)} km`}
           variant="success"
         />
         <StatCard
-          label="Included Distance"
-          value={`${Number(active?.base_distance_km || 0).toFixed(2)} km`}
+          label="Excess Rates"
+          value={`Wt: NPR ${Number(active?.transfer_extra_weight_rate || 30).toFixed(0)}/kg · Dist: NPR ${Number(active?.extra_distance_rate || 6).toFixed(0)}/km`}
           variant="accent"
         />
         <StatCard
-          label="Per KM Charge"
-          value={`NPR ${Number(active?.extra_distance_rate || 0).toFixed(2)}`}
+          label="Speed Multipliers"
+          value={`Express: x${Number(active?.transfer_express_multiplier || 1.5).toFixed(2)} · Same-Day: x${Number(active?.transfer_same_day_multiplier || 2).toFixed(2)}`}
           variant="warning"
         />
         <StatCard
-          label="Versions"
+          label="Total Versions"
           value={history.length}
           variant="primary"
         />
       </StatCardGrid>
 
-      <Card bordered={false}>
-        <Row gutter={[16, 16]}>
+      {/* Filter and Search Bar */}
+      <Card bordered={false} styles={{ body: { padding: "12px 16px" } }}>
+        <Row gutter={[16, 12]} align="middle">
           <Col xs={24} md={16}>
             <Input
               allowClear
-              placeholder="Search version name or ID"
+              placeholder="Search pricing version by name or ID (e.g. Kathmandu, 5...)"
               value={search}
-              onChange={(event) => setSearch(event.target.value)}
+              onChange={(e) => setSearch(e.target.value)}
             />
           </Col>
-
           <Col xs={24} md={8}>
             <Select
               allowClear
-              placeholder="All statuses"
+              placeholder="Filter by Status (All)"
               style={{ width: "100%" }}
               value={status}
               onChange={setStatus}
               options={[
-                {
-                  label: "Active",
-                  value: true,
-                },
-                {
-                  label: "Inactive",
-                  value: false,
-                },
+                { label: "Active Version Only", value: true },
+                { label: "Inactive Versions", value: false },
               ]}
             />
           </Col>
         </Row>
       </Card>
 
-      <Card bordered={false}>
+      {/* Table of Pricing Versions with Expandable Rows */}
+      <Card
+        bordered={false}
+        title={
+          <Row justify="space-between" align="middle">
+            <Col>
+              <Space>
+                <Text strong style={{ fontSize: 14 }}>
+                  Pricing Settings Versions ({filteredRows.length})
+                </Text>
+                <Text type="secondary" style={{ fontSize: 12 }}>
+                  Click [+] to expand any version for full parameter details & instant calculation example.
+                </Text>
+              </Space>
+            </Col>
+          </Row>
+        }
+      >
         <Table
           rowKey="id"
           loading={loading}
           columns={columns}
           dataSource={filteredRows}
-          scroll={{ x: 1650 }}
-          pagination={{
-            pageSize: 20,
-            showSizeChanger: true,
+          scroll={{ x: 1750 }}
+          pagination={{ pageSize: 15, showSizeChanger: true }}
+          expandable={{
+            expandedRowRender: (record) => (
+              <div style={{ margin: "8px 0" }}>
+                <PricingCalculationExampleCard
+                  pricingSetting={record}
+                  title={`Live Rate Calculation Example for ${record.name || `Version #${record.id}`}`}
+                />
+              </div>
+            ),
           }}
         />
       </Card>
+
+      {/* Live Calculation Example for the Active Version */}
+      {active ? (
+        <PricingCalculationExampleCard
+          pricingSetting={active}
+          title={`Active Rule Calculation Example: How Current Global Pricing Computes Delivery Fares`}
+        />
+      ) : null}
     </Space>
   );
 }

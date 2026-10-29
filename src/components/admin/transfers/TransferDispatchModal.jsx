@@ -3,38 +3,61 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   Alert,
+  Badge,
+  Button,
+  Card,
   Checkbox,
   Col,
   Form,
   Input,
-  InputNumber,
   Modal,
-  Radio,
   Row,
   Segmented,
   Select,
   Space,
   Table,
   Tag,
+  Tooltip,
   Typography,
 } from "antd";
-import { CarOutlined, SendOutlined, InboxOutlined } from "@ant-design/icons";
-import { allocateTransport } from "@/components/admin/transfers/TransportCostPrompt";
+import {
+  CarOutlined,
+  SendOutlined,
+  InboxOutlined,
+  CheckCircleOutlined,
+  BellOutlined,
+  SafetyCertificateOutlined,
+  ThunderboltOutlined,
+  InfoCircleOutlined,
+} from "@ant-design/icons";
 import { getTransferRiders } from "@/services/admin/transferService";
 
-const { Text } = Typography;
+const { Text, Title } = Typography;
 
 export const VEHICLE_TYPES = [
-  { value: "bike", label: "Bike" },
-  { value: "van", label: "Van" },
-  { value: "pickup", label: "Pickup" },
-  { value: "truck", label: "Truck" },
-  { value: "bus_cargo", label: "Bus cargo" },
-  { value: "other", label: "Other" },
+  { value: "bike", label: "Bike / Motorcycle", icon: "🏍️", desc: "Light batch (≤ 25 kg / 10 parcels)", maxParcels: 10, maxKg: 25 },
+  { value: "van", label: "Delivery Van", icon: "🚐", desc: "Standard batch (25–250 kg)", maxParcels: 50, maxKg: 250 },
+  { value: "pickup", label: "Cargo Pickup", icon: "🛻", desc: "Medium cargo (250–600 kg)", maxParcels: 150, maxKg: 600 },
+  { value: "truck", label: "Line-Haul Truck", icon: "🚛", desc: "Heavy freight (> 600 kg)", maxParcels: 9999, maxKg: 9999 },
+  { value: "bus_cargo", label: "Bus Cargo", icon: "🚌", desc: "Intercity public cargo", maxParcels: 50, maxKg: 200 },
+  { value: "other", label: "Other Carrier", icon: "📦", desc: "Custom carrier", maxParcels: 9999, maxKg: 9999 },
 ];
 
 export function vehicleLabel(value) {
   return VEHICLE_TYPES.find((v) => v.value === value)?.label || value || null;
+}
+
+export function getRecommendedVehicle(totalParcels, totalWeight) {
+  if (totalParcels <= 10 && totalWeight <= 25) {
+    return { type: "bike", label: "Bike", icon: "🏍️", reason: "Light batch (≤ 10 parcels, ≤ 25 kg) — quick motorcycle transfer" };
+  }
+  if (totalParcels <= 50 && totalWeight <= 250) {
+    return { type: "van", label: "Van", icon: "🚐", reason: "Standard batch (11–50 parcels, 25–250 kg) — delivery van recommended" };
+  }
+  if (totalParcels <= 150 && totalWeight <= 600) {
+    return { type: "pickup", label: "Pickup", icon: "🛻", reason: "Medium volume (51–150 parcels, 250–600 kg) — utility pickup truck" };
+  }
+  return { type: "truck", label: "Truck", icon: "🚛", reason: "Heavy line-haul (> 150 parcels or > 600 kg) — dedicated freight truck" };
 }
 
 function parcelWeight(s) {
@@ -94,16 +117,8 @@ export function trHeadline(hopName, split) {
 /**
  * Dispatch modal for a TR (transfer container): one trip from this branch to the next hop.
  *
- * props:
- *  - open, onCancel
- *  - nextHopName, nextHopId, fromLabel
- *  - shipments: parcels going on this TR (for the per-parcel cost preview and the header split)
- *  - transferNumber: set when sending an already open (held) TR
- *  - allowHold: show "Load only (hold TR open)"
- *  - branchId: dispatching branch for the rider list (admin override)
- *  - submitting
- *  - onSubmit(meta): meta = { vehicle_type, vehicle_number, rider_user_id, driver_name, driver_phone,
- *      seal_number, notes, transport_cost, transport_cost_split_mode, hold }
+ * NOTE: Branch managers DO NOT specify transport cost. Fleet operations and line-haul
+ * costs are 100% centrally managed and financed by SuperAdmin / HQ.
  */
 export default function TransferDispatchModal({
   open,
@@ -123,14 +138,33 @@ export default function TransferDispatchModal({
   const [riders, setRiders] = useState([]);
   const [ridersLoading, setRidersLoading] = useState(false);
   const [hold, setHold] = useState(false);
-  const cost = Form.useWatch("transport_cost", form) || 0;
-  const mode = Form.useWatch("transport_cost_split_mode", form) || "equal";
+
+  const totalCount = (shipments || []).length;
+  const totalWeight = useMemo(
+    () => (shipments || []).reduce((sum, s) => sum + parcelWeight(s), 0),
+    [shipments]
+  );
+
+  const recommendation = useMemo(
+    () => getRecommendedVehicle(totalCount, totalWeight),
+    [totalCount, totalWeight]
+  );
+
+  const selectedVehicle = Form.useWatch("vehicle_type", form) || recommendation.type;
 
   useEffect(() => {
     if (!open) return;
     form.resetFields();
     setDriverMode("staff");
     setHold(false);
+
+    // Auto-select recommended vehicle based on parcel count & weight
+    form.setFieldsValue({
+      vehicle_type: recommendation.type,
+      transport_cost: 0,
+      transport_cost_split_mode: "equal",
+    });
+
     let alive = true;
     setRidersLoading(true);
     getTransferRiders(branchId ? { branch_id: branchId } : {})
@@ -140,7 +174,7 @@ export default function TransferDispatchModal({
     return () => {
       alive = false;
     };
-  }, [open, branchId, form]);
+  }, [open, branchId, form, recommendation.type]);
 
   const parcels = useMemo(
     () =>
@@ -148,13 +182,15 @@ export default function TransferDispatchModal({
         id: s.id ?? s.shipment_id,
         tracking_number: s.tracking_number || `#${s.id ?? s.shipment_id}`,
         weight: parcelWeight(s),
+        service_type: s.service_type || "standard",
         final: Number(s.destination_branch_id || 0) === Number(nextHopId || 0) ? "Last mile" : destinationName(s),
+        is_last_mile: Number(s.destination_branch_id || 0) === Number(nextHopId || 0),
+        receiver_name: s.receiver_name || s.recipient_name || "-",
       })),
     [shipments, nextHopId]
   );
-  const preview = useMemo(() => allocateTransport(cost, parcels, mode), [cost, parcels, mode]);
+
   const split = useMemo(() => splitByFinal(shipments, nextHopId), [shipments, nextHopId]);
-  const missingWeight = mode === "weight" && parcels.some((p) => !p.weight);
 
   const riderOptions = useMemo(
     () =>
@@ -169,12 +205,13 @@ export default function TransferDispatchModal({
   const submit = async () => {
     const v = await form.validateFields();
     const meta = {
-      vehicle_type: v.vehicle_type || undefined,
+      vehicle_type: v.vehicle_type || recommendation.type,
       vehicle_number: v.vehicle_number?.trim() || undefined,
       seal_number: v.seal_number?.trim() || undefined,
       notes: v.notes?.trim() || undefined,
-      transport_cost: Number(v.transport_cost || 0),
-      transport_cost_split_mode: v.transport_cost_split_mode || "equal",
+      // Transport costs are managed centrally by SuperAdmin / HQ; branch managers do not enter or incur costs.
+      transport_cost: 0,
+      transport_cost_split_mode: "equal",
     };
     if (driverMode === "staff") {
       const r = riders.find((x) => x.id === v.rider_user_id);
@@ -192,12 +229,14 @@ export default function TransferDispatchModal({
   };
 
   const title = (
-    <Space size={6}>
-      <CarOutlined />
-      <span>{transferNumber ? `Dispatch ${transferNumber}` : "Create TR"}</span>
-      <Text type="secondary" style={{ fontSize: 12, fontWeight: 400 }}>
+    <Space size={8} align="center">
+      <CarOutlined style={{ fontSize: 18, color: "#2563eb" }} />
+      <span style={{ fontWeight: 700, fontSize: 16 }}>
+        {transferNumber ? `Dispatch ${transferNumber}` : "Create Transfer Run (TR)"}
+      </span>
+      <Text type="secondary" style={{ fontSize: 13, fontWeight: 500 }}>
         {fromLabel ? `${fromLabel} → ` : "→ "}
-        {nextHopName}
+        <span style={{ color: "#1d4ed8", fontWeight: 700 }}>{nextHopName}</span>
       </Text>
     </Space>
   );
@@ -208,144 +247,298 @@ export default function TransferDispatchModal({
       title={title}
       onCancel={onCancel}
       onOk={submit}
-      okText={hold ? "Load on TR (hold)" : "Dispatch TR"}
-      okButtonProps={{ icon: hold ? <InboxOutlined /> : <SendOutlined />, loading: submitting, disabled: !parcels.length }}
-      width={760}
+      okText={hold ? "Load on TR (hold open)" : "Dispatch to Next Branch"}
+      okButtonProps={{
+        icon: hold ? <InboxOutlined /> : <SendOutlined />,
+        loading: submitting,
+        disabled: !parcels.length,
+        size: "middle",
+        style: { fontWeight: 600 },
+      }}
+      width={820}
       destroyOnClose
-      styles={{ body: { paddingTop: 4 } }}
+      styles={{ body: { paddingTop: 6, maxHeight: "80vh", overflowY: "auto" } }}
     >
-      <Space direction="vertical" size={10} style={{ width: "100%" }}>
+      <Space direction="vertical" size={12} style={{ width: "100%" }}>
+        {/* Manifest Header & Route Split */}
         <Alert
           type="info"
           showIcon
-          style={{ padding: "6px 10px" }}
-          message={<Text strong>{trHeadline(nextHopName, split)}</Text>}
+          style={{ padding: "8px 12px", borderRadius: 8, background: "#f0f9ff", border: "1px solid #bae6fd" }}
+          message={
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+              <Text strong style={{ fontSize: 13, color: "#0369a1" }}>{trHeadline(nextHopName, split)}</Text>
+              <Tag color="blue" style={{ margin: 0, fontWeight: 700 }}>
+                {totalCount} parcels · {totalWeight.toFixed(2)} kg
+              </Tag>
+            </div>
+          }
           description={
             <Text type="secondary" style={{ fontSize: 12 }}>
-              One TR per trip. {nextHopName} checks it in: last-mile parcels go to delivery there, onward parcels
-              join {nextHopName}&apos;s next TR automatically.
+              Parcels ride together to <strong>{nextHopName}</strong>. On arrival, {nextHopName} hub inspects shipments (intact, damaged, missing): last-mile parcels are dispatched for local delivery, and onward parcels join the next transit leg automatically.
             </Text>
           }
         />
 
+        {/* Central Transport Fleet Notice (HQ Managed) */}
+        <div
+          style={{
+            background: "#f0fdf4",
+            border: "1px solid #bbf7d0",
+            borderRadius: 8,
+            padding: "8px 12px",
+            display: "flex",
+            alignItems: "flex-start",
+            gap: 10,
+          }}
+        >
+          <SafetyCertificateOutlined style={{ color: "#16a34a", fontSize: 18, marginTop: 2 }} />
+          <div style={{ flex: 1 }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+              <Text strong style={{ fontSize: 12.5, color: "#166534" }}>
+                HQ Central Transport Fleet Active
+              </Text>
+              <Tag color="green" style={{ margin: 0, fontSize: 10, fontWeight: 700 }}>
+                100% HQ FINANCED
+              </Tag>
+            </div>
+            <Text type="secondary" style={{ fontSize: 11.5, color: "#15803d", display: "block", marginTop: 2 }}>
+              Vehicle fuel, maintenance, and line-haul carrier freight are funded centrally by SuperAdmin / HQ. Branch managers do not enter or pay transport costs. Branch trip deduction: <strong>Rs 0.00</strong>.
+            </Text>
+          </div>
+        </div>
+
         <Form
           form={form}
           layout="vertical"
-          size="small"
+          size="middle"
           requiredMark={false}
-          initialValues={{ vehicle_type: "bike", transport_cost: 0, transport_cost_split_mode: "equal" }}
+          initialValues={{
+            vehicle_type: recommendation.type,
+            transport_cost: 0,
+            transport_cost_split_mode: "equal",
+          }}
         >
-          <Row gutter={10}>
-            <Col xs={24} sm={8}>
-              <Form.Item label="Vehicle type" name="vehicle_type" rules={[{ required: !hold, message: "Pick a vehicle" }]}>
-                <Select options={VEHICLE_TYPES} />
-              </Form.Item>
-            </Col>
-            <Col xs={24} sm={8}>
-              <Form.Item label="Vehicle number" name="vehicle_number">
-                <Input placeholder="e.g. Ba 2 Pa 1234" maxLength={50} />
-              </Form.Item>
-            </Col>
-            <Col xs={24} sm={8}>
-              <Form.Item label="Seal / bag no." name="seal_number">
-                <Input placeholder="Optional" maxLength={50} />
-              </Form.Item>
-            </Col>
-          </Row>
+          {/* Vehicle Selection with Smart Recommendations */}
+          <div style={{ marginBottom: 12, background: "#f8fafc", padding: "10px 12px", borderRadius: 8, border: "1px solid #e2e8f0" }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                <CarOutlined style={{ color: "#2563eb" }} />
+                <Text strong style={{ fontSize: 13 }}>Choose Branch Vehicle</Text>
+                <Text type="secondary" style={{ fontSize: 11 }}>
+                  (Select based on volume: {totalCount} parcels, {totalWeight.toFixed(1)} kg)
+                </Text>
+              </div>
+              <Tooltip title={recommendation.reason}>
+                <Tag color="cyan" icon={<ThunderboltOutlined />} style={{ margin: 0, fontSize: 11, fontWeight: 600 }}>
+                  Suggested: {recommendation.label} ({recommendation.icon})
+                </Tag>
+              </Tooltip>
+            </div>
 
-          <Form.Item label="Who carries it" style={{ marginBottom: 6 }}>
-            <Segmented
-              size="small"
-              value={driverMode}
-              onChange={setDriverMode}
-              options={[
-                { value: "staff", label: "Our rider / staff" },
-                { value: "outside", label: "Outside driver" },
-              ]}
-            />
-          </Form.Item>
-          {driverMode === "staff" ? (
-            <Form.Item name="rider_user_id" rules={[{ required: !hold, message: "Pick the rider carrying this TR" }]}>
-              <Select
-                showSearch
-                allowClear
-                loading={ridersLoading}
-                placeholder="Search rider or staff"
-                optionFilterProp="label"
-                options={riderOptions}
-                notFoundContent={ridersLoading ? "Loading…" : "No staff at this branch. Use Outside driver."}
-              />
+            <Row gutter={[8, 8]}>
+              {VEHICLE_TYPES.map((v) => {
+                const isSelected = selectedVehicle === v.value;
+                const isRec = recommendation.type === v.value;
+                return (
+                  <Col xs={12} sm={8} md={4} key={v.value}>
+                    <div
+                      onClick={() => form.setFieldValue("vehicle_type", v.value)}
+                      style={{
+                        cursor: "pointer",
+                        border: isSelected ? "2px solid #2563eb" : "1px solid #cbd5e1",
+                        background: isSelected ? "#eff6ff" : "#ffffff",
+                        borderRadius: 8,
+                        padding: "8px 6px",
+                        textAlign: "center",
+                        transition: "all 0.2s ease",
+                        position: "relative",
+                      }}
+                    >
+                      {isRec && (
+                        <span
+                          style={{
+                            position: "absolute",
+                            top: -6,
+                            right: 4,
+                            background: "#0284c7",
+                            color: "#fff",
+                            fontSize: 9,
+                            padding: "1px 4px",
+                            borderRadius: 4,
+                            fontWeight: 700,
+                          }}
+                        >
+                          BEST FIT
+                        </span>
+                      )}
+                      <div style={{ fontSize: 20 }}>{v.icon}</div>
+                      <div style={{ fontSize: 11.5, fontWeight: isSelected ? 700 : 600, color: isSelected ? "#1d4ed8" : "#334155" }}>
+                        {v.label.split(" / ")[0]}
+                      </div>
+                      <div style={{ fontSize: 10, color: "#64748b", marginTop: 2, lineHeight: 1.1 }}>
+                        {v.desc.split(" (")[0]}
+                      </div>
+                    </div>
+                  </Col>
+                );
+              })}
+            </Row>
+
+            <Form.Item name="vehicle_type" hidden>
+              <Input />
             </Form.Item>
-          ) : (
-            <Row gutter={10}>
+
+            <Row gutter={10} style={{ marginTop: 10 }}>
               <Col xs={24} sm={12}>
-                <Form.Item name="driver_name" rules={[{ required: !hold, message: "Driver name is required" }]}>
-                  <Input placeholder="Driver name" maxLength={100} />
+                <Form.Item label="Vehicle Plate Number" name="vehicle_number" style={{ marginBottom: 0 }}>
+                  <Input placeholder="e.g. Ba 2 Pa 1234 / Na 5 Kha 5678" maxLength={50} prefix={<CarOutlined style={{ color: "#94a3b8" }} />} />
                 </Form.Item>
               </Col>
               <Col xs={24} sm={12}>
-                <Form.Item
-                  name="driver_phone"
-                  rules={[
-                    { required: !hold, message: "Driver phone is required" },
-                    { pattern: /^[0-9+\-\s]{7,20}$/, message: "Enter a valid phone" },
-                  ]}
-                >
-                  <Input placeholder="Driver phone" maxLength={20} />
+                <Form.Item label="Security Seal / Container Bag No." name="seal_number" style={{ marginBottom: 0 }}>
+                  <Input placeholder="e.g. SEAL-98421 (Optional)" maxLength={50} prefix={<SafetyCertificateOutlined style={{ color: "#94a3b8" }} />} />
                 </Form.Item>
               </Col>
             </Row>
-          )}
+          </div>
 
-          <Row gutter={10} align="bottom">
-            <Col xs={24} sm={10}>
-              <Form.Item
-                label="Trip transport cost (Rs)"
-                name="transport_cost"
-                tooltip="Vehicle, fuel, driver for this trip. Split over the parcels and paid back to your branch from each parcel's delivery charge. Leave 0 if none."
-              >
-                <InputNumber min={0} step={50} style={{ width: "100%" }} />
-              </Form.Item>
-            </Col>
-            <Col xs={24} sm={14}>
-              <Form.Item label="Split" name="transport_cost_split_mode">
-                <Radio.Group size="small">
-                  <Radio.Button value="equal">Equal</Radio.Button>
-                  <Radio.Button value="weight">By weight</Radio.Button>
-                </Radio.Group>
-              </Form.Item>
-            </Col>
-          </Row>
-          <Form.Item label="Notes" name="notes" style={{ marginBottom: 6 }}>
-            <Input.TextArea rows={1} maxLength={1000} placeholder="Optional" />
+          {/* Driver & Rider Assignment */}
+          <div style={{ marginBottom: 12, background: "#f8fafc", padding: "10px 12px", borderRadius: 8, border: "1px solid #e2e8f0" }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
+              <Text strong style={{ fontSize: 13 }}>Assigned Driver / Rider</Text>
+              <Segmented
+                size="small"
+                value={driverMode}
+                onChange={setDriverMode}
+                options={[
+                  { value: "staff", label: "Branch Rider / Staff" },
+                  { value: "outside", label: "Third-Party / Carrier Driver" },
+                ]}
+              />
+            </div>
+
+            {driverMode === "staff" ? (
+              <div>
+                <Form.Item name="rider_user_id" rules={[{ required: !hold, message: "Please select the rider or staff member carrying this transfer." }]} style={{ marginBottom: 4 }}>
+                  <Select
+                    showSearch
+                    allowClear
+                    loading={ridersLoading}
+                    placeholder="Search branch rider by name or phone..."
+                    optionFilterProp="label"
+                    options={riderOptions}
+                    notFoundContent={ridersLoading ? "Loading staff..." : "No active riders found at this branch. Switch to Outside Driver."}
+                  />
+                </Form.Item>
+                <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11, color: "#475569", marginTop: 2 }}>
+                  <BellOutlined style={{ color: "#0284c7" }} />
+                  <span>The selected rider will receive an instant transfer assignment notification with all parcel details on dispatch.</span>
+                </div>
+              </div>
+            ) : (
+              <Row gutter={10}>
+                <Col xs={24} sm={12}>
+                  <Form.Item name="driver_name" rules={[{ required: !hold, message: "Driver name is required" }]} style={{ marginBottom: 4 }}>
+                    <Input placeholder="Driver full name" maxLength={100} />
+                  </Form.Item>
+                </Col>
+                <Col xs={24} sm={12}>
+                  <Form.Item
+                    name="driver_phone"
+                    rules={[
+                      { required: !hold, message: "Driver phone is required" },
+                      { pattern: /^[0-9+\-\s]{7,20}$/, message: "Enter a valid phone number" },
+                    ]}
+                    style={{ marginBottom: 4 }}
+                  >
+                    <Input placeholder="Driver mobile phone" maxLength={20} />
+                  </Form.Item>
+                </Col>
+              </Row>
+            )}
+          </div>
+
+          <Form.Item label="Dispatch Notes / Handover Remarks" name="notes" style={{ marginBottom: 8 }}>
+            <Input.TextArea rows={1} maxLength={1000} placeholder="Optional instructions for receiving hub manager..." />
           </Form.Item>
         </Form>
 
-        {missingWeight ? (
-          <Alert type="warning" showIcon style={{ padding: "4px 10px" }} message="Some parcels have no weight, so the cost is split equally." />
-        ) : null}
+        {/* Parcels Manifest Itemized Preview */}
+        <div>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
+            <Text strong style={{ fontSize: 12.5 }}>Manifest Parcels ({parcels.length})</Text>
+            <Space size={6}>
+              <Tag color="green" style={{ margin: 0, fontSize: 11 }}>{split.lastMile} Last Mile</Tag>
+              <Tag color="purple" style={{ margin: 0, fontSize: 11 }}>{split.onwardCount} Onward Transfer</Tag>
+            </Space>
+          </div>
 
-        <Table
-          size="small"
-          rowKey="id"
-          dataSource={preview}
-          pagination={preview.length > 6 ? { pageSize: 6, size: "small" } : false}
-          columns={[
-            { title: "Parcel", dataIndex: "tracking_number" },
-            {
-              title: "Final",
-              dataIndex: "final",
-              render: (v) => (v === "Last mile" ? <Tag color="green" style={{ margin: 0 }}>Last mile</Tag> : <Tag color="purple" style={{ margin: 0 }}>→ {v}</Tag>),
-            },
-            { title: "Weight", dataIndex: "weight", align: "right", render: (v) => (v ? `${Number(v).toFixed(2)} kg` : "-") },
-            { title: "Cost share", dataIndex: "transport_cost", align: "right", render: (v) => `Rs ${Number(v || 0).toFixed(2)}` },
-          ]}
-        />
+          <Table
+            size="small"
+            rowKey="id"
+            dataSource={parcels}
+            pagination={parcels.length > 5 ? { pageSize: 5, size: "small" } : false}
+            columns={[
+              {
+                title: "Tracking #",
+                dataIndex: "tracking_number",
+                render: (v, r) => (
+                  <div>
+                    <Text strong style={{ fontSize: 12 }}>{v}</Text>
+                    <div style={{ fontSize: 11, color: "#64748b" }}>To: {r.receiver_name}</div>
+                  </div>
+                ),
+              },
+              {
+                title: "Destination / Next Leg",
+                dataIndex: "final",
+                render: (v, r) =>
+                  r.is_last_mile ? (
+                    <Tag color="green" style={{ margin: 0, fontWeight: 600 }}>
+                      ✓ Last Mile ({nextHopName})
+                    </Tag>
+                  ) : (
+                    <Tag color="purple" style={{ margin: 0, fontWeight: 600 }}>
+                      → {v} (via {nextHopName})
+                    </Tag>
+                  ),
+              },
+              {
+                title: "Weight",
+                dataIndex: "weight",
+                align: "right",
+                render: (v) => (v ? `${Number(v).toFixed(2)} kg` : "-"),
+              },
+              {
+                title: "Service",
+                dataIndex: "service_type",
+                render: (v) => (
+                  <Tag style={{ margin: 0, textTransform: "uppercase", fontSize: 10 }}>
+                    {v}
+                  </Tag>
+                ),
+              },
+              {
+                title: "HQ Transport",
+                key: "transport",
+                align: "center",
+                render: () => (
+                  <Tooltip title="100% funded and settled by HQ central transport pool">
+                    <Tag color="success" style={{ margin: 0, fontSize: 10.5, fontWeight: 600 }}>
+                      Covered (Rs 0)
+                    </Tag>
+                  </Tooltip>
+                ),
+              },
+            ]}
+          />
+        </div>
 
         {allowHold && !transferNumber ? (
           <Checkbox checked={hold} onChange={(e) => setHold(e.target.checked)}>
             <Text style={{ fontSize: 12 }}>
-              Load only: keep the TR open (vehicle not leaving yet). Dispatch it later from the Sent tab.
+              <strong>Stage only:</strong> Keep TR open for batching (vehicle not leaving yet). You can append more parcels and dispatch when ready.
             </Text>
           </Checkbox>
         ) : null}
