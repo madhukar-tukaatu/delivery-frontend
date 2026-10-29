@@ -55,7 +55,7 @@ function TrCard({ c, selected, direction, onClick }) {
   const accent = accentFor(other);
   const vehicle = [vehicleLabel(c.vehicle_type), c.vehicle_number].filter(Boolean).join(" · ");
   const carrier = c.rider?.name || c.driver_name;
-  const cost = money(c.transport_cost);
+  const transportBadge = "HQ Fleet Funded";
   return (
     <div
       role="option"
@@ -114,14 +114,10 @@ function TrCard({ c, selected, direction, onClick }) {
             {c.extra_count ? <Tag color="gold" style={{ margin: 0, fontSize: 11 }}>{c.extra_count} extra</Tag> : null}
             {c.auto_append && c.status === "open" ? <Tag color="blue" style={{ margin: 0, fontSize: 11 }}>auto-add</Tag> : null}
           </Space>
-          {vehicle || carrier || cost ? (
+          {vehicle || carrier ? (
             <Text type="secondary" style={{ fontSize: 11, display: "block", marginTop: 2 }}>
-              {vehicle || carrier ? (
-                <>
-                  <CarOutlined /> {[vehicle, carrier].filter(Boolean).join(" · ")}
-                </>
-              ) : null}
-              {cost ? `${vehicle || carrier ? " · " : ""}${cost}` : ""}
+              <CarOutlined /> {[vehicle, carrier].filter(Boolean).join(" · ")}
+              <span style={{ marginLeft: 6, color: "#16a34a", fontWeight: 600 }}>• {transportBadge}</span>
             </Text>
           ) : null}
           <Text type="secondary" style={{ fontSize: 10, display: "block" }}>

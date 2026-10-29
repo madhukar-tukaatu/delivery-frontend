@@ -3224,7 +3224,7 @@ export default function TransfersPage() {
                 <Card styles={{ body: { padding: 0 } }} style={{ borderRadius: 14 }}>
                   <TabGuide
                     type="info"
-                    message="TRs arriving at this branch. Scan the TR label (or pick a TR), check the seal, scan or tick the parcels that came, then Confirm receive: last-mile parcels are sorted for delivery here, onward parcels move to Outbound for your next TR, and unticked parcels are flagged missing."
+                    message="TRs arriving at this branch. Scan the TR label (or pick a TR), inspect the container seal, verify parcels (Intact, Damaged, or Missing), then Confirm intake: last-mile terminating parcels are sorted directly for local delivery riders, onward parcels move to Outbound for the next hub leg, and missing/damaged parcels are recorded with instant branch alerts."
                   />
                   {viewToggle(inboundView, setInboundView, "Single parcels", stats.in_transit_trs, stats.in_transit)}
                   {inboundView === "tr" ? (
@@ -3334,7 +3334,7 @@ export default function TransfersPage() {
                 <Card styles={{ body: { padding: 0 } }} style={{ borderRadius: 10 }}>
                   <TabGuide
                     type="info"
-                    message="One TR per trip: every parcel whose NEXT hop is the same branch (last mile there + onward beyond it, any service) goes on one TR with the vehicle, rider and trip cost. The next branch checks the TR in and sorts it automatically."
+                    message="One TR per trip: every parcel whose NEXT hop is the same branch (last mile there + onward beyond it, any service) goes on one TR with the selected branch vehicle and assigned rider. Line-haul transport and fleet costs are 100% financed by HQ Pool (Rs 0 branch cost). The receiving branch checks the TR in, audits condition (intact/damaged/missing), and sorts it automatically."
                   />
 
                   <Card size="small" style={{ margin: 8, borderRadius: 8 }} styles={{ body: { padding: 10 } }}>

@@ -302,9 +302,13 @@ export async function getContainer(containerId, params = {}) {
  * Unscanned parcels are flagged missing; scanned parcels from other TRs headed here are taken as extras.
  * -> { container, received, missing, extras, rejected }
  */
-export async function receiveContainer(containerId, scanned = [], remarks = null, params = {}, seal = null) {
+export async function receiveContainer(containerId, scanned = [], remarks = null, params = {}, seal = null, damaged = []) {
   if (!containerId) throw new Error("TR id is required.");
-  const body = { scanned: Array.isArray(scanned) ? scanned : [], remarks: remarks || undefined };
+  const body = {
+    scanned: Array.isArray(scanned) ? scanned : [],
+    damaged: Array.isArray(damaged) || typeof damaged === "object" ? damaged : [],
+    remarks: remarks || undefined,
+  };
   // Seal check at arrival: { value, intact, remark, status }
   if (seal) {
     body.seal_value = seal.value || undefined;

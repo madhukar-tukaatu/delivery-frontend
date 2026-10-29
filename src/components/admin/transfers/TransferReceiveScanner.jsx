@@ -5,14 +5,17 @@ import {
   Alert,
   Badge,
   Button,
+  Card,
   Checkbox,
   Descriptions,
   Drawer,
   Empty,
+  Form,
   Input,
   Modal,
   Popconfirm,
   Radio,
+  Segmented,
   Space,
   Spin,
   Statistic,
@@ -33,6 +36,9 @@ import {
   SafetyCertificateOutlined,
   ToolOutlined,
   WarningOutlined,
+  HomeOutlined,
+  SwapOutlined,
+  EditOutlined,
 } from "@ant-design/icons";
 import { getContainer, lookupContainer, openTrPrint, receiveContainer, repairContainer, resolveContainerItem } from "@/services/admin/transferService";
 import { vehicleLabel } from "@/components/admin/transfers/TransferDispatchModal";
@@ -44,15 +50,15 @@ export const TR_STATUS_META = {
   dispatched: { color: "processing", label: "Dispatched" },
   in_transit: { color: "processing", label: "In transit" },
   received: { color: "success", label: "Received" },
-  partially_received: { color: "warning", label: "Received with missing shipments" },
+  partially_received: { color: "warning", label: "Received with discrepancies" },
   cancelled: { color: "error", label: "Cancelled" },
 };
 
-/** missing: number of shipments still missing on the TR ("Received — 2 shipments missing"). */
+/** missing: number of shipments still missing on the TR */
 export function TrStatusTag({ status, missing = 0 }) {
   const meta = TR_STATUS_META[status] || { color: "default", label: String(status || "-").replace(/_/g, " ") };
   const n = Number(missing) || 0;
-  const label = status === "partially_received" && n > 0 ? `Received — ${n} shipment${n === 1 ? "" : "s"} missing` : meta.label;
+  const label = status === "partially_received" && n > 0 ? `Received — ${n} missing` : meta.label;
   return (
     <Tag color={meta.color} style={{ margin: 0 }}>
       {label}
@@ -66,10 +72,8 @@ export const SEAL_META = {
   tampered: ["red", "Seal tampered"],
 };
 
-/** Plain result words for the seal check. */
 const SEAL_RESULT_LABEL = { ok: "Intact", mismatch: "Mismatch", tampered: "Broken or missing" };
 
-/** 10/11/2026 11:05 AM (no seconds). */
 function fmtShort(dt) {
   if (!dt) return "";
   const d = new Date(dt);
@@ -97,11 +101,6 @@ export function SealTag({ c }) {
   );
 }
 
-/**
- * Client-side preview of the seal result the server will record.
- * answer: "ok" (intact) | "tampered" (broken or missing) | "mismatch" | null (not answered).
- * Typing the number is optional; a typed number that differs from the one sent is a mismatch.
- */
 export function sealStatusFor(expected, value, answer) {
   if (!answer || answer === "skip") return null;
   if (answer === "tampered" || answer === false) return "tampered";
@@ -112,14 +111,13 @@ export function sealStatusFor(expected, value, answer) {
   return "ok";
 }
 
-/** What the server expects for each answer (seal_status). */
 const SEAL_ANSWER_PARAM = { ok: "intact", tampered: "broken", mismatch: "mismatch" };
 
 const ITEM_STATUS_META = {
   added: { color: "default", label: "Loaded" },
-  sent: { color: "processing", label: "On the way" },
-  dispatched: { color: "processing", label: "On the way" },
-  in_transit: { color: "processing", label: "On the way" },
+  sent: { color: "processing", label: "In transit" },
+  dispatched: { color: "processing", label: "In transit" },
+  in_transit: { color: "processing", label: "In transit" },
   received: { color: "success", label: "Received" },
   missing: { color: "warning", label: "Missing" },
   lost: { color: "error", label: "Lost" },
@@ -136,8 +134,7 @@ function fmt(dt) {
 }
 
 /**
- * Admin "Repair receive" for a TR checked in wrongly: clear a wrong seal flag and/or
- * receive + sort the parcels still marked missing. Preview (dry run) first, then Apply.
+ * Admin "Repair receive" dialog
  */
 function RepairReceiveDialog({ tr, open, onClose, onRepaired, params }) {
   const [clearSeal, setClearSeal] = useState(false);
@@ -148,105 +145,81 @@ function RepairReceiveDialog({ tr, open, onClose, onRepaired, params }) {
 
   useEffect(() => {
     if (!open) return;
-    setClearSeal(!!tr?.seal_status);
-    setFoundAll(Number(tr?.missing_count || 0) > 0);
+    setClearSeal(false);
+    setFoundAll(false);
     setPreview(null);
     setError("");
-  }, [open, tr?.id, tr?.seal_status, tr?.missing_count]);
+  }, [open]);
 
-  const run = async (dryRun) => {
-    if (!clearSeal && !foundAll) {
-      setError("Pick at least one repair.");
-      return;
-    }
+  const runPreview = async () => {
     setBusy(true);
     setError("");
     try {
-      const res = await repairContainer(tr.id, { clearSeal, foundAll, dryRun }, params);
-      if (dryRun) {
-        setPreview(res);
-      } else {
-        message.success(res?.message || "TR repaired");
-        onRepaired?.(res);
-        onClose?.();
-      }
+      const res = await repairContainer(tr.id, clearSeal, foundAll, true, params);
+      setPreview(res);
     } catch (e) {
-      const errors = e?.response?.data?.errors;
-      setError((errors ? Object.values(errors).flat()[0] : null) || e?.response?.data?.message || "Repair failed");
+      setError(e?.response?.data?.message || e?.message || "Preview failed");
     } finally {
       setBusy(false);
     }
   };
 
-  const actionable = (preview?.changes || []).some((c) => c.action);
+  const applyRepair = async () => {
+    setBusy(true);
+    setError("");
+    try {
+      const res = await repairContainer(tr.id, clearSeal, foundAll, false, params);
+      message.success(res?.message || "Receive repaired");
+      onRepaired?.(res);
+      onClose();
+    } catch (e) {
+      setError(e?.response?.data?.message || e?.message || "Repair failed");
+    } finally {
+      setBusy(false);
+    }
+  };
+
   return (
     <Modal
       open={open}
+      title={`Repair receive · ${tr?.display_number || ""}`}
       onCancel={onClose}
-      title={
-        <Space size={6}>
-          <ToolOutlined />
-          <span>Repair receive · {tr?.display_number}</span>
-        </Space>
-      }
       footer={[
         <Button key="close" onClick={onClose}>
-          Close
+          Cancel
         </Button>,
-        <Button key="preview" loading={busy && !preview} onClick={() => run(true)}>
+        <Button key="preview" onClick={runPreview} loading={busy} disabled={!clearSeal && !foundAll}>
           Preview
         </Button>,
-        <Button key="apply" type="primary" danger disabled={!preview || !actionable} loading={busy && !!preview} onClick={() => run(false)}>
-          Apply
+        <Button key="apply" type="primary" onClick={applyRepair} loading={busy} disabled={!preview || !preview.changes?.some((c) => c.action)}>
+          Apply repair
         </Button>,
       ]}
-      destroyOnHidden
     >
-      <Space direction="vertical" size={8} style={{ width: "100%" }}>
-        <Text type="secondary" style={{ fontSize: 12 }}>
-          For a TR checked in wrongly. Preview shows exactly what will change; nothing is written until Apply. Every repair is
-          recorded in the audit log with your name.
-        </Text>
-        <Checkbox
-          checked={clearSeal}
-          onChange={(e) => {
-            setClearSeal(e.target.checked);
-            setPreview(null);
-          }}
-        >
-          Clear wrong seal flag {tr?.seal_status ? <Text type="secondary">(now: {SEAL_RESULT_LABEL[tr.seal_status] || tr.seal_status})</Text> : null}
+      <Space direction="vertical" size={10} style={{ width: "100%" }}>
+        <Alert
+          type="info"
+          showIcon
+          message="Use this when a TR was checked in with the wrong seal flag or missing parcels that actually arrived."
+        />
+        <Checkbox checked={clearSeal} onChange={(e) => { setClearSeal(e.target.checked); setPreview(null); }}>
+          Clear seal check result
         </Checkbox>
-        <Checkbox
-          checked={foundAll}
-          onChange={(e) => {
-            setFoundAll(e.target.checked);
-            setPreview(null);
-          }}
-        >
-          Receive &amp; sort missing parcels (mark found){" "}
-          <Text type="secondary">({Number(tr?.missing_count || 0)} missing)</Text>
+        <Checkbox checked={foundAll} onChange={(e) => { setFoundAll(e.target.checked); setPreview(null); }}>
+          Mark missing parcels as found & receive them now
         </Checkbox>
-        {error ? <Alert type="error" showIcon message={error} style={{ padding: "4px 8px" }} /> : null}
+        {error ? <Alert type="error" showIcon message={error} /> : null}
         {preview ? (
-          <Alert
-            type={actionable ? "info" : "warning"}
-            showIcon
-            message={actionable ? "Apply will:" : "Nothing to change"}
-            description={
-              <ul style={{ margin: 0, paddingLeft: 18, fontSize: 12 }}>
-                {(preview.changes || []).map((c, i) => (
-                  <li key={i} style={{ color: c.action ? undefined : "#8c8c8c" }}>
-                    {c.label}
-                  </li>
-                ))}
-                {(preview.errors || []).map((e) => (
-                  <li key={e} style={{ color: "#cf1322" }}>
-                    {e}
-                  </li>
-                ))}
-              </ul>
-            }
-          />
+          <div style={{ marginTop: 8 }}>
+            <Text strong>Proposed changes:</Text>
+            <ul style={{ margin: "4px 0 0 16px", padding: 0 }}>
+              {(preview.changes || []).map((c, i) => (
+                <li key={i} style={{ color: c.action ? "#15803d" : "#64748b" }}>
+                  {c.label}
+                </li>
+              ))}
+            </ul>
+          </div>
         ) : null}
       </Space>
     </Modal>
@@ -254,103 +227,93 @@ function RepairReceiveDialog({ tr, open, onClose, onRepaired, params }) {
 }
 
 /**
- * Check-in drawer / panel for one TR at the receiving branch. Works without a scanner.
- * Step 1: type the TR number (TR-000004, 4, 000004, tr-4) or scan the bag label
- *         (only when opened without a TR; picking a TR card skips this step).
- * Step 2: seal check, only when a seal was recorded at dispatch: Seal intact /
- *         Seal broken or missing / Number mismatch. Typing the number is optional.
- *         Broken or mismatch needs a short remark; the TR is flagged, the sending
- *         branch is notified and the receive goes ahead normally.
- * Step 3: type / scan tracking numbers, tick rows or "Tick all", review missing / extra, confirm.
- * After confirm: last-mile parcels are sorted for delivery here, onward parcels are
- * sorted for transfer and show up in this branch's next TR. Missing parcels can be
- * resolved later (found / lost).
- *
- * props: open, containerId, branchId (admin override), onClose, onDone(result),
- *        inline (render in a detail panel instead of a drawer; pass open={true})
+ * Receive / inspection drawer for TR transfer containers.
+ * Allows branch managers to inspect and triage shipments item by item:
+ *  - Success / Intact (Received in good condition)
+ *  - Damaged / Broken (Arrived damaged; records discrepancy and condition remarks)
+ *  - Missing (Not found in container)
+ * Also routes shipments automatically:
+ *  - Last-Mile Delivery: for parcels terminating at this branch.
+ *  - Onward Transfer: for parcels bound for another branch.
  */
-export default function TransferReceiveScanner({ open, containerId, branchId = null, onClose, onDone, inline = false }) {
-  const [activeId, setActiveId] = useState(containerId || null);
+export default function TransferReceiveScanner({
+  containerId = null,
+  open = true,
+  onClose,
+  onDone,
+  branchId = null,
+  inline = false,
+}) {
+  const [activeId, setActiveId] = useState(containerId);
+  const [tr, setTr] = useState(null);
+  const [loading, setLoading] = useState(false);
   const [trCode, setTrCode] = useState("");
   const [looking, setLooking] = useState(false);
   const [lookupError, setLookupError] = useState("");
-  const [sealValue, setSealValue] = useState("");
-  // skip = not checked (default): nothing is sent, nothing is flagged. Only an explicit choice records a seal result.
-  const [sealAnswer, setSealAnswer] = useState("skip"); // skip | ok | tampered | mismatch
-  const [sealRemark, setSealRemark] = useState("");
-  const [showErrors, setShowErrors] = useState(false);
-  const [serverError, setServerError] = useState("");
-  const trCodeRef = useRef(null);
-  const [tr, setTr] = useState(null);
-  const [loading, setLoading] = useState(false);
-  const [checked, setChecked] = useState([]); // shipment ids
-  const [extras, setExtras] = useState([]); // tracking codes scanned but not on this TR
   const [scan, setScan] = useState("");
+  const [checked, setChecked] = useState([]);
+  const [damagedItems, setDamagedItems] = useState({}); // { [shipment_id]: { note: string } }
+  const [extras, setExtras] = useState([]);
   const [remarks, setRemarks] = useState("");
   const [saving, setSaving] = useState(false);
-  const [result, setResult] = useState(null);
   const [resolving, setResolving] = useState(null);
+  const [result, setResult] = useState(null);
   const [repairOpen, setRepairOpen] = useState(false);
+  const [filterMode, setFilterMode] = useState("all"); // 'all' | 'intact' | 'damaged' | 'missing'
+
+  // Damage note dialog state
+  const [damageDialog, setDamageDialog] = useState({ open: false, shipmentId: null, trackingNumber: "", note: "" });
+
+  // Seal state
+  const [sealValue, setSealValue] = useState("");
+  const [sealAnswer, setSealAnswer] = useState("skip");
+  const [sealRemark, setSealRemark] = useState("");
+  const [serverError, setServerError] = useState("");
+  const [showErrors, setShowErrors] = useState(false);
+
   const scanRef = useRef(null);
+  const trCodeRef = useRef(null);
+
+  useEffect(() => {
+    setActiveId(containerId);
+  }, [containerId]);
+
   const params = useMemo(() => (branchId ? { branch_id: branchId } : {}), [branchId]);
 
   const load = useCallback(async () => {
-    if (!activeId) return;
+    if (!activeId) {
+      setTr(null);
+      return;
+    }
     setLoading(true);
     try {
       const data = await getContainer(activeId, params);
       setTr(data);
+      setServerError("");
     } catch (e) {
       message.error(e?.response?.data?.message || "Failed to load TR");
-      setTr(null);
     } finally {
       setLoading(false);
     }
   }, [activeId, params]);
 
   useEffect(() => {
-    if (open) setActiveId(containerId || null);
-  }, [open, containerId]);
-
-  useEffect(() => {
-    if (!open) return;
-    setChecked([]);
-    setExtras([]);
-    setScan("");
-    setRemarks("");
-    setResult(null);
-    setSealValue("");
-    setSealAnswer("skip");
-    setSealRemark("");
-    setShowErrors(false);
-    setServerError("");
-    setLookupError("");
-    if (!activeId) {
-      setTr(null);
-      setTrCode("");
-      setTimeout(() => trCodeRef.current?.focus?.(), 150);
-      return;
-    }
     load();
-  }, [open, activeId, load]);
+  }, [load]);
 
-  // Step 1: open the TR from its number (typed or scanned; the server accepts 4, 000004, tr-4 ...).
   const onLookup = async () => {
-    const code = trCode.trim();
-    if (!code) {
-      setLookupError("Type the TR number from the bag label, e.g. TR-000004 or just 4.");
-      return;
-    }
+    const raw = trCode.trim();
+    if (!raw) return;
     setLooking(true);
     setLookupError("");
     try {
-      const data = await lookupContainer(code, params);
-      if (!data?.id) throw new Error("TR not found");
+      const data = await lookupContainer(raw, params);
       setTr(data);
       setActiveId(data.id);
-      if (!data.can_receive && !data.can_resolve) message.info(`${data.display_number} is ${TR_STATUS_META[data.status]?.label || data.status}.`);
+      if (!data.can_receive && !data.can_resolve) {
+        message.info(`${data.display_number} is ${TR_STATUS_META[data.status]?.label || data.status}.`);
+      }
     } catch (e) {
-      // Keep what was typed so it can be corrected; selected so the next barcode scan replaces it.
       setLookupError(e?.response?.data?.message || e?.message || "TR not found");
       setTimeout(() => {
         trCodeRef.current?.focus?.();
@@ -369,23 +332,43 @@ export default function TransferReceiveScanner({ open, containerId, branchId = n
   const openItems = useMemo(() => items.filter((i) => OPEN_ITEM.includes(i.status) && !i.is_extra), [items]);
   const missingItems = useMemo(() => items.filter((i) => i.status === "missing"), [items]);
   const canReceive = !!tr?.can_receive;
-  const missingNow = openItems.filter((i) => !checked.includes(i.shipment_id));
 
-  // Opening a TR to receive ticks every parcel on it: one click on Confirm receives the
-  // whole TR (no scanner needed). Untick or Clear the ones that did not arrive.
+  // Auto-tick all open items on initial open (1-click receive ready)
   const autoTickedFor = useRef(null);
   useEffect(() => {
     if (!canReceive || !tr?.id || autoTickedFor.current === tr.id) return;
     autoTickedFor.current = tr.id;
     setChecked(openItems.map((i) => i.shipment_id));
+    setDamagedItems({});
   }, [canReceive, tr?.id, openItems]);
+
+  const missingNow = useMemo(
+    () => openItems.filter((i) => !checked.includes(i.shipment_id)),
+    [openItems, checked]
+  );
+
+  const damagedNow = useMemo(
+    () => openItems.filter((i) => checked.includes(i.shipment_id) && !!damagedItems[i.shipment_id]),
+    [openItems, checked, damagedItems]
+  );
+
+  const intactNow = useMemo(
+    () => openItems.filter((i) => checked.includes(i.shipment_id) && !damagedItems[i.shipment_id]),
+    [openItems, checked, damagedItems]
+  );
+
   const sentSeal = String(tr?.seal_number || "").trim();
-  // Seal step only when a seal was recorded at dispatch; otherwise it is skipped.
   const sealState = sentSeal ? sealStatusFor(sentSeal, sealValue, sealAnswer) : null;
   const blockers = [];
-  if (canReceive && sealState && sealState !== "ok" && !sealRemark.trim())
-    blockers.push(sealState === "tampered" ? "Step 2: add a short remark about the broken / missing seal." : "Step 2: add a short remark about the seal number mismatch.");
+  if (canReceive && sealState && sealState !== "ok" && !sealRemark.trim()) {
+    blockers.push(
+      sealState === "tampered"
+        ? "Step 2: add a short remark about the broken / missing seal."
+        : "Step 2: add a short remark about the seal number mismatch."
+    );
+  }
 
+  // Barcode Scan Handler: marks item as intact received
   const onScan = () => {
     const code = scan.trim();
     if (!code) return;
@@ -395,10 +378,20 @@ export default function TransferReceiveScanner({ open, containerId, branchId = n
     );
     if (hit && OPEN_ITEM.includes(hit.status)) {
       if (checked.includes(hit.shipment_id)) {
-        message.info(`${hit.tracking_number} already ticked`);
+        // If it was damaged or ticked, reaffirm intact
+        if (damagedItems[hit.shipment_id]) {
+          setDamagedItems((prev) => {
+            const next = { ...prev };
+            delete next[hit.shipment_id];
+            return next;
+          });
+          message.success(`${hit.tracking_number} restored to Intact ✓`);
+        } else {
+          message.info(`${hit.tracking_number} already verified intact ✓`);
+        }
       } else {
         setChecked((p) => [...p, hit.shipment_id]);
-        message.success(`${hit.tracking_number} ✓`);
+        message.success(`${hit.tracking_number} verified ✓`);
       }
       return;
     }
@@ -408,7 +401,57 @@ export default function TransferReceiveScanner({ open, containerId, branchId = n
     }
     if (extras.some((x) => x.toLowerCase() === code.toLowerCase())) return;
     setExtras((p) => [...p, code]);
-    message.warning(`${code} is not on ${tr?.display_number}. Added as extra; checked on confirm.`);
+    message.warning(`${code} is not on this TR. Added as extra parcel; checked on confirm.`);
+  };
+
+  const setItemTriage = (shipmentId, status, note = "") => {
+    if (status === "intact") {
+      if (!checked.includes(shipmentId)) setChecked((p) => [...p, shipmentId]);
+      setDamagedItems((p) => {
+        const next = { ...p };
+        delete next[shipmentId];
+        return next;
+      });
+    } else if (status === "damaged") {
+      if (!checked.includes(shipmentId)) setChecked((p) => [...p, shipmentId]);
+      setDamagedItems((p) => ({ ...p, [shipmentId]: { note: note || "Package damaged on arrival" } }));
+    } else if (status === "missing") {
+      setChecked((p) => p.filter((id) => id !== shipmentId));
+      setDamagedItems((p) => {
+        const next = { ...p };
+        delete next[shipmentId];
+        return next;
+      });
+    }
+  };
+
+  const markAllIntact = () => {
+    setChecked(openItems.map((i) => i.shipment_id));
+    setDamagedItems({});
+    message.success("All parcels marked Intact / Good Condition ✓");
+  };
+
+  const markAllMissing = () => {
+    setChecked([]);
+    setDamagedItems({});
+    message.warning("All parcels cleared and marked Missing.");
+  };
+
+  const openDamageNoteDialog = (item) => {
+    setDamageDialog({
+      open: true,
+      shipmentId: item.shipment_id,
+      trackingNumber: item.tracking_number || `#${item.shipment_id}`,
+      note: damagedItems[item.shipment_id]?.note || "Outer packaging crushed / torn",
+    });
+  };
+
+  const saveDamageNote = () => {
+    if (damageDialog.shipmentId) {
+      setItemTriage(damageDialog.shipmentId, "damaged", damageDialog.note);
+      message.warning(`Marked ${damageDialog.trackingNumber} as Damaged.`);
+    }
+    setDamageDialog({ open: false, shipmentId: null, trackingNumber: "", note: "" });
   };
 
   const doReceive = async () => {
@@ -418,10 +461,24 @@ export default function TransferReceiveScanner({ open, containerId, branchId = n
       const seal = sealState
         ? { value: sealValue.trim(), intact: sealState !== "tampered", remark: sealRemark.trim(), status: SEAL_ANSWER_PARAM[sealState] }
         : null;
-      const res = await receiveContainer(activeId, [...checked, ...extras], remarks, params, seal);
+
+      // Prepare damaged items payload: array of { shipment_id, note }
+      const damagedPayload = Object.entries(damagedItems).map(([id, d]) => ({
+        shipment_id: Number(id),
+        note: d.note || "Damaged condition on arrival",
+      }));
+
+      // Scanned includes all physically present parcels (both intact and damaged)
+      const scannedPayload = [...checked, ...extras];
+
+      const res = await receiveContainer(activeId, scannedPayload, remarks, params, seal, damagedPayload);
       setResult(res);
-      setTr((prev) => ({ ...(res?.container || prev), can_receive: false, can_resolve: res?.container?.status === "partially_received" }));
-      message.success(res?.message || "TR received");
+      setTr((prev) => ({
+        ...(res?.container || prev),
+        can_receive: false,
+        can_resolve: res?.container?.status === "partially_received",
+      }));
+      message.success(res?.message || "TR transfer successfully received and sorted!");
       onDone?.(res);
     } catch (e) {
       const errors = e?.response?.data?.errors;
@@ -440,35 +497,64 @@ export default function TransferReceiveScanner({ open, containerId, branchId = n
       return;
     }
     setShowErrors(false);
-    if (!missingNow.length && !extras.length) {
+
+    if (!missingNow.length && !damagedNow.length && !extras.length) {
       doReceive();
       return;
     }
+
     Modal.confirm({
-      title: `Confirm receive of ${tr?.display_number}`,
+      title: `Confirm Arrival & Triage for ${tr?.display_number}`,
       icon: <ExclamationCircleOutlined />,
+      width: 540,
       content: (
-        <Space direction="vertical" size={4}>
+        <Space direction="vertical" size={6} style={{ width: "100%", marginTop: 8 }}>
+          <div style={{ display: "flex", gap: 10, padding: 8, background: "#f8fafc", borderRadius: 6 }}>
+            <Tag color="green" style={{ margin: 0, fontWeight: 700 }}>{intactNow.length} Intact</Tag>
+            <Tag color="red" style={{ margin: 0, fontWeight: 700 }}>{damagedNow.length} Damaged</Tag>
+            <Tag color="orange" style={{ margin: 0, fontWeight: 700 }}>{missingNow.length} Missing</Tag>
+            {extras.length ? <Tag color="gold" style={{ margin: 0 }}>{extras.length} Extras</Tag> : null}
+          </div>
+
           {!checked.length && !extras.length ? (
-            <Text type="danger">No parcel is ticked: every parcel on this TR will be flagged missing.</Text>
+            <Text type="danger" strong>
+              No parcel is checked: every parcel on this TR will be marked missing!
+            </Text>
           ) : null}
+
+          {damagedNow.length ? (
+            <Alert
+              type="warning"
+              showIcon
+              style={{ padding: "6px 10px" }}
+              message={
+                <span>
+                  <strong>{damagedNow.length} parcel(s) arrived damaged:</strong> {damagedNow.map((i) => i.tracking_number).join(", ")}. These will be received into hub custody and flagged for claim inspection.
+                </span>
+              }
+            />
+          ) : null}
+
           {missingNow.length ? (
-            <Text>
-              The TR is received with <Text type="warning" strong>{missingNow.length}</Text> shipment(s) missing:{" "}
-              {missingNow.map((i) => i.tracking_number).join(", ")}. They are marked missing on this TR and{" "}
-              {tr?.from_branch?.name || "the sending branch"} is notified. Present parcels are received and sorted; resolve
-              the missing ones later (Found / Lost).
-            </Text>
+            <Alert
+              type="error"
+              showIcon
+              style={{ padding: "6px 10px" }}
+              message={
+                <span>
+                  <strong>{missingNow.length} parcel(s) not found:</strong> {missingNow.map((i) => i.tracking_number).join(", ")}. Marked missing; sending hub ({tr?.from_branch?.name || "origin"}) will be notified immediately.
+                </span>
+              }
+            />
           ) : null}
-          {extras.length ? (
-            <Text>
-              <Text strong>{extras.length}</Text> extra scan(s) will be checked; parcels headed here are taken in, others are
-              rejected.
-            </Text>
-          ) : null}
+
+          <Text type="secondary" style={{ fontSize: 12 }}>
+            Upon confirmation, terminating parcels will be sorted for local doorstep riders, and onward parcels staged for the next hub leg automatically.
+          </Text>
         </Space>
       ),
-      okText: "Confirm receive",
+      okText: "Confirm Intake & Sorting",
+      okButtonProps: { style: { fontWeight: 600 } },
       onOk: doReceive,
     });
   };
@@ -477,7 +563,9 @@ export default function TransferReceiveScanner({ open, containerId, branchId = n
     setResolving(`${item.item_id}:${action}`);
     try {
       const res = await resolveContainerItem(activeId, item.item_id, action, null, params);
-      if (res?.container) setTr((prev) => ({ ...prev, ...res.container, can_resolve: res.container.status === "partially_received" }));
+      if (res?.container) {
+        setTr((prev) => ({ ...prev, ...res.container, can_resolve: res.container.status === "partially_received" }));
+      }
       message.success(action === "found" ? `${item.tracking_number} received and sorted` : `${item.tracking_number} marked lost`);
       onDone?.(res);
     } catch (e) {
@@ -487,55 +575,156 @@ export default function TransferReceiveScanner({ open, containerId, branchId = n
     }
   };
 
+  // Filtered item list for table
+  const displayedItems = useMemo(() => {
+    const raw = items.filter((i) => !["cancelled"].includes(i.status));
+    if (!canReceive || filterMode === "all") return raw;
+    if (filterMode === "intact") {
+      return raw.filter((i) => checked.includes(i.shipment_id) && !damagedItems[i.shipment_id]);
+    }
+    if (filterMode === "damaged") {
+      return raw.filter((i) => checked.includes(i.shipment_id) && !!damagedItems[i.shipment_id]);
+    }
+    if (filterMode === "missing") {
+      return raw.filter((i) => !checked.includes(i.shipment_id));
+    }
+    return raw;
+  }, [items, canReceive, filterMode, checked, damagedItems]);
+
   const columns = [
     {
       title: "Parcel",
       key: "parcel",
       render: (_, i) => (
-        <Space direction="vertical" size={0}>
-          <Text strong style={{ fontSize: 12 }}>{i.tracking_number || `#${i.shipment_id}`}</Text>
-          <Text type="secondary" style={{ fontSize: 11 }}>{i.receiver_name || ""}</Text>
+        <Space direction="vertical" size={1}>
+          <Text strong style={{ fontSize: 12.5 }}>{i.tracking_number || `#${i.shipment_id}`}</Text>
+          <Text type="secondary" style={{ fontSize: 11 }}>{i.receiver_name || "-"}</Text>
+          <Text type="secondary" style={{ fontSize: 10 }}>Weight: {Number(i.weight || 0).toFixed(2)} kg</Text>
         </Space>
       ),
     },
     {
-      title: "Here",
+      title: "Sorting Destination",
       key: "final",
-      width: 150,
+      width: 190,
       render: (_, i) =>
         i.is_final_here ? (
-          <Tag color="green" style={{ margin: 0 }}>Last mile</Tag>
+          <Tooltip title="Terminating at this branch: routed for doorstep delivery rider">
+            <Tag color="green" icon={<HomeOutlined />} style={{ margin: 0, fontWeight: 600 }}>
+              Last-Mile (Local)
+            </Tag>
+          </Tooltip>
         ) : (
-          <Tag color="purple" style={{ margin: 0 }}>→ {i.destination_name || "onward"}</Tag>
+          <Tooltip title={`Passing through: routes to next transit leg toward ${i.destination_name || "destination"}`}>
+            <Tag color="purple" icon={<SwapOutlined />} style={{ margin: 0, fontWeight: 600 }}>
+              → {i.destination_name || "Onward"}
+            </Tag>
+          </Tooltip>
         ),
     },
+    canReceive
+      ? {
+          title: "Physical Inspection / Triage",
+          key: "triage",
+          width: 270,
+          render: (_, i) => {
+            if (!OPEN_ITEM.includes(i.status)) {
+              return <Tag color={(ITEM_STATUS_META[i.status] || { color: "default" }).color}>{i.status}</Tag>;
+            }
+            const isMissing = !checked.includes(i.shipment_id);
+            const isDamaged = checked.includes(i.shipment_id) && !!damagedItems[i.shipment_id];
+            const isIntact = checked.includes(i.shipment_id) && !isDamaged;
+            const currentTriage = isDamaged ? "damaged" : isIntact ? "intact" : "missing";
+
+            return (
+              <Space direction="vertical" size={3}>
+                <Segmented
+                  size="small"
+                  value={currentTriage}
+                  onChange={(val) => {
+                    if (val === "damaged") {
+                      openDamageNoteDialog(i);
+                    } else {
+                      setItemTriage(i.shipment_id, val);
+                    }
+                  }}
+                  options={[
+                    {
+                      value: "intact",
+                      label: (
+                        <span style={{ color: isIntact ? "#16a34a" : undefined, fontWeight: isIntact ? 700 : 500 }}>
+                          ✓ Intact
+                        </span>
+                      ),
+                    },
+                    {
+                      value: "damaged",
+                      label: (
+                        <span style={{ color: isDamaged ? "#dc2626" : undefined, fontWeight: isDamaged ? 700 : 500 }}>
+                          ⚠️ Damaged
+                        </span>
+                      ),
+                    },
+                    {
+                      value: "missing",
+                      label: (
+                        <span style={{ color: isMissing ? "#d97706" : undefined, fontWeight: isMissing ? 700 : 500 }}>
+                          ✕ Missing
+                        </span>
+                      ),
+                    },
+                  ]}
+                />
+                {isDamaged && (
+                  <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                    <Tag color="error" style={{ margin: 0, fontSize: 10, maxWidth: 190, overflow: "hidden", textOverflow: "ellipsis" }}>
+                      {damagedItems[i.shipment_id]?.note || "Damaged condition"}
+                    </Tag>
+                    <Button
+                      type="text"
+                      size="small"
+                      icon={<EditOutlined style={{ fontSize: 11 }} />}
+                      onClick={() => openDamageNoteDialog(i)}
+                    />
+                  </div>
+                )}
+              </Space>
+            );
+          },
+        }
+      : {
+          title: "Status",
+          key: "status",
+          width: 140,
+          render: (_, i) => {
+            const meta = ITEM_STATUS_META[i.status] || { color: "default", label: i.status };
+            return (
+              <Space size={4}>
+                <Tag color={meta.color}>{meta.label}</Tag>
+                {i.discrepancy === "damaged" && <Tag color="red">Damaged</Tag>}
+                {i.is_extra && <Tag color="gold">Extra</Tag>}
+              </Space>
+            );
+          },
+        },
     {
-      title: "Status",
-      key: "status",
-      width: 170,
-      render: (_, i) => {
-        const ticked = checked.includes(i.shipment_id) && OPEN_ITEM.includes(i.status);
-        const meta = ITEM_STATUS_META[i.status] || { color: "default", label: i.status };
-        return (
-          <Space size={4} wrap>
-            {ticked ? <Tag color="success" style={{ margin: 0 }}>Ticked</Tag> : <Tag color={meta.color} style={{ margin: 0 }}>{meta.label}</Tag>}
-            {i.is_extra ? <Tag color="gold" style={{ margin: 0 }}>Extra</Tag> : null}
-          </Space>
-        );
-      },
-    },
-    {
-      title: "Cost",
-      dataIndex: "transport_cost",
-      align: "right",
-      width: 90,
-      render: (v) => (Number(v) ? `Rs ${Number(v).toFixed(2)}` : "-"),
+      title: "Transport",
+      key: "transport",
+      align: "center",
+      width: 110,
+      render: () => (
+        <Tooltip title="Line-haul and fleet costs are 100% centrally managed and settled by SuperAdmin / HQ. Zero branch deduction.">
+          <Tag color="cyan" style={{ margin: 0, fontSize: 10.5, fontWeight: 600 }}>
+            HQ Funded
+          </Tag>
+        </Tooltip>
+      ),
     },
     tr?.can_resolve
       ? {
-          title: "",
+          title: "Resolve",
           key: "resolve",
-          width: 150,
+          width: 130,
           render: (_, i) =>
             i.status === "missing" ? (
               <Space size={4}>
@@ -544,7 +733,7 @@ export default function TransferReceiveScanner({ open, containerId, branchId = n
                 </Button>
                 <Popconfirm
                   title={`Mark ${i.tracking_number} lost?`}
-                  description="The sending branch is notified. The parcel's transport share stays on this TR."
+                  description="The sending branch will be notified. This parcel will be marked lost."
                   okText="Mark lost"
                   okButtonProps={{ danger: true }}
                   onConfirm={() => resolve(i, "lost")}
@@ -567,41 +756,47 @@ export default function TransferReceiveScanner({ open, containerId, branchId = n
     return acc;
   }, {});
 
-  const titleNode = (<Space size={8} wrap>
-          <InboxOutlined />
-          <span>{tr ? (tr.can_receive ? `Receive ${tr.display_number}` : tr.display_number) : "Receive TR"}</span>
-          {tr ? <TrStatusTag status={tr.status} missing={tr.missing_count} /> : null}
-          {tr ? <SealTag c={tr} /> : null}
-          {tr ? (
-            <Text type="secondary" style={{ fontSize: 12, fontWeight: 400 }}>
-              {tr.from_branch?.name} → {tr.to_branch?.name}
-            </Text>
-          ) : null}
-        </Space>
+  const titleNode = (
+    <Space size={8} wrap align="center">
+      <InboxOutlined style={{ fontSize: 18, color: "#16a34a" }} />
+      <span style={{ fontWeight: 700 }}>
+        {tr ? (tr.can_receive ? `Receive & Inspect ${tr.display_number}` : tr.display_number) : "Receive TR"}
+      </span>
+      {tr ? <TrStatusTag status={tr.status} missing={tr.missing_count} /> : null}
+      {tr ? <SealTag c={tr} /> : null}
+      {tr ? (
+        <Text type="secondary" style={{ fontSize: 12, fontWeight: 500 }}>
+          {tr.from_branch?.name} → <strong>{tr.to_branch?.name}</strong>
+        </Text>
+      ) : null}
+    </Space>
   );
-  const extraNode = (<Space size={6}>
-          {tr?.id ? (
-            <>
-              <Button icon={<PrinterOutlined />} onClick={() => openTrPrint(tr.id, "manifest", branchId)}>
-                Manifest
-              </Button>
-              <Button icon={<PrinterOutlined />} onClick={() => openTrPrint(tr.id, "label", branchId)}>
-                Label
-              </Button>
-            </>
-          ) : null}
-          {tr?.can_repair ? (
-            <Button icon={<ToolOutlined />} onClick={() => setRepairOpen(true)}>
-              Repair receive
-            </Button>
-          ) : null}
-          {canReceive ? (
-            <Button type="primary" icon={<CheckCircleOutlined />} loading={saving} onClick={confirmReceive}>
-              Confirm receive ({checked.length + extras.length})
-            </Button>
-          ) : null}
-        </Space>
+
+  const extraNode = (
+    <Space size={6}>
+      {tr?.id ? (
+        <>
+          <Button icon={<PrinterOutlined />} onClick={() => openTrPrint(tr.id, "manifest", branchId)}>
+            Manifest
+          </Button>
+          <Button icon={<PrinterOutlined />} onClick={() => openTrPrint(tr.id, "label", branchId)}>
+            Label
+          </Button>
+        </>
+      ) : null}
+      {tr?.can_repair ? (
+        <Button icon={<ToolOutlined />} onClick={() => setRepairOpen(true)}>
+          Repair receive
+        </Button>
+      ) : null}
+      {canReceive ? (
+        <Button type="primary" icon={<CheckCircleOutlined />} loading={saving} onClick={confirmReceive} style={{ fontWeight: 600 }}>
+          Confirm Intake ({checked.length + extras.length})
+        </Button>
+      ) : null}
+    </Space>
   );
+
   const repairNode = tr?.can_repair ? (
     <RepairReceiveDialog
       tr={tr}
@@ -615,60 +810,61 @@ export default function TransferReceiveScanner({ open, containerId, branchId = n
       }}
     />
   ) : null;
+
   const bodyNode = (
     <>
       {repairNode}
       {!activeId ? (
         <Space direction="vertical" size={10} style={{ width: "100%", padding: "24px 0" }}>
-          <Text strong>Step 1: scan the TR bag label, or type the TR number</Text>
+          <Text strong>Step 1: Scan the TR bag label or type the TR number</Text>
           <Input.Search
             ref={trCodeRef}
             size="large"
             prefix={<BarcodeOutlined />}
-            placeholder="Scan the label or type the TR number, e.g. TR-000004 or 4"
+            placeholder="Scan barcode or type TR number, e.g. TR-KATHM-000004 or 4"
             value={trCode}
             onChange={(e) => {
               setTrCode(e.target.value);
               if (lookupError) setLookupError("");
             }}
             onSearch={onLookup}
-            enterButton="Open TR"
+            enterButton="Open Transfer"
             loading={looking}
             status={lookupError ? "error" : undefined}
             allowClear
           />
           {lookupError ? <Alert type="error" showIcon style={{ padding: "4px 8px" }} message={lookupError} /> : null}
           <Text type="secondary" style={{ fontSize: 12 }}>
-            Scanner or keyboard: 4, 000004, tr-4 and TR-000004 all work. Only TRs headed to your branch open here.
+            Accepts full TR tags (TR-KATHM-000004) or short numeric suffixes (4). Only transfers headed to your branch can be checked in.
           </Text>
         </Space>
       ) : loading && !tr ? (
         <div style={{ textAlign: "center", padding: 48 }}>
-          <Spin />
+          <Spin size="large" />
         </div>
       ) : !tr ? (
-        <Empty description="TR not found" />
+        <Empty description="Transfer container not found" />
       ) : (
         <Space direction="vertical" size={10} style={{ width: "100%" }}>
+          {/* Transfer Info Header */}
           <Descriptions size="small" column={{ xs: 1, sm: 2, md: 3 }} bordered>
-            <Descriptions.Item label="Vehicle">
+            <Descriptions.Item label="Carrier Vehicle">
               {[vehicleLabel(tr.vehicle_type), tr.vehicle_number].filter(Boolean).join(" · ") || "-"}
             </Descriptions.Item>
-            <Descriptions.Item label="Carried by">
+            <Descriptions.Item label="Assigned Rider / Driver">
               {tr.rider?.name || tr.driver_name || "-"}
               {tr.rider?.phone || tr.driver_phone ? ` · ${tr.rider?.phone || tr.driver_phone}` : ""}
             </Descriptions.Item>
-            <Descriptions.Item label="Trip cost">
-              {Number(tr.transport_cost) ? `Rs ${Number(tr.transport_cost).toFixed(2)} (${tr.transport_cost_split_mode})` : "-"}
+            <Descriptions.Item label="Fleet Financing">
+              <Tag color="green" style={{ margin: 0, fontWeight: 600 }}>100% HQ Financed (Rs 0 branch cost)</Tag>
             </Descriptions.Item>
             <Descriptions.Item label="Dispatched">{fmt(tr.dispatched_at)}</Descriptions.Item>
             <Descriptions.Item label="Received">{fmt(tr.received_at)}</Descriptions.Item>
-            <Descriptions.Item label="Sealed at dispatch">
-              {tr.seal_number ? <Text strong>{tr.seal_number}</Text> : <Text type="secondary">None recorded</Text>}
+            <Descriptions.Item label="Security Seal">
+              {tr.seal_number ? <Text strong code>{tr.seal_number}</Text> : <Text type="secondary">None recorded</Text>}
             </Descriptions.Item>
             {tr.seal_status ? (
               <Descriptions.Item label="Seal check at receive" span={3}>
-                {/* Each part is its own field: entered value, result, remark (only what was typed), who / when. */}
                 <Space direction="vertical" size={2}>
                   <span>
                     Entered at receive:{" "}
@@ -692,15 +888,14 @@ export default function TransferReceiveScanner({ open, containerId, branchId = n
             ) : null}
           </Descriptions>
 
+          {/* Seal Verification Step */}
           {canReceive ? (
-            <div style={{ border: "1px solid #f0f0f0", borderRadius: 8, padding: 10 }}>
+            <div style={{ border: "1px solid #e2e8f0", background: "#f8fafc", borderRadius: 8, padding: 10 }}>
               <Space direction="vertical" size={6} style={{ width: "100%" }}>
                 <Space size={6}>
-                  <SafetyCertificateOutlined />
-                  <Text strong>Step 2: check the seal</Text>
-                  {sealState ? (
-                    <Tag color={SEAL_META[sealState][0]} style={{ margin: 0 }}>{SEAL_META[sealState][1]}</Tag>
-                  ) : null}
+                  <SafetyCertificateOutlined style={{ color: "#2563eb" }} />
+                  <Text strong>Seal Verification</Text>
+                  {sealState ? <Tag color={SEAL_META[sealState][0]} style={{ margin: 0 }}>{SEAL_META[sealState][1]}</Tag> : null}
                 </Space>
                 {sentSeal ? (
                   <Space direction="vertical" size={6} style={{ width: "100%" }}>
@@ -711,42 +906,41 @@ export default function TransferReceiveScanner({ open, containerId, branchId = n
                       <Space direction="vertical" size={2}>
                         <Radio value="skip">
                           <Text strong>Not checked</Text>
-                          <Text type="secondary" style={{ fontSize: 12 }}> · receive without a seal result (default)</Text>
+                          <Text type="secondary" style={{ fontSize: 12 }}> · Proceed without seal inspection</Text>
                         </Radio>
                         <Radio value="ok">
                           <Text strong>Seal intact</Text>
-                          <Text type="secondary" style={{ fontSize: 12 }}> · seal on the bag, unbroken, number {sentSeal}</Text>
+                          <Text type="secondary" style={{ fontSize: 12 }}> · Seal on container is intact with matching number ({sentSeal})</Text>
                         </Radio>
                         <Radio value="tampered">
                           <Text strong>Seal broken or missing</Text>
-                          <Text type="secondary" style={{ fontSize: 12 }}> · seal cut / torn, bag opened, or no seal on the bag</Text>
+                          <Text type="secondary" style={{ fontSize: 12 }}> · Seal cut, missing, or bag open</Text>
                         </Radio>
                         <Radio value="mismatch">
                           <Text strong>Number mismatch</Text>
-                          <Text type="secondary" style={{ fontSize: 12 }}> · a seal is on the bag but its number is not {sentSeal}</Text>
+                          <Text type="secondary" style={{ fontSize: 12 }}> · Seal present but number does not match {sentSeal}</Text>
                         </Radio>
                       </Space>
                     </Radio.Group>
                     {sealAnswer !== "skip" ? (
-                    <Space size={6} wrap>
-                      <Text style={{ fontSize: 12 }}>Entered at receive (optional):</Text>
-                      <Input
-                        prefix={<BarcodeOutlined />}
-                        placeholder="Scan or type the number on the bag's seal"
-                        autoComplete="off"
-                        name="tr-seal-entered"
-                        value={sealValue}
-                        onChange={(e) => setSealValue(e.target.value)}
-                        maxLength={50}
-                        style={{ width: 300 }}
-                        status={sealValue && sealState === "mismatch" ? "warning" : undefined}
-                        allowClear
-                      />
-                    </Space>
+                      <Space size={6} wrap>
+                        <Text style={{ fontSize: 12 }}>Entered at receive (optional):</Text>
+                        <Input
+                          prefix={<BarcodeOutlined />}
+                          placeholder="Scan or type seal code"
+                          autoComplete="off"
+                          value={sealValue}
+                          onChange={(e) => setSealValue(e.target.value)}
+                          maxLength={50}
+                          style={{ width: 260 }}
+                          status={sealValue && sealState === "mismatch" ? "warning" : undefined}
+                          allowClear
+                        />
+                      </Space>
                     ) : null}
                   </Space>
                 ) : (
-                  <Text type="secondary" style={{ fontSize: 12 }}>No seal was recorded at dispatch: seal check skipped.</Text>
+                  <Text type="secondary" style={{ fontSize: 12 }}>No security seal recorded at dispatch.</Text>
                 )}
                 {sealState && sealState !== "ok" ? (
                   <>
@@ -756,73 +950,83 @@ export default function TransferReceiveScanner({ open, containerId, branchId = n
                       style={{ padding: "4px 8px" }}
                       message={
                         sealState === "tampered"
-                          ? "Seal broken or missing: the TR is flagged and the sending branch is notified. Receiving continues normally."
-                          : `Number mismatch: sealed at dispatch ${sentSeal}, entered at receive ${sealValue.trim() || "(not typed)"}. The TR is flagged and the sending branch is notified. Receiving continues normally.`
+                          ? "Seal broken or missing: discrepancy logged and sending hub will be alerted. Inspection continues."
+                          : `Number mismatch: dispatch sealed ${sentSeal}, entered ${sealValue.trim() || "(none)"}. Discrepancy logged.`
                       }
                     />
                     <Input.TextArea
                       rows={1}
                       maxLength={500}
-                      placeholder="Short remark (required): what is wrong with the seal / bag"
-                      autoComplete="off"
+                      placeholder="Short remark (required): what was observed with the seal / container bag"
                       value={sealRemark}
                       onChange={(e) => setSealRemark(e.target.value)}
                       status={!sealRemark.trim() ? (showErrors ? "error" : "warning") : undefined}
                     />
-                    {showErrors && !sealRemark.trim() ? (
-                      <Text type="danger" style={{ fontSize: 12 }}>A short remark is required when the seal is not intact.</Text>
-                    ) : null}
                   </>
                 ) : null}
               </Space>
             </div>
           ) : null}
 
-          <Space size={24} wrap>
-            <Statistic title="Expected" value={tr.expected_count} valueStyle={{ fontSize: 18 }} />
-            <Statistic title="Received" value={tr.received_count} valueStyle={{ fontSize: 18, color: "#389e0d" }} />
-            <Statistic title="Missing" value={tr.missing_count} valueStyle={{ fontSize: 18, color: tr.missing_count ? "#d46b08" : undefined }} />
-            <Statistic title="Extra" value={tr.extra_count} valueStyle={{ fontSize: 18 }} />
-            <Statistic title="Last mile" value={tr.last_mile_count} valueStyle={{ fontSize: 18 }} />
-            <Statistic title="Onward" value={tr.onward_count} valueStyle={{ fontSize: 18 }} />
+          {/* Metric Statistics */}
+          <Space size={20} wrap style={{ background: "#ffffff", padding: "8px 12px", borderRadius: 8, border: "1px solid #e2e8f0" }}>
+            <Statistic title="Expected Manifest" value={tr.expected_count} valueStyle={{ fontSize: 16 }} />
+            <Statistic title="Received Intact" value={canReceive ? intactNow.length : tr.received_count} valueStyle={{ fontSize: 16, color: "#16a34a" }} />
+            <Statistic title="Damaged / Broken" value={canReceive ? damagedNow.length : 0} valueStyle={{ fontSize: 16, color: damagedNow.length ? "#dc2626" : "#64748b" }} />
+            <Statistic title="Missing" value={canReceive ? missingNow.length : tr.missing_count} valueStyle={{ fontSize: 16, color: missingNow.length ? "#d97706" : "#64748b" }} />
+            <Statistic title="Last-Mile Delivery" value={tr.last_mile_count} valueStyle={{ fontSize: 16, color: "#2563eb" }} />
+            <Statistic title="Onward Transfer" value={tr.onward_count} valueStyle={{ fontSize: 16, color: "#9333ea" }} />
           </Space>
 
+          {/* Scanner & Quick Triage Controls */}
           {canReceive ? (
-            <Space.Compact style={{ width: "100%" }}>
-              <Input
-                ref={scanRef}
-                prefix={<BarcodeOutlined />}
-                placeholder="Type or scan a tracking number, press Enter (or tick rows below)"
-                value={scan}
-                onChange={(e) => setScan(e.target.value)}
-                onPressEnter={onScan}
-                allowClear
-              />
-              <Button onClick={onScan} disabled={!scan.trim()}>
-                Tick
-              </Button>
-              <Button icon={<CheckSquareOutlined />} onClick={() => setChecked(openItems.map((i) => i.shipment_id))}>
-                All parcels present
-              </Button>
-              <Button onClick={() => { setChecked([]); setExtras([]); }}>Clear</Button>
-            </Space.Compact>
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              <Space.Compact style={{ width: "100%" }}>
+                <Input
+                  ref={scanRef}
+                  prefix={<BarcodeOutlined style={{ color: "#2563eb" }} />}
+                  placeholder="Scan or type parcel tracking number and press Enter to mark intact..."
+                  value={scan}
+                  onChange={(e) => setScan(e.target.value)}
+                  onPressEnter={onScan}
+                  allowClear
+                />
+                <Button type="primary" onClick={onScan} disabled={!scan.trim()}>
+                  Verify ✓
+                </Button>
+                <Button icon={<CheckSquareOutlined />} onClick={markAllIntact}>
+                  Mark All Intact
+                </Button>
+                <Button onClick={markAllMissing}>Clear All</Button>
+              </Space.Compact>
+
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
+                <Segmented
+                  size="small"
+                  value={filterMode}
+                  onChange={setFilterMode}
+                  options={[
+                    { value: "all", label: `All Parcels (${openItems.length})` },
+                    { value: "intact", label: `✓ Intact (${intactNow.length})` },
+                    { value: "damaged", label: `⚠️ Damaged (${damagedNow.length})` },
+                    { value: "missing", label: `✕ Missing (${missingNow.length})` },
+                  ]}
+                />
+                <Space size={6}>
+                  <Badge status="success" text={`${intactNow.length} intact`} />
+                  {damagedNow.length ? <Badge status="error" text={`${damagedNow.length} damaged`} /> : null}
+                  {missingNow.length ? <Badge status="warning" text={`${missingNow.length} missing`} /> : null}
+                  {extras.map((code) => (
+                    <Tag key={code} color="gold" closable onClose={() => setExtras((p) => p.filter((x) => x !== code))} style={{ margin: 0 }}>
+                      Extra: {code}
+                    </Tag>
+                  ))}
+                </Space>
+              </div>
+            </div>
           ) : null}
 
-          {canReceive ? (
-            <Space size={6} wrap>
-              <Badge status="success" text={`${checked.length} ticked`} />
-              <Badge
-                status={missingNow.length ? "warning" : "success"}
-                text={missingNow.length ? `${missingNow.length} not ticked: marked missing on confirm` : "All parcels present"}
-              />
-              {extras.map((code) => (
-                <Tag key={code} color="gold" closable onClose={() => setExtras((p) => p.filter((x) => x !== code))} style={{ margin: 0 }}>
-                  Extra: {code}
-                </Tag>
-              ))}
-            </Space>
-          ) : null}
-
+          {/* Alerts / Error Notices */}
           {canReceive && showErrors && blockers.length ? (
             <Alert
               type="error"
@@ -842,39 +1046,39 @@ export default function TransferReceiveScanner({ open, containerId, branchId = n
             <Alert type="error" showIcon closable onClose={() => setServerError("")} style={{ padding: "6px 10px" }} message={serverError} />
           ) : null}
 
+          {/* Post-Intake Completion Summary */}
           {result ? (
             <Alert
-              type={result.missing?.length || result.rejected?.length ? "warning" : "success"}
+              type={result.missing?.length || result.damaged?.length ? "warning" : "success"}
               showIcon
-              message={result.message || "TR received"}
+              message={<span style={{ fontWeight: 700 }}>{result.message || "TR Checked In Successfully"}</span>}
               description={
-                <Space direction="vertical" size={2} style={{ fontSize: 12 }}>
-                  <span>
-                    <CheckCircleOutlined style={{ color: "#389e0d" }} /> {lastMile.length} sorted for last-mile delivery here.
-                  </span>
-                  <span>
-                    <InboxOutlined /> {onward.length} sorted for onward transfer
-                    {Object.keys(onwardByHop).length
-                      ? ` (${Object.entries(onwardByHop).map(([k, v]) => `${v} → ${k}`).join(", ")})`
-                      : ""}
-                    ; they appear in Outbound for your next TR.
-                  </span>
+                <Space direction="vertical" size={4} style={{ fontSize: 12.5, marginTop: 4 }}>
+                  <div style={{ color: "#15803d", display: "flex", alignItems: "center", gap: 6 }}>
+                    <HomeOutlined />
+                    <strong>{lastMile.length} parcel(s) sorted for Last-Mile Doorstep Delivery:</strong> moved to local rider delivery queue.
+                  </div>
+                  <div style={{ color: "#7e22ce", display: "flex", alignItems: "center", gap: 6 }}>
+                    <SwapOutlined />
+                    <strong>{onward.length} parcel(s) sorted for Onward Hub Transfer:</strong> staged for outbound transfer manifests
+                    {Object.keys(onwardByHop).length ? ` (${Object.entries(onwardByHop).map(([k, v]) => `${v} → ${k}`).join(", ")})` : ""}.
+                  </div>
+                  {result.damaged?.length ? (
+                    <div style={{ color: "#dc2626", display: "flex", alignItems: "center", gap: 6 }}>
+                      <WarningOutlined />
+                      <strong>{result.damaged.length} parcel(s) flagged DAMAGED:</strong> condition logged in audit timeline; sending hub notified.
+                    </div>
+                  ) : null}
                   {result.missing?.length ? (
-                    <span>
-                      <WarningOutlined style={{ color: "#d46b08" }} /> {result.missing.length} missing:{" "}
-                      {result.missing.map((m) => m.tracking_number).join(", ")}. Resolve below when found or lost.
-                    </span>
+                    <div style={{ color: "#d97706", display: "flex", alignItems: "center", gap: 6 }}>
+                      <WarningOutlined />
+                      <strong>{result.missing.length} parcel(s) MISSING:</strong> sending branch notified. Resolve below once located.
+                    </div>
                   ) : null}
                   {result.extras?.length ? (
-                    <span>
-                      {result.extras.length} extra taken in: {result.extras.map((x) => `${x.tracking_number}${x.booked_on ? ` (was on ${x.booked_on})` : ""}`).join(", ")}
-                    </span>
-                  ) : null}
-                  {result.rejected?.length ? (
-                    <span>
-                      <CloseCircleOutlined style={{ color: "#cf1322" }} /> Rejected:{" "}
-                      {result.rejected.map((r) => `${r.tracking_number || r.code}: ${r.reason}`).join("; ")}
-                    </span>
+                    <div style={{ color: "#b45309" }}>
+                      <strong>{result.extras.length} extra parcel(s) accepted into hub inventory.</strong>
+                    </div>
                   ) : null}
                 </Space>
               }
@@ -886,57 +1090,87 @@ export default function TransferReceiveScanner({ open, containerId, branchId = n
               type="warning"
               showIcon
               style={{ padding: "6px 10px" }}
-              message={`${missingItems.length} parcel(s) missing on this TR. Mark Found when it turns up (it is received and sorted), or Lost.`}
+              message={`${missingItems.length} parcel(s) missing on this TR. Mark Found when received, or Lost.`}
             />
           ) : null}
 
+          {/* Manifest Shipments Table */}
           <Table
             size="small"
             rowKey="item_id"
             loading={loading}
-            dataSource={items.filter((i) => !["cancelled"].includes(i.status))}
+            dataSource={displayedItems}
             columns={columns}
-            pagination={items.length > 50 ? { pageSize: 50, size: "small" } : false}
-            rowSelection={
-              canReceive
-                ? {
-                    selectedRowKeys: openItems.filter((i) => checked.includes(i.shipment_id)).map((i) => i.item_id),
-                    getCheckboxProps: (i) => ({ disabled: !OPEN_ITEM.includes(i.status) || i.is_extra }),
-                    onChange: (keys) => {
-                      const set = new Set(keys);
-                      setChecked(openItems.filter((i) => set.has(i.item_id)).map((i) => i.shipment_id));
-                    },
-                  }
-                : undefined
-            }
-            rowClassName={(i) => (canReceive && OPEN_ITEM.includes(i.status) && !checked.includes(i.shipment_id) ? "tr-row-pending" : "")}
-            scroll={{ x: 640 }}
+            pagination={displayedItems.length > 30 ? { pageSize: 30, size: "small" } : false}
+            scroll={{ x: 680 }}
           />
 
           {canReceive ? (
             <Input.TextArea
               rows={1}
               maxLength={500}
-              placeholder="Remarks (optional, e.g. bag torn, 1 parcel wet)"
-              autoComplete="off"
+              placeholder="Intake remarks (optional, e.g. all 12 boxes checked, container seal intact)"
               value={remarks}
               onChange={(e) => setRemarks(e.target.value)}
             />
           ) : null}
+
           {canReceive ? (
-            <Space wrap style={{ justifyContent: "flex-end", width: "100%" }}>
-              {blockers.length ? (
-                <Text type="secondary" style={{ fontSize: 12 }}>
-                  <WarningOutlined /> {blockers[0]}
-                </Text>
-              ) : null}
-              <Button type="primary" icon={<CheckCircleOutlined />} loading={saving} onClick={confirmReceive}>
-                Confirm receive ({checked.length + extras.length} of {openItems.length})
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", width: "100%", marginTop: 4 }}>
+              <Text type="secondary" style={{ fontSize: 12 }}>
+                {missingNow.length ? `${missingNow.length} unticked parcels will be flagged missing.` : "All parcels checked."}
+              </Text>
+              <Button type="primary" size="large" icon={<CheckCircleOutlined />} loading={saving} onClick={confirmReceive} style={{ fontWeight: 700 }}>
+                Confirm Intake & Auto-Sort ({checked.length + extras.length} of {openItems.length})
               </Button>
-            </Space>
+            </div>
           ) : null}
         </Space>
       )}
+
+      {/* Damage Note Modal */}
+      <Modal
+        open={damageDialog.open}
+        title={`Report Damage: ${damageDialog.trackingNumber}`}
+        onCancel={() => setDamageDialog({ open: false, shipmentId: null, trackingNumber: "", note: "" })}
+        onOk={saveDamageNote}
+        okText="Record as Damaged"
+        okButtonProps={{ danger: true }}
+      >
+        <Space direction="vertical" size={10} style={{ width: "100%" }}>
+          <Alert
+            type="warning"
+            showIcon
+            message="Damaged parcel will be accepted into hub inventory with condition flag, and the sending branch will be notified."
+          />
+          <Text strong>Quick Presets:</Text>
+          <Space wrap size={4}>
+            {[
+              "Outer packaging crushed / torn",
+              "Security seal broken / opened",
+              "Item broken / physical impact",
+              "Wet / liquid spill leakage",
+              "Defective / damaged box",
+            ].map((p) => (
+              <Tag
+                key={p}
+                style={{ cursor: "pointer", margin: 2 }}
+                onClick={() => setDamageDialog((d) => ({ ...d, note: p }))}
+              >
+                {p}
+              </Tag>
+            ))}
+          </Space>
+          <Text strong style={{ marginTop: 6, display: "block" }}>Damage Description / Note:</Text>
+          <Input.TextArea
+            rows={2}
+            maxLength={255}
+            value={damageDialog.note}
+            onChange={(e) => setDamageDialog((d) => ({ ...d, note: e.target.value }))}
+            placeholder="Describe the condition or visible defects..."
+          />
+        </Space>
+      </Modal>
     </>
   );
 
@@ -956,11 +1190,11 @@ export default function TransferReceiveScanner({ open, containerId, branchId = n
     <Drawer
       open={open}
       onClose={onClose}
-      width={860}
+      width={900}
       destroyOnClose
       title={titleNode}
       extra={extraNode}
-      styles={{ body: { padding: 12 } }}
+      styles={{ body: { padding: 14 } }}
     >
       {bodyNode}
     </Drawer>
