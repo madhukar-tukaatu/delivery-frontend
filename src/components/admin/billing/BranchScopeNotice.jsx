@@ -6,7 +6,7 @@ import { usePermissions } from "@/hooks/usePermission";
 const HQ_ROLES = ["super_admin", "main_admin", "admin"];
 
 /**
- * True for HQ users (super admin / main admin). Finance APIs are not branch-filtered for them.
+ * True for HQ users (super admin / main admin). Finance APIs are not branch-filtered for them. 
  */
 export function useIsFinanceHq() {
   const { isSuperAdmin, roles, primaryRole } = usePermissions();
