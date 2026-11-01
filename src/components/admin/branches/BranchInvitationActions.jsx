@@ -129,7 +129,7 @@ export default function BranchInvitationActions({
         message.error(
           errorMessage(
             error,
-            "Could not resend the account invitation.",
+            "Could not send the account invitation.",
           ),
         );
       } finally {
@@ -137,12 +137,13 @@ export default function BranchInvitationActions({
       }
     };
 
-  const canResend =
+  const isPendingSetup =
+    branch?.account_invitation_status === "pending_admin_approval";
+
+  const canSendInvitation =
     isFranchise(branch) &&
     isApproved(branch) &&
-    branch
-      ?.account_invitation_status !==
-      "account_configured";
+    branch?.account_invitation_status !== "account_configured";
 
   return (
     <Space wrap>
@@ -151,16 +152,12 @@ export default function BranchInvitationActions({
           title="Approve this branch?"
           description="For a franchise branch, this will queue the Branch Manager account setup email."
           okText="Approve"
-          onConfirm={
-            handleApprove
-          }
+          onConfirm={handleApprove}
         >
           <Button
             type="primary"
             size="small"
-            icon={
-              <CheckOutlined />
-            }
+            icon={<CheckOutlined />}
             loading={approving}
           >
             Approve
@@ -168,23 +165,28 @@ export default function BranchInvitationActions({
         </Popconfirm>
       ) : null}
 
-      {canResend ? (
+      {canSendInvitation ? (
         <Popconfirm
-          title="Send a new account setup link?"
-          description="The previous password setup link will become invalid."
-          okText="Send"
-          onConfirm={
-            handleResend
+          title={
+            isPendingSetup
+              ? "Send account setup email?"
+              : "Send a new account setup link?"
           }
+          description={
+            isPendingSetup
+              ? "This will queue the Branch Manager account setup email."
+              : "The previous password setup link will become invalid."
+          }
+          okText="Send"
+          onConfirm={handleResend}
         >
           <Button
             size="small"
-            icon={
-              <MailOutlined />
-            }
+            type={isPendingSetup ? "primary" : "default"}
+            icon={<MailOutlined />}
             loading={resending}
           >
-            Resend Setup Email
+            {isPendingSetup ? "Send Setup Email" : "Resend Setup Email"}
           </Button>
         </Popconfirm>
       ) : null}
