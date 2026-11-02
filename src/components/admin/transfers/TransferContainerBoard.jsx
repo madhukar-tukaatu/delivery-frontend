@@ -167,6 +167,7 @@ export default function TransferContainerBoard({
   scanLookup = false,
   onDispatchOpen,
   onChanged,
+  onCountLoaded,
   highlightId = null,
   emptyText = "No TRs",
 }) {
@@ -230,7 +231,9 @@ export default function TransferContainerBoard({
         const res = await getContainers(q);
         const list = res.list || [];
         setRows(list);
-        setTotal(Number(res.total || 0));
+        const loadedTotal = Number(res.total || 0);
+        setTotal(loadedTotal);
+        onCountLoaded?.(loadedTotal, tabKey);
         setPage(res.currentPage || p);
         // Keep the remembered TR when it is in this list (or was opened on purpose);
         // otherwise open the first TR so its receive / detail shows right away.
