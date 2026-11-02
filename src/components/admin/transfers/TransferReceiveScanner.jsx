@@ -243,6 +243,8 @@ export default function TransferReceiveScanner({
   onDone,
   branchId = null,
   inline = false,
+  readOnly = false,
+  canReceive: canReceiveProp,
 }) {
   const [activeId, setActiveId] = useState(containerId);
   const [tr, setTr] = useState(null);
@@ -331,7 +333,7 @@ export default function TransferReceiveScanner({
   const items = useMemo(() => tr?.items || [], [tr]);
   const openItems = useMemo(() => items.filter((i) => OPEN_ITEM.includes(i.status) && !i.is_extra), [items]);
   const missingItems = useMemo(() => items.filter((i) => i.status === "missing"), [items]);
-  const canReceive = !!tr?.can_receive;
+  const canReceive = canReceiveProp !== undefined ? (!!canReceiveProp && !!tr?.can_receive) : (readOnly ? false : !!tr?.can_receive);
 
   // Auto-tick all open items on initial open (1-click receive ready)
   const autoTickedFor = useRef(null);
