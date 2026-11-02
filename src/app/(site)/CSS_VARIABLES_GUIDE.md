@@ -11,7 +11,7 @@ All variables are defined in `site.css` using semantic naming conventions.
 
 ### Primary Brand Color (Blue)
 ```css
---color-brand-primary: #027196;           /* Main brand blue */
+--color-brand-primary: #027196;           /* Main brand blue */ 
 --color-brand-primary-light: #0284c7;     /* Lighter blue for backgrounds */
 --color-brand-primary-dark: #01547a;      /* Darker blue for emphasis */
 ```
