@@ -81,9 +81,11 @@ export default function ShipmentWorkflowActions({ shipment, onReceiveOrigin, onD
         ) : null}
       </Card>
 
-      <Card title="Route Steps">
-        <Table rowKey="id" columns={routeColumns} dataSource={steps} pagination={false} scroll={{ x: true }} />
-      </Card>
+      {steps.length > 0 && (
+        <Card title="Route Steps">
+          <Table rowKey="id" columns={routeColumns} dataSource={steps} pagination={false} scroll={{ x: true }} />
+        </Card>
+      )}
     </Space>
   );
 }

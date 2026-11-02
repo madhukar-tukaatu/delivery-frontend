@@ -50,6 +50,7 @@ import {
   PrinterOutlined,
   PlusOutlined,
   EditOutlined,
+  SyncOutlined,
 } from "@ant-design/icons";
 import { usePermissions } from "@/hooks/usePermission";
 import api from "@/lib/api";
@@ -70,6 +71,7 @@ import {
   dispatchContainer,
   addContainerItems,
   openTrPrint,
+  reconcileTransfers,
 } from "@/services/admin/transferService";
 import OpenTrManager from "@/components/admin/transfers/OpenTrManager";
 
@@ -1960,7 +1962,9 @@ export default function TransfersPage() {
       case "transferIn":
         return activeSubTab === "received" ? "received" : "inbound";
       case "transferOut":
-        return activeSubTab === "completed" ? "completed" : "outbound";
+        if (activeSubTab === "completed") return "completed";
+        if (activeSubTab === "in_transit") return "outbound_in_transit";
+        return "outbound";
       case "history":
         return "history";
       default:
@@ -1980,6 +1984,7 @@ export default function TransfersPage() {
     outbound: 0,
     sent: 0,
     in_transit: 0,
+    outbound_in_transit_trs: 0,
     received: 0,
     completed: 0,
     total_value: 0,
@@ -2035,7 +2040,7 @@ export default function TransfersPage() {
     const sp = new URLSearchParams(window.location.search);
     const tab = sp.get("tab");
     const tr = Number(sp.get("tr") || 0);
-    const OLD_TABS = ["outbound", "sent", "inbound", "received", "completed", "history"];
+    const OLD_TABS = ["outbound", "sent", "inbound", "received", "completed", "history", "in_transit", "outbound_in_transit"];
     let last = null;
     try {
       last = window.sessionStorage.getItem("transfers:last-tab");
@@ -2069,6 +2074,11 @@ export default function TransfersPage() {
         case "history":
           setActiveParentTab("history");
           setActiveSubTab("process"); // default sub-tab for history
+          break;
+        case "in_transit":
+        case "outbound_in_transit":
+          setActiveParentTab("transferOut");
+          setActiveSubTab("in_transit");
           break;
       }
     } else if (last && OLD_TABS.includes(last)) {
@@ -2629,6 +2639,21 @@ export default function TransfersPage() {
   const refresh = useCallback(async () => {
     await Promise.all([loadStats(), loadData()]);
   }, [loadStats, loadData]);
+
+  const [reconciling, setReconciling] = useState(false);
+  const handleReconcile = useCallback(async () => {
+    setReconciling(true);
+    try {
+      const res = await reconcileTransfers(selectedBranchId ? { branch_id: selectedBranchId } : {});
+      message.success(`Reconciled ${res.reconciled_shipments_count || 0} shipment(s) and ${res.reconciled_manifests_count || 0} TR(s)`);
+      setTrReloadKey((k) => k + 1);
+      await Promise.all([loadStats(), loadData()]);
+    } catch (e) {
+      message.error(e?.response?.data?.message || "Failed to reconcile transfers");
+    } finally {
+      setReconciling(false);
+    }
+  }, [selectedBranchId, loadStats, loadData]);
 
   const branchExtra = selectedBranchId ? { branch_id: selectedBranchId } : {};
 
@@ -3506,6 +3531,34 @@ export default function TransfersPage() {
               ),
             },
             {
+              key: "in_transit",
+              label: (
+                <span>
+                  <CarOutlined /> In Transit ({countLabel(stats.outbound_in_transit_trs ?? stats.in_transit, "TR")})
+                </span>
+              ),
+              children: (
+                <Card styles={{ body: { padding: 0 } }} style={{ borderRadius: 14 }}>
+                  <TabGuide
+                    type="info"
+                    message="TRs sent from this branch that are currently in transit on the road toward the next transit hub or destination branch."
+                  />
+                  <TransferContainerBoard
+                    {...trBoardProps}
+                    tabKey="outbound-intransit"
+                    direction="outbound"
+                    highlightId={activeParentTab === "transferOut" && activeSubTab === "in_transit" ? deepLinkTr : null}
+                    defaultStatuses="dispatched,in_transit"
+                    statusOptions={[
+                      { value: "dispatched,in_transit", label: "On the way (Dispatched / In Transit)" },
+                      { value: "partially_received", label: "Partially received at destination" },
+                    ]}
+                    emptyText="No TRs currently in transit from this branch"
+                  />
+                </Card>
+              ),
+            },
+            {
               key: "completed",
               label: (
                 <span>
@@ -3862,7 +3915,10 @@ export default function TransfersPage() {
       {/* Tabs */}
       <Tabs
         activeKey={activeParentTab}
-        onChange={setActiveParentTab}
+        onChange={(k) => {
+          setActiveParentTab(k);
+          setActiveSubTab("process");
+        }}
         items={tabItems}
       />
 

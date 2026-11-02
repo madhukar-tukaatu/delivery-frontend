@@ -71,6 +71,11 @@ export async function getTransferStats(branchId = null) {
   return {
     outbound: Number(payload.outbound ?? 0),
     in_transit: Number(payload.in_transit ?? 0),
+    in_transit_trs: Number(payload.in_transit_trs ?? 0),
+    outbound_in_transit_trs: Number(payload.outbound_in_transit_trs ?? 0),
+    received_trs: Number(payload.received_trs ?? 0),
+    completed_trs: Number(payload.completed_trs ?? 0),
+    completed_parcels: Number(payload.completed_parcels ?? 0),
     received: Number(payload.received ?? 0),
     completed: Number(payload.completed ?? 0),
     total_value: Number(payload.total_value ?? 0),

@@ -29,6 +29,8 @@ import {
   SafetyCertificateOutlined,
   ThunderboltOutlined,
   InfoCircleOutlined,
+  CompassOutlined,
+  ClusterOutlined,
 } from "@ant-design/icons";
 import { getTransferRiders } from "@/services/admin/transferService";
 
@@ -186,6 +188,8 @@ export default function TransferDispatchModal({
         final: Number(s.destination_branch_id || 0) === Number(nextHopId || 0) ? "Last mile" : destinationName(s),
         is_last_mile: Number(s.destination_branch_id || 0) === Number(nextHopId || 0),
         receiver_name: s.receiver_name || s.recipient_name || "-",
+        path_text: s.path_text || s.hop_meta?.path_text || s.transfer_summary?.path_text || null,
+        route_name: s.route_name || s.hop_meta?.route_name || null,
       })),
     [shipments, nextHopId]
   );
@@ -275,7 +279,13 @@ export default function TransferDispatchModal({
           }
           description={
             <Text type="secondary" style={{ fontSize: 12 }}>
-              Parcels ride together to <strong>{nextHopName}</strong>. On arrival, {nextHopName} hub inspects shipments (intact, damaged, missing): last-mile parcels are dispatched for local delivery, and onward parcels join the next transit leg automatically.
+              Parcels ride together to <strong>{nextHopName}</strong>. On arrival, {nextHopName} hub inspects shipments: last-mile parcels are dispatched for local delivery, and onward parcels join the next transit leg automatically.
+              {split.onwardCount > 0 && (
+                <span style={{ display: "block", background: "#f8fafc", border: "1px dashed #cbd5e1", borderRadius: 6, padding: "5px 8px", marginTop: 6, color: "#334155" }}>
+                  <ClusterOutlined style={{ color: "#2563eb", marginRight: 5 }} />
+                  <strong>Regional Hub Pooling:</strong> {split.onwardCount} parcel(s) will consolidate at <strong>{nextHopName}</strong> with that hub&apos;s shipments before onward transit, optimizing vehicle capacity and lowering line-haul costs.
+                </span>
+              )}
             </Text>
           }
         />
@@ -500,7 +510,15 @@ export default function TransferDispatchModal({
                     </Tag>
                   ) : (
                     <Tag color="purple" style={{ margin: 0, fontWeight: 600 }}>
-                      → {v} (via {nextHopName})
+                      <div>
+                        → {v} (via {nextHopName})
+                        {r.path_text && (
+                          <div style={{ fontSize: 10.5, color: "#64748b", marginTop: 2 }}>
+                            <CompassOutlined style={{ marginRight: 3, color: "#1677ff" }} />
+                            <span>{r.path_text}</span>
+                          </div>
+                        )}
+                      </div>
                     </Tag>
                   ),
               },

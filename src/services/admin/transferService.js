@@ -71,6 +71,11 @@ export async function getTransferStats(branchId = null) {
   return {
     outbound: Number(payload.outbound ?? 0),
     sent: Number(payload.sent ?? 0),
+    in_transit_trs: Number(payload.in_transit_trs ?? 0),
+    outbound_in_transit_trs: Number(payload.outbound_in_transit_trs ?? 0),
+    received_trs: Number(payload.received_trs ?? 0),
+    completed_trs: Number(payload.completed_trs ?? 0),
+    completed_parcels: Number(payload.completed_parcels ?? 0),
     in_transit: Number(payload.in_transit ?? 0),
     received: Number(payload.received ?? 0),
     completed: Number(payload.completed ?? 0),
@@ -425,4 +430,9 @@ export function trPrintUrl(containerId, type = "label", branchId = null) {
 export function openTrPrint(containerId, type = "label", branchId = null) {
   if (typeof window === "undefined" || !containerId) return;
   window.open(trPrintUrl(containerId, type, branchId), "_blank", "noopener");
+}
+
+export async function reconcileTransfers(params = {}) {
+  const response = await api.post("/admin/transfers/reconcile", {}, { params });
+  return unwrap(response) || {};
 }
