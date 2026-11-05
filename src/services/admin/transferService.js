@@ -58,6 +58,12 @@ export async function getTransfers(params = {}) {
   return normalizeList(response, params);
 }
 
+export async function getNetworkOverview(branchId = null) {
+  const params = branchId ? { branch_id: branchId } : {};
+  const response = await api.get("/admin/transfers/network-overview", { params });
+  return unwrap(response) ?? {};
+}
+
 /**
  * Get comprehensive transfer statistics (cross-branch only).
  *

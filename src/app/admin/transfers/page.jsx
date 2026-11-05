@@ -74,6 +74,7 @@ import {
   reconcileTransfers,
 } from "@/services/admin/transferService";
 import OpenTrManager from "@/components/admin/transfers/OpenTrManager";
+import NetworkFlowDashboard from "@/components/admin/transfers/NetworkFlowDashboard";
 
 const { Text, Title } = Typography;
 const { RangePicker } = DatePicker;
@@ -3224,8 +3225,26 @@ export default function TransfersPage() {
 
   const { rows: currentRows, columns: currentColumns, count: currentCount } = getCurrentData();
 
-  // Tab items configuration - New structure: Transfer Ins / Transfer Outs / History
+  // Tab items configuration - Control Tower / Transfer Ins / Transfer Outs / History
   const tabItems = [
+    {
+      key: "networkFlow",
+      label: (
+        <span>
+          <CompassOutlined /> Network Flow & Pulse
+        </span>
+      ),
+      children: (
+        <NetworkFlowDashboard
+          branchId={selectedBranchId}
+          onSelectTr={(tr) => {
+            setActiveParentTab("transferOut");
+            setActiveSubTab("in_transit");
+            setDeepLinkTr(tr.id);
+          }}
+        />
+      ),
+    },
     {
       key: "transferIn",
       label: (
