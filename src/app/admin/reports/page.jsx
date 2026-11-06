@@ -1,10 +1,12 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Badge, Button, Card, Col, Row, Space, Spin, Statistic, Table, Tag, Tabs, Typography } from "antd";
+import { Badge, Button, Card, Col, Row, Space, Spin, Statistic, Table, Tag, Tabs, Typography, Progress } from "antd";
 import {
   BankOutlined, BranchesOutlined, CarOutlined, DollarOutlined,
   ReloadOutlined, ShopOutlined, TeamOutlined, WalletOutlined,
+  RiseOutlined, FallOutlined, SwapOutlined, FileTextOutlined,
+  SafetyCertificateOutlined
 } from "@ant-design/icons";
 import api from "@/lib/api";
 import { usePermissions } from "@/hooks/usePermission";
@@ -22,17 +24,22 @@ export default function ReportsPage() {
   const [cache, setCache] = useState({});
   const [loading, setLoading] = useState(false);
 
-  // Build tabs based on permissions
+  // Build comprehensive tabs based on permissions
   const allTabs = [
+    { key: "profit-loss", label: "Profit & Loss (P&L)", icon: <RiseOutlined />, permission: "reports.revenue" },
+    { key: "revenue", label: "Revenue Ledger", icon: <DollarOutlined />, permission: "reports.revenue" },
+    { key: "expenses", label: "Operating Expenses", icon: <FallOutlined />, permission: "reports.revenue" },
+    { key: "branch-shares", label: "Branch Shares (40/45/15)", icon: <SwapOutlined />, permission: "reports.revenue" },
+    { key: "cash-flow", label: "Cash Flow & Vault", icon: <WalletOutlined />, permission: "reports.pod" },
+    { key: "transactions", label: "Transaction Feed", icon: <FileTextOutlined />, permission: "reports.view" },
     { key: "shipments", label: "Shipments", icon: <CarOutlined />, permission: "reports.view" },
-    { key: "revenue", label: "Revenue", icon: <DollarOutlined />, permission: "reports.revenue" },
-    { key: "pod", label: "POD", icon: <WalletOutlined />, permission: "reports.pod" },
+    { key: "pod", label: "POD Collections", icon: <BankOutlined />, permission: "reports.pod" },
     { key: "merchants", label: "Merchants", icon: <ShopOutlined />, permission: "reports.merchants" },
     { key: "branches", label: "Branches", icon: <BranchesOutlined />, permission: "reports.branches" },
-    { key: "staff", label: "Staff", icon: <TeamOutlined />, permission: "reports.staff" },
+    { key: "staff", label: "Staff & Riders", icon: <TeamOutlined />, permission: "reports.staff" },
   ];
 
-  const tabs = allTabs.filter(t => can(t.permission));
+  const tabs = allTabs.filter(t => can(t.permission) || can("reports.view"));
 
   useEffect(() => {
     if (tabs.length && !activeTab) setActiveTab(tabs[0].key);
@@ -63,6 +70,182 @@ export default function ReportsPage() {
 
   //  Tab renderers 
 
+  const renderProfitLoss = (d) => !d ? null : (
+    <Space direction="vertical" size={16} style={{ width: "100%" }}>
+      <Row gutter={[12, 12]}>
+        <Col xs={12} sm={6}>
+          <Card size="small" style={{ background: "#f0fdf4", borderColor: "#bbf7d0" }}>
+            <Statistic title="Gross Revenue" value={fmt(d.gross_revenue)} valueStyle={{ color: "#16a34a", fontWeight: 700 }} />
+            <Text type="secondary" style={{ fontSize: 12 }}>Delivery & return fees</Text>
+          </Card>
+        </Col>
+        <Col xs={12} sm={6}>
+          <Card size="small" style={{ background: "#fef2f2", borderColor: "#fecaca" }}>
+            <Statistic title="Total Operating Expenses" value={fmt(d.total_expenses)} valueStyle={{ color: "#dc2626", fontWeight: 700 }} />
+            <Text type="secondary" style={{ fontSize: 12 }}>Linehaul + returns + royalties</Text>
+          </Card>
+        </Col>
+        <Col xs={12} sm={6}>
+          <Card size="small" style={{ background: "#eff6ff", borderColor: "#bfdbfe" }}>
+            <Statistic title="Net Operating Income" value={fmt(d.net_operating_income)} valueStyle={{ color: "#2563eb", fontWeight: 700 }} />
+            <Text type="secondary" style={{ fontSize: 12 }}>Operating profitability</Text>
+          </Card>
+        </Col>
+        <Col xs={12} sm={6}>
+          <Card size="small">
+            <Statistic title="Operating Margin" value={`${d.operating_margin_pct ?? 0}%`} valueStyle={{ color: "#0f172a", fontWeight: 700 }} />
+            <Progress percent={d.operating_margin_pct || 0} size="small" status="active" />
+          </Card>
+        </Col>
+      </Row>
+
+      <Card size="small" title="Monthly P&L Comparative Statement">
+        <Table rowKey="month" size="small" dataSource={[...(d.monthly_pnl || [])].reverse()}
+          pagination={{ pageSize: 6, showSizeChanger: false }}
+          columns={[
+            { title: "Period (Month)", dataIndex: "month", render: v => <Text strong>{v}</Text> },
+            { title: "Gross Revenue", dataIndex: "revenue", align: "right", render: v => <Text style={{ color: "#16a34a" }}>{fmt(v)}</Text> },
+            { title: "Operating Expenses", dataIndex: "expenses", align: "right", render: v => <Text style={{ color: "#dc2626" }}>{fmt(v)}</Text> },
+            { title: "Net Margin", dataIndex: "net", align: "right", render: v => <Text strong style={{ color: v >= 0 ? "#2563eb" : "#dc2626" }}>{fmt(v)}</Text> },
+            { title: "Margin %", dataIndex: "margin", align: "right", render: v => <Tag color={v >= 20 ? "green" : "blue"}>{v}%</Tag> },
+          ]}
+        />
+      </Card>
+    </Space>
+  );
+
+  const renderExpenses = (d) => !d ? null : (
+    <Space direction="vertical" size={16} style={{ width: "100%" }}>
+      <Row gutter={[12, 12]}>
+        <Col xs={12} sm={6}>
+          <Card size="small"><Statistic title="Total Expenses" value={fmt(d.total_expenses)} valueStyle={{ color: "#dc2626", fontWeight: 700 }} /></Card>
+        </Col>
+        <Col xs={12} sm={6}>
+          <Card size="small"><Statistic title="Linehaul Freight Costs" value={fmt(d.freight_expenses)} /></Card>
+        </Col>
+        <Col xs={12} sm={6}>
+          <Card size="small"><Statistic title="Reverse RTO Handling" value={fmt(d.return_handling_cost)} /></Card>
+        </Col>
+        <Col xs={12} sm={6}>
+          <Card size="small"><Statistic title="HQ Franchise Royalties" value={fmt(d.hq_royalty_cost)} /></Card>
+        </Col>
+      </Row>
+
+      <Card size="small" title="Monthly Highway Line-Haul Freight Expense Breakdown">
+        <Table rowKey="month" size="small" dataSource={[...(d.monthly_freight || [])].reverse()}
+          pagination={{ pageSize: 6, showSizeChanger: false }}
+          columns={[
+            { title: "Month", dataIndex: "month" },
+            { title: "Trips Executed", dataIndex: "trips_count", align: "right" },
+            { title: "Contracted Freight Paid", dataIndex: "total", align: "right", render: v => <Text strong>{fmt(v)}</Text> },
+          ]}
+        />
+      </Card>
+    </Space>
+  );
+
+  const renderBranchShares = (d) => !d ? null : (
+    <Space direction="vertical" size={16} style={{ width: "100%" }}>
+      <Row gutter={[12, 12]}>
+        <Col xs={12} sm={4}>
+          <Card size="small"><Statistic title="Origin Share (40%)" value={fmt(d.origin_share_total)} valueStyle={{ color: "#2563eb", fontWeight: 700 }} /></Card>
+        </Col>
+        <Col xs={12} sm={4}>
+          <Card size="small"><Statistic title="Delivery Share (45%)" value={fmt(d.destination_share_total)} valueStyle={{ color: "#16a34a", fontWeight: 700 }} /></Card>
+        </Col>
+        <Col xs={12} sm={4}>
+          <Card size="small"><Statistic title="HQ Share (15%)" value={fmt(d.hq_share_total)} valueStyle={{ color: "#9333ea", fontWeight: 700 }} /></Card>
+        </Col>
+        <Col xs={24} sm={12}>
+          <Card size="small" title="Revenue Sharing Policy">
+            <Text type="secondary">Every parcel delivery charge splits automatically into: <strong>40% Booking Origin Branch</strong>, <strong>45% Final Delivery Branch</strong>, and <strong>15% Central Platform HQ</strong>.</Text>
+          </Card>
+        </Col>
+      </Row>
+
+      <Row gutter={[12, 12]}>
+        <Col xs={24} md={12}>
+          <Card size="small" title="Top Origin Branches (By Booking Earnings)">
+            <Table rowKey="branch_name" size="small" dataSource={d.top_origin_branches || []} pagination={false}
+              columns={[
+                { title: "Branch", dataIndex: "branch_name" },
+                { title: "Parcels", dataIndex: "total_shipments", align: "right" },
+                { title: "40% Share Earned", dataIndex: "total_origin_earned", align: "right", render: v => <Text strong>{fmt(v)}</Text> },
+              ]}
+            />
+          </Card>
+        </Col>
+        <Col xs={24} md={12}>
+          <Card size="small" title="Top Destination Branches (By Delivery Earnings)">
+            <Table rowKey="branch_name" size="small" dataSource={d.top_dest_branches || []} pagination={false}
+              columns={[
+                { title: "Branch", dataIndex: "branch_name" },
+                { title: "Parcels", dataIndex: "total_deliveries", align: "right" },
+                { title: "45% Share Earned", dataIndex: "total_dest_earned", align: "right", render: v => <Text strong>{fmt(v)}</Text> },
+              ]}
+            />
+          </Card>
+        </Col>
+      </Row>
+    </Space>
+  );
+
+  const renderCashFlow = (d) => !d ? null : (
+    <Space direction="vertical" size={16} style={{ width: "100%" }}>
+      <Row gutter={[12, 12]}>
+        <Col xs={12} sm={6}>
+          <Card size="small"><Statistic title="Doorstep Cash Collected" value={fmt(d.doorstep_collected)} valueStyle={{ color: "#16a34a", fontWeight: 700 }} /></Card>
+        </Col>
+        <Col xs={12} sm={6}>
+          <Card size="small"><Statistic title="Rider Shift Handover" value={fmt(d.rider_shift_deposits)} /></Card>
+        </Col>
+        <Col xs={12} sm={6}>
+          <Card size="small"><Statistic title="Bank Deposits Confirmed" value={fmt(d.branch_bank_deposits)} /></Card>
+        </Col>
+        <Col xs={12} sm={6}>
+          <Card size="small"><Statistic title="Branch Vault Balance" value={fmt(d.vault_cash_in_hand)} valueStyle={{ color: "#2563eb", fontWeight: 700 }} /></Card>
+        </Col>
+      </Row>
+      <Alert
+        type="info"
+        showIcon
+        message="Cash Reconciliation Rule"
+        description="Riders handover collected doorstep cash at end-of-shift with verified deposit slips. Branch Cashiers deposit vault funds daily to company central bank accounts."
+      />
+    </Space>
+  );
+
+  const renderTransactions = (d) => !d ? null : (
+    <Row gutter={[12, 12]}>
+      <Col xs={24} md={12}>
+        <Card size="small" title="Recent Merchant Settlement Payouts">
+          <Table rowKey="reference" size="small" dataSource={d.recent_settlements || []}
+            pagination={{ pageSize: 6 }}
+            columns={[
+              { title: "Settlement Voucher", dataIndex: "reference", render: v => <Text strong style={{ color: "#0284c7" }}>{v}</Text> },
+              { title: "Merchant", dataIndex: "party" },
+              { title: "Net Payout", dataIndex: "amount", align: "right", render: v => <Text strong>{fmt(v)}</Text> },
+              { title: "Method", dataIndex: "method", render: v => <Tag color="blue">{v?.toUpperCase()}</Tag> },
+            ]}
+          />
+        </Card>
+      </Col>
+      <Col xs={24} md={12}>
+        <Card size="small" title="Recent Rider Cash Handovers">
+          <Table rowKey="reference" size="small" dataSource={d.recent_deposits || []}
+            pagination={{ pageSize: 6 }}
+            columns={[
+              { title: "Handover Slip", dataIndex: "reference", render: v => <Text strong style={{ color: "#10b981" }}>{v}</Text> },
+              { title: "Rider", dataIndex: "party" },
+              { title: "Cash Amount", dataIndex: "amount", align: "right", render: v => <Text strong>{fmt(v)}</Text> },
+              { title: "Status", dataIndex: "status", render: v => <Tag color="green">{v?.toUpperCase()}</Tag> },
+            ]}
+          />
+        </Card>
+      </Col>
+    </Row>
+  );
+
   const renderShipments = (d) => !d ? null : (
     <Space direction="vertical" size={16} style={{ width: "100%" }}>
       <Row gutter={[12, 12]}>
@@ -90,13 +273,13 @@ export default function ReportsPage() {
           </Card>
         </Col>
         <Col xs={24} md={16}>
-          <Card size="small" title="By Merchant">
+          <Card size="small" title="Top Merchants by Shipment Volume">
             <Table rowKey="merchant_id" size="small" dataSource={d.by_merchant || []}
               pagination={{ pageSize: 5, showSizeChanger: false }}
               columns={[
                 { title: "Merchant", render: (_, r) => r.merchant?.name || `#${r.merchant_id}` },
                 { title: "Shipments", dataIndex: "total", align: "right" },
-                { title: "POD", dataIndex: "pod_total", align: "right", render: v => fmt(v) },
+                { title: "POD Collected", dataIndex: "pod_total", align: "right", render: v => fmt(v) },
               ]}
             />
           </Card>
@@ -119,11 +302,12 @@ export default function ReportsPage() {
           </Col>
         ))}
       </Row>
-      <Card size="small" title="Monthly Revenue">
+      <Card size="small" title="Monthly Revenue History">
         <Table rowKey="month" size="small" dataSource={[...(d.monthly || [])].reverse()}
           pagination={{ pageSize: 6, showSizeChanger: false }}
           columns={[
             { title: "Month", dataIndex: "month" },
+            { title: "Parcels Handled", dataIndex: "parcel_count", align: "right" },
             { title: "Revenue", dataIndex: "total", align: "right", render: v => <Text strong>{fmt(v)}</Text> },
           ]}
         />
@@ -167,7 +351,7 @@ export default function ReportsPage() {
         <Col xs={24} md={14}>
           <Card size="small" title="Shipments by Merchant">
             <Table rowKey="merchant_id" size="small" dataSource={d.shipment_counts || []}
-              pagination={{ pageSize: 5, showSizeChanger: false }}
+              pagination={{ pageSize: 6, showSizeChanger: false }}
               columns={[
                 { title: "Merchant", render: (_, r) => r.merchant?.name || `#${r.merchant_id}` },
                 { title: "Shipments", dataIndex: "total", align: "right" },
@@ -206,7 +390,7 @@ export default function ReportsPage() {
       <Col xs={24} md={8}>
         <Card size="small" title="Shipments by Origin">
           <Table rowKey="origin_branch_id" size="small" dataSource={d.shipments_by_origin || []}
-            pagination={{ pageSize: 5, showSizeChanger: false }}
+            pagination={{ pageSize: 6, showSizeChanger: false }}
             columns={[
               { title: "Branch", render: (_, r) => r.origin_branch?.name || `#${r.origin_branch_id}` },
               { title: "Shipments", dataIndex: "total", align: "right" },
@@ -217,7 +401,7 @@ export default function ReportsPage() {
       <Col xs={24} md={8}>
         <Card size="small" title="Shipments by Destination">
           <Table rowKey="destination_branch_id" size="small" dataSource={d.shipments_by_destination || []}
-            pagination={{ pageSize: 5, showSizeChanger: false }}
+            pagination={{ pageSize: 6, showSizeChanger: false }}
             columns={[
               { title: "Branch", render: (_, r) => r.destination_branch?.name || `#${r.destination_branch_id}` },
               { title: "Shipments", dataIndex: "total", align: "right" },
@@ -243,7 +427,7 @@ export default function ReportsPage() {
       <Col xs={24} md={14}>
         <Card size="small" title="Delivery Performance">
           <Table rowKey="delivery_staff_id" size="small" dataSource={d.delivery_assignments || []}
-            pagination={{ pageSize: 5, showSizeChanger: false }}
+            pagination={{ pageSize: 6, showSizeChanger: false }}
             columns={[
               { title: "Staff", render: (_, r) => r.staff?.name || `#${r.delivery_staff_id}` },
               { title: "Deliveries", dataIndex: "total", align: "right", render: v => <Text strong>{v}</Text> },
@@ -259,8 +443,13 @@ export default function ReportsPage() {
     if (loading && !d) return <div style={{ textAlign: "center", padding: 60 }}><Spin size="large" /></div>;
     if (!d) return <div style={{ textAlign: "center", padding: 40 }}><Text type="secondary">No data available.</Text></div>;
     switch (key) {
-      case "shipments": return renderShipments(d);
+      case "profit-loss": return renderProfitLoss(d);
       case "revenue": return renderRevenue(d);
+      case "expenses": return renderExpenses(d);
+      case "branch-shares": return renderBranchShares(d);
+      case "cash-flow": return renderCashFlow(d);
+      case "transactions": return renderTransactions(d);
+      case "shipments": return renderShipments(d);
       case "pod": return renderPod(d);
       case "merchants": return renderMerchants(d);
       case "branches": return renderBranches(d);
@@ -277,10 +466,10 @@ export default function ReportsPage() {
     <Card>
       <Space style={{ justifyContent: "space-between", width: "100%", marginBottom: 16 }} wrap>
         <div>
-          <Text style={{ fontSize: 18, fontWeight: 700 }}>Reports</Text>
+          <Text style={{ fontSize: 18, fontWeight: 700 }}>Logistics & Financial Intelligence Reports</Text>
           <br />
           <Text type="secondary" style={{ fontSize: 12 }}>
-            {branchName ? `Scoped to: ${branchName}` : "Global - all branches"}
+            {branchName ? `Scoped to: ${branchName}` : "Global Network - Nationwide View"}
           </Text>
         </div>
         <Button icon={<ReloadOutlined />} onClick={reload}>Refresh</Button>

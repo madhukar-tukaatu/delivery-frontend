@@ -419,6 +419,8 @@ export default function TransferContainerBoard({
               open
               containerId={selected.id}
               branchId={branchId}
+              canReceive={canReceive && direction !== "outbound"}
+              readOnly={direction === "outbound"}
               onDone={changed}
             />
           )}
