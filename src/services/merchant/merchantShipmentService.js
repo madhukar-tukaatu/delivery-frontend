@@ -277,4 +277,41 @@ export async function updateDeliveryLocation(shipmentId, payload) {
   );
 
   return response.data?.data ?? response.data;
-}
+}
+
+/**
+ * Cancel a shipment (Admin).
+ */
+export async function cancelShipment(shipmentId, payload = {}) {
+  const response = await api.post(`/admin/shipments/${shipmentId}/cancel`, payload);
+
+  return response.data?.data ?? response.data;
+}
+
+/**
+ * Initiate return for a shipment (RTO).
+ */
+export async function initiateShipmentReturn(shipmentId, payload = {}) {
+  const response = await api.post(`/admin/shipments/${shipmentId}/initiate-return`, payload);
+
+  return response.data?.data ?? response.data;
+}
+
+/**
+ * Mark shipment received back at origin branch.
+ */
+export async function markShipmentReturnedToOrigin(shipmentId, payload = {}) {
+  const response = await api.post(`/admin/shipments/${shipmentId}/returned-to-origin`, payload);
+
+  return response.data?.data ?? response.data;
+}
+
+/**
+ * Mark shipment returned/handed over to merchant.
+ */
+export async function markShipmentReturnedToMerchant(shipmentId, payload = {}) {
+  const response = await api.post(`/admin/shipments/${shipmentId}/returned-to-merchant`, payload);
+
+  return response.data?.data ?? response.data;
+}
+

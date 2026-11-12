@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import {
+  Alert,
   Badge,
   Button,
   Card,
@@ -9,6 +10,9 @@ import {
   Descriptions,
   Drawer,
   Empty,
+  Form,
+  Input,
+  Modal,
   Progress,
   Row,
   Space,
@@ -34,12 +38,22 @@ import {
   FileTextOutlined,
   CompassOutlined,
   AimOutlined,
+  StopOutlined,
+  RollbackOutlined,
+  CheckCircleOutlined,
 } from "@ant-design/icons";
 
 import ShipmentWorkflowActions from "@/features/workflow/components/ShipmentWorkflowActions";
 import WorkflowStatusTag from "@/features/workflow/components/WorkflowStatusTag";
 import ShipmentTransferHops from "@/components/admin/shipments/ShipmentTransferHops";
 import BranchShareBreakdown from "@/components/admin/shipments/BranchShareBreakdown";
+import EditDeliveryLocationModal from "@/components/admin/shipments/EditDeliveryLocationModal";
+import {
+  cancelShipment,
+  initiateShipmentReturn,
+  markShipmentReturnedToOrigin,
+  markShipmentReturnedToMerchant,
+} from "@/services/merchant/merchantShipmentService";
 import {
   dispatchNextRouteStep,
   getAdminShipment,
@@ -339,6 +353,15 @@ export default function ShipmentDetailDrawer({ open, shipmentId, onClose }) {
 
   const isMobile = viewportWidth < 768;
 
+  const [cancelModalOpen, setCancelModalOpen] = useState(false);
+  const [cancelReason, setCancelReason] = useState("");
+  const [returnModalOpen, setReturnModalOpen] = useState(false);
+  const [returnReason, setReturnReason] = useState("");
+  const [merchantReturnModalOpen, setMerchantReturnModalOpen] = useState(false);
+  const [merchantReturnRecipient, setMerchantReturnRecipient] = useState("");
+  const [merchantReturnRemarks, setMerchantReturnRemarks] = useState("");
+  const [locationModalOpen, setLocationModalOpen] = useState(false);
+
   const printLabel = () => {
     const id = shipment?.id ?? shipmentId;
     if (id && typeof window !== "undefined") {
@@ -385,8 +408,67 @@ export default function ShipmentDetailDrawer({ open, shipmentId, onClose }) {
     }
   };
 
+  const handleCancelSubmit = async () => {
+    if (!cancelReason.trim()) {
+      message.error("Please enter a cancellation reason.");
+      return;
+    }
+    await runAction(
+      () => cancelShipment(shipment.id, { remarks: cancelReason.trim(), reason: cancelReason.trim() }),
+      "Shipment cancelled successfully."
+    );
+    setCancelModalOpen(false);
+    setCancelReason("");
+  };
+
+  const handleReturnSubmit = async () => {
+    if (!returnReason.trim()) {
+      message.error("Please enter a reason for initiating return.");
+      return;
+    }
+    await runAction(
+      () => initiateShipmentReturn(shipment.id, { reason: returnReason.trim() }),
+      "Return initiated successfully."
+    );
+    setReturnModalOpen(false);
+    setReturnReason("");
+  };
+
+  const handleMerchantReturnSubmit = async () => {
+    await runAction(
+      () =>
+        markShipmentReturnedToMerchant(shipment.id, {
+          receiver_name: merchantReturnRecipient.trim(),
+          remarks: merchantReturnRemarks.trim(),
+        }),
+      "Shipment marked as returned to merchant."
+    );
+    setMerchantReturnModalOpen(false);
+    setMerchantReturnRecipient("");
+    setMerchantReturnRemarks("");
+  };
+
   // Support { data: {...} }, { shipment: {...} }, or flat model
   const shipment = data?.shipment ?? data?.data ?? (data?.id ? data : null);
+
+  const status = shipment?.status;
+  const isTerminal = ["delivered", "cancelled", "returned_to_merchant"].includes(status);
+  const isReturning = ["return_initiated", "returned_to_origin"].includes(status);
+  const canInitiateReturn =
+    shipment &&
+    !isTerminal &&
+    !isReturning &&
+    [
+      "picked_up",
+      "received_at_origin",
+      "in_transit",
+      "received_at_destination",
+      "out_for_delivery",
+      "assigned_to_rider",
+      "delivery_failed",
+      "failed",
+    ].includes(status);
+  const canCancel = shipment && !isTerminal && status !== "delivered";
 
   const view = useMemo(() => {
     if (!shipment) return null;
@@ -1080,6 +1162,114 @@ export default function ShipmentDetailDrawer({ open, shipmentId, onClose }) {
 
   const overviewTab = view && (
     <Space direction="vertical" size={16} style={{ width: "100%" }}>
+      {status === "cancelled" && (
+        <Alert
+          type="error"
+          showIcon
+          message="Shipment Cancelled"
+          description={
+            <Space direction="vertical" size={2}>
+              <Text>{shipment.cancellation_reason || "This shipment has been cancelled."}</Text>
+              {shipment.cancelled_at && (
+                <Text type="secondary" style={{ fontSize: 12 }}>
+                  Cancelled at: {formatDateTime(shipment.cancelled_at)}
+                </Text>
+              )}
+            </Space>
+          }
+        />
+      )}
+
+      {status === "return_initiated" && (
+        <Alert
+          type="warning"
+          showIcon
+          message="Return to Origin In Progress"
+          description={
+            <Space direction="vertical" size={6} style={{ width: "100%" }}>
+              <Text>
+                {shipment.return_reason
+                  ? `Return reason: ${shipment.return_reason}`
+                  : "This shipment is being returned to the origin hub."}
+              </Text>
+              {shipment.return_initiated_at && (
+                <Text type="secondary" style={{ fontSize: 12 }}>
+                  Initiated at: {formatDateTime(shipment.return_initiated_at)}
+                </Text>
+              )}
+              <div style={{ marginTop: 4 }}>
+                <Button
+                  type="primary"
+                  size="small"
+                  icon={<RollbackOutlined />}
+                  loading={actionLoading}
+                  onClick={() =>
+                    runAction(
+                      () => markShipmentReturnedToOrigin(shipment.id),
+                      "Shipment marked as received at origin hub."
+                    )
+                  }
+                >
+                  Mark Received at Origin Hub
+                </Button>
+              </div>
+            </Space>
+          }
+        />
+      )}
+
+      {status === "returned_to_origin" && (
+        <Alert
+          type="info"
+          showIcon
+          message="Received at Origin Hub"
+          description={
+            <Space direction="vertical" size={6} style={{ width: "100%" }}>
+              <Text>
+                The parcel has arrived back at the origin hub and is ready for merchant handover.
+              </Text>
+              {shipment.returned_to_origin_at && (
+                <Text type="secondary" style={{ fontSize: 12 }}>
+                  Received at: {formatDateTime(shipment.returned_to_origin_at)}
+                </Text>
+              )}
+              <div style={{ marginTop: 4 }}>
+                <Button
+                  type="primary"
+                  size="small"
+                  style={{ background: "#059669", borderColor: "#059669" }}
+                  icon={<CheckCircleOutlined />}
+                  onClick={() => setMerchantReturnModalOpen(true)}
+                >
+                  Hand Over to Merchant
+                </Button>
+              </div>
+            </Space>
+          }
+        />
+      )}
+
+      {status === "returned_to_merchant" && (
+        <Alert
+          type="success"
+          showIcon
+          message="Returned to Merchant"
+          description={
+            <Space direction="vertical" size={2}>
+              <Text>
+                Successfully returned to merchant
+                {shipment.merchant_return_receiver ? ` (Received by: ${shipment.merchant_return_receiver})` : ""}.
+              </Text>
+              {shipment.returned_to_merchant_at && (
+                <Text type="secondary" style={{ fontSize: 12 }}>
+                  Returned at: {formatDateTime(shipment.returned_to_merchant_at)}
+                </Text>
+              )}
+            </Space>
+          }
+        />
+      )}
+
       <Card size="small">
         <Space direction="vertical" size={8} style={{ width: "100%" }}>
           <Space wrap>
@@ -2073,6 +2263,68 @@ export default function ShipmentDetailDrawer({ open, shipmentId, onClose }) {
       }
       extra={
         <Space size={6} wrap>
+          {!isTerminal && !isReturning && (
+            <Button
+              icon={<AimOutlined />}
+              onClick={() => setLocationModalOpen(true)}
+              size="small"
+            >
+              {isMobile ? null : "Update location"}
+            </Button>
+          )}
+
+          {canInitiateReturn && (
+            <Button
+              icon={<RollbackOutlined />}
+              danger
+              onClick={() => setReturnModalOpen(true)}
+              size="small"
+            >
+              {isMobile ? null : "Initiate return"}
+            </Button>
+          )}
+
+          {status === "return_initiated" && (
+            <Button
+              type="primary"
+              icon={<RollbackOutlined />}
+              onClick={() =>
+                runAction(
+                  () => markShipmentReturnedToOrigin(shipment.id),
+                  "Shipment marked as received at origin hub."
+                )
+              }
+              loading={actionLoading}
+              size="small"
+            >
+              Receive at origin
+            </Button>
+          )}
+
+          {status === "returned_to_origin" && (
+            <Button
+              type="primary"
+              style={{ background: "#059669", borderColor: "#059669" }}
+              icon={<CheckCircleOutlined />}
+              onClick={() => setMerchantReturnModalOpen(true)}
+              loading={actionLoading}
+              size="small"
+            >
+              Hand over to merchant
+            </Button>
+          )}
+
+          {canCancel && (
+            <Button
+              danger
+              icon={<StopOutlined />}
+              onClick={() => setCancelModalOpen(true)}
+              size="small"
+            >
+              {isMobile ? null : "Cancel"}
+            </Button>
+          )}
+
           <Button
             icon={<PrinterOutlined />}
             onClick={printLabel}
@@ -2140,6 +2392,131 @@ export default function ShipmentDetailDrawer({ open, shipmentId, onClose }) {
           {activityTab}
         </Space>
       )}
+
+      {/* Edit Delivery Location Modal */}
+      <EditDeliveryLocationModal
+        open={locationModalOpen}
+        shipment={shipment}
+        onClose={() => setLocationModalOpen(false)}
+        onSuccess={() => {
+          setLocationModalOpen(false);
+          load();
+        }}
+      />
+
+      {/* Cancel Shipment Modal */}
+      <Modal
+        title="Cancel Shipment"
+        open={cancelModalOpen}
+        onCancel={() => {
+          setCancelModalOpen(false);
+          setCancelReason("");
+        }}
+        onOk={handleCancelSubmit}
+        okText="Confirm Cancellation"
+        okButtonProps={{ danger: true, loading: actionLoading }}
+        destroyOnClose
+      >
+        <Space direction="vertical" style={{ width: "100%", marginTop: 12 }} size={12}>
+          <Text>
+            Are you sure you want to cancel shipment <strong>#{shipment?.tracking_number || shipment?.id}</strong>?
+          </Text>
+          <Text type="secondary" style={{ fontSize: 13 }}>
+            This will detach the shipment from active pickup/delivery assignments and notify the store partner.
+          </Text>
+          <div>
+            <Text strong style={{ display: "block", marginBottom: 6 }}>
+              Cancellation reason / remarks <span style={{ color: "#ff4d4f" }}>*</span>
+            </Text>
+            <Input.TextArea
+              rows={3}
+              placeholder="Enter cancellation reason (e.g. Customer requested cancellation, duplicate order...)"
+              value={cancelReason}
+              onChange={(e) => setCancelReason(e.target.value)}
+            />
+          </div>
+        </Space>
+      </Modal>
+
+      {/* Initiate Return Modal */}
+      <Modal
+        title="Initiate Return to Origin (RTO)"
+        open={returnModalOpen}
+        onCancel={() => {
+          setReturnModalOpen(false);
+          setReturnReason("");
+        }}
+        onOk={handleReturnSubmit}
+        okText="Initiate Return"
+        okButtonProps={{ danger: true, loading: actionLoading }}
+        destroyOnClose
+      >
+        <Space direction="vertical" style={{ width: "100%", marginTop: 12 }} size={12}>
+          <Text>
+            Initiate return for shipment <strong>#{shipment?.tracking_number || shipment?.id}</strong> back to origin hub and merchant.
+          </Text>
+          <Text type="secondary" style={{ fontSize: 13 }}>
+            Any active delivery rider task will be cancelled, and the shipment will be marked for return. The store partner will be immediately notified.
+          </Text>
+          <div>
+            <Text strong style={{ display: "block", marginBottom: 6 }}>
+              Reason for return <span style={{ color: "#ff4d4f" }}>*</span>
+            </Text>
+            <Input.TextArea
+              rows={3}
+              placeholder="Enter reason for return (e.g. Customer unreachable, refused delivery, damaged package...)"
+              value={returnReason}
+              onChange={(e) => setReturnReason(e.target.value)}
+            />
+          </div>
+        </Space>
+      </Modal>
+
+      {/* Hand Over Returned Parcel to Merchant Modal */}
+      <Modal
+        title="Hand Over Returned Parcel to Merchant"
+        open={merchantReturnModalOpen}
+        onCancel={() => {
+          setMerchantReturnModalOpen(false);
+          setMerchantReturnRecipient("");
+          setMerchantReturnRemarks("");
+        }}
+        onOk={handleMerchantReturnSubmit}
+        okText="Confirm Handover to Merchant"
+        okButtonProps={{
+          type: "primary",
+          loading: actionLoading,
+          style: { background: "#059669", borderColor: "#059669" },
+        }}
+        destroyOnClose
+      >
+        <Space direction="vertical" style={{ width: "100%", marginTop: 12 }} size={12}>
+          <Text>
+            Confirm handover of returned parcel <strong>#{shipment?.tracking_number || shipment?.id}</strong> to merchant <strong>{shipment?.merchant?.name || view?.merchantName || "Store"}</strong>.
+          </Text>
+          <div>
+            <Text strong style={{ display: "block", marginBottom: 6 }}>
+              Received by (Merchant contact / staff name)
+            </Text>
+            <Input
+              placeholder="e.g. Ram Shrestha (Store Manager)"
+              value={merchantReturnRecipient}
+              onChange={(e) => setMerchantReturnRecipient(e.target.value)}
+            />
+          </div>
+          <div>
+            <Text strong style={{ display: "block", marginBottom: 6 }}>
+              Handover notes / remarks
+            </Text>
+            <Input.TextArea
+              rows={3}
+              placeholder="Optional notes or condition of parcel upon return"
+              value={merchantReturnRemarks}
+              onChange={(e) => setMerchantReturnRemarks(e.target.value)}
+            />
+          </div>
+        </Space>
+      </Modal>
     </Drawer>
   );
 }
