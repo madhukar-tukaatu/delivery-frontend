@@ -50,7 +50,7 @@ export default function ShipmentForm({ mode = 'admin' }) {
         form={form}
         layout="vertical"
         onFinish={submit}
-        initialValues={{ payment_type: 'pod', delivery_charge_paid_by: 'customer', delivery_free_by: 'none', quantity: 1, weight: 1 }}
+        initialValues={{ payment_type: 'pod', delivery_charge_paid_by: 'merchant', delivery_free_by: 'none', quantity: 1, weight: 1 }}
         onValuesChange={(changed, all) => {
           if ('weight' in changed || 'pod_amount' in changed) {
             setRouting((prev) => ({ ...prev, weight: all.weight || 1, pod_amount: all.pod_amount || 0 }));

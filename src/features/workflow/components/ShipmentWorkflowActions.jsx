@@ -18,6 +18,9 @@ export default function ShipmentWorkflowActions({ shipment, onReceiveOrigin, onD
   if (!shipment) return <Empty />;
 
   const steps = shipment.route_steps || shipment.routeSteps || [];
+  if (!steps || steps.length === 0) {
+    return null;
+  }
   const inTransit = firstInTransitStep(steps);
   const nextStep = firstPendingOrReadyStep(steps);
 
@@ -54,7 +57,7 @@ export default function ShipmentWorkflowActions({ shipment, onReceiveOrigin, onD
             disabled={shipment.status !== 'picked_up'}
             onClick={onReceiveOrigin}
           >
-            Receive at Origin Sub-Branch
+            {shipment.origin_sub_branch_id ? 'Receive at Origin Sub-Branch' : 'Receive at Origin Branch'}
           </Button>
 
           <Button

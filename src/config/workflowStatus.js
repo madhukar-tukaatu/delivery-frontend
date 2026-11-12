@@ -20,6 +20,7 @@ export const shipmentStatusLabels = {
   delivery_failed: 'Delivery Failed',
   return_initiated: 'Return Initiated',
   returned_to_origin: 'Returned to Origin',
+  returned_to_merchant: 'Returned to Merchant',
   cancelled: 'Cancelled',
 };
 
@@ -45,6 +46,7 @@ export const shipmentStatusColors = {
   delivery_failed: 'error',
   return_initiated: 'warning',
   returned_to_origin: 'warning',
+  returned_to_merchant: 'magenta',
   cancelled: 'default',
 };
 

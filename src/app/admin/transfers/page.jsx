@@ -2645,7 +2645,10 @@ export default function TransfersPage() {
   const handleReconcile = useCallback(async () => {
     setReconciling(true);
     try {
-      const res = await reconcileTransfers(selectedBranchId ? { branch_id: selectedBranchId } : {});
+      const res = await reconcileTransfers({
+        ...(selectedBranchId ? { branch_id: selectedBranchId } : {}),
+        ...(debouncedSearch ? { tracking: debouncedSearch } : {}),
+      });
       message.success(`Reconciled ${res.reconciled_shipments_count || 0} shipment(s) and ${res.reconciled_manifests_count || 0} TR(s)`);
       setTrReloadKey((k) => k + 1);
       await Promise.all([loadStats(), loadData()]);

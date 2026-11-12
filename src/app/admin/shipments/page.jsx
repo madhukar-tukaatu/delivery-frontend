@@ -75,6 +75,7 @@ const STATUS_META = [
   ["failed", "#EF4444"],
   ["return_initiated", "#D97706"],
   ["returned_to_origin", "#B45309"],
+  ["returned_to_merchant", "#059669"],
   ["cancelled", "#9CA3AF"],
 ];
 const STATUS_ORDER = STATUS_META.map(([key]) => key);
