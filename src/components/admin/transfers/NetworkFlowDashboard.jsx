@@ -18,7 +18,6 @@ import {
   Alert,
   Tabs,
   Input,
-  Select,
 } from "antd";
 import {
   CarOutlined,
@@ -40,7 +39,6 @@ import {
   BarChartOutlined,
   InboxOutlined,
   SearchOutlined,
-  TableOutlined,
 } from "@ant-design/icons";
 import { getNetworkOverview } from "@/services/admin/transferService";
 import NepalTransferNetworkMap from "@/components/admin/transfers/NepalTransferNetworkMap";
@@ -52,22 +50,30 @@ const { Text, Title } = Typography;
 export default function NetworkFlowDashboard({ branchId = null, onSelectTr }) {
   const [loading, setLoading] = useState(false);
   const [activeSubView, setActiveSubView] = useState("live_map");
-  const [reportSearch, setReportSearch] = useState("");
-  const [provinceFilter, setProvinceFilter] = useState("all");
+  const [branchSearch, setBranchSearch] = useState("");
   const [data, setData] = useState({
     in_transit_trs: [],
     staged_by_hub: [],
     branches: [],
+    real_lanes: [],
     pending_requests: [],
     metrics: {
       total_moving_trucks: 0,
       total_moving_parcels: 0,
       total_pending_requests: 0,
       total_branches_active: 0,
-      total_manifest_cost: 0,
-      avg_cost_per_parcel: 0,
       consolidation_savings_percent: 74.2,
-      avg_parcels_per_truck: 0,
+      avg_cost_per_parcel: 0,
+    },
+    reporting: {
+      total_sorted_for_transfer: 0,
+      total_in_transit_shipments: 0,
+      total_transit_hub_shipments: 0,
+      total_destination_received: 0,
+      total_delivered_transfers: 0,
+      total_transfer_freight_kg: 0,
+      total_active_containers: 0,
+      total_staged_containers: 0,
     },
   });
   const [autoRefresh, setAutoRefresh] = useState(true);
@@ -104,9 +110,17 @@ export default function NetworkFlowDashboard({ branchId = null, onSelectTr }) {
     return () => clearInterval(timer);
   }, [autoRefresh, load]);
 
-  const { in_transit_trs = [], staged_by_hub = [], branches = [], pending_requests = [], metrics = {} } = data || {};
+  const {
+    in_transit_trs = [],
+    staged_by_hub = [],
+    branches = [],
+    real_lanes = [],
+    pending_requests = [],
+    metrics = {},
+    reporting = {},
+  } = data || {};
 
-  // Current branch details if scoped
+  // Find current scoped branch details if branchId is selected
   const currentBranch = branches.find((b) => Number(b.id) === Number(branchId));
 
   // Inbound trucks heading towards current branch
@@ -124,108 +138,6 @@ export default function NetworkFlowDashboard({ branchId = null, onSelectTr }) {
     setDispatchModalOpen(true);
   };
 
-  // Branch Performance Table Columns for Real Database Reporting
-  const branchReportColumns = [
-    {
-      title: "Branch & Location",
-      key: "name",
-      render: (_, b) => (
-        <Space direction="vertical" size={1}>
-          <Text strong style={{ fontSize: 13, color: "#1e293b" }}>{b.name}</Text>
-          <Text type="secondary" style={{ fontSize: 11 }}>{b.city}, {b.district} ({b.province})</Text>
-        </Space>
-      ),
-    },
-    {
-      title: "Outbound Pending",
-      key: "outbound",
-      align: "center",
-      sorter: (a, b) => (a.pending_parcels || 0) - (b.pending_parcels || 0),
-      render: (_, b) => {
-        const count = b.pending_parcels || 0;
-        const wt = b.pending_weight_kg || 0;
-        return (
-          <Space direction="vertical" size={1} align="center">
-            <Badge count={`${count} pkgs`} style={{ backgroundColor: count > 30 ? "#ea580c" : count > 0 ? "#2563eb" : "#94a3b8" }} />
-            <Text type="secondary" style={{ fontSize: 11 }}>{wt} kg</Text>
-          </Space>
-        );
-      },
-    },
-    {
-      title: "Inbound Arriving",
-      key: "inbound",
-      align: "center",
-      sorter: (a, b) => (a.inbound_parcels || 0) - (b.inbound_parcels || 0),
-      render: (_, b) => (
-        <Space direction="vertical" size={1} align="center">
-          <Badge count={`${b.inbound_parcels || 0} pkgs`} style={{ backgroundColor: (b.inbound_parcels || 0) > 0 ? "#059669" : "#cbd5e1" }} />
-          <Text type="secondary" style={{ fontSize: 11 }}>en route</Text>
-        </Space>
-      ),
-    },
-    {
-      title: "Active Line-Hauls",
-      key: "dispatched",
-      align: "center",
-      render: (_, b) => (
-        <Text strong style={{ color: "#2563eb" }}>{b.dispatched_trs || 0} TR runs</Text>
-      ),
-    },
-    {
-      title: "Vehicle Requests",
-      key: "requests",
-      align: "center",
-      render: (_, b) => (
-        b.transfer_requests_count > 0 ? (
-          <Tag color="orange" style={{ fontWeight: 600 }}>{b.transfer_requests_count} Pending</Tag>
-        ) : (
-          <Text type="secondary" style={{ fontSize: 11 }}>None</Text>
-        )
-      ),
-    },
-    {
-      title: "Status & Priority",
-      key: "urgency",
-      render: (_, b) => {
-        if (b.urgency === "critical_capacity_exceeded") {
-          return <Tag color="error" icon={<WarningOutlined />}>Threshold Exceeded (â‰¥80kg)</Tag>;
-        }
-        if (b.urgency === "high" || b.transfer_requests_count > 0) {
-          return <Tag color="orange">Vehicle Requested</Tag>;
-        }
-        return <Tag color="blue">Normal Scheduled</Tag>;
-      },
-    },
-    {
-      title: "Action",
-      key: "action",
-      align: "right",
-      render: (_, b) => (
-        <Space>
-          <Button
-            size="small"
-            type="primary"
-            icon={<SendOutlined />}
-            onClick={() => handleOpenRequestModal(b)}
-          >
-            Request Vehicle
-          </Button>
-          <Button
-            size="small"
-            onClick={() => {
-              setSelectedMapBranchId(b.id);
-              setActiveSubView("live_map");
-            }}
-          >
-            Locate on Map
-          </Button>
-        </Space>
-      ),
-    },
-  ];
-
-  // Moving Line-Haul Table Columns
   const trColumns = [
     {
       title: "TR Run",
@@ -340,7 +252,6 @@ export default function NetworkFlowDashboard({ branchId = null, onSelectTr }) {
     },
   ];
 
-  // Transfer Request Columns
   const requestColumns = [
     {
       title: "Request ID",
@@ -407,15 +318,88 @@ export default function NetworkFlowDashboard({ branchId = null, onSelectTr }) {
     },
   ];
 
-  // Filtered branches for reporting
+  // Reporting branch table columns
+  const branchTableColumns = [
+    {
+      title: "Branch",
+      key: "branch",
+      render: (_, b) => (
+        <Space direction="vertical" size={1}>
+          <Text strong>{b.name}</Text>
+          <Text type="secondary" style={{ fontSize: 11 }}>{b.city}, {b.district} ({b.province})</Text>
+        </Space>
+      ),
+    },
+    {
+      title: "Pending Outbound",
+      key: "outbound",
+      render: (_, b) => (
+        <Space direction="vertical" size={1}>
+          <Text strong style={{ color: "#2563eb" }}>{b.pending_parcels || 0} parcels</Text>
+          <Text type="secondary" style={{ fontSize: 11 }}>{b.pending_weight_kg || 0} kg</Text>
+        </Space>
+      ),
+    },
+    {
+      title: "Expected Inbound",
+      key: "inbound",
+      render: (_, b) => (
+        <Text strong style={{ color: "#059669" }}>{b.inbound_expected_parcels || 0} parcels</Text>
+      ),
+    },
+    {
+      title: "Vehicle Requests",
+      key: "requests",
+      render: (_, b) => (
+        b.transfer_requests_count > 0 ? (
+          <Tag color="orange">{b.transfer_requests_count} Pending</Tag>
+        ) : (
+          <Text type="secondary">0</Text>
+        )
+      ),
+    },
+    {
+      title: "Status",
+      key: "status",
+      render: (_, b) => (
+        b.urgency === "critical_capacity_exceeded" ? (
+          <Tag color="error">Threshold Exceeded</Tag>
+        ) : b.urgency === "high" ? (
+          <Tag color="warning">High Demand</Tag>
+        ) : (
+          <Tag color="success">Normal</Tag>
+        )
+      ),
+    },
+    {
+      title: "Action",
+      key: "action",
+      align: "right",
+      render: (_, b) => (
+        <Button
+          size="small"
+          type="primary"
+          icon={<SendOutlined />}
+          onClick={() => handleOpenRequestModal(b)}
+        >
+          Request TR
+        </Button>
+      ),
+    },
+  ];
+
   const filteredBranches = branches.filter((b) => {
-    const q = reportSearch.toLowerCase();
-    const matchesSearch = !q || b.name?.toLowerCase().includes(q) || b.city?.toLowerCase().includes(q) || b.district?.toLowerCase().includes(q);
-    const matchesProvince = provinceFilter === "all" || b.province === provinceFilter;
-    return matchesSearch && matchesProvince;
+    if (!branchSearch) return true;
+    const q = branchSearch.toLowerCase();
+    return (
+      (b.name || "").toLowerCase().includes(q) ||
+      (b.city || "").toLowerCase().includes(q) ||
+      (b.province || "").toLowerCase().includes(q) ||
+      (b.code || "").toLowerCase().includes(q)
+    );
   });
 
-  const provinces = Array.from(new Set(branches.map((b) => b.province).filter(Boolean)));
+  const branchCount = branches.length;
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
@@ -428,7 +412,7 @@ export default function NetworkFlowDashboard({ branchId = null, onSelectTr }) {
               <Title level={4} style={{ color: "#fff", margin: 0, fontWeight: 700 }}>
                 {branchId && currentBranch
                   ? `Transport Operations â€” ${currentBranch.name}`
-                  : `Transport Control Tower & Nepal Live Network (${branches.length} Active Branches)`}
+                  : `Transport Control Tower & Nepal Live Network (${branchCount} Branches)`}
               </Title>
               <Tag color={branchId ? "purple" : "blue"} style={{ margin: 0 }}>
                 {branchId ? "Branch Mode" : "National Control Tower"}
@@ -437,7 +421,7 @@ export default function NetworkFlowDashboard({ branchId = null, onSelectTr }) {
             <div style={{ color: "#94a3b8", fontSize: 12, marginTop: 4 }}>
               {branchId && currentBranch
                 ? `Manage outbound transfer vehicle requests, incoming line-haul trucks, and receiving dock for ${currentBranch.city}.`
-                : "Real database live tracking of highway corridor line-hauls, branch transfer requests, and vehicle capacity limits."}
+                : `Live database monitoring of all ${branchCount} branches across Nepal, active highway line-hauls, and pooled transport efficiency.`}
             </div>
           </Col>
           <Col xs={24} md={10} style={{ textAlign: "right" }}>
@@ -544,7 +528,7 @@ export default function NetworkFlowDashboard({ branchId = null, onSelectTr }) {
           <Card size="small" style={{ borderRadius: 10, borderLeft: "4px solid #059669" }}>
             <Statistic
               title={<span style={{ fontSize: 12, color: "#64748b" }}>Moving Freight Load</span>}
-              value={metrics.total_moving_parcels || in_transit_trs.reduce((acc, tr) => acc + (tr.expected_count || 0), 0)}
+              value={metrics.total_moving_parcels || 0}
               prefix={<ThunderboltOutlined style={{ color: "#059669", marginRight: 6 }} />}
               valueStyle={{ fontWeight: 700, fontSize: 22 }}
               suffix={<span style={{ fontSize: 12, color: "#94a3b8" }}>parcels</span>}
@@ -566,16 +550,16 @@ export default function NetworkFlowDashboard({ branchId = null, onSelectTr }) {
           <Card size="small" style={{ borderRadius: 10, borderLeft: "4px solid #7c3aed" }}>
             <Statistic
               title={<span style={{ fontSize: 12, color: "#64748b" }}>Active Nepal Branches</span>}
-              value={branches.length || metrics.total_branches_active || 14}
-              valueStyle={{ fontWeight: 700, fontSize: 20, color: "#7c3aed" }}
+              value={branchCount}
+              valueStyle={{ fontWeight: 700, fontSize: 22, color: "#7c3aed" }}
               prefix={<CompassOutlined style={{ color: "#7c3aed", marginRight: 6 }} />}
-              suffix={<span style={{ fontSize: 11, color: "#64748b" }}>real in DB</span>}
+              suffix={<span style={{ fontSize: 11, color: "#64748b" }}>database live</span>}
             />
           </Card>
         </Col>
       </Row>
 
-      {/* Main Mode View Toggle (Map vs Reports vs Fleet Requests vs Moving Trucks) */}
+      {/* Main Mode View Toggle (Map & Control Tower vs Fleet Management vs Reports) */}
       <Tabs
         activeKey={activeSubView}
         onChange={setActiveSubView}
@@ -586,14 +570,6 @@ export default function NetworkFlowDashboard({ branchId = null, onSelectTr }) {
             label: (
               <span>
                 <CompassOutlined /> Real-Time Nepal Map & Corridors
-              </span>
-            ),
-          },
-          {
-            key: "live_reports",
-            label: (
-              <span>
-                <TableOutlined /> Live Branch Reports & Performance
               </span>
             ),
           },
@@ -614,10 +590,10 @@ export default function NetworkFlowDashboard({ branchId = null, onSelectTr }) {
             ),
           },
           {
-            key: "analytics",
+            key: "reports",
             label: (
               <span>
-                <BarChartOutlined /> Fleet Analytics & Cost Savings
+                <BarChartOutlined /> Live Reporting & Branch Breakdown
               </span>
             ),
           },
@@ -632,8 +608,8 @@ export default function NetworkFlowDashboard({ branchId = null, onSelectTr }) {
             title={
               <Space>
                 <CompassOutlined style={{ color: "#2563eb" }} />
-                <span style={{ fontWeight: 700 }}>Real-Time Nepal Transport Map ({branches.length} Branches Plotted)</span>
-                <Tag color="blue">OpenStreetMap Free Clean Layer âœ“</Tag>
+                <span style={{ fontWeight: 700 }}>Nepal Real-Time Transport Map ({branchCount} Active Branches)</span>
+                <Tag color="blue">Prithvi, East-West, BP Highway & Feeder Lanes</Tag>
               </Space>
             }
             extra={
@@ -651,6 +627,7 @@ export default function NetworkFlowDashboard({ branchId = null, onSelectTr }) {
           >
             <NepalTransferNetworkMap
               branches={branches}
+              realLanes={realLanes}
               inTransitTrs={in_transit_trs}
               onRequestVehicle={(b) => handleOpenRequestModal(b)}
               onSelectBranch={(id) => setSelectedMapBranchId(id)}
@@ -738,54 +715,7 @@ export default function NetworkFlowDashboard({ branchId = null, onSelectTr }) {
         </Space>
       )}
 
-      {/* TAB 2: LIVE BRANCH REPORTS & PERFORMANCE (REAL DATABASE DATA) */}
-      {activeSubView === "live_reports" && (
-        <Card
-          size="small"
-          title={
-            <Space>
-              <TableOutlined style={{ color: "#2563eb" }} />
-              <span style={{ fontWeight: 700 }}>Live Branch Transfer Reports & Real-Time Backlog ({filteredBranches.length} Branches)</span>
-            </Space>
-          }
-          extra={
-            <Space wrap>
-              <Input
-                placeholder="Search branch or city..."
-                prefix={<SearchOutlined />}
-                size="small"
-                value={reportSearch}
-                onChange={(e) => setReportSearch(e.target.value)}
-                style={{ width: 200 }}
-                allowClear
-              />
-              <Select
-                size="small"
-                value={provinceFilter}
-                onChange={setProvinceFilter}
-                style={{ width: 140 }}
-              >
-                <Select.Option value="all">All Provinces</Select.Option>
-                {provinces.map((p) => (
-                  <Select.Option key={p} value={p}>{p}</Select.Option>
-                ))}
-              </Select>
-            </Space>
-          }
-          style={{ borderRadius: 10 }}
-        >
-          <Table
-            size="small"
-            rowKey="id"
-            columns={branchReportColumns}
-            dataSource={filteredBranches}
-            pagination={{ pageSize: 12, size: "small" }}
-            locale={{ emptyText: "No branches matching filter" }}
-          />
-        </Card>
-      )}
-
-      {/* TAB 3: BRANCH TRANSFER REQUESTS QUEUE */}
+      {/* TAB 2: BRANCH TRANSFER REQUESTS QUEUE */}
       {activeSubView === "fleet_queue" && (
         <Card
           size="small"
@@ -819,7 +749,7 @@ export default function NetworkFlowDashboard({ branchId = null, onSelectTr }) {
         </Card>
       )}
 
-      {/* TAB 4: ACTIVE LINE-HAUL MOVING TRUCKS */}
+      {/* TAB 3: ACTIVE LINE-HAUL MOVING TRUCKS */}
       {activeSubView === "moving_trucks" && (
         <Card
           size="small"
@@ -847,74 +777,103 @@ export default function NetworkFlowDashboard({ branchId = null, onSelectTr }) {
         </Card>
       )}
 
-      {/* TAB 5: FLEET ANALYTICS & COST SAVINGS */}
-      {activeSubView === "analytics" && (
+      {/* TAB 4: LIVE REPORTING & BRANCH BREAKDOWN */}
+      {activeSubView === "reports" && (
         <Space direction="vertical" size={14} style={{ width: "100%" }}>
-          <Row gutter={[12, 12]}>
-            <Col xs={24} md={8}>
-              <Card size="small" title="Cost Optimization Analysis" style={{ borderRadius: 10 }}>
-                <Statistic
-                  title="HQ Consolidation Savings"
-                  value={metrics.consolidation_savings_percent || 74.2}
-                  precision={1}
-                  valueStyle={{ color: "#059669", fontWeight: 700 }}
-                  prefix={<DollarOutlined />}
-                  suffix="%"
-                />
-                <Text type="secondary" style={{ fontSize: 12, marginTop: 8, display: "block" }}>
-                  By pooling multi-hop parcels into scheduled line-hauls instead of dispatching individual branch vehicles, HQ saves ~Rs 2.4 Lakhs weekly.
-                </Text>
-              </Card>
-            </Col>
-
-            <Col xs={24} md={8}>
-              <Card size="small" title="Fleet Reliability Rate" style={{ borderRadius: 10 }}>
-                <Statistic
-                  title="On-Time Delivery SLA"
-                  value={96.4}
-                  precision={1}
-                  valueStyle={{ color: "#2563eb", fontWeight: 700 }}
-                  prefix={<SafetyCertificateOutlined />}
-                  suffix="%"
-                />
-                <Text type="secondary" style={{ fontSize: 12, marginTop: 8, display: "block" }}>
-                  Average line-haul delay on Prithvi & Mahendra corridors is under 28 minutes, well within SLA buffers.
-                </Text>
-              </Card>
-            </Col>
-
-            <Col xs={24} md={8}>
-              <Card size="small" title="Network Throughput" style={{ borderRadius: 10 }}>
-                <Statistic
-                  title="Daily Transferred Tonnage"
-                  value={4.8}
-                  precision={1}
-                  valueStyle={{ color: "#7c3aed", fontWeight: 700 }}
-                  prefix={<ThunderboltOutlined />}
-                  suffix="tons / day"
-                />
-                <Text type="secondary" style={{ fontSize: 12, marginTop: 8, display: "block" }}>
-                  Across all active branches in the database.
-                </Text>
-              </Card>
-            </Col>
-          </Row>
-
-          <Card size="small" title="Corridor Volume Breakdown" style={{ borderRadius: 10 }}>
-            <Row gutter={[16, 16]}>
-              <Col span={8}>
-                <Text strong>Central Triangle (KTM - Narayanghat - Pokhara):</Text>
-                <Progress percent={45} strokeColor="#2563eb" format={(pct) => `${pct}% load`} />
+          {/* Live Transfer Status Funnel (Database Actuals) */}
+          <Card size="small" title="Live Transfer System Reporting (Database Actuals)" style={{ borderRadius: 10 }}>
+            <Row gutter={[12, 12]}>
+              <Col xs={12} sm={8} md={4}>
+                <div style={{ textAlign: "center", padding: "10px 6px", background: "#f8fafc", borderRadius: 8, border: "1px solid #e2e8f0" }}>
+                  <Text type="secondary" style={{ fontSize: 11 }}>Ready for Transfer</Text>
+                  <div style={{ fontSize: 20, fontWeight: 700, color: "#2563eb" }}>
+                    {reporting.total_sorted_for_transfer ?? 0}
+                  </div>
+                  <Text type="secondary" style={{ fontSize: 10 }}>parcels staged</Text>
+                </div>
               </Col>
-              <Col span={8}>
-                <Text strong>Eastern Terai (Narayanghat to Birtamod):</Text>
-                <Progress percent={32} strokeColor="#0891b2" format={(pct) => `${pct}% load`} />
+
+              <Col xs={12} sm={8} md={4}>
+                <div style={{ textAlign: "center", padding: "10px 6px", background: "#f8fafc", borderRadius: 8, border: "1px solid #e2e8f0" }}>
+                  <Text type="secondary" style={{ fontSize: 11 }}>In Transit Freight</Text>
+                  <div style={{ fontSize: 20, fontWeight: 700, color: "#0891b2" }}>
+                    {reporting.total_in_transit_shipments ?? 0}
+                  </div>
+                  <Text type="secondary" style={{ fontSize: 10 }}>parcels moving</Text>
+                </div>
               </Col>
-              <Col span={8}>
-                <Text strong>Western Terai (Narayanghat to Mahendranagar):</Text>
-                <Progress percent={23} strokeColor="#7c3aed" format={(pct) => `${pct}% load`} />
+
+              <Col xs={12} sm={8} md={4}>
+                <div style={{ textAlign: "center", padding: "10px 6px", background: "#f8fafc", borderRadius: 8, border: "1px solid #e2e8f0" }}>
+                  <Text type="secondary" style={{ fontSize: 11 }}>At Transit Hubs</Text>
+                  <div style={{ fontSize: 20, fontWeight: 700, color: "#7c3aed" }}>
+                    {reporting.total_transit_hub_shipments ?? 0}
+                  </div>
+                  <Text type="secondary" style={{ fontSize: 10 }}>cross-docking</Text>
+                </div>
+              </Col>
+
+              <Col xs={12} sm={8} md={4}>
+                <div style={{ textAlign: "center", padding: "10px 6px", background: "#f8fafc", borderRadius: 8, border: "1px solid #e2e8f0" }}>
+                  <Text type="secondary" style={{ fontSize: 11 }}>Arrived at Destination</Text>
+                  <div style={{ fontSize: 20, fontWeight: 700, color: "#059669" }}>
+                    {reporting.total_destination_received ?? 0}
+                  </div>
+                  <Text type="secondary" style={{ fontSize: 10 }}>ready for last mile</Text>
+                </div>
+              </Col>
+
+              <Col xs={12} sm={8} md={4}>
+                <div style={{ textAlign: "center", padding: "10px 6px", background: "#f8fafc", borderRadius: 8, border: "1px solid #e2e8f0" }}>
+                  <Text type="secondary" style={{ fontSize: 11 }}>Completed Transfers</Text>
+                  <div style={{ fontSize: 20, fontWeight: 700, color: "#16a34a" }}>
+                    {reporting.total_delivered_transfers ?? 0}
+                  </div>
+                  <Text type="secondary" style={{ fontSize: 10 }}>delivered</Text>
+                </div>
+              </Col>
+
+              <Col xs={12} sm={8} md={4}>
+                <div style={{ textAlign: "center", padding: "10px 6px", background: "#f8fafc", borderRadius: 8, border: "1px solid #e2e8f0" }}>
+                  <Text type="secondary" style={{ fontSize: 11 }}>Total Transfer Weight</Text>
+                  <div style={{ fontSize: 20, fontWeight: 700, color: "#ea580c" }}>
+                    {reporting.total_transfer_freight_kg ?? 0} kg
+                  </div>
+                  <Text type="secondary" style={{ fontSize: 10 }}>freight volume</Text>
+                </div>
               </Col>
             </Row>
+          </Card>
+
+          {/* Branch-by-Branch Demand & Real Database Volume Table */}
+          <Card
+            size="small"
+            title={
+              <Space>
+                <TeamOutlined style={{ color: "#2563eb" }} />
+                <span style={{ fontWeight: 700 }}>Branch Freight Volume & Demand ({branchCount} Active Branches)</span>
+              </Space>
+            }
+            extra={
+              <Input
+                placeholder="Search branch name, city, province..."
+                prefix={<SearchOutlined style={{ color: "#94a3b8" }} />}
+                value={branchSearch}
+                onChange={(e) => setBranchSearch(e.target.value)}
+                style={{ width: 260 }}
+                size="small"
+                allowClear
+              />
+            }
+            style={{ borderRadius: 10 }}
+          >
+            <Table
+              size="small"
+              rowKey="id"
+              columns={branchTableColumns}
+              dataSource={filteredBranches}
+              pagination={{ pageSize: 10, size: "small" }}
+            />
           </Card>
         </Space>
       )}
