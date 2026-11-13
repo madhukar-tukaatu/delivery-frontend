@@ -260,7 +260,7 @@ export default function TransferDispatchModal({
         style: { fontWeight: 600 },
       }}
       width={820}
-      destroyOnClose
+      destroyOnHidden
       styles={{ body: { paddingTop: 6, maxHeight: "80vh", overflowY: "auto" } }}
     >
       <Space direction="vertical" size={12} style={{ width: "100%" }}>
