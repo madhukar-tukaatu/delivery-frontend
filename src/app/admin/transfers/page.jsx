@@ -3235,7 +3235,7 @@ export default function TransfersPage() {
       key: "networkFlow",
       label: (
         <span>
-          <CompassOutlined /> Network Flow & Pulse
+          <CompassOutlined /> Transport Management
         </span>
       ),
       children: (

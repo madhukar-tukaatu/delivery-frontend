@@ -24,7 +24,7 @@ const NepalTransferNetworkMapClient = dynamic(
       >
         <Space direction="vertical" align="center">
           <CompassOutlined spin style={{ fontSize: 32, color: "#38bdf8" }} />
-          <Text style={{ color: "#94a3b8" }}>Loading Nepal 50-Branch Transport Live Map...</Text>
+          <Text style={{ color: "#94a3b8" }}>Loading live transfer map...</Text>
         </Space>
       </Card>
     ),
