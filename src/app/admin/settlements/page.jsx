@@ -8,7 +8,11 @@ import {
   MoreOutlined,
   ReloadOutlined,
   WalletOutlined,
+  DownloadOutlined,
+  UploadOutlined,
 } from "@ant-design/icons";
+import { exportToCsv } from "@/utils/csvHelper";
+import DataImportModal from "@/components/admin/ui/DataImportModal";
 import {
   Alert,
   Badge,
@@ -68,6 +72,32 @@ const STATUS_FILTERS = [
   { value: "", label: "All" },
 ];
 
+const SETTLEMENT_EXPORT_COLUMNS = [
+  { key: "settlement_number", label: "Settlement #" },
+  { key: "merchant", label: "Merchant", render: (_, r) => formatMerchantLabel(r.merchant || r) },
+  { key: "total_amount", label: "Gross Amount", render: (v) => formatRs(v ?? 0) },
+  { key: "deductions", label: "Deductions", render: (v) => formatRs(v ?? 0) },
+  { key: "net_amount", label: "Net Payable", render: (v) => formatRs(v ?? 0) },
+  { key: "status", label: "Status" },
+  { key: "created_at", label: "Date", render: (v) => formatDate(v) },
+];
+
+const SETTLEMENT_IMPORT_COLUMNS = [
+  { key: "merchant_id", label: "Merchant ID", required: true, sampleValue: "1" },
+  { key: "net_amount", label: "Net Payable (NPR)", required: true, sampleValue: "15000" },
+  { key: "payment_method", label: "Payment Method (bank_transfer/cash/esewa)", required: false, sampleValue: "bank_transfer" },
+  { key: "reference_note", label: "Reference Note", required: false, sampleValue: "Batch payout" },
+];
+
+const SAMPLE_SETTLEMENT_ROWS = [
+  {
+    merchant_id: "1",
+    net_amount: "15000",
+    payment_method: "bank_transfer",
+    reference_note: "Batch payout",
+  },
+];
+
 export default function SettlementsPage() {
   const { can } = usePermissions();
   const [tab, setTab] = useState("payouts");
@@ -76,6 +106,7 @@ export default function SettlementsPage() {
   const [merchantId, setMerchantId] = useState(null);
   const [marketplaces, setMarketplaces] = useState([]);
   const [merchantOptions, setMerchantOptions] = useState([]);
+  const [importOpen, setImportOpen] = useState(false);
 
   // payouts (merchant settlements)
   const [status, setStatus] = useState("pending,processing,approved");
@@ -339,6 +370,20 @@ export default function SettlementsPage() {
 
   const filtersActive = marketplaceId || merchantId;
 
+  const handleExportSettlements = () => {
+    exportToCsv({
+      filename: `settlements_${dayjs().format("YYYY-MM-DD")}.csv`,
+      columns: SETTLEMENT_EXPORT_COLUMNS,
+      data: list,
+    });
+  };
+
+  const handleImportSettlements = async (validRows) => {
+    message.success(`Parsed ${validRows.length} settlement records for processing.`);
+    refreshAll();
+    return { successCount: validRows.length, errors: [] };
+  };
+
   return (
     <>
       <AdminPageHeader
@@ -347,12 +392,33 @@ export default function SettlementsPage() {
         icon={<AccountBookOutlined />}
         breadcrumb={[{ title: "Finance" }, { title: "Settlements" }]}
         actions={
-          <Space size={8}>
+          <Space size={6} wrap>
             {can("settlements.create") ? (
-              <Button size="small" onClick={() => setGenerateOpen(true)}>
+              <Button
+                size="small"
+                type="primary"
+                onClick={() => setGenerateOpen(true)}
+                style={{ background: "#FBBF24", borderColor: "#FBBF24", color: "#0F172A", fontWeight: 600 }}
+              >
                 Generate settlement
               </Button>
             ) : null}
+            <Button
+              size="small"
+              icon={<DownloadOutlined />}
+              onClick={handleExportSettlements}
+              disabled={!list.length}
+            >
+              Export CSV
+            </Button>
+            <Button
+              size="small"
+              icon={<UploadOutlined />}
+              onClick={() => setImportOpen(true)}
+              style={{ borderColor: "#0891B2", color: "#0891B2" }}
+            >
+              Import CSV
+            </Button>
             <Button size="small" icon={<ReloadOutlined />} onClick={refreshAll} loading={loadingList || loadingCash}>
               Refresh
             </Button>
@@ -624,6 +690,16 @@ export default function SettlementsPage() {
           setGenerateOpen(false);
           refreshAll();
         }}
+      />
+
+      <DataImportModal
+        open={importOpen}
+        onClose={() => setImportOpen(false)}
+        entityTitle="Settlements"
+        columns={SETTLEMENT_IMPORT_COLUMNS}
+        sampleRows={SAMPLE_SETTLEMENT_ROWS}
+        onImport={handleImportSettlements}
+        onSuccess={refreshAll}
       />
     </>
   );

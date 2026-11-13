@@ -49,11 +49,13 @@ import {
   StopOutlined,
   TableOutlined,
   ThunderboltOutlined,
+  UploadOutlined,
 } from "@ant-design/icons";
 
 import {
   activateBranch,
   approveBranch,
+  createBranch,
   deleteBranch,
   getBranches,
   getCoverageLocations,
@@ -65,6 +67,7 @@ import BranchInvitationStatusTag from "@/components/admin/branches/BranchInvitat
 import BranchInvitationActions from "@/components/admin/branches/BranchInvitationActions";
 import AdminPageHeader from "@/components/admin/ui/AdminPageHeader";
 import StatCard, { StatCardGrid } from "@/components/admin/ui/StatCard";
+import DataImportModal from "@/components/admin/ui/DataImportModal";
 
 const CoverageRadiusMapFull = dynamic(
   () => import("@/components/maps/CoverageRadiusMapFull"),
@@ -264,6 +267,40 @@ function ServiceTags({ record }) {
   );
 }
 
+const BRANCH_IMPORT_COLUMNS = [
+  { key: "name", label: "Branch Name", required: true, sampleValue: "Biratnagar Hub" },
+  { key: "code", label: "Branch Code", required: true, sampleValue: "BRT-01" },
+  { key: "type", label: "Type (franchise_branch/sub_branch/main_branch)", required: true, sampleValue: "franchise_branch" },
+  { key: "city", label: "City", required: true, sampleValue: "Biratnagar" },
+  { key: "address", label: "Address", required: false, sampleValue: "Main Road, Biratnagar" },
+  { key: "phone", label: "Phone", required: false, sampleValue: "9800000000" },
+  { key: "manager_email", label: "Manager Email", required: false, sampleValue: "manager.brt@tukaatu.com" },
+  { key: "status", label: "Status (active/inactive)", required: false, sampleValue: "active" },
+];
+
+const SAMPLE_BRANCH_ROWS = [
+  {
+    name: "Biratnagar Hub",
+    code: "BRT-01",
+    type: "franchise_branch",
+    city: "Biratnagar",
+    address: "Main Road, Biratnagar",
+    phone: "9800000000",
+    manager_email: "manager.brt@tukaatu.com",
+    status: "active",
+  },
+  {
+    name: "Dharan Express Branch",
+    code: "DHN-01",
+    type: "sub_branch",
+    city: "Dharan",
+    address: "Bhanuchowk, Dharan",
+    phone: "9801111111",
+    manager_email: "manager.dhn@tukaatu.com",
+    status: "active",
+  },
+];
+
 export default function BranchOfficesPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -284,6 +321,39 @@ export default function BranchOfficesPage() {
   const [activeTab, setActiveTab] = useState(
     searchParams.get("tab") === "sub" ? "sub" : "franchise",
   );
+
+  const [importOpen, setImportOpen] = useState(false);
+
+  const handleImportBranches = async (validRows) => {
+    let successCount = 0;
+    const errors = [];
+    for (const row of validRows) {
+      try {
+        const payload = {
+          name: row.name?.trim(),
+          code: row.code?.trim(),
+          type: row.type?.trim() || "franchise_branch",
+          city: row.city?.trim() || "",
+          address: row.address?.trim() || "",
+          phone: row.phone?.trim() || "",
+          account_invitation_email: row.manager_email?.trim() || "",
+          status: row.status?.trim() || "active",
+        };
+        await createBranch(payload);
+        successCount++;
+      } catch (err) {
+        errors.push(`${row.name || "Branch"}: ${err?.response?.data?.message || err.message}`);
+      }
+    }
+    if (errors.length > 0 && successCount === 0) {
+      throw new Error(`Failed to import branches: ${errors.slice(0, 3).join("; ")}`);
+    }
+    if (errors.length > 0) {
+      message.warning(`Imported ${successCount} branches. ${errors.length} failed.`);
+    }
+    loadAll();
+    return { successCount, errors };
+  };
 
   const [franchisePagination, setFranchisePagination] = useState({
     current: 1,
@@ -978,13 +1048,23 @@ export default function BranchOfficesPage() {
         </Col>
 
         <Col>
-          <Button
-            size="small"
-            icon={<DownloadOutlined />}
-            onClick={() => exportToCsv(data, csvFilename)}
-          >
-            Export current page
-          </Button>
+          <Space size={6}>
+            <Button
+              size="small"
+              icon={<DownloadOutlined />}
+              onClick={() => exportToCsv(data, csvFilename)}
+            >
+              Export current page
+            </Button>
+            <Button
+              size="small"
+              icon={<UploadOutlined />}
+              onClick={() => setImportOpen(true)}
+              style={{ borderColor: "#0891B2", color: "#0891B2" }}
+            >
+              Import CSV
+            </Button>
+          </Space>
         </Col>
       </Row>
     );
@@ -1047,21 +1127,45 @@ export default function BranchOfficesPage() {
           title="Branch Offices"
           subtitle="Manage branch allocation, operational status and manager access."
           actions={
-            <>
+            <Space wrap size={6}>
               <Link href="/admin/branch-offices/create?type=franchise_branch">
-                <Button type="primary" icon={<PlusOutlined />}>
+                <Button
+                  type="primary"
+                  size="small"
+                  icon={<PlusOutlined />}
+                  style={{ background: "#FBBF24", borderColor: "#FBBF24", color: "#0F172A", fontWeight: 600 }}
+                >
                   Add Franchise
                 </Button>
               </Link>
               <Link href="/admin/branch-offices/create?type=sub_branch">
-                <Button
-                  icon={<PlusOutlined />}
-                  style={{ background: "#fff", color: "#0891B2", borderColor: "#fff" }}
-                >
+                <Button size="small" icon={<PlusOutlined />}>
                   Add Sub-Branch
                 </Button>
               </Link>
-            </>
+              <Button
+                size="small"
+                icon={<UploadOutlined />}
+                onClick={() => setImportOpen(true)}
+                style={{ borderColor: "#0891B2", color: "#0891B2" }}
+              >
+                Import CSV
+              </Button>
+              <Button
+                size="small"
+                icon={<DownloadOutlined />}
+                onClick={() => exportToCsv(allBranches, "branch_offices_all.csv")}
+              >
+                Export All
+              </Button>
+              <Button
+                size="small"
+                icon={<ReloadOutlined />}
+                onClick={() => loadAll()}
+              >
+                Refresh
+              </Button>
+            </Space>
           }
         />
 
@@ -1422,6 +1526,16 @@ export default function BranchOfficesPage() {
           }
         }
       `}</style>
+
+      <DataImportModal
+        open={importOpen}
+        onClose={() => setImportOpen(false)}
+        entityTitle="Branch Offices"
+        columns={BRANCH_IMPORT_COLUMNS}
+        sampleRows={SAMPLE_BRANCH_ROWS}
+        onImport={handleImportBranches}
+        onSuccess={() => loadAll()}
+      />
     </div>
   );
 }

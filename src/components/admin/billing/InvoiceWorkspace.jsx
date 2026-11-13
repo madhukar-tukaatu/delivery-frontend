@@ -36,6 +36,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import api from "@/lib/api";
 import AdminPageHeader from "@/components/admin/ui/AdminPageHeader";
+import ExportImportToolbar from "@/components/admin/ui/ExportImportToolbar";
 import StatCard, { StatCardGrid } from "@/components/admin/ui/StatCard";
 import BranchScopeNotice, { useIsFinanceHq } from "@/components/admin/billing/BranchScopeNotice";
 import { ViewBillButton, deliveryCount } from "@/components/admin/billing/StoreBillPreview";
@@ -268,9 +269,19 @@ export default function InvoiceWorkspace({ mode = "invoices" }) {
       dataIndex: "invoice_number",
       render: (v, r) => (
         <Space direction="vertical" size={0}>
-          <a onClick={() => openDetail(r.id)} style={{ fontWeight: 600 }}>
+          <Link
+            href={isDelivery ? `/admin/delivery-charges` : `/admin/invoices`}
+            onClick={(e) => {
+              if (!e.metaKey && !e.ctrlKey) {
+                e.preventDefault();
+                openDetail(r.id);
+              }
+            }}
+            style={{ fontWeight: 600, color: "#0891B2" }}
+            title="Open invoice details (Ctrl+click / right-click to open in new tab)"
+          >
             {v}
-          </a>
+          </Link>
           <Text type="secondary" style={{ fontSize: 12 }}>
             {r.tracking_number || formatDate(r.invoice_date)}
           </Text>
@@ -285,9 +296,15 @@ export default function InvoiceWorkspace({ mode = "invoices" }) {
           <Space size={4}>
             <PayerTag type={r.payer_type} />
             <span>
-              {String(r.payer_type || "").toLowerCase() === "company"
-                ? r.marketplace_name || "Marketplace"
-                : formatMerchantLabel(r)}
+              {String(r.payer_type || "").toLowerCase() === "company" ? (
+                r.marketplace_name || "Marketplace"
+              ) : r.merchant_id ? (
+                <Link href={`/admin/merchants/${r.merchant_id}`} style={{ color: "#0891B2" }}>
+                  {formatMerchantLabel(r)}
+                </Link>
+              ) : (
+                formatMerchantLabel(r)
+              )}
             </span>
           </Space>
           {String(r.payer_type || "").toLowerCase() !== "company" && r.marketplace_name ? (
@@ -390,6 +407,30 @@ export default function InvoiceWorkspace({ mode = "invoices" }) {
         breadcrumb={[{ title: "Finance" }, { title: isDelivery ? "Delivery charges" : "Invoices" }]}
         actions={
           <Space size={8} wrap>
+            <ExportImportToolbar
+              entityTitle={isDelivery ? "Delivery Charges" : "Invoices"}
+              columns={[
+                { key: "invoice_number", label: "Invoice Number" },
+                { key: "payer_type", label: "Payer Type" },
+                { key: "total_amount", label: "Total Amount" },
+                { key: "status", label: "Status" },
+                { key: "invoice_date", label: "Date" },
+              ]}
+              data={rows}
+              onExportAll={async () => {
+                try {
+                  const res = await api.get(isDelivery ? "/admin/delivery-charges" : "/admin/invoices", {
+                    params: { page: 1, per_page: 1000 },
+                  });
+                  const payload = res.data?.data || res.data;
+                  return payload?.data || payload || rows;
+                } catch {
+                  return rows;
+                }
+              }}
+              onRefresh={load}
+              loading={loading}
+            />
             {!isDelivery && can("invoices.send_digest") ? (
               <Dropdown
                 trigger={["click"]}
@@ -570,6 +611,7 @@ export default function InvoiceWorkspace({ mode = "invoices" }) {
 
         <Table
           size="small"
+          className="admin-table-compact"
           rowKey="id"
           loading={loading}
           dataSource={rows}

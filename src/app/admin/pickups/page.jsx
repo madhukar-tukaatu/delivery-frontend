@@ -49,7 +49,13 @@ import {
   CopyOutlined,
   RightOutlined,
   UnorderedListOutlined,
+  DownloadOutlined,
+  UploadOutlined,
 } from "@ant-design/icons";
+
+import api from "@/lib/api";
+import { exportToCsv } from "@/utils/csvHelper";
+import DataImportModal from "@/components/admin/ui/DataImportModal";
 
 import {
   getPickups,
@@ -475,6 +481,36 @@ function Field({ label, children }) {
 |--------------------------------------------------------------------------
 */
 
+const PICKUP_EXPORT_COLUMNS = [
+  { key: "request_number", label: "Request #" },
+  { key: "merchant", label: "Merchant", render: (_, r) => formatMerchantLabel(r.merchant || r) },
+  { key: "phone", label: "Phone", render: (v, r) => r.phone || r.merchant?.phone || "-" },
+  { key: "pickup_address", label: "Pickup Address", render: (v, r) => r.pickup_address || r.address || "-" },
+  { key: "scheduled_date", label: "Date", render: (v) => v ? dayjs(v).format("YYYY-MM-DD") : "-" },
+  { key: "package_count", label: "Packages", render: (v) => v ?? 0 },
+  { key: "status", label: "Status" },
+];
+
+const PICKUP_IMPORT_COLUMNS = [
+  { key: "merchant_id", label: "Merchant ID", required: true, sampleValue: "1" },
+  { key: "phone", label: "Phone", required: true, sampleValue: "9801234567" },
+  { key: "pickup_address", label: "Pickup Address", required: true, sampleValue: "Baneshwor, Kathmandu" },
+  { key: "scheduled_date", label: "Scheduled Date (YYYY-MM-DD)", required: false, sampleValue: "2026-11-14" },
+  { key: "package_count", label: "Estimated Packages", required: false, sampleValue: "3" },
+  { key: "special_instructions", label: "Special Instructions", required: false, sampleValue: "Call before coming" },
+];
+
+const SAMPLE_PICKUP_ROWS = [
+  {
+    merchant_id: "1",
+    phone: "9801234567",
+    pickup_address: "Baneshwor, Kathmandu",
+    scheduled_date: "2026-11-14",
+    package_count: "3",
+    special_instructions: "Call before coming",
+  },
+];
+
 export default function AdminPickupsPage() {
   const { branchId } = usePermissions();
   const [activeTab, setActiveTab] = useState(DEFAULT_TAB);
@@ -484,6 +520,7 @@ export default function AdminPickupsPage() {
   const [viewMode, setViewMode] = useState("map");
   const [createRunModalOpen, setCreateRunModalOpen] = useState(false);
   const [mapChosenRiderId, setMapChosenRiderId] = useState(null);
+  const [importOpen, setImportOpen] = useState(false);
 
   const [rows, setRows] = useState([]);
   const [mapOpen, setMapOpen] = useState(true);
@@ -1235,6 +1272,44 @@ export default function AdminPickupsPage() {
     },
   ].filter((t) => t.value);
 
+  const handleExportPickups = () => {
+    exportToCsv({
+      filename: `pickups_${dayjs().format("YYYY-MM-DD")}.csv`,
+      columns: PICKUP_EXPORT_COLUMNS,
+      data: rows,
+    });
+  };
+
+  const handleImportPickups = async (validRows) => {
+    let successCount = 0;
+    const errors = [];
+    for (const row of validRows) {
+      try {
+        const payload = {
+          merchant_id: Number(row.merchant_id) || 1,
+          phone: row.phone?.trim(),
+          pickup_address: row.pickup_address?.trim(),
+          scheduled_date: row.scheduled_date?.trim() || dayjs().format("YYYY-MM-DD"),
+          package_count: row.package_count ? Number(row.package_count) : 1,
+          special_instructions: row.special_instructions?.trim() || null,
+        };
+        await api.post("/admin/pickups", payload);
+        successCount++;
+      } catch (err) {
+        errors.push(`${row.pickup_address || "Pickup"}: ${err?.response?.data?.message || err.message}`);
+      }
+    }
+    if (errors.length > 0 && successCount === 0) {
+      throw new Error(`Failed to import pickups: ${errors.slice(0, 3).join("; ")}`);
+    }
+    if (errors.length > 0) {
+      message.warning(`Imported ${successCount} pickups. ${errors.length} failed.`);
+    }
+    load(pagination.current, pagination.pageSize);
+    loadSummary();
+    return { successCount, errors };
+  };
+
   return (
     <div style={{ padding: 16, background: "#f7f8fa", minHeight: "100%" }}>
       {/* Header */}
@@ -1242,17 +1317,35 @@ export default function AdminPickupsPage() {
         title="Pickups"
         subtitle="Organize pickups into structured Pickup Runs (PR), monitor live route maps, and reconcile legacy requests"
         actions={
-          <Space wrap>
+          <Space wrap size={6}>
             <Segmented
+              size="small"
               value={viewMode}
               onChange={setViewMode}
               options={[
                 { label: <Space size={4}><EnvironmentOutlined /><span>Routing Map</span></Space>, value: "map" },
                 { label: <Space size={4}><CarOutlined /><span>Pickup Runs (PR)</span></Space>, value: "runs" },
-                { label: <Space size={4}><UnorderedListOutlined /><span>Individual Pickups (Legacy)</span></Space>, value: "list" },
+                { label: <Space size={4}><UnorderedListOutlined /><span>Individual (Legacy)</span></Space>, value: "list" },
               ]}
             />
             <Button
+              size="small"
+              icon={<DownloadOutlined />}
+              onClick={handleExportPickups}
+              disabled={!rows.length}
+            >
+              Export CSV
+            </Button>
+            <Button
+              size="small"
+              icon={<UploadOutlined />}
+              onClick={() => setImportOpen(true)}
+              style={{ borderColor: "#0891B2", color: "#0891B2" }}
+            >
+              Import CSV
+            </Button>
+            <Button
+              size="small"
               icon={<ReloadOutlined />}
               onClick={() => {
                 load(pagination.current, pagination.pageSize);
@@ -2503,6 +2596,19 @@ export default function AdminPickupsPage() {
           load(pagination.current, pagination.pageSize);
           loadSummary();
           setViewMode("runs");
+        }}
+      />
+
+      <DataImportModal
+        open={importOpen}
+        onClose={() => setImportOpen(false)}
+        entityTitle="Pickups"
+        columns={PICKUP_IMPORT_COLUMNS}
+        sampleRows={SAMPLE_PICKUP_ROWS}
+        onImport={handleImportPickups}
+        onSuccess={() => {
+          load(pagination.current, pagination.pageSize);
+          loadSummary();
         }}
       />
     </div>

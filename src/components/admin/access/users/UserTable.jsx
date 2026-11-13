@@ -1,6 +1,7 @@
 "use client";
 
 import React from "react";
+import Link from "next/link";
 
 import {
   Button,
@@ -127,13 +128,19 @@ export default function UserTable({
 
         return (
           <div>
-            <Text strong>
-              {record.branch.name}
-            </Text>
+            {record.branch.id ? (
+              <Link href={`/admin/branch-offices/${record.branch.id}`}>
+                <Text strong style={{ color: "#0891B2" }}>
+                  {record.branch.name}
+                </Text>
+              </Link>
+            ) : (
+              <Text strong>{record.branch.name}</Text>
+            )}
 
             {record.branch.code && (
               <div>
-                <Text type="secondary">
+                <Text type="secondary" style={{ fontSize: 11 }}>
                   {record.branch.code}
                 </Text>
               </div>
@@ -155,7 +162,13 @@ export default function UserTable({
           );
         }
 
-        return (
+        return record.merchant.id ? (
+          <Link href={`/admin/merchants/${record.merchant.id}`}>
+            <Text strong style={{ color: "#0891B2" }}>
+              {record.merchant.name}
+            </Text>
+          </Link>
+        ) : (
           <Text strong>
             {record.merchant.name}
           </Text>
@@ -225,6 +238,8 @@ export default function UserTable({
   return (
     <Table
       rowKey="id"
+      size="small"
+      className="admin-table-compact"
       columns={columns}
       dataSource={users}
       loading={loading}

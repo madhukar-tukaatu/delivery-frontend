@@ -38,6 +38,8 @@ import {
   CheckCircleOutlined,
 } from "@ant-design/icons";
 import AdminPageHeader from "@/components/admin/ui/AdminPageHeader";
+import ExportImportToolbar from "@/components/admin/ui/ExportImportToolbar";
+import Link from "next/link";
 import StatCard, { StatCardGrid } from "@/components/admin/ui/StatCard";
 import { useIsFinanceHq } from "@/components/admin/billing/BranchScopeNotice";
 import { usePermissions } from "@/hooks/usePermission";
@@ -654,7 +656,19 @@ export default function InterBranchSettlementsPage() {
       width: 230,
       render: (_, r) => (
         <Space direction="vertical" size={0}>
-          <a onClick={() => openDetail(r.id)}>{r.statement_number}</a>
+          <Link
+            href="/admin/inter-branch-settlements"
+            onClick={(e) => {
+              if (!e.metaKey && !e.ctrlKey) {
+                e.preventDefault();
+                openDetail(r.id);
+              }
+            }}
+            style={{ fontWeight: 600, color: "#0891B2" }}
+            title="Open statement (open in new tab)"
+          >
+            {r.statement_number}
+          </Link>
           <Text type="secondary" style={{ fontSize: 11 }}>
             {formatDate(r.period_start)} – {formatDate(r.period_end)}
           </Text>
@@ -667,9 +681,21 @@ export default function InterBranchSettlementsPage() {
       render: (_, r) => (
         <Space size={6} wrap>
           {directionTag(r)}
-          <Text strong={isMine(r.from_branch_id)}>{r.from_branch?.name || `#${r.from_branch_id}`}</Text>
+          {r.from_branch_id ? (
+            <Link href={`/admin/branch-offices/${r.from_branch_id}`} style={{ color: "#0891B2" }}>
+              <Text strong={isMine(r.from_branch_id)}>{r.from_branch?.name || `#${r.from_branch_id}`}</Text>
+            </Link>
+          ) : (
+            <Text strong={isMine(r.from_branch_id)}>{r.from_branch?.name || `#${r.from_branch_id}`}</Text>
+          )}
           <ArrowRightOutlined style={{ fontSize: 10, color: "#8c8c8c" }} />
-          <Text strong={isMine(r.to_branch_id)}>{r.to_branch?.name || `#${r.to_branch_id}`}</Text>
+          {r.to_branch_id ? (
+            <Link href={`/admin/branch-offices/${r.to_branch_id}`} style={{ color: "#0891B2" }}>
+              <Text strong={isMine(r.to_branch_id)}>{r.to_branch?.name || `#${r.to_branch_id}`}</Text>
+            </Link>
+          ) : (
+            <Text strong={isMine(r.to_branch_id)}>{r.to_branch?.name || `#${r.to_branch_id}`}</Text>
+          )}
         </Space>
       ),
     },
@@ -736,10 +762,36 @@ export default function InterBranchSettlementsPage() {
         title="Inter-branch settlements"
         subtitle="The branch that collected a transfer's delivery charge pays the other branches their shares."
         icon={<SwapOutlined />}
+        breadcrumb={[{ title: "Finance" }, { title: "Inter-branch settlements" }]}
         actions={
-          <Button icon={<ReloadOutlined />} onClick={refreshAll}>
-            Refresh
-          </Button>
+          <Space size={8} wrap>
+            <ExportImportToolbar
+              entityTitle="Inter-Branch Settlements"
+              columns={[
+                { key: "statement_number", label: "Statement Number" },
+                { key: "period_start", label: "Period Start" },
+                { key: "period_end", label: "Period End" },
+                { key: "status", label: "Status" },
+              ]}
+              data={stRows}
+              onExportAll={async () => {
+                try {
+                  const res = await api.get("/admin/billing/inter-branch-statements", {
+                    params: { page: 1, per_page: 1000 },
+                  });
+                  const payload = res.data?.data || res.data;
+                  return payload?.data || payload || stRows;
+                } catch {
+                  return stRows;
+                }
+              }}
+              onRefresh={refreshAll}
+              loading={stLoading}
+            />
+            <Button size="small" icon={<ReloadOutlined />} onClick={refreshAll}>
+              Refresh
+            </Button>
+          </Space>
         }
       />
 
@@ -873,6 +925,8 @@ export default function InterBranchSettlementsPage() {
                   </Space>
                   <Table
                     rowKey="id"
+                    size="small"
+                    className="admin-table-compact"
                     loading={stLoading}
                     dataSource={stRows}
                     columns={statementColumns}

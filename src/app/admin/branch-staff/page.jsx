@@ -17,8 +17,34 @@ import {
 } from "@/services/admin/branchStaffService";
 import AdminPageHeader from "@/components/admin/ui/AdminPageHeader";
 import StatCard, { StatCardGrid } from "@/components/admin/ui/StatCard";
+import ExportImportToolbar from "@/components/admin/ui/ExportImportToolbar";
 
 const { Text, Title } = Typography;
+
+const STAFF_IMPORT_COLUMNS = [
+  { key: "name", label: "Full Name", required: true, sampleValue: "Ramesh Adhikari" },
+  { key: "email", label: "Email Address", required: true, sampleValue: "ramesh.adhikari@example.com" },
+  { key: "phone", label: "Phone", required: false, sampleValue: "9801122334" },
+  { key: "role", label: "Role (e.g. rider/pickup_staff/delivery_staff)", required: true, sampleValue: "rider" },
+  { key: "password", label: "Password", required: false, sampleValue: "Rider@2026" },
+];
+
+const SAMPLE_STAFF_ROWS = [
+  {
+    name: "Ramesh Adhikari",
+    email: "ramesh.adhikari@example.com",
+    phone: "9801122334",
+    role: "rider",
+    password: "Rider@2026",
+  },
+  {
+    name: "Pooja Shrestha",
+    email: "pooja.shrestha@example.com",
+    phone: "9841122334",
+    role: "delivery_staff",
+    password: "Staff@2026",
+  },
+];
 
 // Dynamic staff roles - loaded from backend
 function useStaffRoles() {
@@ -320,6 +346,35 @@ export default function BranchStaffPage() {
     return String(roleName || "").toLowerCase() === "rider";
   }).length;
 
+  const handleImportStaff = async (validRows) => {
+    let successCount = 0;
+    const errors = [];
+    for (const row of validRows) {
+      try {
+        const payload = {
+          name: row.name?.trim(),
+          email: row.email?.trim(),
+          phone: row.phone?.trim() || undefined,
+          role: row.role?.trim() || "rider",
+          password: row.password?.trim() || "Staff@2026",
+          is_active: true,
+        };
+        await createBranchStaff(payload);
+        successCount++;
+      } catch (err) {
+        errors.push(`${row.name || "Staff"}: ${err?.response?.data?.message || err.message}`);
+      }
+    }
+    if (errors.length > 0 && successCount === 0) {
+      throw new Error(`Failed to import staff: ${errors.slice(0, 3).join("; ")}`);
+    }
+    if (errors.length > 0) {
+      message.warning(`Imported ${successCount} staff members. ${errors.length} failed.`);
+    }
+    load(pagination.current, pagination.pageSize);
+    return { successCount, errors };
+  };
+
   return (
     <div
       style={{
@@ -346,23 +401,17 @@ export default function BranchStaffPage() {
             ) : null
           }
           actions={
-            <>
-              <Button
-                icon={<ReloadOutlined />}
-                onClick={() => load(1, pagination.pageSize)}
-              >
-                Refresh
-              </Button>
-              {hasManagePermission ? (
-                <Button
-                  type="primary"
-                  icon={<PlusOutlined />}
-                  onClick={openCreate}
-                >
-                  Add Staff
-                </Button>
-              ) : null}
-            </>
+            <ExportImportToolbar
+              entityTitle="Staff"
+              columns={STAFF_IMPORT_COLUMNS}
+              data={rows}
+              sampleRows={SAMPLE_STAFF_ROWS}
+              onImport={hasManagePermission ? handleImportStaff : null}
+              onRefresh={() => load(pagination.current, pagination.pageSize)}
+              onAdd={hasManagePermission ? openCreate : null}
+              addText="Add Staff"
+              loading={loading}
+            />
           }
         />
         <StatCardGrid>

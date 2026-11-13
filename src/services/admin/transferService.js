@@ -438,6 +438,25 @@ export function openTrPrint(containerId, type = "label", branchId = null) {
   window.open(trPrintUrl(containerId, type, branchId), "_blank", "noopener");
 }
 
+/** GET /admin/transfers/requests : branch transfer vehicle requests */
+export async function getTransferRequests(params = {}) {
+  const response = await api.get("/admin/transfers/requests", { params });
+  return unwrap(response) ?? { data: [], total: 0 };
+}
+
+/** POST /admin/transfers/requests : submit transfer vehicle request */
+export async function createTransferRequest(data = {}) {
+  const response = await api.post("/admin/transfers/requests", data);
+  return unwrap(response);
+}
+
+/** POST /admin/transfers/requests/{id}/dispatch : Transport Manager allocates vehicle and dispatches request */
+export async function dispatchTransferRequest(requestId, data = {}) {
+  const response = await api.post(`/admin/transfers/requests/${requestId}/dispatch`, data);
+  return unwrap(response);
+}
+
+
 export async function reconcileTransfers(params = {}) {
   const response = await api.post("/admin/transfers/reconcile", {}, { params });
   return unwrap(response) || {};

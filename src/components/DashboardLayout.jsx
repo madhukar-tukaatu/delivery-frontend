@@ -15,6 +15,7 @@ import {
   GlobalOutlined, SearchOutlined, LockOutlined,
 } from "@ant-design/icons";
 import { usePathname, useRouter } from "next/navigation";
+import Link from "next/link";
 import Image from "next/image";
 import { clearAuth, getUser, hasPermission } from "@/lib/auth";
 import { getMyMenus } from "@/services/menuService";
@@ -182,19 +183,31 @@ function buildMenuItems(menus = [], badges = {}, openKeys = [], collapsed = fals
       }
 
       const icon = getIcon(item.icon);
+
+      // Wrap item in Link to enable right-click "Open in new tab", middle-click, and Ctrl+Click
+      const renderedLabel = item.path ? (
+        <Link
+          href={item.path}
+          style={{
+            color: "inherit",
+            textDecoration: "none",
+            display: "inline-block",
+            width: "100%",
+          }}
+        >
+          {label}
+        </Link>
+      ) : (
+        label
+      );
+
       const menuItem = {
         key,
         icon: collapsed && total > 0 ? <Badge dot offset={[2, 2]}>{icon}</Badge> : icon,
-        label,
+        label: renderedLabel,
         children: hasChildren ? children : undefined,
         badgeTotal: total,
       };
-      
-      // Add href for items with paths so they render as <a> tags
-      // This enables right-click "Open in new tab", middle-click, Ctrl+Click
-      if (item.path) {
-        menuItem.href = item.path;
-      }
       
       return menuItem;
     })
@@ -320,15 +333,29 @@ function handleMenuClick({ key, item }) {
 
   const userDropdownItems = {
     items: [
-      { key: "profile", icon: <UserOutlined />, label: "Profile" },
-      { key: "settings", icon: <SettingOutlined />, label: "Settings" },
+      {
+        key: "profile",
+        icon: <UserOutlined />,
+        label: (
+          <Link href={`/${section}/profile`} style={{ color: "inherit", textDecoration: "none", display: "block" }}>
+            Profile
+          </Link>
+        ),
+      },
+      {
+        key: "settings",
+        icon: <SettingOutlined />,
+        label: (
+          <Link href={`/${section}/settings`} style={{ color: "inherit", textDecoration: "none", display: "block" }}>
+            Settings
+          </Link>
+        ),
+      },
       { type: "divider" },
       { key: "logout", icon: <LogoutOutlined />, label: "Sign out", danger: true },
     ],
     onClick: ({ key }) => {
       if (key === "logout") logout();
-      if (key === "settings") router.push(`/${section}/settings`);
-      if (key === "profile") router.push(`/${section}/profile`);
     },
   };
 

@@ -37,8 +37,41 @@ import UserForm from "./UserForm";
 import UserDetails from "./UserDetails";
 import UserFilters from "./UserFilters";
 import UserRoleTabs from "./UserRoleTabs";
+import AdminPageHeader from "@/components/admin/ui/AdminPageHeader";
+import ExportImportToolbar from "@/components/admin/ui/ExportImportToolbar";
 
 const { Title, Text } = Typography;
+
+const USER_COLUMNS = [
+  { key: "name", label: "Full Name", required: true, sampleValue: "Anil Shrestha" },
+  { key: "email", label: "Email Address", required: true, sampleValue: "anil.shrestha@example.com" },
+  { key: "phone", label: "Phone", required: false, sampleValue: "9841000000" },
+  { key: "role", label: "Role", required: true, sampleValue: "staff" },
+  { key: "password", label: "Initial Password", required: false, sampleValue: "Password123!" },
+  { key: "branch_id", label: "Branch ID", required: false, sampleValue: "" },
+  { key: "status", label: "Status (active/inactive)", required: false, sampleValue: "active" },
+];
+
+const SAMPLE_USER_ROWS = [
+  {
+    name: "Anil Shrestha",
+    email: "anil.shrestha@example.com",
+    phone: "9841000000",
+    role: "staff",
+    password: "Password123!",
+    branch_id: "",
+    status: "active",
+  },
+  {
+    name: "Dipendra Shah",
+    email: "dipendra.shah@example.com",
+    phone: "9851000000",
+    role: "rider",
+    password: "Password123!",
+    branch_id: "",
+    status: "active",
+  },
+];
 
 export default function UserManagement() {
   const [roles, setRoles] = useState([]);
@@ -504,54 +537,71 @@ export default function UserManagement() {
     });
   };
 
+  const handleImportUsers = async (validRows) => {
+    let successCount = 0;
+    const errors = [];
+    for (const row of validRows) {
+      try {
+        const payload = {
+          name: row.name?.trim(),
+          email: row.email?.trim(),
+          phone: row.phone?.trim() || undefined,
+          roles: row.role ? [row.role.trim()] : ["staff"],
+          password: row.password?.trim() || "Courier@2026",
+          password_confirmation: row.password?.trim() || "Courier@2026",
+          branch_id: row.branch_id ? Number(row.branch_id) : undefined,
+          is_active: row.status ? row.status.toLowerCase() !== "inactive" : true,
+        };
+        await createUser(payload);
+        successCount++;
+      } catch (err) {
+        errors.push(`${row.email || row.name}: ${err?.response?.data?.message || err.message}`);
+      }
+    }
+    if (errors.length > 0 && successCount === 0) {
+      throw new Error(`Failed to import users: ${errors.slice(0, 3).join("; ")}`);
+    }
+    if (errors.length > 0) {
+      message.warning(`Imported ${successCount} users. ${errors.length} failed.`);
+    }
+    refresh();
+    return { successCount, errors };
+  };
+
+  const handleExportAll = async () => {
+    try {
+      const res = await getUsers({ page: 1, pageSize: 1000, role, search });
+      const list = res?.data || res?.users || res;
+      return Array.isArray(list) ? list : users;
+    } catch {
+      return users;
+    }
+  };
+
   return (
-    <div
-      style={{
-        padding: 24,
-      }}
-    >
-      <Card>
-        <Space
-          style={{
-            width: "100%",
-            justifyContent: "space-between",
-            marginBottom: 20,
-          }}
-          align="center"
-        >
-          <div>
-            <Space>
-              <TeamOutlined
-                style={{
-                  fontSize: 22,
-                }}
-              />
+    <Space direction="vertical" size={12} style={{ width: "100%" }}>
+      <AdminPageHeader
+        title="User Management"
+        subtitle="Manage administrators, branch staff, riders, merchants and other platform users."
+        icon={<TeamOutlined />}
+        breadcrumb={[{ title: "Admin" }, { title: "Users" }]}
+        actions={
+          <ExportImportToolbar
+            entityTitle="Users"
+            columns={USER_COLUMNS}
+            data={users}
+            sampleRows={SAMPLE_USER_ROWS}
+            onExportAll={handleExportAll}
+            onImport={handleImportUsers}
+            onRefresh={refresh}
+            onAdd={handleCreate}
+            addText="Create User"
+            loading={loading || loadingRoles}
+          />
+        }
+      />
 
-              <Title
-                level={3}
-                style={{
-                  margin: 0,
-                }}
-              >
-                User Management
-              </Title>
-            </Space>
-
-            <Text type="secondary">
-              Manage administrators, branch staff,
-              riders, merchants and other users.
-            </Text>
-          </div>
-
-          <Button
-            type="primary"
-            icon={<PlusOutlined />}
-            onClick={handleCreate}
-          >
-            Create User
-          </Button>
-        </Space>
-
+      <Card className="admin-card" bodyStyle={{ padding: 16 }}>
         <UserRoleTabs
           roles={roles}
           value={role}
@@ -628,6 +678,6 @@ export default function UserManagement() {
           setSelectedUser(null);
         }}
       />
-    </div>
+    </Space>
   );
 }

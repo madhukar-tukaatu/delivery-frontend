@@ -35,6 +35,7 @@ import {
 import { useRouter } from "next/navigation";
 import {
   activatePricingSettings,
+  createPricingSettingsVersion,
   deletePricingSettings,
   getPricingSettings,
 } from "@/services/admin/adminPricingConfigurationService";
@@ -42,8 +43,33 @@ import { pricingErrorMessage, toBoolean } from "@/lib/pricing-settings-utils";
 import AdminPageHeader from "@/components/admin/ui/AdminPageHeader";
 import StatCard, { StatCardGrid } from "@/components/admin/ui/StatCard";
 import PricingCalculationExampleCard from "@/components/admin/rate-admin/PricingCalculationExampleCard";
+import ExportImportToolbar from "@/components/admin/ui/ExportImportToolbar";
 
 const { Title, Text } = Typography;
+
+const PRICING_IMPORT_COLUMNS = [
+  { key: "name", label: "Version Name", required: true, sampleValue: "2026 Fiscal Standard Rates" },
+  { key: "base_weight_kg", label: "Base Weight (kg)", required: false, sampleValue: "1.5" },
+  { key: "base_distance_km", label: "Base Distance (km)", required: false, sampleValue: "5.0" },
+  { key: "transfer_extra_weight_rate", label: "Extra Weight Rate (NPR/kg)", required: false, sampleValue: "30" },
+  { key: "extra_distance_rate", label: "Extra Distance Rate (NPR/km)", required: false, sampleValue: "6" },
+  { key: "transfer_express_multiplier", label: "Express Multiplier", required: false, sampleValue: "1.5" },
+  { key: "transfer_same_day_multiplier", label: "Same Day Multiplier", required: false, sampleValue: "2.0" },
+  { key: "tax_percentage", label: "Tax %", required: false, sampleValue: "13" },
+];
+
+const SAMPLE_PRICING_ROWS = [
+  {
+    name: "2026 Fiscal Standard Rates",
+    base_weight_kg: "1.5",
+    base_distance_km: "5.0",
+    transfer_extra_weight_rate: "30",
+    extra_distance_rate: "6",
+    transfer_express_multiplier: "1.5",
+    transfer_same_day_multiplier: "2.0",
+    tax_percentage: "13",
+  },
+];
 
 export default function PricingSettingsListPage() {
   const router = useRouter();
@@ -111,6 +137,37 @@ export default function PricingSettingsListPage() {
     } finally {
       setActionId(null);
     }
+  };
+
+  const handleImportRates = async (validRows) => {
+    let successCount = 0;
+    const errors = [];
+    for (const row of validRows) {
+      try {
+        const payload = {
+          name: row.name?.trim(),
+          base_weight_kg: row.base_weight_kg ? Number(row.base_weight_kg) : 1.5,
+          base_distance_km: row.base_distance_km ? Number(row.base_distance_km) : 5.0,
+          transfer_extra_weight_rate: row.transfer_extra_weight_rate ? Number(row.transfer_extra_weight_rate) : 30,
+          extra_distance_rate: row.extra_distance_rate ? Number(row.extra_distance_rate) : 6,
+          transfer_express_multiplier: row.transfer_express_multiplier ? Number(row.transfer_express_multiplier) : 1.5,
+          transfer_same_day_multiplier: row.transfer_same_day_multiplier ? Number(row.transfer_same_day_multiplier) : 2.0,
+          tax_percentage: row.tax_percentage ? Number(row.tax_percentage) : 13,
+        };
+        await createPricingSettingsVersion(payload);
+        successCount++;
+      } catch (err) {
+        errors.push(`${row.name || "Rate"}: ${err?.response?.data?.message || err.message}`);
+      }
+    }
+    if (errors.length > 0 && successCount === 0) {
+      throw new Error(`Failed to import rates: ${errors.slice(0, 3).join("; ")}`);
+    }
+    if (errors.length > 0) {
+      message.warning(`Imported ${successCount} pricing versions. ${errors.length} failed.`);
+    }
+    loadData();
+    return { successCount, errors };
   };
 
   const columns = [
@@ -317,18 +374,17 @@ export default function PricingSettingsListPage() {
         title="Pricing Settings"
         subtitle="Manage global delivery pricing rules through controlled pricing versions. Governs weight thresholds, distance, multipliers, and tax."
         actions={
-          <Space>
-            <Button icon={<ReloadOutlined />} onClick={loadData}>
-              Refresh
-            </Button>
-            <Button
-              type="primary"
-              icon={<PlusOutlined />}
-              onClick={() => router.push("/admin/rates/new")}
-            >
-              Add Pricing Version
-            </Button>
-          </Space>
+          <ExportImportToolbar
+            entityTitle="Pricing Settings"
+            columns={PRICING_IMPORT_COLUMNS}
+            data={filteredRows}
+            sampleRows={SAMPLE_PRICING_ROWS}
+            onImport={handleImportRates}
+            onRefresh={loadData}
+            onAdd={() => router.push("/admin/rates/new")}
+            addText="Add Pricing Version"
+            loading={loading}
+          />
         }
       />
 

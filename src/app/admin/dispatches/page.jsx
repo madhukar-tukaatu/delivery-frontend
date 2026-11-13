@@ -1,6 +1,7 @@
 "use client";
 
 import AdminPageHeader from "@/components/admin/ui/AdminPageHeader";
+import ExportImportToolbar from "@/components/admin/ui/ExportImportToolbar";
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
@@ -20,6 +21,15 @@ import { TrStatusTag, TR_STATUS_META } from "@/components/admin/transfers/Transf
 import { VEHICLE_TYPES, vehicleLabel } from "@/components/admin/transfers/TransferDispatchModal";
 
 const { Text } = Typography;
+
+const DISPATCH_COLUMNS = [
+  { key: "transfer_number", label: "TR Number", required: true, sampleValue: "TR-20261113-001" },
+  { key: "manifest_number", label: "Manifest Number", required: false, sampleValue: "MNF-001" },
+  { key: "vehicle_type", label: "Vehicle Type", required: false, sampleValue: "bike" },
+  { key: "vehicle_number", label: "Vehicle Number", required: false, sampleValue: "BA 1 PA 1234" },
+  { key: "driver_name", label: "Driver Name", required: false, sampleValue: "Ramesh Thapa" },
+  { key: "status", label: "Status", required: false, sampleValue: "dispatched" },
+];
 
 export default function DispatchesPage() {
   const { can, branchId } = usePermissions();
@@ -75,19 +85,35 @@ export default function DispatchesPage() {
     }
   };
 
+  const handleExportAll = async () => {
+    try {
+      const res = await api.get("/admin/transfers/manifests", {
+        params: { page: 1, per_page: 1000, search: search || undefined, status: status || undefined },
+      });
+      const payload = res.data?.data || res.data;
+      return payload?.data || payload || rows;
+    } catch {
+      return rows;
+    }
+  };
+
   const columns = [
     {
       title: "TR",
       render: (_, r) => (
-        <Space direction="vertical" size={0}>
-          <Text strong style={{ fontSize: 13 }}>{r.display_number || r.transfer_number || r.manifest_number || `#${r.id}`}</Text>
-          {r.transfer_number && r.manifest_number ? (
-            <Text type="secondary" style={{ fontSize: 10 }}>{r.manifest_number}</Text>
-          ) : null}
-          <Text type="secondary" style={{ fontSize: 11 }}>
-            {[vehicleLabel(r.vehicle_type), r.vehicle_number].filter(Boolean).join(" · ") || "-"}
-          </Text>
-        </Space>
+        <Link href={receiveHref(r)}>
+          <Space direction="vertical" size={0}>
+            <Text strong style={{ fontSize: 13, color: "#0891B2", cursor: "pointer" }}>
+              {r.display_number || r.transfer_number || r.manifest_number || `#${r.id}`}
+            </Text>
+            {r.transfer_number && r.manifest_number ? (
+              <Text type="secondary" style={{ fontSize: 10 }}>{r.manifest_number}</Text>
+            ) : null}
+            <Text type="secondary" style={{ fontSize: 11 }}>
+              {[vehicleLabel(r.vehicle_type), r.vehicle_number].filter(Boolean).join(" · ") || "-"}
+            </Text>
+          </Space>
+        </Link>
       ),
     },
     {
@@ -151,42 +177,74 @@ export default function DispatchesPage() {
   ];
 
   return (
-    <Space direction="vertical" size={12} style={{ width: "100%" }}>
+    <Space direction="vertical" size={10} style={{ width: "100%" }}>
       <AdminPageHeader
         title="Dispatches"
         subtitle="TRs (transfer containers): one per trip between branches. Receive them in Transfers → In Transit."
         icon={<SendOutlined />}
+        breadcrumb={[{ title: "Admin" }, { title: "Dispatches" }]}
         actions={
-          <>
-            {can("dispatches.create") && (
-              <Button type="primary" icon={<PlusOutlined />} onClick={() => setCreateOpen(true)}>
-                Create TR
-              </Button>
-            )}
-            <Button icon={<ReloadOutlined />} onClick={() => load(pagination.current, pagination.pageSize)}>Refresh</Button>
-          </>
+          <ExportImportToolbar
+            entityTitle="Dispatches"
+            columns={DISPATCH_COLUMNS}
+            data={rows}
+            onExportAll={handleExportAll}
+            onRefresh={() => load(pagination.current, pagination.pageSize)}
+            onAdd={can("dispatches.create") ? () => setCreateOpen(true) : null}
+            addText="Create TR"
+            loading={loading}
+          />
         }
       />
 
-      <Card>
-        <Space wrap style={{ marginTop: 12 }}>
-          <Input allowClear style={{ width: 240 }} placeholder="Search TR no. / vehicle / driver"
-            prefix={<SearchOutlined />} value={search}
+      {/* Compact Search & Filter Toolbar */}
+      <div className="admin-toolbar-row">
+        <div className="admin-toolbar-left">
+          <Input
+            allowClear
+            size="small"
+            style={{ width: 220 }}
+            placeholder="Search TR, vehicle, driver"
+            prefix={<SearchOutlined style={{ color: "#94A3B8" }} />}
+            value={search}
             onChange={e => setSearch(e.target.value)}
             onPressEnter={() => load(1, pagination.pageSize)}
           />
-          <Select allowClear style={{ width: 190 }} placeholder="Status"
-            value={status || undefined} onChange={v => setStatus(v || "")}
+          <Select
+            allowClear
+            size="small"
+            style={{ width: 170 }}
+            placeholder="Status"
+            value={status || undefined}
+            onChange={v => setStatus(v || "")}
             options={Object.entries(TR_STATUS_META).map(([value, m]) => ({ value, label: m.label }))}
           />
-          <Button type="primary" onClick={() => load(1, pagination.pageSize)}>Search</Button>
-          <Button onClick={() => { setSearch(""); setStatus(""); setTimeout(() => load(1, pagination.pageSize), 0); }}>Reset</Button>
-        </Space>
-      </Card>
+          <Button size="small" type="primary" onClick={() => load(1, pagination.pageSize)} style={{ background: "#0891B2", borderColor: "#0891B2" }}>
+            Search
+          </Button>
+          {(search || status) && (
+            <Button size="small" onClick={() => { setSearch(""); setStatus(""); setTimeout(() => load(1, pagination.pageSize), 0); }}>
+              Reset
+            </Button>
+          )}
+        </div>
+        <div className="admin-toolbar-right">
+          <Text type="secondary" style={{ fontSize: 12 }}>
+            Total: <strong>{pagination.total}</strong> TRs
+          </Text>
+        </div>
+      </div>
 
-      <Card>
-        <Table rowKey="id" loading={loading} columns={columns} dataSource={rows} scroll={{ x: 900 }}
-          pagination={{ ...pagination, showSizeChanger: true, showTotal: t => `${t} TRs`, onChange: (p, ps) => load(p, ps) }}
+      <Card className="admin-card" bodyStyle={{ padding: 0 }}>
+        <Table
+          rowKey="id"
+          size="small"
+          className="admin-table-compact"
+          loading={loading}
+          columns={columns}
+          dataSource={rows}
+          scroll={{ x: 900 }}
+          pagination={{ ...pagination, size: "small", showSizeChanger: true, showTotal: t => `${t} TRs`, onChange: (p, ps) => load(p, ps) }}
         />
       </Card>
 

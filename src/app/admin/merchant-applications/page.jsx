@@ -6,6 +6,7 @@ import {
   useRef,
   useState,
 } from "react";
+import Link from "next/link";
 import {
   Avatar,
   Button,
@@ -595,15 +596,19 @@ export default function MerchantApplicationsPage() {
           </Avatar>
 
           <div>
-            <div
+            <Link
+              href={`/admin/merchant-applications/${row.id}`}
+              onClick={(e) => e.stopPropagation()}
               style={{
                 fontWeight: 600,
                 fontSize: 13,
                 lineHeight: 1.3,
+                color: "#0891B2",
+                display: "block",
               }}
             >
               {row.name || "-"}
-            </div>
+            </Link>
 
             <div
               style={{
@@ -803,21 +808,20 @@ export default function MerchantApplicationsPage() {
       align: "center",
 
       render: (_, row) => (
-        <Button
-          type="text"
-          size="small"
-          icon={<EyeOutlined />}
-          style={{
-            color: "#6366f1",
-          }}
-          onClick={(event) => {
-            event.stopPropagation();
-
-            router.push(
-              `/admin/merchant-applications/${row.id}`,
-            );
-          }}
-        />
+        <Link
+          href={`/admin/merchant-applications/${row.id}`}
+          onClick={(event) => event.stopPropagation()}
+        >
+          <Button
+            type="text"
+            size="small"
+            icon={<EyeOutlined />}
+            style={{
+              color: "#0891B2",
+            }}
+            title="Review application (open in new tab)"
+          />
+        </Link>
       ),
     },
   ];
@@ -1140,6 +1144,7 @@ export default function MerchantApplicationsPage() {
         <Table
           rowKey="id"
           size="small"
+          className="admin-table-compact"
           loading={loading}
           dataSource={data}
           columns={columns}

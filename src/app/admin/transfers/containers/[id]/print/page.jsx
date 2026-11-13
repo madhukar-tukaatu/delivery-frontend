@@ -171,7 +171,9 @@ export default function TrPrintPage() {
             <div><b>Parcels</b>{tr.parcel_count}{tr.last_mile_count || tr.onward_count ? ` (${tr.last_mile_count} last mile, ${tr.onward_count} onward)` : ""}</div>
             <div><b>Total weight</b>{kg(tr.total_weight)}</div>
             <div><b>Dispatched</b>{fmt(tr.dispatched_at)}</div>
+            <div><b>Est. Arrival (ETA)</b>{fmt(tr.estimated_arrival_at) || "En route"}</div>
             <div><b>Vehicle</b>{vehicle || "-"}</div>
+            <div><b>Capacity Cap</b>{tr.max_parcels ? `${tr.max_parcels} pkgs` : "Standard"}</div>
             <div style={{ gridColumn: "1 / span 2" }}><b>Rider / driver</b>{carrier || "-"}</div>
             {(tr.onward_breakdown || []).length ? (
               <div style={{ gridColumn: "1 / span 2" }}>
@@ -199,7 +201,9 @@ export default function TrPrintPage() {
 
           <div className="tr-grid" style={{ gridTemplateColumns: "repeat(4, 1fr)", fontSize: 11 }}>
             <div><b>Dispatched</b>{fmt(tr.dispatched_at)}</div>
+            <div><b>Est. Arrival (ETA)</b>{fmt(tr.estimated_arrival_at) || "-"}</div>
             <div><b>Vehicle</b>{vehicle || "-"}</div>
+            <div><b>Capacity Cap</b>{tr.max_parcels ? `${tr.max_parcels} pkgs (${kg(tr.max_weight_kg)})` : "-"}</div>
             <div><b>Rider / driver</b>{carrier || "-"}</div>
             <div><b>Seal no.</b>{tr.seal_number || "-"}</div>
             <div><b>Parcels</b>{tr.parcel_count} ({tr.last_mile_count} last mile, {tr.onward_count} onward)</div>

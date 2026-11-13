@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import Link from "next/link";
 import {
   Alert,
   Button,
@@ -16,9 +17,10 @@ import {
   Typography,
   message,
 } from "antd";
-import { PlusOutlined, ReloadOutlined, ApiOutlined } from "@ant-design/icons";
+import { PlusOutlined, ReloadOutlined, ApiOutlined, EyeOutlined } from "@ant-design/icons";
 import { useRouter } from "next/navigation";
 import AdminPageHeader from "@/components/admin/ui/AdminPageHeader";
+import ExportImportToolbar from "@/components/admin/ui/ExportImportToolbar";
 import {
   createMarketplace,
   deleteMarketplace,
@@ -27,6 +29,18 @@ import {
 import { usePermissions } from "@/hooks/usePermission";
 
 const { Text } = Typography;
+
+const MARKETPLACE_COLUMNS = [
+  { key: "name", label: "Name", required: true, sampleValue: "Nepal E-Commerce" },
+  { key: "code", label: "Code", required: true, sampleValue: "nepal-ecommerce" },
+  { key: "email", label: "Billing Email", required: false, sampleValue: "billing@nepal.com" },
+  { key: "api_base_url", label: "API Base URL", required: false, sampleValue: "https://api.nepal.com" },
+];
+
+const SAMPLE_MARKETPLACE_ROWS = [
+  { name: "Nepal E-Commerce", code: "nepal-ecommerce", email: "billing@nepal.com", api_base_url: "https://api.nepal.com" },
+  { name: "Kathmandu Mall", code: "ktm-mall", email: "support@ktmmall.com", api_base_url: "https://api.ktmmall.com" },
+];
 
 export default function MarketplacesPage() {
   const router = useRouter();
@@ -118,18 +132,46 @@ export default function MarketplacesPage() {
     );
   }
 
+  const handleImportMarketplaces = async (validRows) => {
+    let successCount = 0;
+    const errors = [];
+    for (const row of validRows) {
+      try {
+        await createMarketplace({
+          name: row.name?.trim(),
+          code: row.code?.trim(),
+          email: row.email?.trim() || undefined,
+          api_base_url: row.api_base_url?.trim() || undefined,
+          is_active: true,
+          is_default: false,
+        });
+        successCount++;
+      } catch (err) {
+        errors.push(`${row.name || "Marketplace"}: ${err?.response?.data?.message || err.message}`);
+      }
+    }
+    if (errors.length > 0 && successCount === 0) {
+      throw new Error(`Failed to import marketplaces: ${errors.slice(0, 3).join("; ")}`);
+    }
+    if (errors.length > 0) {
+      message.warning(`Imported ${successCount} marketplaces. ${errors.length} failed.`);
+    }
+    load();
+    return { successCount, errors };
+  };
+
   const columns = [
     {
       title: "Name",
       dataIndex: "name",
       render: (value, row) => (
-        <div>
-          <Text strong>{value}</Text>
+        <Link href={`/admin/marketplaces/${row.id}`} style={{ textDecoration: "none" }}>
+          <Text strong style={{ color: "#0891B2", cursor: "pointer" }}>{value}</Text>
           <div>
-            {row.is_default ? <Tag color="blue">default</Tag> : null}
-            {row.is_active ? <Tag color="green">active</Tag> : <Tag>inactive</Tag>}
+            {row.is_default ? <Tag color="blue" style={{ fontSize: 10 }}>default</Tag> : null}
+            {row.is_active ? <Tag color="green" style={{ fontSize: 10 }}>active</Tag> : <Tag style={{ fontSize: 10 }}>inactive</Tag>}
           </div>
-        </div>
+        </Link>
       ),
     },
     {
@@ -157,14 +199,16 @@ export default function MarketplacesPage() {
     },
     {
       title: "",
-      width: 160,
+      width: 140,
       render: (_, row) => (
-        <Space size={0}>
-          <Button type="link" onClick={() => router.push(`/admin/marketplaces/${row.id}`)}>
-            View
-          </Button>
+        <Space size={6}>
+          <Link href={`/admin/marketplaces/${row.id}`}>
+            <Button size="small" type="link" icon={<EyeOutlined />}>
+              View
+            </Button>
+          </Link>
           {canDelete ? (
-            <Button type="link" danger onClick={() => onDelete(row)}>
+            <Button size="small" type="link" danger onClick={() => onDelete(row)}>
               Delete
             </Button>
           ) : null}
@@ -174,39 +218,44 @@ export default function MarketplacesPage() {
   ];
 
   return (
-    <Space direction="vertical" size={12} style={{ width: "100%" }}>
+    <Space direction="vertical" size={10} style={{ width: "100%" }}>
       <AdminPageHeader
         title="Marketplaces"
-        subtitle="api.tukaatu.com and api.fca.com.np. Online POD uses each marketplace API base URL and the issued key prefix shown here. Secrets are never listed."
+        subtitle="api.tukaatu.com and api.fca.com.np. Online POD uses each marketplace API base URL and the issued key prefix shown here."
         icon={<ApiOutlined />}
+        breadcrumb={[{ title: "Admin" }, { title: "Marketplaces" }]}
         actions={
-          <Space>
-            <Button icon={<ReloadOutlined />} onClick={load} loading={loading}>
-              Refresh
-            </Button>
-            {canCreate ? (
-              <Button type="primary" icon={<PlusOutlined />} onClick={() => setOpen(true)}>
-                Add marketplace
-              </Button>
-            ) : null}
-          </Space>
+          <ExportImportToolbar
+            entityTitle="Marketplaces"
+            columns={MARKETPLACE_COLUMNS}
+            data={rows}
+            sampleRows={SAMPLE_MARKETPLACE_ROWS}
+            onExportAll={async () => rows}
+            onImport={canCreate ? handleImportMarketplaces : null}
+            onRefresh={load}
+            onAdd={canCreate ? () => setOpen(true) : null}
+            addText="Add Marketplace"
+            loading={loading}
+          />
         }
       />
 
-      <Card>
-        <Space wrap style={{ marginBottom: 12 }}>
+      <Card className="admin-card" bodyStyle={{ padding: "8px 12px" }}>
+        <Space wrap style={{ marginBottom: 8 }}>
           <Input.Search
             allowClear
+            size="small"
             placeholder="Search name or code"
             value={searchInput}
             onChange={(event) => setSearchInput(event.target.value)}
             onSearch={(value) => setSearch(value || "")}
-            style={{ width: 280 }}
+            style={{ width: 240 }}
           />
           <Select
+            size="small"
             value={activeFilter}
             onChange={setActiveFilter}
-            style={{ width: 160 }}
+            style={{ width: 140 }}
             options={[
               { value: "all", label: "All statuses" },
               { value: "active", label: "Active" },
@@ -214,9 +263,10 @@ export default function MarketplacesPage() {
             ]}
           />
           <Select
+            size="small"
             value={urlFilter}
             onChange={setUrlFilter}
-            style={{ width: 180 }}
+            style={{ width: 160 }}
             options={[
               { value: "all", label: "API URL: any" },
               { value: "yes", label: "Has API URL" },
@@ -224,7 +274,15 @@ export default function MarketplacesPage() {
             ]}
           />
         </Space>
-        <Table rowKey="id" loading={loading} columns={columns} dataSource={rows} pagination={false} />
+        <Table
+          rowKey="id"
+          size="small"
+          className="admin-table-compact"
+          loading={loading}
+          columns={columns}
+          dataSource={rows}
+          pagination={false}
+        />
       </Card>
 
       <Modal

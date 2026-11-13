@@ -1,11 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import {
   Alert,
   Button,
   Card,
-  Checkbox,
   Col,
   Descriptions,
   Divider,
@@ -21,7 +20,8 @@ import {
   Tag,
   Typography,
   Collapse,
-  Tooltip,
+  Radio,
+  Spin,
   message,
 } from "antd";
 import {
@@ -30,26 +30,23 @@ import {
   PlusOutlined,
   DeleteOutlined,
   ArrowRightOutlined,
-  DollarCircleOutlined,
   CarOutlined,
-  BankOutlined,
   CheckCircleOutlined,
-  SwapOutlined,
-  ShopOutlined,
-  UserOutlined,
   SafetyCertificateOutlined,
-  SettingOutlined,
   CopyOutlined,
   TableOutlined,
   AppstoreOutlined,
   NodeIndexOutlined,
   ThunderboltOutlined,
+  ApartmentOutlined,
+  CarFilled,
 } from "@ant-design/icons";
+import Link from "next/link";
 import api from "@/lib/api";
 import { formatRs } from "@/components/admin/billing/financeKit";
 import SettlementDiagram from "@/components/admin/billing/SettlementDiagram";
 
-const { Text, Paragraph, Title } = Typography;
+const { Text, Paragraph } = Typography;
 
 function unwrap(r) {
   return r?.data?.data ?? r?.data ?? r;
@@ -62,6 +59,13 @@ export default function SettlementSimulator({ branches = [], activeRules }) {
   const [originId, setOriginId] = useState(null);
   const [destId, setDestId] = useState(null);
   const [transitIds, setTransitIds] = useState([]);
+
+  // System Configured Routes for the Corridor
+  const [routesList, setRoutesList] = useState([]);
+  const [selectedRouteId, setSelectedRouteId] = useState(null);
+  const [selectedRoute, setSelectedRoute] = useState(null);
+  const [routesLoading, setRoutesLoading] = useState(false);
+  const [customTransitOverride, setCustomTransitOverride] = useState(false);
 
   const [weightKg, setWeightKg] = useState(2.5);
   const [isFragile, setIsFragile] = useState(false);
@@ -76,10 +80,10 @@ export default function SettlementSimulator({ branches = [], activeRules }) {
   const [result, setResult] = useState(null);
   const [roleView, setRoleView] = useState("hq");
 
-  // View Mode: 'diagram' (Visual Flowchart) | 'table' (Detailed Ledger) | 'compact' (Executive Summary)
+  // View Mode: 'diagram' | 'table' | 'compact'
   const [viewMode, setViewMode] = useState("diagram");
 
-  // Dynamic Rule Overrides (In-place settings)
+  // Dynamic Rule Overrides
   const [transitFeeMode, setTransitFeeMode] = useState("fixed");
   const [transitFeeAmount, setTransitFeeAmount] = useState(10.0);
   const [originBasePct, setOriginBasePct] = useState(30.0);
@@ -87,30 +91,129 @@ export default function SettlementSimulator({ branches = [], activeRules }) {
   const [hqCommPct, setHqCommPct] = useState(5.0);
   const [weightHqPct, setWeightHqPct] = useState(50.0);
 
-  // Auto-sync default hops whenever route changes
-  function syncHops(newOrigin, newDest, newTransits) {
-    if (!newOrigin || !newDest || newOrigin === newDest) {
+  // Helper to build direct transfer hops
+  const syncDirectHops = useCallback((oId, dId) => {
+    if (!oId || !dId || oId === dId) {
       setHops([]);
       return;
     }
-    const chain = [newOrigin, ...(newTransits || []).filter(Boolean), newDest].filter(Boolean);
-    if (chain.length < 2) {
-      setHops([]);
+    setHops([
+      {
+        transfer_number: "TR-001",
+        from_branch_id: oId,
+        to_branch_id: dId,
+        trip_transport_cost: 900,
+        total_shipments_on_tr: 20,
+        distance_km: null,
+        transport_mode: "road",
+      },
+    ]);
+  }, []);
+
+  // Helper to apply a route from the system
+  const applyRoute = useCallback((route, oId, dId) => {
+    if (!route) {
+      syncDirectHops(oId, dId);
       return;
     }
 
-    const newHops = [];
-    for (let i = 0; i < chain.length - 1; i++) {
-      newHops.push({
-        transfer_number: `TR-00${i + 1}`,
-        from_branch_id: chain[i],
-        to_branch_id: chain[i + 1],
-        trip_transport_cost: i === 0 ? 900 : 600,
-        total_shipments_on_tr: i === 0 ? 20 : 10,
+    const tIds = Array.isArray(route.transit_branch_ids) ? route.transit_branch_ids : [];
+    setTransitIds(tIds);
+
+    // Build hops from route.lanes or route.path
+    if (route.lanes && route.lanes.length > 0) {
+      const newHops = route.lanes.map((lm, idx) => {
+        const lane = lm.lane || {};
+        return {
+          transfer_number: `TR-00${idx + 1}`,
+          from_branch_id: lane.from_branch_id,
+          to_branch_id: lane.to_branch_id,
+          trip_transport_cost: idx === 0 ? 900 : 600,
+          total_shipments_on_tr: idx === 0 ? 20 : 10,
+          distance_km: lane.distance_km,
+          transport_mode: lane.transport_mode || "road",
+        };
       });
+      setHops(newHops);
+    } else if (route.path && route.path.length > 1) {
+      const newHops = [];
+      for (let i = 0; i < route.path.length - 1; i++) {
+        newHops.push({
+          transfer_number: `TR-00${i + 1}`,
+          from_branch_id: route.path[i].id,
+          to_branch_id: route.path[i + 1].id,
+          trip_transport_cost: i === 0 ? 900 : 600,
+          total_shipments_on_tr: i === 0 ? 20 : 10,
+          distance_km: null,
+          transport_mode: route.path[i + 1]?.transport_mode || "road",
+        });
+      }
+      setHops(newHops);
+    } else {
+      const chain = [oId, ...tIds, dId].filter(Boolean);
+      const newHops = [];
+      for (let i = 0; i < chain.length - 1; i++) {
+        newHops.push({
+          transfer_number: `TR-00${i + 1}`,
+          from_branch_id: chain[i],
+          to_branch_id: chain[i + 1],
+          trip_transport_cost: i === 0 ? 900 : 600,
+          total_shipments_on_tr: i === 0 ? 20 : 10,
+          distance_km: null,
+          transport_mode: "road",
+        });
+      }
+      setHops(newHops);
     }
-    setHops(newHops);
-  }
+  }, [syncDirectHops]);
+
+  // Query system routes for the selected corridor
+  const fetchCorridorRoutes = useCallback(
+    async (oId, dId, sType) => {
+      if (!oId || !dId || oId === dId) {
+        setRoutesList([]);
+        setSelectedRouteId(null);
+        setSelectedRoute(null);
+        setTransitIds([]);
+        setHops([]);
+        return;
+      }
+
+      setRoutesLoading(true);
+      try {
+        const res = unwrap(
+          await api.get("/admin/branch-shares/routes", {
+            params: {
+              origin_branch_id: oId,
+              destination_branch_id: dId,
+              service_type: sType !== "all" ? sType : undefined,
+            },
+          })
+        );
+
+        const rList = res?.routes || [];
+        setRoutesList(rList);
+
+        const defaultRt = res?.default_route || rList.find((r) => r.is_default) || rList[0] || null;
+        if (defaultRt) {
+          setSelectedRouteId(defaultRt.id || defaultRt.route_id);
+          setSelectedRoute(defaultRt);
+          applyRoute(defaultRt, oId, dId);
+        } else {
+          setSelectedRouteId(null);
+          setSelectedRoute(null);
+          setTransitIds([]);
+          syncDirectHops(oId, dId);
+        }
+      } catch (err) {
+        console.error("Could not fetch transfer routes:", err);
+        syncDirectHops(oId, dId);
+      } finally {
+        setRoutesLoading(false);
+      }
+    },
+    [applyRoute, syncDirectHops]
+  );
 
   // Auto-init origin and dest when branches load
   useEffect(() => {
@@ -127,23 +230,53 @@ export default function SettlementSimulator({ branches = [], activeRules }) {
         dId = other?.id || oId;
         setDestId(dId);
       }
-      syncHops(oId, dId, transitIds);
+      fetchCorridorRoutes(oId, dId, serviceType);
     }
   }, [branches]);
 
   function handleOriginChange(id) {
     setOriginId(id);
-    syncHops(id, destId, transitIds);
+    setCustomTransitOverride(false);
+    fetchCorridorRoutes(id, destId, serviceType);
   }
 
   function handleDestChange(id) {
     setDestId(id);
-    syncHops(originId, id, transitIds);
+    setCustomTransitOverride(false);
+    fetchCorridorRoutes(originId, id, serviceType);
+  }
+
+  function handleServiceTypeChange(type) {
+    setServiceType(type);
+    fetchCorridorRoutes(originId, destId, type);
+  }
+
+  function handleRouteChange(routeId) {
+    setSelectedRouteId(routeId);
+    const rt = routesList.find((r) => (r.id || r.route_id) === routeId);
+    if (rt) {
+      setSelectedRoute(rt);
+      applyRoute(rt, originId, destId);
+      message.success(`Applied transfer route: ${rt.name || rt.route_code}`);
+    }
   }
 
   function handleTransitChange(ids) {
     setTransitIds(ids);
-    syncHops(originId, destId, ids);
+    const chain = [originId, ...(ids || []).filter(Boolean), destId].filter(Boolean);
+    const newHops = [];
+    for (let i = 0; i < chain.length - 1; i++) {
+      newHops.push({
+        transfer_number: `TR-00${i + 1}`,
+        from_branch_id: chain[i],
+        to_branch_id: chain[i + 1],
+        trip_transport_cost: i === 0 ? 900 : 600,
+        total_shipments_on_tr: i === 0 ? 20 : 10,
+        distance_km: null,
+        transport_mode: "road",
+      });
+    }
+    setHops(newHops);
   }
 
   function updateHop(idx, key, val) {
@@ -218,6 +351,7 @@ export default function SettlementSimulator({ branches = [], activeRules }) {
       const payload = {
         origin_branch_id: originId,
         destination_branch_id: destId,
+        transfer_route_id: selectedRouteId || undefined,
         transit_branch_ids: transitIds || [],
         weight_kg: weightKg,
         is_fragile: isFragile,
@@ -239,10 +373,24 @@ export default function SettlementSimulator({ branches = [], activeRules }) {
     }
   }
 
-  const branchOptions = (branches || []).map((b) => ({
-    label: `${b.name} (${b.code || `#${b.id}`})`,
-    value: b.id,
-  }));
+  const branchOptions = useMemo(
+    () =>
+      (branches || []).map((b) => ({
+        label: `${b.name} (${b.code || `#${b.id}`})`,
+        value: b.id,
+      })),
+    [branches]
+  );
+
+  const originBranchObj = useMemo(() => branches.find((b) => b.id === originId), [branches, originId]);
+  const destBranchObj = useMemo(() => branches.find((b) => b.id === destId), [branches, destId]);
+
+  // Derived transit branches from IDs
+  const transitBranchesList = useMemo(() => {
+    return (transitIds || [])
+      .map((tid) => branches.find((b) => b.id === tid))
+      .filter(Boolean);
+  }, [branches, transitIds]);
 
   const ledgerCols = [
     {
@@ -251,50 +399,32 @@ export default function SettlementSimulator({ branches = [], activeRules }) {
       key: "branch_name",
       render: (v, r) => (
         <Space>
-          <Text strong>{v}</Text>
-          <Tag color={r.role === "delivery" ? "cyan" : r.role === "origin" ? "blue" : "purple"}>
-            {r.role?.toUpperCase()}
+          <Text strong style={{ fontSize: 13 }}>{v}</Text>
+          <Tag color={r.role === "origin" ? "purple" : r.role === "transit" ? "cyan" : "blue"}>
+            {r.role ? r.role.toUpperCase() : "BRANCH"}
           </Tag>
         </Space>
       ),
     },
     {
-      title: "Base Share (30/70)",
-      dataIndex: "base_share_amount",
-      key: "base_share_amount",
-      align: "right",
-      render: (v) => formatRs(v),
+      title: "Operation / Role",
+      dataIndex: "role",
+      key: "role",
+      render: (v) => {
+        if (v === "origin") return <Text type="secondary" style={{ fontSize: 12 }}>Booking, Manifesting & Invoicing</Text>;
+        if (v === "transit") return <Text type="secondary" style={{ fontSize: 12 }}>Mid-Hub Cross-Docking & Sorting</Text>;
+        return <Text type="secondary" style={{ fontSize: 12 }}>Last-Mile Handover & POD Cash Collection</Text>;
+      },
     },
     {
-      title: "Weight Share",
-      dataIndex: "weight_share_amount",
-      key: "weight_share_amount",
-      align: "right",
-      render: (v) => formatRs(v),
-    },
-    {
-      title: "Extra Distance",
-      dataIndex: "extra_distance_amount",
-      key: "extra_distance_amount",
-      align: "right",
-      render: (v) => formatRs(v),
-    },
-    {
-      title: "Transit Fee",
-      dataIndex: "transit_fee_amount",
-      key: "transit_fee_amount",
-      align: "right",
-      render: (v) => (Number(v) > 0 ? <Tag color="purple">{formatRs(v)}</Tag> : "-"),
-    },
-    {
-      title: "Operational Income",
+      title: "Gross Share",
       dataIndex: "allocation_amount",
       key: "allocation_amount",
       align: "right",
-      render: (v) => <Text strong>{formatRs(v)}</Text>,
+      render: (v) => <Text strong style={{ fontSize: 13 }}>{formatRs(v)}</Text>,
     },
     {
-      title: "5% HQ Comm.",
+      title: "5% HQ Commission",
       dataIndex: "hq_commission_amount",
       key: "hq_commission_amount",
       align: "right",
@@ -363,12 +493,31 @@ Status: 100% Balanced. Total Disbursed: Rs ${p.total_delivery_fare}`;
         }
       >
         <Row gutter={[20, 20]}>
-          {/* Column 1: Route Selection */}
+          {/* Column 1: Route Selection & Configured Transfer Routes */}
           <Col xs={24} md={12}>
-            <Card size="small" title="1. Route & Branch Chain" style={{ height: "100%", background: "#fafafa" }}>
-              <Space direction="vertical" size={12} style={{ width: "100%" }}>
+            <Card
+              size="small"
+              title={
+                <Row justify="space-between" align="middle">
+                  <Col>
+                    <Space>
+                      <NodeIndexOutlined style={{ color: "#1677ff" }} />
+                      <Text strong>1. Route & Corridor Selection</Text>
+                    </Space>
+                  </Col>
+                  <Col>
+                    <Link href="/admin/branch-transfer-routes" target="_blank" style={{ fontSize: 11 }}>
+                      Manage Admin Routes →
+                    </Link>
+                  </Col>
+                </Row>
+              }
+              style={{ height: "100%", background: "#fafafa" }}
+            >
+              <Space direction="vertical" size={14} style={{ width: "100%" }}>
+                {/* Origin Branch */}
                 <div>
-                  <Text strong>Origin Branch (Booking & Invoicing):</Text>
+                  <Text strong style={{ fontSize: 12 }}>Origin Branch (Booking & Invoicing):</Text>
                   <Select
                     showSearch
                     placeholder="Select origin branch"
@@ -380,25 +529,9 @@ Status: 100% Balanced. Total Disbursed: Rs ${p.total_delivery_fare}`;
                   />
                 </div>
 
+                {/* Destination Branch */}
                 <div>
-                  <Text strong>Transit Hub(s) in Sequence:</Text>
-                  <Select
-                    mode="multiple"
-                    showSearch
-                    placeholder="Optional intermediate transit branches (e.g. Bharatpur)"
-                    style={{ width: "100%", marginTop: 4 }}
-                    options={branchOptions.filter((b) => b.value !== originId && b.value !== destId)}
-                    value={transitIds}
-                    onChange={handleTransitChange}
-                    filterOption={(input, option) => (option?.label ?? "").toLowerCase().includes(input.toLowerCase())}
-                  />
-                  <Text type="secondary" style={{ fontSize: 11, display: "block", marginTop: 2 }}>
-                    Leave empty for direct 2-branch delivery (0 transit hubs).
-                  </Text>
-                </div>
-
-                <div>
-                  <Text strong>Destination (Delivering) Branch:</Text>
+                  <Text strong style={{ fontSize: 12 }}>Destination (Delivering) Branch:</Text>
                   <Select
                     showSearch
                     placeholder="Select destination branch"
@@ -409,11 +542,161 @@ Status: 100% Balanced. Total Disbursed: Rs ${p.total_delivery_fare}`;
                     filterOption={(input, option) => (option?.label ?? "").toLowerCase().includes(input.toLowerCase())}
                   />
                 </div>
+
+                {/* System Configured Routes for the corridor */}
+                <div style={{ marginTop: 4 }}>
+                  <Row justify="space-between" align="middle" style={{ marginBottom: 6 }}>
+                    <Col>
+                      <Space>
+                        <ApartmentOutlined style={{ color: "#0958d9" }} />
+                        <Text strong style={{ fontSize: 12 }}>
+                          System Transfer Routes ({routesLoading ? "Loading..." : routesList.length}):
+                        </Text>
+                      </Space>
+                    </Col>
+                    <Col>
+                      {routesList.length > 1 && (
+                        <Tag color="blue">{routesList.length} Options Configured</Tag>
+                      )}
+                      {routesList.length === 1 && (
+                        <Tag color="green">1 Active Route</Tag>
+                      )}
+                    </Col>
+                  </Row>
+
+                  {routesLoading ? (
+                    <div style={{ padding: "16px 0", textAlign: "center", background: "#f8fafc", borderRadius: 6 }}>
+                      <Spin size="small" tip="Resolving system transfer routes for this corridor..." />
+                    </div>
+                  ) : routesList.length > 0 ? (
+                    <Radio.Group
+                      value={selectedRouteId}
+                      onChange={(e) => handleRouteChange(e.target.value)}
+                      style={{ width: "100%" }}
+                    >
+                      <Space direction="vertical" style={{ width: "100%" }} size={8}>
+                        {routesList.map((rt) => {
+                          const rId = rt.id || rt.route_id;
+                          const isSelected = selectedRouteId === rId;
+                          const isDef = Boolean(rt.is_default);
+
+                          return (
+                            <div
+                              key={rId}
+                              onClick={() => handleRouteChange(rId)}
+                              style={{
+                                cursor: "pointer",
+                                border: `1.5px solid ${isSelected ? "#2563eb" : "#e2e8f0"}`,
+                                background: isSelected ? "#eff6ff" : "#ffffff",
+                                borderRadius: 6,
+                                padding: "8px 12px",
+                                transition: "all 0.2s",
+                              }}
+                            >
+                              <Row justify="space-between" align="middle">
+                                <Col>
+                                  <Space>
+                                    <Radio value={rId} />
+                                    <Text strong style={{ fontSize: 13, color: isSelected ? "#1d4ed8" : "#1e293b" }}>
+                                      {rt.name || rt.route_code}
+                                    </Text>
+                                    {isDef && <Tag color="green">★ Primary (Default)</Tag>}
+                                    {!isDef && <Tag color="default">Optional Route</Tag>}
+                                    <Tag color={rt.service_type === "express" ? "orange" : rt.service_type === "same_day" ? "red" : "blue"}>
+                                      {(rt.service_type || "standard").toUpperCase()}
+                                    </Tag>
+                                  </Space>
+                                </Col>
+                                <Col>
+                                  <Space size={8}>
+                                    {rt.total_distance_km && (
+                                      <Text type="secondary" style={{ fontSize: 11 }}>
+                                        {Number(rt.total_distance_km).toFixed(1)} km
+                                      </Text>
+                                    )}
+                                    {rt.total_estimated_hours && (
+                                      <Text type="secondary" style={{ fontSize: 11 }}>
+                                        ~{rt.total_estimated_hours}h
+                                      </Text>
+                                    )}
+                                    <Tag color="cyan" style={{ margin: 0, fontSize: 11 }}>
+                                      {rt.transit_count > 0 ? `${rt.transit_count} Transit Hub(s)` : "Direct Transfer"}
+                                    </Tag>
+                                  </Space>
+                                </Col>
+                              </Row>
+
+                              <div style={{ marginTop: 4, paddingLeft: 24, fontSize: 11.5, color: "#475569" }}>
+                                <Text type="secondary">Corridor: </Text>
+                                <span>{rt.path_text || rt.name}</span>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </Space>
+                    </Radio.Group>
+                  ) : (
+                    <Alert
+                      type="info"
+                      showIcon
+                      style={{ fontSize: 12 }}
+                      message="Direct Inter-Branch Corridor (No Multi-Hub Route Configured)"
+                      description={
+                        <div>
+                          <span>
+                            No multi-lane transfer route is configured in <strong>Admin → Transfer Routes</strong> for this branch pair. The simulator defaults to a direct 2-branch corridor.
+                          </span>
+                          <div style={{ marginTop: 6 }}>
+                            <Space>
+                              <Button
+                                size="small"
+                                type="dashed"
+                                onClick={() => setCustomTransitOverride(!customTransitOverride)}
+                              >
+                                {customTransitOverride ? "Hide Custom Transit Hubs" : "+ Simulate Custom Transit Hubs"}
+                              </Button>
+                              <Link href="/admin/branch-transfer-routes" target="_blank">
+                                <Button size="small" type="link">Configure New Transfer Route →</Button>
+                              </Link>
+                            </Space>
+                          </div>
+                        </div>
+                      }
+                    />
+                  )}
+                </div>
+
+                {/* Custom Transit Hubs Override (Only if explicitly toggled) */}
+                {customTransitOverride && (
+                  <div style={{ background: "#fefce8", border: "1px dashed #fde047", padding: 10, borderRadius: 6 }}>
+                    <Row justify="space-between" align="middle" style={{ marginBottom: 4 }}>
+                      <Col><Text strong style={{ fontSize: 12 }}>Custom Transit Hub(s) in Sequence:</Text></Col>
+                      <Col>
+                        <Button size="small" type="text" danger onClick={() => setCustomTransitOverride(false)}>
+                          Cancel Override
+                        </Button>
+                      </Col>
+                    </Row>
+                    <Select
+                      mode="multiple"
+                      showSearch
+                      placeholder="Select intermediate transit hubs"
+                      style={{ width: "100%" }}
+                      options={branchOptions.filter((b) => b.value !== originId && b.value !== destId)}
+                      value={transitIds}
+                      onChange={handleTransitChange}
+                      filterOption={(input, option) => (option?.label ?? "").toLowerCase().includes(input.toLowerCase())}
+                    />
+                    <Text type="secondary" style={{ fontSize: 10.5, display: "block", marginTop: 2 }}>
+                      Overrides the system transfer route with manual ad-hoc transit hubs.
+                    </Text>
+                  </div>
+                )}
               </Space>
             </Card>
           </Col>
 
-          {/* Column 2: Shipment Details */}
+          {/* Column 2: Package & Pricing Specs */}
           <Col xs={24} md={12}>
             <Card size="small" title="2. Package & Pricing Specs" style={{ height: "100%", background: "#fafafa" }}>
               <Space direction="vertical" size={12} style={{ width: "100%" }}>
@@ -434,7 +717,15 @@ Status: 100% Balanced. Total Disbursed: Rs ${p.total_delivery_fare}`;
                 <Row align="middle" justify="space-between">
                   <Col><Text strong>Weight (kg):</Text></Col>
                   <Col>
-                    <InputNumber min={0.1} max={100} step={0.5} value={weightKg} addonAfter="kg" onChange={setWeightKg} style={{ width: 160 }} />
+                    <InputNumber
+                      min={0.1}
+                      max={100}
+                      step={0.5}
+                      value={weightKg}
+                      addonAfter="kg"
+                      onChange={setWeightKg}
+                      style={{ width: 160 }}
+                    />
                   </Col>
                 </Row>
 
@@ -446,7 +737,15 @@ Status: 100% Balanced. Total Disbursed: Rs ${p.total_delivery_fare}`;
                     </Text>
                   </Col>
                   <Col>
-                    <InputNumber min={0} max={200} step={1} value={distanceKm} addonAfter="km" onChange={setDistanceKm} style={{ width: 160 }} />
+                    <InputNumber
+                      min={0}
+                      max={200}
+                      step={1}
+                      value={distanceKm}
+                      addonAfter="km"
+                      onChange={setDistanceKm}
+                      style={{ width: 160 }}
+                    />
                   </Col>
                 </Row>
 
@@ -454,22 +753,27 @@ Status: 100% Balanced. Total Disbursed: Rs ${p.total_delivery_fare}`;
                   <Col><Text strong>Service Type:</Text></Col>
                   <Col>
                     <Select
-                      value={serviceType}
                       style={{ width: 160 }}
+                      value={serviceType}
+                      onChange={handleServiceTypeChange}
                       options={[
                         { label: "Standard", value: "standard" },
                         { label: "Express", value: "express" },
                         { label: "Same Day", value: "same_day" },
                       ]}
-                      onChange={setServiceType}
                     />
                   </Col>
                 </Row>
 
                 <Row align="middle" justify="space-between">
-                  <Col><Text strong>Fragile Parcel:</Text></Col>
                   <Col>
-                    <Switch checked={isFragile} onChange={setIsFragile} checkedChildren="Yes" unCheckedChildren="No" />
+                    <Text strong>Fragile Parcel:</Text>
+                    <Text type="secondary" style={{ fontSize: 11, display: "block" }}>
+                      Applies fragile handling multiplier (x1.05)
+                    </Text>
+                  </Col>
+                  <Col>
+                    <Switch checked={isFragile} onChange={setIsFragile} />
                   </Col>
                 </Row>
               </Space>
@@ -477,10 +781,141 @@ Status: 100% Balanced. Total Disbursed: Rs ${p.total_delivery_fare}`;
           </Col>
         </Row>
 
-        {/* Dynamic Rules Override Toolbar */}
+        {/* ================= SHIPMENT FLOW PIPELINE VISUALIZATION ================= */}
+        <Divider style={{ margin: "16px 0 12px 0" }} />
+        <Card
+          size="small"
+          styles={{ body: { padding: "12px 16px" } }}
+          style={{ background: "#f8fafc", border: "1px solid #cbd5e1", borderRadius: 8 }}
+        >
+          <Row justify="space-between" align="middle" style={{ marginBottom: 10 }}>
+            <Col>
+              <Space>
+                <ApartmentOutlined style={{ color: "#2563eb", fontSize: 16 }} />
+                <Text strong style={{ fontSize: 13, color: "#1e293b" }}>
+                  Operational Shipment & Line-Haul Flow:
+                </Text>
+                {selectedRoute && (
+                  <Tag color="blue">{selectedRoute.name || selectedRoute.route_code}</Tag>
+                )}
+                {selectedRoute?.service_type && (
+                  <Tag color="cyan">{selectedRoute.service_type.toUpperCase()}</Tag>
+                )}
+              </Space>
+            </Col>
+            <Col>
+              <Space size={12}>
+                <Text type="secondary" style={{ fontSize: 11 }}>
+                  Total Corridor: <strong>{hops.length} Leg(s) / TR Manifest(s)</strong>
+                </Text>
+                <Text type="secondary" style={{ fontSize: 11 }}>
+                  Transit Stops: <strong>{transitIds.length} Mid-Hub(s)</strong>
+                </Text>
+              </Space>
+            </Col>
+          </Row>
+
+          {/* Step Pipeline */}
+          <div style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
+            {/* 1. Origin Node */}
+            <div
+              style={{
+                flex: "1 1 200px",
+                background: "#faf5ff",
+                border: "1.5px solid #d8b4fe",
+                borderRadius: 6,
+                padding: "8px 12px",
+              }}
+            >
+              <Tag color="purple" style={{ margin: 0, fontSize: 10 }}>
+                1. BOOKING & INVOICING
+              </Tag>
+              <div style={{ fontWeight: "bold", fontSize: 13, color: "#6b21a8", marginTop: 4 }}>
+                {originBranchObj?.name || "Origin Branch"}
+              </div>
+              <Text type="secondary" style={{ fontSize: 11, display: "block" }}>
+                Packages parcel & invoices merchant
+              </Text>
+            </div>
+
+            {/* In-Between Legs and Transit Hubs */}
+            {hops.map((hop, idx) => {
+              const toBranch = branches.find((b) => b.id === hop.to_branch_id);
+              const isFinal = idx === hops.length - 1;
+
+              return (
+                <div key={idx} style={{ display: "flex", alignItems: "center", gap: 8, flex: "1 1 auto" }}>
+                  {/* Line-haul Arrow / Manifest */}
+                  <div style={{ textAlign: "center", minWidth: 100, padding: "0 4px" }}>
+                    <div style={{ fontSize: 10.5, fontWeight: "bold", color: "#7c3aed" }}>
+                      <CarFilled /> {hop.transfer_number}
+                    </div>
+                    <ArrowRightOutlined style={{ color: "#94a3b8", fontSize: 14 }} />
+                    <div style={{ fontSize: 9.5, color: "#64748b" }}>
+                      Line-Haul Fleet
+                    </div>
+                  </div>
+
+                  {/* If not final, it's a Transit Hub */}
+                  {!isFinal && (
+                    <div
+                      style={{
+                        flex: "1 1 180px",
+                        background: "#ecfeff",
+                        border: "1.5px solid #a5f3fc",
+                        borderRadius: 6,
+                        padding: "8px 12px",
+                      }}
+                    >
+                      <Row justify="space-between" align="middle">
+                        <Tag color="cyan" style={{ margin: 0, fontSize: 10 }}>
+                          TRANSIT HUB #{idx + 1}
+                        </Tag>
+                        <Tag color="geekblue" style={{ margin: 0, fontSize: 9.5 }}>
+                          Rs 10 Handling Fee
+                        </Tag>
+                      </Row>
+                      <div style={{ fontWeight: "bold", fontSize: 13, color: "#0e7490", marginTop: 4 }}>
+                        {toBranch?.name || `Branch #${hop.to_branch_id}`}
+                      </div>
+                      <Text type="secondary" style={{ fontSize: 11, display: "block" }}>
+                        Inbound scan, sorting & cross-docking
+                      </Text>
+                    </div>
+                  )}
+
+                  {/* If final, it's Destination Hub */}
+                  {isFinal && (
+                    <div
+                      style={{
+                        flex: "1 1 200px",
+                        background: "#eff6ff",
+                        border: "1.5px solid #93c5fd",
+                        borderRadius: 6,
+                        padding: "8px 12px",
+                      }}
+                    >
+                      <Tag color="blue" style={{ margin: 0, fontSize: 10 }}>
+                        {hops.length + 1}. DELIVERY & CASH POD
+                      </Tag>
+                      <div style={{ fontWeight: "bold", fontSize: 13, color: "#1d4ed8", marginTop: 4 }}>
+                        {destBranchObj?.name || "Delivery Branch"}
+                      </div>
+                      <Text type="secondary" style={{ fontSize: 11, display: "block" }}>
+                        Last-mile rider handover & cash collect
+                      </Text>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </Card>
+
+        {/* Dynamic Rules Override Accordion */}
         <Collapse
           ghost
-          style={{ marginTop: 16, background: "#f0f5ff", borderRadius: 8, border: "1px solid #adc6ff" }}
+          style={{ marginTop: 12 }}
           items={[
             {
               key: "1",
@@ -498,7 +933,13 @@ Status: 100% Balanced. Total Disbursed: Rs ${p.total_delivery_fare}`;
                     </Space>
                   </Col>
                   <Col>
-                    <Button size="small" onClick={(e) => { e.stopPropagation(); resetDynamicSettings(); }}>
+                    <Button
+                      size="small"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        resetDynamicSettings();
+                      }}
+                    >
                       Reset Defaults
                     </Button>
                   </Col>
@@ -604,8 +1045,6 @@ Status: 100% Balanced. Total Disbursed: Rs ${p.total_delivery_fare}`;
 
               <Space direction="vertical" style={{ width: "100%" }} size={8}>
                 {hops.map((hop, idx) => {
-                  const fromBranchName = branches.find((b) => b.id === hop.from_branch_id)?.name || `Branch #${hop.from_branch_id}`;
-                  const toBranchName = branches.find((b) => b.id === hop.to_branch_id)?.name || `Branch #${hop.to_branch_id}`;
                   const tripCost = Number(hop.trip_transport_cost || 0);
                   const pkts = Math.max(1, Number(hop.total_shipments_on_tr || 1));
                   const perPkt = (tripCost / pkts).toFixed(2);
@@ -820,7 +1259,7 @@ Status: 100% Balanced. Total Disbursed: Rs ${p.total_delivery_fare}`;
             <Row gutter={[12, 12]} align="middle" justify="space-between">
               <Col xs={12} sm={8} md={3}>
                 <div style={{ borderLeft: "3px solid #6366f1", paddingLeft: 8 }}>
-                  <Text orientation="vertical" type="secondary" style={{ fontSize: 11, display: "block" }}>Route Base</Text>
+                  <Text type="secondary" style={{ fontSize: 11, display: "block" }}>Route Base</Text>
                   <Text strong style={{ fontSize: 14, color: "#1e293b" }}>{formatRs(result?.pricing?.route_base_rate)}</Text>
                   <Text type="secondary" style={{ fontSize: 10, display: "block" }}>Origin → Dest</Text>
                 </div>
@@ -999,22 +1438,25 @@ Status: 100% Balanced. Total Disbursed: Rs ${p.total_delivery_fare}`;
                       }}
                     >
                       <Row justify="space-between" align="middle">
-                        <Col xs={24} sm={18}>
+                        <Col>
                           <Space>
-                            <Tag color="geekblue" style={{ fontWeight: "bold" }}>Step {step.step_number}</Tag>
-                            <Text strong style={{ fontSize: 14 }}>{step.title}</Text>
-                            <Tag>{step.badge}</Tag>
+                            <Tag color={step.step_number <= 3 ? "green" : step.title?.includes("Transit") ? "purple" : "blue"}>
+                              Step {step.step_number}
+                            </Tag>
+                            <Text strong style={{ fontSize: 13 }}>{step.title}</Text>
                           </Space>
-                          <Paragraph type="secondary" style={{ margin: "4px 0 0 0", fontSize: 12 }}>
-                            <b>{step.from}</b> &rarr; <b>{step.to}</b>: {step.description}
-                          </Paragraph>
                         </Col>
-                        <Col xs={24} sm={6} style={{ textAlign: "right", marginTop: 4 }}>
-                          <Text strong style={{ fontSize: 16, color: "#1677ff" }}>
-                            {formatRs(step.amount)}
-                          </Text>
+                        <Col>
+                          {step.amount > 0 && (
+                            <Text strong style={{ color: "#0958d9", fontSize: 13 }}>
+                              {formatRs(step.amount)}
+                            </Text>
+                          )}
                         </Col>
                       </Row>
+                      <Paragraph style={{ margin: "6px 0 0 0", fontSize: 12, color: "#475569" }}>
+                        {step.description}
+                      </Paragraph>
                     </Card>
                   ))}
                 </Space>
@@ -1024,329 +1466,130 @@ Status: 100% Balanced. Total Disbursed: Rs ${p.total_delivery_fare}`;
 
           {/* ==================== VIEW 2: ACCOUNTING TABLE & LEDGER ==================== */}
           {viewMode === "table" && (
-            <Space direction="vertical" size={16} style={{ width: "100%" }}>
-              {/* Branch Share Settlement Ledger */}
-              <Card
-                title={
-                  <Row justify="space-between" align="middle">
-                    <Col><Text strong style={{ fontSize: 16 }}>Multi-Party Branch Settlement Ledger</Text></Col>
-                    <Col>
-                      <Tag color="cyan">HQ Transfer Margin: {formatRs(result?.settlement?.hq_breakdown?.margin_amount)}</Tag>
-                      <Tag color="purple">HQ Fragile/Express: {formatRs((result?.settlement?.hq_breakdown?.fragile_amount || 0) + (result?.settlement?.hq_breakdown?.express_amount || 0))}</Tag>
-                      <Tag color="green">HQ Commissions: {formatRs(result?.settlement?.hq_breakdown?.commissions_amount)}</Tag>
-                      <Tag color="gold" style={{ fontWeight: "bold" }}>Total HQ Earnings: {formatRs(result?.settlement?.hq_total)}</Tag>
-                    </Col>
-                  </Row>
-                }
-              >
-                <Table
-                  size="middle"
-                  pagination={false}
-                  dataSource={result?.settlement?.rows || []}
-                  rowKey="branch_id"
-                  columns={ledgerCols}
-                />
-              </Card>
+            <Card
+              size="small"
+              title={
+                <Row justify="space-between" align="middle">
+                  <Col>
+                    <Space>
+                      <TableOutlined style={{ color: "#1677ff" }} />
+                      <Text strong>Audited Accounting Ledger & Branch Payout Schedule</Text>
+                    </Space>
+                  </Col>
+                  <Col>
+                    <Tag color="green">100% Mathematically Balanced</Tag>
+                  </Col>
+                </Row>
+              }
+            >
+              <Table
+                rowKey="branch_id"
+                columns={ledgerCols}
+                dataSource={result?.settlement?.rows || []}
+                pagination={false}
+                size="middle"
+                summary={() => {
+                  const rows = result?.settlement?.rows || [];
+                  const totalGross = rows.reduce((a, b) => a + Number(b.allocation_amount || 0), 0);
+                  const totalComm = rows.reduce((a, b) => a + Number(b.hq_commission_amount || 0), 0);
+                  const totalNet = rows.reduce((a, b) => a + Number(b.net_amount || 0), 0);
 
-              {/* Transfer Hops Table */}
-              {result?.transfer_hops?.length > 0 && (
-                <Card size="small" title={<Space><CarOutlined /><span>Transfer Hops & Transport Cost Allocation</span></Space>}>
-                  <Table
-                    size="small"
-                    pagination={false}
-                    dataSource={result.transfer_hops}
-                    rowKey="transfer_number"
-                    columns={[
-                      { title: "Manifest", dataIndex: "transfer_number", key: "transfer_number", render: (v) => <Tag color="blue">{v}</Tag> },
-                      { title: "From Hub", dataIndex: "from_branch_name", key: "from_branch_name" },
-                      { title: "To Hub", dataIndex: "to_branch_name", key: "to_branch_name" },
-                      { title: "Trip Total Cost", dataIndex: "trip_transport_cost", key: "trip_transport_cost", align: "right", render: (v) => formatRs(v) },
-                      { title: "Shipments on Truck", dataIndex: "total_shipments_on_tr", key: "total_shipments_on_tr", align: "center", render: (v) => `${v} pkts` },
-                      {
-                        title: "Shipment Transport Share",
-                        dataIndex: "allocated_transport_cost",
-                        key: "allocated_transport_cost",
-                        align: "right",
-                        render: (v) => <Text strong style={{ color: "#722ed1" }}>{formatRs(v)}</Text>,
-                      },
-                    ]}
-                  />
-                </Card>
-              )}
-
-              {/* Inter-Branch Bank & Ledger Statement Transfers Table */}
-              <Card size="small" title="Inter-Branch & HQ Bank Statement Transfers">
-                <Table
-                  size="small"
-                  pagination={false}
-                  dataSource={result?.cash_flow?.inter_branch_transfers || []}
-                  rowKey={(r, i) => `${r.to_branch}_${i}`}
-                  columns={[
-                    {
-                      title: "Payer (From)",
-                      dataIndex: "from_branch",
-                      key: "from_branch",
-                      render: (v) => <Text strong>{v}</Text>,
-                    },
-                    {
-                      title: "Recipient (To)",
-                      dataIndex: "to_branch",
-                      key: "to_branch",
-                      render: (v) => <Text strong style={{ color: "#1677ff" }}>{v}</Text>,
-                    },
-                    {
-                      title: "Role",
-                      dataIndex: "role",
-                      key: "role",
-                      render: (v) => {
-                        const color = v === "delivery" ? "cyan" : v === "transit" ? "purple" : "gold";
-                        return <Tag color={color}>{v?.toUpperCase()}</Tag>;
-                      },
-                    },
-                    {
-                      title: "Formula & Purpose",
-                      dataIndex: "purpose",
-                      key: "purpose",
-                      render: (v) => <Text type="secondary" style={{ fontSize: 12 }}>{v}</Text>,
-                    },
-                    {
-                      title: "Net Disbursed",
-                      dataIndex: "amount",
-                      key: "amount",
-                      align: "right",
-                      render: (v) => (
-                        <Text strong style={{ color: "#389e0d", fontSize: 14 }}>
-                          {formatRs(v)}
-                        </Text>
-                      ),
-                    },
-                  ]}
-                />
-              </Card>
-            </Space>
+                  return (
+                    <Table.Summary fixed>
+                      <Table.Summary.Row style={{ background: "#fafafa", fontWeight: "bold" }}>
+                        <Table.Summary.Cell index={0} colSpan={2}>
+                          Total Branch Operational Allocations
+                        </Table.Summary.Cell>
+                        <Table.Summary.Cell index={1} align="right">
+                          {formatRs(totalGross)}
+                        </Table.Summary.Cell>
+                        <Table.Summary.Cell index={2} align="right">
+                          <Text type="danger">-{formatRs(totalComm)}</Text>
+                        </Table.Summary.Cell>
+                        <Table.Summary.Cell index={3} align="right">
+                          <Text strong style={{ color: "#389e0d", fontSize: 14 }}>
+                            {formatRs(totalNet)}
+                          </Text>
+                        </Table.Summary.Cell>
+                      </Table.Summary.Row>
+                    </Table.Summary>
+                  );
+                }}
+              />
+            </Card>
           )}
 
           {/* ==================== VIEW 3: COMPACT EXECUTIVE VIEW ==================== */}
           {viewMode === "compact" && (
-            <Space direction="vertical" size={16} style={{ width: "100%" }}>
-              {/* Executive High-Level KPI Cards */}
-              <Row gutter={[16, 16]}>
-                <Col xs={12} md={6}>
-                  <Card size="small" style={{ background: "#f6ffed", borderColor: "#b7eb8f" }}>
-                    <Statistic
-                      title="1. Customer Doorstep"
-                      prefix="Rs"
-                      value={result?.pricing?.total_doorstep_collection || 0}
-                      precision={2}
-                      valueStyle={{ color: "#389e0d", fontWeight: "bold" }}
-                    />
-                    <Text type="secondary" style={{ fontSize: 11 }}>Cash Collected at Door</Text>
-                  </Card>
-                </Col>
-                <Col xs={12} md={6}>
-                  <Card size="small" style={{ background: "#fff7e6", borderColor: "#ffd591" }}>
-                    <Statistic
-                      title="2. Merchant COD Remittance"
-                      prefix="Rs"
-                      value={result?.pricing?.product_price_pod || 0}
-                      precision={2}
-                      valueStyle={{ color: "#d46b08", fontWeight: "bold" }}
-                    />
-                    <Text type="secondary" style={{ fontSize: 11 }}>Direct Bank Remittance</Text>
-                  </Card>
-                </Col>
-                <Col xs={12} md={6}>
-                  <Card size="small" style={{ background: "#f9f0ff", borderColor: "#d3adf7" }}>
-                    <Statistic
-                      title="3. Delivery Fare Pool"
-                      prefix="Rs"
-                      value={result?.pricing?.total_delivery_fare || 0}
-                      precision={2}
-                      valueStyle={{ color: "#531dab", fontWeight: "bold" }}
-                    />
-                    <Text type="secondary" style={{ fontSize: 11 }}>Invoiced to Merchant</Text>
-                  </Card>
-                </Col>
-                <Col xs={12} md={6}>
-                  <Card size="small" style={{ background: "#f0f5ff", borderColor: "#adc6ff" }}>
-                    <Statistic
-                      title="4. HQ Net Retained"
-                      prefix="Rs"
-                      value={result?.settlement?.hq_total || 0}
-                      precision={2}
-                      valueStyle={{ color: "#0958d9", fontWeight: "bold" }}
-                    />
-                    <Text type="secondary" style={{ fontSize: 11 }}>Fleet & Profit Margin</Text>
-                  </Card>
-                </Col>
-              </Row>
+            <Row gutter={[16, 16]}>
+              <Col xs={24} md={12}>
+                <Card size="small" title="Executive Summary & Settlement Flow">
+                  <Descriptions size="small" column={1} bordered>
+                    <Descriptions.Item label="Corridor">
+                      <strong>{result?.cash_flow?.delivery_invoice_by}</strong> → {transitBranchesList.map((t) => t.name).join(" → ") || "Direct"} → <strong>{result?.cash_flow?.doorstep_collected_by}</strong>
+                    </Descriptions.Item>
+                    <Descriptions.Item label="Customer Doorstep Cash">
+                      <strong style={{ color: "#164e63", fontSize: 14 }}>{formatRs(result?.pricing?.total_doorstep_collection)}</strong>
+                      <Text type="secondary" style={{ fontSize: 11, display: "block" }}>
+                        Product COD: {formatRs(result?.pricing?.product_price_pod)} | Fare: {formatRs(result?.pricing?.total_delivery_fare)}
+                      </Text>
+                    </Descriptions.Item>
+                    <Descriptions.Item label="Merchant Remittance">
+                      <strong>{formatRs(result?.pricing?.product_price_pod)}</strong> (Direct bank payout)
+                    </Descriptions.Item>
+                    <Descriptions.Item label="Origin Retains (Net)">
+                      <strong>{formatRs(result?.settlement?.rows?.find((r) => r.role === "origin")?.net_amount)}</strong> (30% local base + weight)
+                    </Descriptions.Item>
+                    <Descriptions.Item label="Delivery Receives (Net)">
+                      <strong style={{ color: "#2563eb" }}>{formatRs(result?.settlement?.rows?.find((r) => r.role === "delivery")?.net_amount)}</strong> (70% base + extra distance + weight)
+                    </Descriptions.Item>
+                    <Descriptions.Item label="Transit Hub Handling">
+                      {result?.cash_flow?.has_transit ? (
+                        <span>
+                          {result?.settlement?.rows?.filter((r) => r.role === "transit").map((t) => `${t.branch_name}: ${formatRs(t.net_amount)}`).join(", ")}
+                        </span>
+                      ) : (
+                        <Text type="secondary">0 Transit Hubs (Direct corridor)</Text>
+                      )}
+                    </Descriptions.Item>
+                    <Descriptions.Item label="SuperAdmin / HQ Retained">
+                      <strong style={{ color: "#722ed1", fontSize: 14 }}>{formatRs(result?.settlement?.hq_total)}</strong>
+                      <Text type="secondary" style={{ fontSize: 11, display: "block" }}>
+                        Covers line-haul fleet operations and platform margins
+                      </Text>
+                    </Descriptions.Item>
+                  </Descriptions>
+                </Card>
+              </Col>
 
-              {/* Single-Row Per Party Balance Sheet Table */}
-              <Card
-                title={
-                  <Row justify="space-between" align="middle">
-                    <Col>
-                      <Space>
-                        <BankOutlined style={{ color: "#1677ff" }} />
-                        <Text strong>Executive Multi-Party Balance Sheet</Text>
-                      </Space>
-                    </Col>
-                    <Col>
-                      <Tag color="green">100% Mathematically Balanced</Tag>
-                    </Col>
-                  </Row>
-                }
-              >
-                <Table
-                  size="small"
-                  pagination={false}
-                  dataSource={[
-                    {
-                      key: "dest",
-                      party: result?.cash_flow?.doorstep_collected_by,
-                      role: "Delivery (Last-Mile)",
-                      roleColor: "cyan",
-                      inflow: formatRs(result?.pricing?.total_doorstep_collection),
-                      outflow: formatRs(result?.pricing?.product_price_pod),
-                      comm: `-${formatRs(result?.settlement?.rows?.find((r) => r.role === "delivery")?.hq_commission_amount || 0)}`,
-                      net: formatRs(result?.settlement?.rows?.find((r) => r.role === "delivery")?.net_amount || 0),
-                      note: "Deposits Rs 2,400 to Merchant, keeps net delivery share.",
-                    },
-                    {
-                      key: "origin",
-                      party: result?.cash_flow?.delivery_invoice_by,
-                      role: "Origin (Booking)",
-                      roleColor: "blue",
-                      inflow: formatRs(result?.pricing?.total_delivery_fare),
-                      outflow: formatRs(
-                        (result?.cash_flow?.inter_branch_transfers?.find((t) => t.role === "delivery")?.amount || 0) +
-                        (result?.cash_flow?.inter_branch_transfers?.find((t) => t.role === "hq")?.amount || 0)
-                      ),
-                      comm: `-${formatRs(result?.settlement?.rows?.find((r) => r.role === "origin")?.hq_commission_amount || 0)}`,
-                      net: formatRs(result?.settlement?.rows?.find((r) => r.role === "origin")?.net_amount || 0),
-                      note: "Invoices delivery fare, pays Destination & remits transfer pool to HQ.",
-                    },
-                    ...(result?.settlement?.rows?.filter((r) => r.role === "transit") || []).map((t, idx) => ({
-                      key: `transit_${idx}`,
-                      party: t.branch_name,
-                      role: "Transit Hub",
-                      roleColor: "purple",
-                      inflow: formatRs(t.transit_fee_amount || 10),
-                      outflow: "Rs 0.00",
-                      comm: `-${formatRs(t.hq_commission_amount || 0.5)}`,
-                      net: formatRs(t.net_amount || 9.5),
-                      note: "Handles shipment transfer; fee paid directly by HQ.",
-                    })),
-                    {
-                      key: "hq",
-                      party: "SuperAdmin / HQ Pool",
-                      role: "HQ Clearinghouse",
-                      roleColor: "gold",
-                      inflow: formatRs(result?.cash_flow?.inter_branch_transfers?.find((t) => t.role === "hq")?.amount || 0),
-                      outflow: formatRs(
-                        (result?.settlement?.rows?.filter((r) => r.role === "transit") || []).reduce((a, b) => a + Number(b.net_amount || 0), 0)
-                      ),
-                      comm: `+${formatRs(result?.settlement?.hq_breakdown?.commissions_amount || 0)}`,
-                      net: formatRs(result?.settlement?.hq_total || 0),
-                      note: "Centrally finances vehicle transport fleet & driver logistics.",
-                    },
-                  ]}
-                  columns={[
-                    {
-                      title: "Entity / Branch",
-                      dataIndex: "party",
-                      key: "party",
-                      render: (v, r) => (
-                        <Space>
-                          <Text strong>{v}</Text>
-                          <Tag color={r.roleColor}>{r.role}</Tag>
-                        </Space>
-                      ),
-                    },
-                    { title: "Gross Inflow", dataIndex: "inflow", key: "inflow", align: "right" },
-                    { title: "Disbursals Out", dataIndex: "outflow", key: "outflow", align: "right" },
-                    {
-                      title: "5% HQ Comm.",
-                      dataIndex: "comm",
-                      key: "comm",
-                      align: "right",
-                      render: (v) => <Text style={{ color: v.startsWith("-") ? "#cf1322" : "#389e0d" }}>{v}</Text>,
-                    },
-                    {
-                      title: "Net Retained",
-                      dataIndex: "net",
-                      key: "net",
-                      align: "right",
-                      render: (v) => <Text strong style={{ color: "#389e0d", fontSize: 14 }}>{v}</Text>,
-                    },
-                    { title: "Operational Summary", dataIndex: "note", key: "note", render: (v) => <Text type="secondary" style={{ fontSize: 12 }}>{v}</Text> },
-                  ]}
-                />
-              </Card>
-
-              {/* Quick Who-Pays-Who Checklist */}
-              <Card size="small" title="Quick Who-Pays-Who Settlement Summary">
-                <Row gutter={[12, 12]}>
-                  <Col xs={24} md={12}>
-                    <Space direction="vertical" style={{ width: "100%" }} size={6}>
-                      <div style={{ background: "#f6ffed", border: "1px solid #b7eb8f", borderRadius: 6, padding: "8px 12px" }}>
-                        <Text strong style={{ fontSize: 12, color: "#389e0d" }}>1. Customer &rarr; Delivering Branch:</Text>
-                        <Text style={{ display: "block", fontSize: 13, fontWeight: "bold" }}>
-                          {formatRs(result?.pricing?.total_doorstep_collection)} (Product COD + Delivery Fare)
-                        </Text>
-                      </div>
-                      <div style={{ background: "#fff7e6", border: "1px solid #ffd591", borderRadius: 6, padding: "8px 12px" }}>
-                        <Text strong style={{ fontSize: 12, color: "#d46b08" }}>2. Delivering Branch &rarr; Merchant Bank:</Text>
-                        <Text style={{ display: "block", fontSize: 13, fontWeight: "bold" }}>
-                          {formatRs(result?.pricing?.product_price_pod)} (Full Product COD Remitted)
-                        </Text>
-                      </div>
-                      <div style={{ background: "#f9f0ff", border: "1px solid #d3adf7", borderRadius: 6, padding: "8px 12px" }}>
-                        <Text strong style={{ fontSize: 12, color: "#531dab" }}>3. Merchant &rarr; Origin Branch:</Text>
-                        <Text style={{ display: "block", fontSize: 13, fontWeight: "bold" }}>
-                          {formatRs(result?.pricing?.total_delivery_fare)} (Delivery Fare Invoice Paid)
-                        </Text>
-                      </div>
-                    </Space>
-                  </Col>
-
-                  <Col xs={24} md={12}>
-                    <Space direction="vertical" style={{ width: "100%" }} size={6}>
-                      <div style={{ background: "#e6f4ff", border: "1px solid #91caff", borderRadius: 6, padding: "8px 12px" }}>
-                        <Text strong style={{ fontSize: 12, color: "#0958d9" }}>4. Origin Branch &rarr; Delivering Branch:</Text>
-                        <Text style={{ display: "block", fontSize: 13, fontWeight: "bold" }}>
-                          {formatRs(result?.cash_flow?.inter_branch_transfers?.find((t) => t.role === "delivery")?.amount || 0)} (Net Delivery Share)
-                        </Text>
-                      </div>
-                      <div style={{ background: "#fffbe6", border: "1px solid #ffe58f", borderRadius: 6, padding: "8px 12px" }}>
-                        <Text strong style={{ fontSize: 12, color: "#d48806" }}>5. Origin Branch &rarr; HQ Central Pool:</Text>
-                        <Text style={{ display: "block", fontSize: 13, fontWeight: "bold" }}>
-                          {formatRs(result?.cash_flow?.inter_branch_transfers?.find((t) => t.role === "hq")?.amount || 0)} (Residual Transfer Margin Pool)
-                        </Text>
-                      </div>
-                      <div style={{ background: "#f0f5ff", border: "1px solid #adc6ff", borderRadius: 6, padding: "8px 12px" }}>
-                        <Text strong style={{ fontSize: 12, color: "#1677ff" }}>6. HQ Central Pool &rarr; Transit Hub(s):</Text>
-                        <Text style={{ display: "block", fontSize: 13, fontWeight: "bold" }}>
-                          {formatRs(result?.settlement?.rows?.find((r) => r.role === "transit")?.net_amount || 0)} per hub (Handling Fee)
-                        </Text>
-                      </div>
-                    </Space>
-                  </Col>
-                </Row>
-              </Card>
-            </Space>
+              <Col xs={24} md={12}>
+                <Card size="small" title="Itemized Fare Component Derivation">
+                  <Descriptions size="small" column={1} bordered>
+                    <Descriptions.Item label="Route Base Rate">
+                      <strong>{formatRs(result?.pricing?.route_base_rate)}</strong>
+                    </Descriptions.Item>
+                    <Descriptions.Item label="Local Base Rate (Destination)">
+                      <strong>{formatRs(result?.pricing?.dest_local_base_rate)}</strong> (Basis for 30%/70% branch shares)
+                    </Descriptions.Item>
+                    <Descriptions.Item label="Excess Weight Surcharge">
+                      <strong>+{formatRs(result?.pricing?.weight_charge)}</strong> ({result?.pricing?.excess_weight_kg || 0} kg excess)
+                    </Descriptions.Item>
+                    <Descriptions.Item label="Extra Destination Distance">
+                      <strong>+{formatRs(result?.pricing?.distance_charge)}</strong> (+{result?.pricing?.excess_distance_km || 0} km beyond 5km)
+                    </Descriptions.Item>
+                    <Descriptions.Item label="Speed Multiplier">
+                      {serviceType.toUpperCase()} ({serviceType === "standard" ? "x1.0" : serviceType === "express" ? "x1.3" : "x2.0"})
+                    </Descriptions.Item>
+                    <Descriptions.Item label="Total Delivery Fare (Billed to Merchant)">
+                      <strong style={{ color: "#2563eb", fontSize: 15 }}>{formatRs(result?.pricing?.total_delivery_fare)}</strong>
+                    </Descriptions.Item>
+                  </Descriptions>
+                </Card>
+              </Col>
+            </Row>
           )}
         </Space>
-      ) : (
-        <Card style={{ textAlign: "center", padding: 32, background: "#fafafa" }}>
-          <CalculatorOutlined style={{ fontSize: 36, color: "#bfbfbf", marginBottom: 12 }} />
-          <Title level={5} type="secondary">Simulator Ready</Title>
-          <Paragraph type="secondary">
-            Select your origin, transit, and destination branches above, customize the shipment and manifest trip costs,
-            then click <strong>Run Simulation</strong> to view the live calculation.
-          </Paragraph>
-        </Card>
-      )}
+      ) : null}
     </Space>
   );
 }

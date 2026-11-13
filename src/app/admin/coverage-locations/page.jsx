@@ -44,9 +44,11 @@ import {
   ReloadOutlined,
   SearchOutlined,
   TableOutlined,
+  UploadOutlined,
 } from "@ant-design/icons";
 
 import {
+  createCoverageLocation,
   deleteCoverageLocation,
   getCoverageLocations,
   updateCoverageLocation,
@@ -56,6 +58,7 @@ import { useAccess } from "@/hooks/useAccess";
 
 import AdminPageHeader from "@/components/admin/ui/AdminPageHeader";
 import StatCard, { StatCardGrid } from "@/components/admin/ui/StatCard";
+import DataImportModal from "@/components/admin/ui/DataImportModal";
 
 const CoverageRadiusMapFull = dynamic(
   () =>
@@ -180,6 +183,37 @@ function exportToCsv(data, filename) {
 |--------------------------------------------------------------------------
 */
 
+const COVERAGE_IMPORT_COLUMNS = [
+  { key: "name", label: "Location Name", required: true, sampleValue: "Kathmandu Central Zone" },
+  { key: "code", label: "Location Code", required: true, sampleValue: "KTM-01" },
+  { key: "type", label: "Type (main_branch_zone/sub_branch_zone/delivery_zone)", required: true, sampleValue: "main_branch_zone" },
+  { key: "city", label: "City", required: true, sampleValue: "Kathmandu" },
+  { key: "area", label: "Area", required: false, sampleValue: "New Road" },
+  { key: "coverage_radius_km", label: "Coverage Radius (km)", required: false, sampleValue: "15" },
+  { key: "status", label: "Status (active/inactive)", required: false, sampleValue: "active" },
+];
+
+const SAMPLE_COVERAGE_ROWS = [
+  {
+    name: "Kathmandu Central Zone",
+    code: "KTM-01",
+    type: "main_branch_zone",
+    city: "Kathmandu",
+    area: "New Road",
+    coverage_radius_km: "15",
+    status: "active",
+  },
+  {
+    name: "Pokhara Lakeside Zone",
+    code: "PKR-01",
+    type: "sub_branch_zone",
+    city: "Pokhara",
+    area: "Lakeside",
+    coverage_radius_km: "10",
+    status: "active",
+  },
+];
+
 export default function CoverageLocationsPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -224,6 +258,38 @@ export default function CoverageLocationsPage() {
 
   const [togglingId, setTogglingId] =
     useState(null);
+
+  const [importOpen, setImportOpen] = useState(false);
+
+  const handleImportCoverageLocations = async (validRows) => {
+    let successCount = 0;
+    const errors = [];
+    for (const row of validRows) {
+      try {
+        const payload = {
+          name: row.name?.trim(),
+          code: row.code?.trim(),
+          type: row.type?.trim() || "delivery_zone",
+          city: row.city?.trim() || "",
+          area: row.area?.trim() || "",
+          coverage_radius_km: row.coverage_radius_km ? Number(row.coverage_radius_km) : 10,
+          status: row.status?.trim() || "active",
+        };
+        await createCoverageLocation(payload);
+        successCount++;
+      } catch (err) {
+        errors.push(`${row.name || "Location"}: ${err?.response?.data?.message || err.message}`);
+      }
+    }
+    if (errors.length > 0 && successCount === 0) {
+      throw new Error(`Failed to import locations: ${errors.slice(0, 3).join("; ")}`);
+    }
+    if (errors.length > 0) {
+      message.warning(`Imported ${successCount} locations. ${errors.length} failed.`);
+    }
+    loadRows();
+    return { successCount, errors };
+  };
 
   /*
   |--------------------------------------------------------------------------
@@ -1142,20 +1208,25 @@ export default function CoverageLocationsPage() {
         </Col>
 
         <Col>
-          <Button
-            size="small"
-            icon={
-              <DownloadOutlined />
-            }
-            onClick={() =>
-              exportToCsv(
-                data,
-                csvFilename
-              )
-            }
-          >
-            Export CSV
-          </Button>
+          <Space size={6}>
+            <Button
+              size="small"
+              icon={<DownloadOutlined />}
+              onClick={() => exportToCsv(data, csvFilename)}
+            >
+              Export CSV
+            </Button>
+            {canCreate && (
+              <Button
+                size="small"
+                icon={<UploadOutlined />}
+                onClick={() => setImportOpen(true)}
+                style={{ borderColor: "#0891B2", color: "#0891B2" }}
+              >
+                Import CSV
+              </Button>
+            )}
+          </Space>
         </Col>
       </Row>
     );
@@ -1171,32 +1242,48 @@ export default function CoverageLocationsPage() {
     <Space wrap>
       {canCreate && (
         <>
-          <Link
-            href="/admin/coverage-locations/create?type=main_branch_zone"
-          >
+          <Link href="/admin/coverage-locations/create?type=main_branch_zone">
             <Button
               type="primary"
-              icon={
-                <PlusOutlined />
-              }
+              size="small"
+              icon={<PlusOutlined />}
+              style={{ background: "#FBBF24", borderColor: "#FBBF24", color: "#0F172A", fontWeight: 600 }}
             >
               Add Main
             </Button>
           </Link>
 
-          <Link
-            href="/admin/coverage-locations/create?type=sub_branch_zone"
-          >
-            <Button
-              icon={
-                <PlusOutlined />
-              }
-            >
+          <Link href="/admin/coverage-locations/create?type=sub_branch_zone">
+            <Button size="small" icon={<PlusOutlined />}>
               Add Sub-Branch
             </Button>
           </Link>
+
+          <Button
+            size="small"
+            icon={<UploadOutlined />}
+            onClick={() => setImportOpen(true)}
+            style={{ borderColor: "#0891B2", color: "#0891B2" }}
+          >
+            Import CSV
+          </Button>
         </>
       )}
+      <Button
+        size="small"
+        icon={<DownloadOutlined />}
+        onClick={() => exportToCsv(filteredRows, "coverage_locations.csv")}
+      >
+        Export CSV
+      </Button>
+      <Button
+        size="small"
+        icon={<ReloadOutlined />}
+        onClick={loadRows}
+        loading={loading}
+      >
+        Refresh
+      </Button>
     </Space>
   );
 
@@ -1696,6 +1783,16 @@ export default function CoverageLocationsPage() {
           )}
         </Card>
       </Space>
+
+      <DataImportModal
+        open={importOpen}
+        onClose={() => setImportOpen(false)}
+        entityTitle="Coverage Locations"
+        columns={COVERAGE_IMPORT_COLUMNS}
+        sampleRows={SAMPLE_COVERAGE_ROWS}
+        onImport={handleImportCoverageLocations}
+        onSuccess={loadRows}
+      />
     </div>
   );
 }

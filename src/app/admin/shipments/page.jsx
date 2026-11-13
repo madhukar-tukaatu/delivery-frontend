@@ -7,6 +7,7 @@ import dayjs from "dayjs";
 import {
   Button,
   DatePicker,
+  Dropdown,
   Empty,
   Input,
   Select,
@@ -19,13 +20,16 @@ import {
 import {
   ArrowRightOutlined,
   ClearOutlined,
+  CloudDownloadOutlined,
   CopyOutlined,
+  DownOutlined,
   DownloadOutlined,
   EyeOutlined,
   PlusOutlined,
   PrinterOutlined,
   ReloadOutlined,
   SearchOutlined,
+  UploadOutlined,
 } from "@ant-design/icons";
 import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip as ChartTooltip } from "recharts";
 
@@ -38,10 +42,58 @@ import { usePermissions } from "@/hooks/usePermission";
 import { useAdminDashboardSocket } from "@/hooks/useAdminDashboardSocket";
 import AdminPageHeader from "@/components/admin/ui/AdminPageHeader";
 import { useShipmentDrawer } from "@/components/admin/shipments/ShipmentDrawerProvider";
+import DataImportModal from "@/components/admin/ui/DataImportModal";
+import { adminCreateShipment } from "@/services/admin/deliveryOperationsApi";
 
 import styles from "./shipments.module.css";
 
 const { Text } = Typography;
+
+const SHIPMENT_IMPORT_COLUMNS = [
+  { key: "merchant_id", label: "Merchant ID", required: true, sampleValue: "1" },
+  { key: "customer_name", label: "Customer Name", required: true, sampleValue: "Bikash Shrestha" },
+  { key: "customer_phone", label: "Customer Phone", required: true, sampleValue: "9801234567" },
+  { key: "delivery_city", label: "Delivery City", required: true, sampleValue: "Kathmandu" },
+  { key: "delivery_address", label: "Delivery Address", required: true, sampleValue: "Putalisadak, Kathmandu" },
+  { key: "delivery_area", label: "Delivery Area", required: false, sampleValue: "Putalisadak" },
+  { key: "payment_type", label: "Payment Type (pod/prepaid)", required: false, sampleValue: "pod" },
+  { key: "pod_amount", label: "Collect Amount (POD)", required: false, sampleValue: "1500" },
+  { key: "order_reference", label: "Order Reference", required: false, sampleValue: "ORD-2026-001" },
+  { key: "package_description", label: "Package Description", required: false, sampleValue: "Electronics" },
+  { key: "weight", label: "Weight (kg)", required: false, sampleValue: "1.0" },
+  { key: "special_instruction", label: "Special Instruction", required: false, sampleValue: "Call receiver before delivery" },
+];
+
+const SAMPLE_SHIPMENT_ROWS = [
+  {
+    merchant_id: "1",
+    customer_name: "Bikash Shrestha",
+    customer_phone: "9801234567",
+    delivery_city: "Kathmandu",
+    delivery_address: "Putalisadak, Kathmandu",
+    delivery_area: "Putalisadak",
+    payment_type: "pod",
+    pod_amount: "1500",
+    order_reference: "ORD-2026-001",
+    package_description: "Electronics",
+    weight: "1.0",
+    special_instruction: "Call receiver before delivery",
+  },
+  {
+    merchant_id: "1",
+    customer_name: "Suman Giri",
+    customer_phone: "9841234567",
+    delivery_city: "Lalitpur",
+    delivery_address: "Kupondole, Lalitpur",
+    delivery_area: "Kupondole",
+    payment_type: "prepaid",
+    pod_amount: "0",
+    order_reference: "ORD-2026-002",
+    package_description: "Documents",
+    weight: "0.5",
+    special_instruction: "Leave at front desk",
+  },
+];
 
 /*
 |--------------------------------------------------------------------------
@@ -304,6 +356,7 @@ function ShipmentsPageInner() {
 
   const [loading, setLoading] = useState(false);
   const [exporting, setExporting] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
   const [rows, setRows] = useState([]);
   const [total, setTotal] = useState(0);
   const [counts, setCounts] = useState({});
@@ -451,18 +504,28 @@ function ShipmentsPageInner() {
     }
   };
 
-  /* Export the filtered list (up to 1,000 rows) as CSV. */
-  const exportCsv = async () => {
+  /* Export the filtered list (all vs current page) as CSV. */
+  const exportCsv = async (isFull = true) => {
     setExporting(true);
     try {
-      const all = [];
-      for (let current = 1; current <= 10; current += 1) {
-        const response = await api.get("/admin/shipments", {
-          params: { ...filters, page: current, per_page: 100 },
-        });
-        const normalized = normalizeShipmentListResponse(response, { page: current, per_page: 100 });
-        all.push(...normalized.list);
-        if (all.length >= normalized.total || normalized.list.length < 100) break;
+      let dataToExport = [];
+      if (isFull) {
+        message.loading({ content: "Fetching all shipments for export...", key: "exporting_shipments" });
+        for (let current = 1; current <= 20; current += 1) {
+          const response = await api.get("/admin/shipments", {
+            params: { ...filters, page: current, per_page: 100 },
+          });
+          const normalized = normalizeShipmentListResponse(response, { page: current, per_page: 100 });
+          dataToExport.push(...normalized.list);
+          if (dataToExport.length >= normalized.total || normalized.list.length < 100) break;
+        }
+      } else {
+        dataToExport = rows;
+      }
+
+      if (!dataToExport || dataToExport.length === 0) {
+        message.warning({ content: "No shipments to export.", key: "exporting_shipments" });
+        return;
       }
 
       const header = [
@@ -481,7 +544,7 @@ function ShipmentsPageInner() {
         "Status",
         "Created",
       ];
-      const lines = all.map((row) =>
+      const lines = dataToExport.map((row) =>
         [
           row.tracking_number,
           orderRef(row),
@@ -506,15 +569,69 @@ function ShipmentsPageInner() {
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = url;
-      link.download = `shipments-${dayjs().format("YYYYMMDD-HHmm")}.csv`;
+      link.download = `shipments-${isFull ? "all" : "page"}-${dayjs().format("YYYYMMDD-HHmm")}.csv`;
       link.click();
       URL.revokeObjectURL(url);
-      message.success(`Exported ${all.length} shipment${all.length === 1 ? "" : "s"}.`);
+      message.success({
+        content: `Exported ${dataToExport.length} shipment${dataToExport.length === 1 ? "" : "s"} (${isFull ? "Full Dataset" : "Current Page"}).`,
+        key: "exporting_shipments",
+      });
     } catch (error) {
-      message.error(error?.response?.data?.message || "Export failed.");
+      message.error({
+        content: error?.response?.data?.message || "Export failed.",
+        key: "exporting_shipments",
+      });
     } finally {
       setExporting(false);
     }
+  };
+
+  const handleImportShipments = async (validRows) => {
+    let successCount = 0;
+    const errors = [];
+    for (const row of validRows) {
+      try {
+        const payload = {
+          merchant_id: Number(row.merchant_id) || 1,
+          self_drop: true,
+          order_reference: row.order_reference || null,
+          customer: {
+            name: row.customer_name?.trim(),
+            phone: row.customer_phone?.trim(),
+            email: row.customer_email?.trim() || null,
+          },
+          delivery: {
+            address: row.delivery_address?.trim(),
+            city: row.delivery_city?.trim(),
+            area: row.delivery_area?.trim() || null,
+          },
+          package: {
+            type: row.package_type || "parcel",
+            description: row.package_description || null,
+            weight: row.weight ? Number(row.weight) : 1,
+            pieces: 1,
+          },
+          payment: {
+            type: (row.payment_type || "pod").toLowerCase(),
+            pod_amount: Number(row.pod_amount) || 0,
+            delivery_charge_paid_by: "merchant",
+          },
+          special_instruction: row.special_instruction || null,
+        };
+        await adminCreateShipment(payload);
+        successCount++;
+      } catch (err) {
+        errors.push(`${row.customer_name || "Shipment"}: ${err?.response?.data?.message || err.message}`);
+      }
+    }
+    if (errors.length > 0 && successCount === 0) {
+      throw new Error(`Failed to import shipments: ${errors.slice(0, 3).join("; ")}`);
+    }
+    if (errors.length > 0) {
+      message.warning(`Imported ${successCount} shipments. ${errors.length} failed.`);
+    }
+    setReloadKey((k) => k + 1);
+    return { successCount, errors };
   };
 
   const columns = [
@@ -529,14 +646,19 @@ function ShipmentsPageInner() {
         return (
           <div className={styles.cellStack}>
             <span className={styles.trackingRow}>
-              <button
-                type="button"
+              <Link
+                href={`/admin/shipments/${record.id}`}
                 className={styles.trackingLink}
-                onClick={() => openShipment(record.id)}
-                title="Open shipment details"
+                onClick={(e) => {
+                  if (!e.metaKey && !e.ctrlKey) {
+                    e.preventDefault();
+                    openShipment(record.id);
+                  }
+                }}
+                title="Open shipment details (Ctrl+click / right-click to open in new tab)"
               >
                 {record.tracking_number || `#${record.id}`}
-              </button>
+              </Link>
               {record.tracking_number ? (
                 <Tooltip title="Copy tracking number">
                   <CopyOutlined className={styles.copyIcon} onClick={() => copyTracking(record.tracking_number)} />
@@ -567,11 +689,23 @@ function ShipmentsPageInner() {
       key: "merchant",
       width: 136,
       ellipsis: true,
-      render: (_, record) => (
-        <span className={styles.ellipsis} title={formatMerchantLabel(record)}>
-          {formatMerchantLabel(record)}
-        </span>
-      ),
+      render: (_, record) => {
+        const label = formatMerchantLabel(record);
+        return record.merchant_id ? (
+          <Link
+            href={`/admin/merchants/${record.merchant_id}`}
+            className={styles.ellipsis}
+            title={label}
+            style={{ color: "#2563EB" }}
+          >
+            {label}
+          </Link>
+        ) : (
+          <span className={styles.ellipsis} title={label}>
+            {label}
+          </span>
+        );
+      },
     },
     {
       title: "Route",
@@ -681,8 +815,18 @@ function ShipmentsPageInner() {
       width: 68,
       render: (_, record) => (
         <span className={styles.actions}>
-          <Tooltip title="View details">
-            <Button size="small" type="primary" icon={<EyeOutlined />} onClick={() => openShipment(record.id)} aria-label="View details" />
+          <Tooltip title="View details (Ctrl+click / right-click to open in new tab)">
+            <Link
+              href={`/admin/shipments/${record.id}`}
+              onClick={(e) => {
+                if (!e.metaKey && !e.ctrlKey) {
+                  e.preventDefault();
+                  openShipment(record.id);
+                }
+              }}
+            >
+              <Button size="small" type="primary" icon={<EyeOutlined />} aria-label="View details" />
+            </Link>
           </Tooltip>
           <Tooltip title="Print label">
             <Link href={`/admin/shipments/${record.id}/print`} target="_blank" className={styles.iconAction}>
@@ -697,6 +841,19 @@ function ShipmentsPageInner() {
   const from = total ? (page - 1) * perPage + 1 : 0;
   const to = Math.min(page * perPage, total);
 
+  const exportMenuItems = [
+    {
+      key: "all",
+      label: "Export All Records (Full Dataset)",
+      icon: <CloudDownloadOutlined />,
+    },
+    {
+      key: "page",
+      label: "Export Current Page Only",
+      icon: <DownloadOutlined />,
+    },
+  ];
+
   return (
     <div className={styles.page}>
       <AdminPageHeader
@@ -704,10 +861,48 @@ function ShipmentsPageInner() {
         subtitle="Track every shipment in your scope"
         actions={
           <span className={styles.headerActions}>
-            <Button size="small" icon={<DownloadOutlined />} loading={exporting} onClick={exportCsv} disabled={!total}>
-              Export CSV
+            <Link href="/admin/shipments/create">
+              <Button
+                size="small"
+                type="primary"
+                icon={<PlusOutlined />}
+                style={{
+                  background: "#FBBF24",
+                  borderColor: "#FBBF24",
+                  color: "#0F172A",
+                  fontWeight: 600,
+                }}
+              >
+                Create Shipment
+              </Button>
+            </Link>
+            <Dropdown.Button
+              size="small"
+              icon={<DownOutlined />}
+              loading={exporting}
+              disabled={!total}
+              menu={{
+                items: exportMenuItems,
+                onClick: ({ key }) => exportCsv(key === "all"),
+              }}
+              onClick={() => exportCsv(true)}
+            >
+              <DownloadOutlined /> Export CSV
+            </Dropdown.Button>
+            <Button
+              size="small"
+              icon={<UploadOutlined />}
+              onClick={() => setImportOpen(true)}
+              style={{ borderColor: "#0891B2", color: "#0891B2" }}
+            >
+              Import CSV
             </Button>
-            <Button size="small" icon={<ReloadOutlined />} loading={loading} onClick={() => setReloadKey((k) => k + 1)}>
+            <Button
+              size="small"
+              icon={<ReloadOutlined />}
+              loading={loading}
+              onClick={() => setReloadKey((k) => k + 1)}
+            >
               Refresh
             </Button>
           </span>
@@ -880,6 +1075,16 @@ function ShipmentsPageInner() {
           }}
         />
       </div>
+
+      <DataImportModal
+        open={importOpen}
+        onClose={() => setImportOpen(false)}
+        entityTitle="Shipments"
+        columns={SHIPMENT_IMPORT_COLUMNS}
+        sampleRows={SAMPLE_SHIPMENT_ROWS}
+        onImport={handleImportShipments}
+        onSuccess={() => setReloadKey((k) => k + 1)}
+      />
     </div>
   );
 }

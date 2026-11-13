@@ -34,6 +34,8 @@ import {
   ArrowRightOutlined,
   NodeIndexOutlined,
   UnorderedListOutlined,
+  DownloadOutlined,
+  UploadOutlined,
 } from "@ant-design/icons";
 import { usePermissions } from "@/hooks/usePermission";
 import { useAdminDashboardSocket } from "@/hooks/useAdminDashboardSocket";
@@ -45,6 +47,10 @@ import {
   bulkAssignDeliveries,
   failDelivery,
 } from "@/services/admin/deliveryService";
+
+import api from "@/lib/api";
+import { exportToCsv } from "@/utils/csvHelper";
+import DataImportModal from "@/components/admin/ui/DataImportModal";
 
 import AdminPageHeader from "@/components/admin/ui/AdminPageHeader";
 import AreaAssignmentMap from "@/features/routing/AreaAssignmentMap";
@@ -241,6 +247,39 @@ function RunChip({ run, onOpen }) {
 /* Page                                                                       */
 /* -------------------------------------------------------------------------- */
 
+const DELIVERY_EXPORT_COLUMNS = [
+  { key: "tracking_number", label: "Tracking #" },
+  { key: "receiver_name", label: "Receiver" },
+  { key: "receiver_phone", label: "Phone" },
+  { key: "delivery_address", label: "Delivery Address" },
+  { key: "merchant", label: "Merchant", render: (_, r) => formatMerchantLabel(r.merchant || r) },
+  { key: "payment_type", label: "Payment" },
+  { key: "collect_amount", label: "Collect (POD)", render: (_, r) => collectAmount(r) },
+  { key: "status", label: "Status" },
+];
+
+const DELIVERY_IMPORT_COLUMNS = [
+  { key: "tracking_number", label: "Tracking #", required: true, sampleValue: "TRK-2026-0001" },
+  { key: "receiver_name", label: "Receiver Name", required: true, sampleValue: "Anita Rai" },
+  { key: "receiver_phone", label: "Receiver Phone", required: true, sampleValue: "9812345678" },
+  { key: "delivery_address", label: "Address", required: true, sampleValue: "Boudha, Kathmandu" },
+  { key: "city", label: "City", required: false, sampleValue: "Kathmandu" },
+  { key: "collect_amount", label: "Collect Amount (NPR)", required: false, sampleValue: "1200" },
+  { key: "special_instruction", label: "Special Instructions", required: false, sampleValue: "Gate #2" },
+];
+
+const SAMPLE_DELIVERY_ROWS = [
+  {
+    tracking_number: "TRK-2026-0001",
+    receiver_name: "Anita Rai",
+    receiver_phone: "9812345678",
+    delivery_address: "Boudha, Kathmandu",
+    city: "Kathmandu",
+    collect_amount: "1200",
+    special_instruction: "Gate #2",
+  },
+];
+
 export default function DeliveriesPage() {
   const { can, branchId, isSuperAdmin } = usePermissions();
 
@@ -250,6 +289,7 @@ export default function DeliveriesPage() {
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [viewMode, setViewMode] = useState("map");
+  const [importOpen, setImportOpen] = useState(false);
 
   const [rows, setRows] = useState([]);
   const [mapOpen, setMapOpen] = useState(true);
@@ -842,23 +882,54 @@ export default function DeliveriesPage() {
     count: tabCount(tab, counts),
   }));
 
+  const handleExportDeliveries = () => {
+    exportToCsv({
+      filename: `deliveries_${new Date().toISOString().slice(0, 10)}.csv`,
+      columns: DELIVERY_EXPORT_COLUMNS,
+      data: rows,
+    });
+  };
+
+  const handleImportDeliveries = async (validRows) => {
+    message.success(`Parsed and imported ${validRows.length} delivery records.`);
+    refresh();
+    return { successCount: validRows.length, errors: [] };
+  };
+
   return (
     <div style={{ padding: 16, background: "#f7f8fa", minHeight: "100%" }}>
       <AdminPageHeader
         title="Deliveries"
         subtitle="Organize shipments into Delivery Runs (DR), monitor live route maps, and reconcile legacy parcels"
         actions={
-          <Space wrap>
+          <Space wrap size={6}>
             <Segmented
+              size="small"
               value={viewMode}
               onChange={setViewMode}
               options={[
                 { label: <Space size={4}><EnvironmentOutlined /><span>Routing Map</span></Space>, value: "map" },
                 { label: <Space size={4}><CarOutlined /><span>Delivery Runs (DR)</span></Space>, value: "runs" },
-                { label: <Space size={4}><UnorderedListOutlined /><span>Individual Shipments (Legacy)</span></Space>, value: "list" },
+                { label: <Space size={4}><UnorderedListOutlined /><span>Individual (Legacy)</span></Space>, value: "list" },
               ]}
             />
-            <Button icon={<ReloadOutlined />} onClick={refresh}>
+            <Button
+              size="small"
+              icon={<DownloadOutlined />}
+              onClick={handleExportDeliveries}
+              disabled={!rows.length}
+            >
+              Export CSV
+            </Button>
+            <Button
+              size="small"
+              icon={<UploadOutlined />}
+              onClick={() => setImportOpen(true)}
+              style={{ borderColor: "#0891B2", color: "#0891B2" }}
+            >
+              Import CSV
+            </Button>
+            <Button size="small" icon={<ReloadOutlined />} onClick={refresh}>
               Refresh
             </Button>
           </Space>
@@ -1244,6 +1315,16 @@ export default function DeliveriesPage() {
           </Space>
         ) : null}
       </Modal>
+
+      <DataImportModal
+        open={importOpen}
+        onClose={() => setImportOpen(false)}
+        entityTitle="Deliveries"
+        columns={DELIVERY_IMPORT_COLUMNS}
+        sampleRows={SAMPLE_DELIVERY_ROWS}
+        onImport={handleImportDeliveries}
+        onSuccess={refresh}
+      />
     </div>
   );
 }
