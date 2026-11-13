@@ -51,6 +51,7 @@ import {
   PlusOutlined,
   EditOutlined,
   SyncOutlined,
+  CompassOutlined,
 } from "@ant-design/icons";
 import { usePermissions } from "@/hooks/usePermission";
 import api from "@/lib/api";
