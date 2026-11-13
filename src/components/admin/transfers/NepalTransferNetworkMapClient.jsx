@@ -64,7 +64,7 @@ export default function NepalTransferNetworkMapClient({
     if (realLanes && realLanes.length > 0) {
       return realLanes.map((l, idx) => ({
         id: l.id || idx,
-        name: `${l.from_name} â†’ ${l.to_name} (${l.distance_km || 0} km, ${l.estimated_hours || 0}h)`,
+        name: `${l.from_name} -> ${l.to_name} (${l.distance_km || 0} km, ${l.estimated_hours || 0}h)`,
         mode: l.transport_mode || "road",
         service: l.service_type || "standard",
         coords: [
@@ -82,7 +82,7 @@ export default function NepalTransferNetworkMapClient({
     for (let i = 0; i < valid.length - 1; i++) {
       lines.push({
         id: `fb-${i}`,
-        name: `${valid[i].name} â†’ ${valid[i + 1].name}`,
+        name: `${valid[i].name} -> ${valid[i + 1].name}`,
         coords: [
           [Number(valid[i].latitude), Number(valid[i].longitude)],
           [Number(valid[i + 1].latitude), Number(valid[i + 1].longitude)],
@@ -218,7 +218,7 @@ export default function NepalTransferNetworkMapClient({
         fontSize: 11,
       }}>
         <Space size={10} wrap>
-          <span><span style={{ display: "inline-block", width: 9, height: 9, borderRadius: "50%", background: "#dc2626", marginRight: 4 }}></span>Critical (â‰¥80kg / â‰¥50 pkgs)</span>
+          <span><span style={{ display: "inline-block", width: 9, height: 9, borderRadius: "50%", background: "#dc2626", marginRight: 4 }}></span>Critical (&ge;80kg / &ge;50 pkgs)</span>
           <span><span style={{ display: "inline-block", width: 9, height: 9, borderRadius: "50%", background: "#ea580c", marginRight: 4 }}></span>Vehicle Requested</span>
           <span><span style={{ display: "inline-block", width: 9, height: 9, borderRadius: "50%", background: "#059669", marginRight: 4 }}></span>Major Hub</span>
           <span><span style={{ display: "inline-block", width: 9, height: 9, borderRadius: "50%", background: "#2563eb", marginRight: 4 }}></span>Branch Node</span>
@@ -301,7 +301,7 @@ export default function NepalTransferNetworkMapClient({
 
                     {b.urgency === "critical_capacity_exceeded" && (
                       <Tag color="error" icon={<WarningOutlined />} style={{ width: "100%", textAlign: "center", margin: "4px 0", fontSize: 10.5 }}>
-                        Threshold Exceeded (â‰¥80 kg)!
+                        Threshold Exceeded (&ge;80 kg)!
                       </Tag>
                     )}
                   </Space>
@@ -350,7 +350,7 @@ export default function NepalTransferNetworkMapClient({
                   </div>
 
                   <div style={{ fontSize: 12, fontWeight: 700, color: "#1e293b", marginBottom: 6 }}>
-                    {tr.from_branch_name} â†’ {tr.to_branch_name}
+                    {tr.from_branch_name} &rarr; {tr.to_branch_name}
                   </div>
 
                   <Space direction="vertical" size={3} style={{ width: "100%", fontSize: 11, marginBottom: 8 }}>

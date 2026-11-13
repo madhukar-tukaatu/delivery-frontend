@@ -114,7 +114,7 @@ export default function NetworkFlowDashboard({ branchId = null, onSelectTr }) {
     in_transit_trs = [],
     staged_by_hub = [],
     branches = [],
-    real_lanes = [],
+    real_lanes: realLanes = [],
     pending_requests = [],
     metrics = {},
     reporting = {},
@@ -246,7 +246,7 @@ export default function NetworkFlowDashboard({ branchId = null, onSelectTr }) {
           type="link"
           onClick={() => onSelectTr?.(r)}
         >
-          View Live TR â†’
+          View Live TR &rarr;
         </Button>
       ),
     },
@@ -293,7 +293,7 @@ export default function NetworkFlowDashboard({ branchId = null, onSelectTr }) {
         r.threshold_exceeded || r.urgency === "critical_capacity_exceeded" ? (
           <Tooltip title="Exceeded 80 kg or 50 parcels threshold. Priority dispatch needed.">
             <Tag color="error" icon={<WarningOutlined />} style={{ fontWeight: 600 }}>
-              Threshold Exceeded (â‰¥80kg)
+              Threshold Exceeded (&ge;80kg)
             </Tag>
           </Tooltip>
         ) : (
@@ -411,7 +411,7 @@ export default function NetworkFlowDashboard({ branchId = null, onSelectTr }) {
               <Badge status="processing" color="#10b981" />
               <Title level={4} style={{ color: "#fff", margin: 0, fontWeight: 700 }}>
                 {branchId && currentBranch
-                  ? `Transport Operations â€” ${currentBranch.name}`
+                  ? `Transport Operations — ${currentBranch.name}`
                   : `Transport Control Tower & Nepal Live Network (${branchCount} Branches)`}
               </Title>
               <Tag color={branchId ? "purple" : "blue"} style={{ margin: 0 }}>
@@ -453,7 +453,7 @@ export default function NetworkFlowDashboard({ branchId = null, onSelectTr }) {
                   fontWeight: 600,
                 }}
               >
-                {autoRefresh ? "Auto-refresh: 30s âœ“" : "Auto-refresh: OFF"}
+                {autoRefresh ? "Auto-refresh: 30s [ON]" : "Auto-refresh: OFF"}
               </Button>
             </Space>
           </Col>
@@ -474,7 +474,7 @@ export default function NetworkFlowDashboard({ branchId = null, onSelectTr }) {
                   <div style={{ fontSize: 12, color: "#15803d" }}>
                     Outbound Freight: <strong>{currentBranch.pending_parcels || 0} parcels ({currentBranch.pending_weight_kg || 0} kg)</strong> ready for transfer.
                     {currentBranch.pending_weight_kg >= 80 && (
-                      <Tag color="error" style={{ marginLeft: 6 }}>Threshold Exceeded (â‰¥80 kg)</Tag>
+                      <Tag color="error" style={{ marginLeft: 6 }}>Threshold Exceeded (&ge;80 kg)</Tag>
                     )}
                   </div>
                 </div>
@@ -656,14 +656,14 @@ export default function NetworkFlowDashboard({ branchId = null, onSelectTr }) {
                       <Tag color="blue">Prithvi & Fast Track</Tag>
                     </div>
                     <Text type="secondary" style={{ fontSize: 12 }}>
-                      Kathmandu â†” Bharatpur (Narayanghat) â†” Pokhara
+                      Kathmandu &harr; Bharatpur (Narayanghat) &harr; Pokhara
                     </Text>
                     <div style={{ marginTop: 8 }}>
                       <Progress percent={85} size="small" strokeColor="#2563eb" status="active" />
                     </div>
                     <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: "#64748b", marginTop: 4 }}>
                       <span>Core Hub-and-Spoke Gateway</span>
-                      <span style={{ fontWeight: 600, color: "#059669" }}>Flow Normal âœ“</span>
+                      <span style={{ fontWeight: 600, color: "#059669" }}>Flow Normal &#10003;</span>
                     </div>
                   </Space>
                 </div>
@@ -677,14 +677,14 @@ export default function NetworkFlowDashboard({ branchId = null, onSelectTr }) {
                       <Tag color="cyan">East-West / BP Hwy</Tag>
                     </div>
                     <Text type="secondary" style={{ fontSize: 12 }}>
-                      Bharatpur â†’ Hetauda â†’ Sindhuli â†’ Bardibas â†’ Itahari â†’ Biratnagar
+                      Bharatpur &rarr; Hetauda &rarr; Sindhuli &rarr; Bardibas &rarr; Itahari &rarr; Biratnagar
                     </Text>
                     <div style={{ marginTop: 8 }}>
                       <Progress percent={92} size="small" strokeColor="#0891b2" status="active" />
                     </div>
                     <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: "#64748b", marginTop: 4 }}>
                       <span>High Volume Eastbound Freight</span>
-                      <span style={{ fontWeight: 600, color: "#059669" }}>Consolidated âœ“</span>
+                      <span style={{ fontWeight: 600, color: "#059669" }}>Consolidated &#10003;</span>
                     </div>
                   </Space>
                 </div>
@@ -698,14 +698,14 @@ export default function NetworkFlowDashboard({ branchId = null, onSelectTr }) {
                       <Tag color="purple">Mahendra West Trunk</Tag>
                     </div>
                     <Text type="secondary" style={{ fontSize: 12 }}>
-                      Bharatpur â†’ Butwal â†’ Dang â†’ Nepalgunj â†’ Dhangadhi â†’ Mahendranagar
+                      Bharatpur &rarr; Butwal &rarr; Dang &rarr; Nepalgunj &rarr; Dhangadhi &rarr; Mahendranagar
                     </Text>
                     <div style={{ marginTop: 8 }}>
                       <Progress percent={78} size="small" strokeColor="#7c3aed" status="active" />
                     </div>
                     <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: "#64748b", marginTop: 4 }}>
                       <span>Multi-Hop Line-Haul Trunk</span>
-                      <span style={{ fontWeight: 600, color: "#059669" }}>Active Legs âœ“</span>
+                      <span style={{ fontWeight: 600, color: "#059669" }}>Active Legs &#10003;</span>
                     </div>
                   </Space>
                 </div>
