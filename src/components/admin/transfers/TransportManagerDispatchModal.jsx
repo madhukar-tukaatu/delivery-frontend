@@ -168,7 +168,7 @@ export default function TransportManagerDispatchModal({
         </Row>
 
         <div style={{ fontSize: 11, color: "#94a3b8", marginTop: 4 }}>
-          ðŸ”’ <em>Limits to additionals:</em> Once this container reaches {vehicleConfig.maxParcels} parcels, further auto-appending and parcel additions are locked.
+          <LockOutlined style={{ marginRight: 4 }} /> <em>Limits to additionals:</em> Once this container reaches {vehicleConfig.maxParcels} parcels, further auto-appending and parcel additions are locked.
         </div>
       </Card>
 

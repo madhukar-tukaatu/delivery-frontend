@@ -31,12 +31,12 @@ const { TextArea } = Input;
 const { Option } = Select;
 
 export const VEHICLE_OPTIONS = [
-  { value: "bike", label: "Bike / Motorcycle", icon: "ðŸ  ï¸ ", limit: "â‰¤ 10 pkgs / 25 kg", desc: "Local light courier" },
-  { value: "van", label: "Delivery Van / HiAce", icon: "ðŸš ", limit: "â‰¤ 50 pkgs / 250 kg", desc: "Standard paved road courier" },
-  { value: "pickup", label: "4x4 Cargo Pickup / Bolero", icon: "ðŸ›»", limit: "â‰¤ 150 pkgs / 600 kg", desc: "Hill & mountain feeder routes (Arghakhanchi, Mustang, Palpa)" },
-  { value: "truck", label: "Line-Haul Freight Truck", icon: "ðŸš›", limit: "â‰¤ 800 pkgs / 8,000 kg", desc: "Heavy freight for arterial highways (Prithvi / Mahendra)" },
-  { value: "bus_cargo", label: "Scheduled Bus Cargo", icon: "ðŸšŒ", limit: "â‰¤ 40 pkgs / 150 kg", desc: "Public intercity bus connection" },
-  { value: "flight", label: "Domestic Flight Cargo", icon: "âœˆï¸ ", limit: "â‰¤ 60 pkgs / 200 kg", desc: "Mountain hubs (Jomsom/Mustang) & Same Day SLA" },
+  { value: "bike", label: "Bike / Motorcycle", limit: "<= 10 pkgs / 25 kg", desc: "Local light courier" },
+  { value: "van", label: "Delivery Van / HiAce", limit: "<= 50 pkgs / 250 kg", desc: "Standard paved road courier" },
+  { value: "pickup", label: "4x4 Cargo Pickup / Bolero", limit: "<= 150 pkgs / 600 kg", desc: "Hill & mountain feeder routes (Arghakhanchi, Mustang, Palpa)" },
+  { value: "truck", label: "Line-Haul Freight Truck", limit: "<= 800 pkgs / 8,000 kg", desc: "Heavy freight for arterial highways (Prithvi / Mahendra)" },
+  { value: "bus_cargo", label: "Scheduled Bus Cargo", limit: "<= 40 pkgs / 150 kg", desc: "Public intercity bus connection" },
+  { value: "flight", label: "Domestic Flight Cargo", limit: "<= 60 pkgs / 200 kg", desc: "Mountain hubs (Jomsom/Mustang) & Same Day SLA" },
 ];
 
 export default function BranchTransferRequestModal({
@@ -217,7 +217,7 @@ export default function BranchTransferRequestModal({
             {VEHICLE_OPTIONS.map((v) => (
               <Option key={v.value} value={v.value}>
                 <Space>
-                  <span>{v.icon}</span>
+                  <CarOutlined style={{ color: "#2563eb" }} />
                   <span style={{ fontWeight: 600 }}>{v.label}</span>
                   <span style={{ color: "#94a3b8", fontSize: 11 }}>({v.limit})</span>
                 </Space>
