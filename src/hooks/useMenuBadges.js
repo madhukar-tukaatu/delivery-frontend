@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import api from "@/lib/api";
+import { getEcho } from "@/lib/echo";
+import { getUser } from "@/lib/auth";
 
 /** Window event any page can fire after an action that changes the counts. */
 export const MENU_BADGES_EVENT = "menu-badges:refresh";
@@ -16,14 +18,14 @@ export function refreshMenuBadges() {
  * Sidebar badge counts keyed by menu path, from GET /me/menu-badges.
  * { "/admin/transfers": [{ key, count, label, color }], ... }
  *
- * Refreshes on navigation, every `intervalMs`, when the tab regains focus
- * and when a page calls refreshMenuBadges(). Keeps the last good result on
- * errors so the sidebar never flickers.
+ * Real-time WebSocket driven via Laravel Echo (Reverb).
+ * No interval HTTP polling is used.
  */
-export default function useMenuBadges(section, pathname, intervalMs = 60000) {
+export default function useMenuBadges(section, pathname, _intervalMs) {
   const [badges, setBadges] = useState({});
   const busy = useRef(false);
   const enabled = section === "admin" || section === "staff";
+  const debounceTimer = useRef(null);
 
   const load = useCallback(async () => {
     if (!enabled || busy.current) return;
@@ -40,27 +42,85 @@ export default function useMenuBadges(section, pathname, intervalMs = 60000) {
     }
   }, [enabled, section]);
 
+  const debouncedLoad = useCallback(() => {
+    if (debounceTimer.current) clearTimeout(debounceTimer.current);
+    debounceTimer.current = setTimeout(() => {
+      load();
+    }, 400);
+  }, [load]);
+
+  // Initial load when section changes or on first mount
   useEffect(() => {
     load();
-  }, [load, pathname]);
+  }, [load]);
 
+  // Listen to manual local refresh events triggered by page actions
   useEffect(() => {
     if (!enabled || typeof window === "undefined") return undefined;
-    const timer = window.setInterval(load, intervalMs);
-    const onWake = () => load();
-    const onVisible = () => {
-      if (document.visibilityState === "visible") load();
-    };
-    window.addEventListener("focus", onWake);
-    window.addEventListener(MENU_BADGES_EVENT, onWake);
-    document.addEventListener("visibilitychange", onVisible);
+    window.addEventListener(MENU_BADGES_EVENT, debouncedLoad);
     return () => {
-      window.clearInterval(timer);
-      window.removeEventListener("focus", onWake);
-      window.removeEventListener(MENU_BADGES_EVENT, onWake);
-      document.removeEventListener("visibilitychange", onVisible);
+      window.removeEventListener(MENU_BADGES_EVENT, debouncedLoad);
+      if (debounceTimer.current) clearTimeout(debounceTimer.current);
     };
-  }, [enabled, load, intervalMs]);
+  }, [enabled, debouncedLoad]);
+
+  // WebSocket real-time subscription via Laravel Echo (Reverb)
+  useEffect(() => {
+    if (!enabled || typeof window === "undefined") return undefined;
+
+    const echo = getEcho();
+    if (!echo) return undefined;
+
+    const user = getUser();
+    const channels = [];
+
+    const operationalEvents = [
+      ".shipment.status.updated",
+      ".pickup.assigned",
+      ".pickup.status.updated",
+      ".delivery.assigned",
+      ".delivery.status.updated",
+      ".branch.changed",
+      ".merchant.application.changed",
+      ".menu.badges.updated",
+    ];
+
+    try {
+      if (section === "admin") {
+        const adminChannel = echo.private("admin.dashboard");
+        operationalEvents.forEach((evt) => {
+          adminChannel.listen(evt, debouncedLoad);
+        });
+        channels.push("admin.dashboard");
+
+        if (user?.branch_id) {
+          const branchChannel = echo.private(`branch.${user.branch_id}`);
+          operationalEvents.forEach((evt) => {
+            branchChannel.listen(evt, debouncedLoad);
+          });
+          channels.push(`branch.${user.branch_id}`);
+        }
+      } else if (section === "staff" && user?.id) {
+        const staffChannel = echo.private(`staff.${user.id}`);
+        operationalEvents.forEach((evt) => {
+          staffChannel.listen(evt, debouncedLoad);
+        });
+        channels.push(`staff.${user.id}`);
+      }
+    } catch (err) {
+      console.warn("[MenuBadges] WebSocket subscription error:", err);
+    }
+
+    return () => {
+      channels.forEach((name) => {
+        try {
+          echo.leave(name);
+        } catch {
+          // ignore cleanup errors
+        }
+      });
+    };
+  }, [enabled, section, debouncedLoad]);
 
   return enabled ? badges : {};
 }

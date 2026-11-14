@@ -374,7 +374,7 @@ export default function SettlementsPage() {
     exportToCsv({
       filename: `settlements_${dayjs().format("YYYY-MM-DD")}.csv`,
       columns: SETTLEMENT_EXPORT_COLUMNS,
-      data: list,
+      data: settlements,
     });
   };
 
@@ -407,7 +407,7 @@ export default function SettlementsPage() {
               size="small"
               icon={<DownloadOutlined />}
               onClick={handleExportSettlements}
-              disabled={!list.length}
+              disabled={!settlements.length}
             >
               Export CSV
             </Button>

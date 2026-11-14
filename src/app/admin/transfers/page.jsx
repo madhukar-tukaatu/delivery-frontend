@@ -3471,7 +3471,7 @@ export default function TransfersPage() {
                   {viewMode === "next_hop" ? (
                     <div style={{ padding: "0 8px 8px" }}>
                       <NextHopMasterDetail
-                        routes={routesForCards}
+                        routes={availableRoutes}
                         shipments={outboundRows}
                         selectedNextHopKey={selectedNextHopKey}
                         loading={routesLoading || loading}
