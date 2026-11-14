@@ -97,6 +97,7 @@ function MenuLink({ menu, pathname }) {
     <div>
       <Link
         href={menu.path || "#"}
+        prefetch={false}
         style={{
           display: "flex", alignItems: "center", gap: 10,
           borderRadius: 10, padding: "9px 12px", fontSize: 13, fontWeight: 600,

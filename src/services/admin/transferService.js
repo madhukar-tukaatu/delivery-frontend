@@ -1,4 +1,5 @@
 import api from "@/lib/api";
+import { fetchWithOfflineSupport } from "@/lib/offlineCache";
 
 function unwrap(response) {
   return response?.data?.data ?? response?.data ?? null;
@@ -58,10 +59,39 @@ export async function getTransfers(params = {}) {
   return normalizeList(response, params);
 }
 
-export async function getNetworkOverview(branchId = null) {
-  const params = branchId ? { branch_id: branchId } : {};
-  const response = await api.get("/admin/transfers/network-overview", { params });
-  return unwrap(response) ?? {};
+export async function getNetworkOverview(branchId = null, options = {}) {
+  const cacheKey = `network_overview_${branchId || "all"}`;
+  const result = await fetchWithOfflineSupport(
+    cacheKey,
+    async () => {
+      const params = branchId ? { branch_id: branchId } : {};
+      const response = await api.get("/admin/transfers/network-overview", { params });
+      const payload = unwrap(response) ?? {};
+      const kpis = payload.kpis || payload.metrics || {};
+      return {
+        ...payload,
+        kpis: {
+          total_moving_trucks: Number(kpis.total_moving_trucks ?? 0),
+          total_moving_parcels: Number(kpis.total_moving_parcels ?? 0),
+          total_moving_weight_kg: Number(kpis.total_moving_weight_kg ?? 0),
+          total_pending_requests: Number(kpis.total_pending_requests ?? 0),
+          total_parcels_waiting: Number(kpis.total_parcels_waiting ?? 0),
+          total_branches_active: Number(kpis.total_branches_active ?? (payload.branches || []).length),
+        },
+        reporting: payload.reporting || {},
+        in_transit_trs: Array.isArray(payload.in_transit_trs) ? payload.in_transit_trs : [],
+        pending_requests: Array.isArray(payload.pending_requests) ? payload.pending_requests : [],
+        branches: Array.isArray(payload.branches) ? payload.branches : [],
+      };
+    },
+    { ttl: 60, staleWhileRevalidate: true, ...options }
+  );
+
+  return {
+    ...result.data,
+    isOffline: result.isOffline,
+    fromCache: result.fromCache,
+  };
 }
 
 /**

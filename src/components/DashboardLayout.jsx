@@ -185,9 +185,11 @@ function buildMenuItems(menus = [], badges = {}, openKeys = [], collapsed = fals
       const icon = getIcon(item.icon);
 
       // Wrap item in Link to enable right-click "Open in new tab", middle-click, and Ctrl+Click
+      // prefetch={false} prevents Next.js from spamming background RSC prefetch requests for all sidebar links on every page load
       const renderedLabel = item.path ? (
         <Link
           href={item.path}
+          prefetch={false}
           style={{
             color: "inherit",
             textDecoration: "none",
@@ -337,7 +339,7 @@ function handleMenuClick({ key, item }) {
         key: "profile",
         icon: <UserOutlined />,
         label: (
-          <Link href={`/${section}/profile`} style={{ color: "inherit", textDecoration: "none", display: "block" }}>
+          <Link href={`/${section}/profile`} prefetch={false} style={{ color: "inherit", textDecoration: "none", display: "block" }}>
             Profile
           </Link>
         ),
@@ -346,7 +348,7 @@ function handleMenuClick({ key, item }) {
         key: "settings",
         icon: <SettingOutlined />,
         label: (
-          <Link href={`/${section}/settings`} style={{ color: "inherit", textDecoration: "none", display: "block" }}>
+          <Link href={`/${section}/settings`} prefetch={false} style={{ color: "inherit", textDecoration: "none", display: "block" }}>
             Settings
           </Link>
         ),
