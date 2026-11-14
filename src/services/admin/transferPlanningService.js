@@ -1,12 +1,28 @@
 import api from "@/lib/api";
+import { fetchWithOfflineSupport } from "@/lib/offlineCache";
 
 function unwrap(response) {
   return response?.data?.data ?? response?.data ?? null;
 }
 
-export async function getTransferDemand(params = {}) {
-  const response = await api.get("/admin/transfers/planning/demand", { params });
-  return unwrap(response) ?? {};
+export async function getTransferDemand(params = {}, options = {}) {
+  const originId = params.origin_branch_id || "all";
+  const cacheKey = `transfer_demand_${originId}`;
+
+  const result = await fetchWithOfflineSupport(
+    cacheKey,
+    async () => {
+      const response = await api.get("/admin/transfers/planning/demand", { params });
+      return unwrap(response) ?? {};
+    },
+    { ttl: 60, staleWhileRevalidate: true, ...options }
+  );
+
+  return {
+    ...result.data,
+    isOffline: result.isOffline,
+    fromCache: result.fromCache,
+  };
 }
 
 export async function getTransferRecommendations(params = {}) {

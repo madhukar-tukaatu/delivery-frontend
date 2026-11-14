@@ -89,6 +89,7 @@ export default function NetworkFlowDashboard({ branchId = null, onSelectTr }) {
   const [branchSearch, setBranchSearch] = useState("");
   const [data, setData] = useState(EMPTY);
   const [autoRefresh, setAutoRefresh] = useState(true);
+  const [isOffline, setIsOffline] = useState(false);
 
   const [requestModalOpen, setRequestModalOpen] = useState(false);
   const [selectedBranchForRequest, setSelectedBranchForRequest] = useState(null);
@@ -103,6 +104,7 @@ export default function NetworkFlowDashboard({ branchId = null, onSelectTr }) {
     try {
       const res = await getNetworkOverview(branchId || selectedMapBranchId);
       setData({ ...EMPTY, ...(res || {}) });
+      setIsOffline(Boolean(res?.isOffline));
       try {
         const demandRes = await getTransferDemand({ origin_branch_id: branchId || undefined });
         setDemand(demandRes || { flows: [], matrix: [], branches: [] });
@@ -504,6 +506,15 @@ export default function NetworkFlowDashboard({ branchId = null, onSelectTr }) {
           message="Could not load live transfer data"
           description={loadError}
           action={<Button size="small" onClick={load}>Retry</Button>}
+        />
+      )}
+
+      {isOffline && (
+        <Alert
+          type="warning"
+          showIcon
+          message="Offline Mode Active"
+          description="Operating in offline-friendly mode with local cached transfer data. You can continue monitoring active branches, corridors, and staged runs."
         />
       )}
 
