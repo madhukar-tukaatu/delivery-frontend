@@ -2289,7 +2289,10 @@ export default function TransfersPage() {
   }, [outboundRows, availableRoutes, viewMode, activeParentTab, activeSubTab, selectedNextHopKey]);
 
   // Load outbound (optionally filtered by selected transfer route)
+  const outboundLoadingRef = useRef(false);
   const loadOutbound = useCallback(async (page = 1, pageSize = 20) => {
+    if (outboundLoadingRef.current) return;
+    outboundLoadingRef.current = true;
     setLoading(true);
     try {
       const baseParams = {
@@ -2381,19 +2384,17 @@ export default function TransfersPage() {
           });
           allShipments = all;
           total = Number(groupedRes.total_shipments ?? all.length);
-        }
-        if (allShipments.length === 0) {
-          // Fall back to route-grouped + client next-hop regroup
+        } else if (!groupedRes || (!Array.isArray(groupedRes.next_hops) && !Array.isArray(groupedRes.unmatched))) {
+          // Fall back only if grouped response completely failed or returned invalid format
           const routeRes = await getTransfers({ ...baseParams, group_by_route: true });
           if (Array.isArray(routeRes?.routes)) {
             allShipments = flattenGrouped(routeRes);
             total = Number(routeRes.total_shipments ?? allShipments.length);
+          } else {
+            const flatRes = await getTransfers(baseParams);
+            allShipments = flatRes.list || [];
+            total = Number(flatRes.total ?? allShipments.length);
           }
-        }
-        if (allShipments.length === 0) {
-          const flatRes = await getTransfers(baseParams);
-          allShipments = flatRes.list || [];
-          total = Number(flatRes.total ?? allShipments.length);
         }
       } else if (viewMode === "grouped") {
         const groupedRes = await getTransfers({ ...baseParams, group_by_route: true });
@@ -2419,6 +2420,7 @@ export default function TransfersPage() {
     } catch (e) {
       message.error(e?.response?.data?.message || "Failed to load outbound transfers");
     } finally {
+      outboundLoadingRef.current = false;
       setLoading(false);
     }
   }, [debouncedSearch, serviceTypeFilter, selectedBranchId, viewMode]);
@@ -2608,15 +2610,20 @@ export default function TransfersPage() {
     loadDataRef.current();
   }, [serviceTypeFilter]);
 
-  // Reload outbound when the selected transfer route changes
+  // Reload outbound when the selected transfer route changes (skip initial mount to avoid duplicate load)
   // Only applies to Transfer Outs -> Process tab
+  const routeFilterMounted = useRef(false);
   useEffect(() => {
+    if (!routeFilterMounted.current) {
+      routeFilterMounted.current = true;
+      return;
+    }
     if (activeParentTab !== "transferOut" || activeSubTab !== "process") return;
     setPagination((p) => ({ ...p, current: 1 }));
     loadOutbound(1, pagination.pageSize);
     setSelectedRowKeys([]);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeParentTab, activeSubTab, selectedTransferRouteId]);
+  }, [selectedTransferRouteId]);
 
   // Reload data when tab or search changes
   useEffect(() => {
@@ -3259,6 +3266,7 @@ export default function TransfersPage() {
       children: (
         <Tabs
           activeKey={activeSubTab}
+          destroyInactiveTabPane={true}
           onChange={setActiveSubTab}
           items={[
             {
@@ -3369,6 +3377,7 @@ export default function TransfersPage() {
       children: (
         <Tabs
           activeKey={activeSubTab}
+          destroyInactiveTabPane={true}
           onChange={setActiveSubTab}
           items={[
             {
@@ -3938,6 +3947,7 @@ export default function TransfersPage() {
       {/* Tabs */}
       <Tabs
         activeKey={activeParentTab}
+        destroyInactiveTabPane={true}
         onChange={(k) => {
           setActiveParentTab(k);
           setActiveSubTab("process");
