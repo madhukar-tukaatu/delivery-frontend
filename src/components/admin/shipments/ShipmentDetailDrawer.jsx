@@ -460,8 +460,16 @@ export default function ShipmentDetailDrawer({ open, shipmentId, onClose }) {
     !isReturning &&
     [
       "picked_up",
+      "received_at_origin_branch",
+      "received_at_origin_sub_branch",
       "received_at_origin",
+      "sorted_for_transfer",
+      "sorted_for_delivery",
       "in_transit",
+      "dispatched_to_destination_branch",
+      "received_at_transit_hub",
+      "received_at_destination_branch",
+      "received_at_destination_sub_branch",
       "received_at_destination",
       "out_for_delivery",
       "assigned_to_rider",
