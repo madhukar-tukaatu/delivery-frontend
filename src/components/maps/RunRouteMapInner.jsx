@@ -8,6 +8,8 @@ import {
   CompassOutlined,
   EnvironmentOutlined,
   ExclamationCircleOutlined,
+  FullscreenOutlined,
+  FullscreenExitOutlined,
   HomeOutlined,
   PhoneOutlined,
   FileTextOutlined,
@@ -299,6 +301,7 @@ export default function RunRouteMapInner({
   const [routeData, setRouteData] = useState(null);
   const [loadingRoute, setLoadingRoute] = useState(false);
   const [riderLocation, setRiderLocation] = useState(run?.rider_location || null);
+  const [isFullscreen, setIsFullscreen] = useState(false);
 
   useEffect(() => {
     if (run?.rider_location) {
@@ -555,8 +558,28 @@ export default function RunRouteMapInner({
     return `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(stop.address + ", " + stop.area)}`;
   };
 
+  const effectiveHeight = isFullscreen ? "calc(100vh - 56px)" : height;
+
   return (
-    <div>
+    <div
+      style={
+        isFullscreen
+          ? {
+              position: "fixed",
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              zIndex: 99999,
+              background: "#ffffff",
+              display: "flex",
+              flexDirection: "column",
+              height: "100vh",
+              width: "100vw",
+            }
+          : undefined
+      }
+    >
       {/* Route Header Stats */}
       <div
         style={{
@@ -567,7 +590,7 @@ export default function RunRouteMapInner({
           padding: "10px 14px",
           background: "#f8fafc",
           border: "1px solid #e2e8f0",
-          borderRadius: "8px 8px 0 0",
+          borderRadius: isFullscreen ? 0 : "8px 8px 0 0",
           gap: 8,
         }}
       >
@@ -633,13 +656,21 @@ export default function RunRouteMapInner({
           ) : loadingRoute ? (
             <Text type="secondary">Calculating route path...</Text>
           ) : null}
+          <Button
+            size="small"
+            icon={isFullscreen ? <FullscreenExitOutlined /> : <FullscreenOutlined />}
+            onClick={() => setIsFullscreen((v) => !v)}
+            style={isFullscreen ? { background: "#0284c7", color: "#fff", borderColor: "#0284c7" } : undefined}
+          >
+            {isFullscreen ? "Exit Fullscreen" : "Fullscreen Map"}
+          </Button>
         </Space>
       </div>
 
-      <Row gutter={0} style={{ border: "1px solid #e2e8f0", borderTop: "none", borderRadius: "0 0 8px 8px" }}>
+      <Row gutter={0} style={{ border: "1px solid #e2e8f0", borderTop: "none", borderRadius: isFullscreen ? 0 : "0 0 8px 8px", flex: isFullscreen ? 1 : undefined }}>
         {/* Left Side: Sequenced Stops List */}
         <Col xs={24} md={8} style={{ borderRight: "1px solid #e2e8f0", background: "#ffffff" }}>
-          <div style={{ height, overflowY: "auto", padding: 12 }}>
+          <div style={{ height: effectiveHeight, overflowY: "auto", padding: 12 }}>
             <div style={{ marginBottom: 12, padding: "8px 10px", background: "#f1f5f9", borderRadius: 6 }}>
               <Space>
                 <HomeOutlined style={{ color: "#1e1b4b", fontSize: 16 }} />
@@ -824,7 +855,7 @@ export default function RunRouteMapInner({
 
         {/* Right Side: Leaflet Interactive Route Map */}
         <Col xs={24} md={16}>
-          <div style={{ height, width: "100%", position: "relative" }}>
+          <div style={{ height: effectiveHeight, width: "100%", position: "relative" }}>
             <MapContainer
               center={[branchCoords.lat, branchCoords.lng]}
               zoom={13}
