@@ -334,6 +334,12 @@ export default function RunRouteMapInner({
         const pubChannel = echo.channel(`rider.${riderId}.public-location`);
         pubChannel.listen("rider.location.updated", onLocation);
         pubChannel.listen(".rider.location.updated", onLocation);
+
+        if (run?.id) {
+          const runChannel = echo.channel(`delivery-runs.${run.id}.location`);
+          runChannel.listen("rider.location.updated", onLocation);
+          runChannel.listen(".rider.location.updated", onLocation);
+        }
       } catch (err) {
         console.warn("Rider location echo subscription failed:", err);
       }
@@ -344,10 +350,11 @@ export default function RunRouteMapInner({
         try {
           echo.leave(`rider.${riderId}.location`);
           echo.leave(`rider.${riderId}.public-location`);
+          if (run?.id) echo.leave(`delivery-runs.${run.id}.location`);
         } catch {}
       }
     };
-  }, [run?.rider?.id]);
+  }, [run?.rider?.id, run?.id]);
 
   // Periodic polling fallback for active runs (6s)
   useEffect(() => {
@@ -988,6 +995,22 @@ export default function RunRouteMapInner({
                         weight: 4,
                         opacity: 0.85,
                         dashArray: "6, 8",
+                      }}
+                    />
+                  )}
+
+                  {/* Remaining connector from rider's live position to next stop */}
+                  {stops[0]?.point && (
+                    <Polyline
+                      positions={[
+                        [riderLocation.lat, riderLocation.lng],
+                        [stops[0].point.lat, stops[0].point.lng],
+                      ]}
+                      pathOptions={{
+                        color: "#0284c7",
+                        weight: 4,
+                        opacity: 0.85,
+                        dashArray: "4, 6",
                       }}
                     />
                   )}

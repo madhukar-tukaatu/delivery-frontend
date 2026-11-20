@@ -61,6 +61,7 @@ import {
 import styles from "./deliveries.module.css";
 import StaffRunPanel from "@/components/staff/StaffRunPanel";
 import { runErrorText } from "@/services/admin/deliveryRunService";
+import { sendCurrentRiderLocation, startBrowserRiderLocation } from "@/services/admin/riderLocationService";
 
 /** Parcel sits on a DR run the rider is still collecting: it leaves via Bag + Start run. */
 function onCollectingRun(delivery) {
@@ -442,6 +443,56 @@ export default function StaffDeliveriesPage() {
   const openedCheckoutSessionsRef = useRef(new Set());
   const [checkoutNeedsClick, setCheckoutNeedsClick] = useState(false);
   const checkoutReady = podCheckoutReady(paymentSession);
+
+  // Live GPS tracking from rider's device to dispatch and run maps
+  const [gpsActive, setGpsActive] = useState(false);
+  const [gpsStatus, setGpsStatus] = useState(null);
+  const [gpsSending, setGpsSending] = useState(false);
+
+  useEffect(() => {
+    const stopTracker = startBrowserRiderLocation({
+      intervalMs: 8000,
+      onSuccess: (res, payload) => {
+        setGpsActive(true);
+        setGpsStatus({
+          lat: payload.lat,
+          lng: payload.lng,
+          speed: payload.speed,
+          accuracy: payload.accuracy,
+          time: new Date().toLocaleTimeString(),
+        });
+      },
+      onError: (err) => {
+        console.warn("Rider live GPS error:", err);
+      },
+    });
+
+    return () => {
+      stopTracker?.();
+    };
+  }, [rows]);
+
+  const pingLocationNow = () => {
+    setGpsSending(true);
+    sendCurrentRiderLocation({
+      onSuccess: (res, payload) => {
+        setGpsSending(false);
+        setGpsActive(true);
+        setGpsStatus({
+          lat: payload.lat,
+          lng: payload.lng,
+          speed: payload.speed,
+          accuracy: payload.accuracy,
+          time: new Date().toLocaleTimeString(),
+        });
+        message.success(`Real GPS coordinates sent: (${payload.lat.toFixed(4)}, ${payload.lng.toFixed(4)})`);
+      },
+      onError: (err) => {
+        setGpsSending(false);
+        message.error(`GPS Error: ${err.message || "Could not access device GPS location"}`);
+      },
+    });
+  };
 
   // Log which marketplace pod-qr API the payment request used (create, poll,
   // retry). Only when status / api_url / http_status changes, not every 4s poll.
@@ -1465,6 +1516,46 @@ export default function StaffDeliveriesPage() {
 
   return (
     <>
+      {/* Live GPS Tracking Status for Rider's Device */}
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          flexWrap: "wrap",
+          padding: "8px 14px",
+          background: gpsActive ? "#f0fdf4" : "#f8fafc",
+          border: `1px solid ${gpsActive ? "#86efac" : "#e2e8f0"}`,
+          borderRadius: 8,
+          marginBottom: 14,
+          gap: 8,
+        }}
+      >
+        <Space size={8} wrap>
+          <span style={{ fontSize: 16 }}>{gpsActive ? "🟢" : "📡"}</span>
+          <span style={{ color: gpsActive ? "#15803d" : "#475569", fontWeight: 700, fontSize: 13 }}>
+            {gpsActive ? "Live GPS Active · Transmitting to Run Maps & Dispatch" : "Live GPS Ready"}
+          </span>
+          {gpsStatus && (
+            <span style={{ fontSize: 12, color: "#64748B" }}>
+              ({gpsStatus.lat.toFixed(5)}, {gpsStatus.lng.toFixed(5)})
+              {gpsStatus.speed ? ` • ${Math.round(gpsStatus.speed)} km/h` : ""}
+              {gpsStatus.accuracy ? ` • Acc ±${Math.round(gpsStatus.accuracy)}m` : ""}
+              {` • ${gpsStatus.time}`}
+            </span>
+          )}
+        </Space>
+        <Button
+          size="small"
+          icon={<EnvironmentOutlined />}
+          loading={gpsSending}
+          onClick={pingLocationNow}
+          style={{ borderColor: "#10b981", color: "#047857", fontWeight: 600 }}
+        >
+          Send Real GPS Ping
+        </Button>
+      </div>
+
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, flexWrap: "wrap", marginBottom: 16 }}>
         <div style={{ maxWidth: "100%", overflowX: "auto" }}>
           <Segmented
