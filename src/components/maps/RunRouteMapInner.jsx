@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Button, Card, Col, Empty, Row, Space, Tag, Typography, message } from "antd";
 import {
   CarOutlined,
@@ -11,6 +11,7 @@ import {
   HomeOutlined,
   PhoneOutlined,
   FileTextOutlined,
+  PlayCircleOutlined,
   SendOutlined,
   ShopOutlined,
   UserOutlined,
@@ -18,6 +19,7 @@ import {
 import { MapContainer, Marker, Polyline, Popup, TileLayer, Tooltip as LeafletTooltip, useMap } from "react-leaflet";
 import L from "leaflet";
 import { getEcho } from "@/lib/echo";
+import { getDeliveryRun } from "@/services/admin/deliveryRunService";
 
 const { Text, Title } = Typography;
 
@@ -304,7 +306,7 @@ export default function RunRouteMapInner({
     }
   }, [run?.rider_location]);
 
-  // Real-time rider location listener via Laravel Echo
+  // Real-time rider location listener via Laravel Echo (private & public channels)
   useEffect(() => {
     const riderId = run?.rider?.id;
     if (!riderId) return;
@@ -312,7 +314,6 @@ export default function RunRouteMapInner({
     const echo = getEcho();
     if (echo) {
       try {
-        const channel = echo.private(`rider.${riderId}.location`);
         const onLocation = (e) => {
           if (e && e.lat && e.lng) {
             setRiderLocation({
@@ -325,8 +326,14 @@ export default function RunRouteMapInner({
             });
           }
         };
-        channel.listen("rider.location.updated", onLocation);
-        channel.listen(".rider.location.updated", onLocation);
+
+        const privChannel = echo.private(`rider.${riderId}.location`);
+        privChannel.listen("rider.location.updated", onLocation);
+        privChannel.listen(".rider.location.updated", onLocation);
+
+        const pubChannel = echo.channel(`rider.${riderId}.public-location`);
+        pubChannel.listen("rider.location.updated", onLocation);
+        pubChannel.listen(".rider.location.updated", onLocation);
       } catch (err) {
         console.warn("Rider location echo subscription failed:", err);
       }
@@ -336,10 +343,91 @@ export default function RunRouteMapInner({
       if (echo && riderId) {
         try {
           echo.leave(`rider.${riderId}.location`);
+          echo.leave(`rider.${riderId}.public-location`);
         } catch {}
       }
     };
   }, [run?.rider?.id]);
+
+  // Periodic polling fallback for active runs (6s)
+  useEffect(() => {
+    if (!run?.id) return;
+    const isLive = ["out_for_delivery", "in_progress", "assigned"].includes(String(run?.status || "").toLowerCase());
+    if (!isLive) return;
+
+    let cancelled = false;
+    const timer = setInterval(async () => {
+      try {
+        const fresh = await getDeliveryRun(run.id, run.branch_id || run.branch?.id);
+        const freshRun = fresh?.run || fresh;
+        if (!cancelled && freshRun?.rider_location) {
+          setRiderLocation((prev) => {
+            const nextLoc = freshRun.rider_location;
+            if (!prev || prev.lat !== nextLoc.lat || prev.lng !== nextLoc.lng) {
+              return nextLoc;
+            }
+            return prev;
+          });
+        }
+      } catch (err) {
+        // quiet fallback
+      }
+    }, 6000);
+
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+    };
+  }, [run?.id, run?.status, run?.branch_id, run?.branch?.id]);
+
+  // Interactive Live Movement Simulator (for testing on office/demo without active rider phone)
+  const [isSimulating, setIsSimulating] = useState(false);
+  const simIntervalRef = useRef(null);
+
+  const toggleSimulation = () => {
+    if (isSimulating) {
+      if (simIntervalRef.current) clearInterval(simIntervalRef.current);
+      setIsSimulating(false);
+      return;
+    }
+
+    const path = routeData?.positions && routeData.positions.length > 2
+      ? routeData.positions
+      : [
+          [branchCoords.lat, branchCoords.lng],
+          [branchCoords.lat + (stops[0]?.point?.lat ? (stops[0].point.lat - branchCoords.lat) * 0.35 : 0.005), branchCoords.lng + (stops[0]?.point?.lng ? (stops[0].point.lng - branchCoords.lng) * 0.35 : 0.005)],
+          [branchCoords.lat + (stops[0]?.point?.lat ? (stops[0].point.lat - branchCoords.lat) * 0.7 : 0.01), branchCoords.lng + (stops[0]?.point?.lng ? (stops[0].point.lng - branchCoords.lng) * 0.7 : 0.01)],
+          stops[0]?.point ? [stops[0].point.lat, stops[0].point.lng] : [branchCoords.lat + 0.012, branchCoords.lng + 0.012],
+        ];
+
+    let step = 0;
+    setIsSimulating(true);
+    message.info("Live rider movement simulation started along the route.");
+
+    simIntervalRef.current = setInterval(() => {
+      step = (step + 1) % path.length;
+      const pt = path[step];
+      const prevPt = path[step === 0 ? path.length - 1 : step - 1];
+      const dLat = pt[0] - prevPt[0];
+      const dLng = pt[1] - prevPt[1];
+      const heading = (Math.atan2(dLng, dLat) * 180) / Math.PI;
+
+      setRiderLocation({
+        lat: pt[0],
+        lng: pt[1],
+        speed: 24 + Math.round(Math.random() * 8),
+        heading: Math.round((heading + 360) % 360),
+        updated_at: new Date().toISOString(),
+        is_live: true,
+      });
+    }, 2000);
+  };
+
+  useEffect(() => {
+    return () => {
+      if (simIntervalRef.current) clearInterval(simIntervalRef.current);
+    };
+  }, []);
 
   // 1. Resolve branch origin
   const branchCoords = useMemo(() => {
@@ -497,10 +585,29 @@ export default function RunRouteMapInner({
               </Button>
             </Space>
           ) : run?.rider?.name ? (
-            <Tag color="geekblue">
-              <UserOutlined /> Rider: {run.rider.name}
-            </Tag>
+            <Space size={6}>
+              <Tag color="geekblue">
+                <UserOutlined /> Rider: {run.rider.name}
+              </Tag>
+              {["out_for_delivery", "in_progress"].includes(String(run?.status || "").toLowerCase()) && (
+                <Tag color="gold" style={{ margin: 0 }}>
+                  ● Awaiting Live GPS
+                </Tag>
+              )}
+            </Space>
           ) : null}
+          {["out_for_delivery", "in_progress"].includes(String(run?.status || "").toLowerCase()) && (
+            <Button
+              size="small"
+              icon={<PlayCircleOutlined />}
+              onClick={toggleSimulation}
+              type={isSimulating ? "primary" : "default"}
+              danger={isSimulating}
+              style={!isSimulating ? { borderColor: "#0284c7", color: "#0284c7" } : undefined}
+            >
+              {isSimulating ? "Stop Simulation" : "Simulate Live Move"}
+            </Button>
+          )}
           <Text strong>{stops.length} Stops</Text>
           {stops.some((s) => !s.point) ? (
             <Tag color="orange" style={{ margin: 0 }}>
