@@ -152,6 +152,103 @@ export default function PricingSettingsForm({
 
         <Divider style={{ margin: "6px 0 14px" }} />
 
+        {/* WEIGHT LIMIT + DELIVERY CHARGE BOUNDS */}
+        <SectionTitle
+          title="Dynamic weight limit & delivery charge bounds"
+          description="Set the maximum allowed chargeable weight per shipment and optional minimum/maximum delivery charge bounds."
+        />
+        <Row gutter={[12, 0]}>
+          <Col xs={12} sm={6} lg={3}>
+            <Form.Item
+              name="weight_limit_enabled"
+              label="Weight limit"
+              valuePropName="checked"
+            >
+              <Switch checkedChildren="On" unCheckedChildren="Off" />
+            </Form.Item>
+          </Col>
+          <Col xs={12} sm={10} lg={5}>
+            <Form.Item
+              name="max_weight_kg"
+              label="Maximum weight limit"
+              dependencies={["base_weight_kg", "weight_limit_enabled"]}
+              rules={[
+                ({ getFieldValue }) => ({
+                  validator(_, value) {
+                    const enabled = Boolean(getFieldValue("weight_limit_enabled"));
+                    const base = Number(getFieldValue("base_weight_kg") || 0);
+                    if (value === null || value === undefined || value === "") {
+                      if (enabled) {
+                        return Promise.reject(new Error("Enter a maximum weight limit."));
+                      }
+                      return Promise.resolve();
+                    }
+                    if (Number(value) <= 0) {
+                      return Promise.reject(new Error("Must be greater than 0 kg."));
+                    }
+                    if (Number(value) < base) {
+                      return Promise.reject(
+                        new Error(`Must be >= included weight (${base} kg).`),
+                      );
+                    }
+                    return Promise.resolve();
+                  },
+                }),
+              ]}
+            >
+              <InputNumber min={0.1} precision={2} addonAfter="kg" placeholder="30.00" style={fullWidth} />
+            </Form.Item>
+          </Col>
+          <Col xs={12} sm={8} lg={4}>
+            <Form.Item
+              name="delivery_charge_bounds_enabled"
+              label="Delivery charge bounds"
+              valuePropName="checked"
+            >
+              <Switch checkedChildren="On" unCheckedChildren="Off" />
+            </Form.Item>
+          </Col>
+          <Col xs={12} sm={12} lg={6}>
+            <Form.Item
+              name="min_delivery_charge"
+              label="Minimum delivery charge"
+              rules={[{ type: "number", min: 0, message: "Must be >= 0." }]}
+            >
+              <InputNumber min={0} precision={2} addonBefore="NPR" placeholder="0.00" style={fullWidth} />
+            </Form.Item>
+          </Col>
+          <Col xs={24} sm={12} lg={6}>
+            <Form.Item
+              name="max_delivery_charge"
+              label="Maximum delivery charge (optional)"
+              dependencies={["min_delivery_charge"]}
+              rules={[
+                ({ getFieldValue }) => ({
+                  validator(_, value) {
+                    if (value === null || value === undefined || value === "") {
+                      return Promise.resolve();
+                    }
+                    const minCharge = Number(getFieldValue("min_delivery_charge") || 0);
+                    if (Number(value) <= 0) {
+                      return Promise.reject(new Error("Must be greater than 0."));
+                    }
+                    if (Number(value) < minCharge) {
+                      return Promise.reject(
+                        new Error(`Must be >= minimum charge (NPR ${minCharge}).`),
+                      );
+                    }
+                    return Promise.resolve();
+                  },
+                }),
+              ]}
+            >
+              <InputNumber min={0} precision={2} addonBefore="NPR" placeholder="No cap" style={fullWidth} />
+            </Form.Item>
+          </Col>
+        </Row>
+
+        <Divider style={{ margin: "6px 0 14px" }} />
+
         {/* WEIGHT + DISTANCE */}
         <SectionTitle
           title="Weight and distance charges"

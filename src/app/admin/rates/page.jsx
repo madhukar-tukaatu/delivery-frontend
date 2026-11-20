@@ -50,9 +50,12 @@ const { Title, Text } = Typography;
 const PRICING_IMPORT_COLUMNS = [
   { key: "name", label: "Version Name", required: true, sampleValue: "2026 Fiscal Standard Rates" },
   { key: "base_weight_kg", label: "Base Weight (kg)", required: false, sampleValue: "1.5" },
+  { key: "max_weight_kg", label: "Max Weight Limit (kg)", required: false, sampleValue: "30" },
   { key: "base_distance_km", label: "Base Distance (km)", required: false, sampleValue: "5.0" },
   { key: "transfer_extra_weight_rate", label: "Extra Weight Rate (NPR/kg)", required: false, sampleValue: "30" },
   { key: "extra_distance_rate", label: "Extra Distance Rate (NPR/km)", required: false, sampleValue: "6" },
+  { key: "min_delivery_charge", label: "Min Delivery Charge (NPR)", required: false, sampleValue: "0" },
+  { key: "max_delivery_charge", label: "Max Delivery Charge (NPR)", required: false, sampleValue: "" },
   { key: "transfer_express_multiplier", label: "Express Multiplier", required: false, sampleValue: "1.5" },
   { key: "transfer_same_day_multiplier", label: "Same Day Multiplier", required: false, sampleValue: "2.0" },
   { key: "tax_percentage", label: "Tax %", required: false, sampleValue: "13" },
@@ -62,9 +65,12 @@ const SAMPLE_PRICING_ROWS = [
   {
     name: "2026 Fiscal Standard Rates",
     base_weight_kg: "1.5",
+    max_weight_kg: "30",
     base_distance_km: "5.0",
     transfer_extra_weight_rate: "30",
     extra_distance_rate: "6",
+    min_delivery_charge: "0",
+    max_delivery_charge: "",
     transfer_express_multiplier: "1.5",
     transfer_same_day_multiplier: "2.0",
     tax_percentage: "13",
@@ -147,9 +153,17 @@ export default function PricingSettingsListPage() {
         const payload = {
           name: row.name?.trim(),
           base_weight_kg: row.base_weight_kg ? Number(row.base_weight_kg) : 1.5,
+          max_weight_kg: row.max_weight_kg ? Number(row.max_weight_kg) : null,
+          weight_limit_enabled: Boolean(row.max_weight_kg && Number(row.max_weight_kg) > 0),
           base_distance_km: row.base_distance_km ? Number(row.base_distance_km) : 5.0,
           transfer_extra_weight_rate: row.transfer_extra_weight_rate ? Number(row.transfer_extra_weight_rate) : 30,
           extra_distance_rate: row.extra_distance_rate ? Number(row.extra_distance_rate) : 6,
+          min_delivery_charge: row.min_delivery_charge ? Number(row.min_delivery_charge) : 0,
+          max_delivery_charge: row.max_delivery_charge ? Number(row.max_delivery_charge) : null,
+          delivery_charge_bounds_enabled: Boolean(
+            (row.min_delivery_charge && Number(row.min_delivery_charge) > 0) ||
+              (row.max_delivery_charge && Number(row.max_delivery_charge) > 0),
+          ),
           transfer_express_multiplier: row.transfer_express_multiplier ? Number(row.transfer_express_multiplier) : 1.5,
           transfer_same_day_multiplier: row.transfer_same_day_multiplier ? Number(row.transfer_same_day_multiplier) : 2.0,
           tax_percentage: row.tax_percentage ? Number(row.tax_percentage) : 13,
@@ -409,6 +423,19 @@ export default function PricingSettingsListPage() {
           label="Speed Multipliers"
           value={`Express: x${Number(active?.transfer_express_multiplier || 1.5).toFixed(2)} · Same-Day: x${Number(active?.transfer_same_day_multiplier || 2).toFixed(2)}`}
           variant="warning"
+        />
+        <StatCard
+          label="Weight Limit & Bounds"
+          value={
+            toBoolean(active?.weight_limit_enabled) && active?.max_weight_kg
+              ? `Max ${Number(active.max_weight_kg).toFixed(1)} kg${
+                  toBoolean(active?.delivery_charge_bounds_enabled)
+                    ? ` · Min NPR ${Number(active?.min_delivery_charge || 0).toFixed(0)}`
+                    : ""
+                }`
+              : "No Max Weight Cap"
+          }
+          variant="primary"
         />
         <StatCard
           label="Total Versions"

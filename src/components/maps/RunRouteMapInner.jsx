@@ -17,6 +17,7 @@ import {
 } from "@ant-design/icons";
 import { MapContainer, Marker, Polyline, Popup, TileLayer, Tooltip as LeafletTooltip, useMap } from "react-leaflet";
 import L from "leaflet";
+import { getEcho } from "@/lib/echo";
 
 const { Text, Title } = Typography;
 
@@ -146,6 +147,60 @@ function createBranchPin() {
   });
 }
 
+function createRunRiderPin(riderName) {
+  const html = `
+    <div style="position: relative; display: flex; flex-direction: column; align-items: center; transform: translate(-50%, -50%);">
+      <div style="
+        position: absolute;
+        width: 46px;
+        height: 46px;
+        border-radius: 50%;
+        background: rgba(37, 99, 235, 0.28);
+        border: 2px solid #2563EB;
+        animation: realBikePulse 2s infinite ease-out;
+      "></div>
+      <div style="
+        width: 38px;
+        height: 38px;
+        border-radius: 50%;
+        background: #071722;
+        border: 2.5px solid #38BDF8;
+        color: #ffffff;
+        font-size: 18px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        box-shadow: 0 4px 14px rgba(7, 23, 34, 0.5);
+        position: relative;
+        z-index: 5;
+      ">
+        🏍️
+      </div>
+      <div style="
+        position: absolute;
+        top: 38px;
+        background: #071722;
+        color: #38BDF8;
+        font-size: 10px;
+        font-weight: 800;
+        padding: 2px 7px;
+        border-radius: 6px;
+        white-space: nowrap;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.4);
+        border: 1px solid rgba(56, 189, 248, 0.4);
+      ">
+        ${riderName || "Rider"} (Live)
+      </div>
+    </div>
+  `;
+  return L.divIcon({
+    className: "run-rider-marker",
+    html,
+    iconSize: [42, 42],
+    iconAnchor: [21, 21],
+  });
+}
+
 function MapAutoFit({ points }) {
   const map = useMap();
   const key = points.map((p) => `${p.lat.toFixed(4)},${p.lng.toFixed(4)}`).join("|");
@@ -241,6 +296,50 @@ export default function RunRouteMapInner({
   const [panTarget, setPanTarget] = useState(null);
   const [routeData, setRouteData] = useState(null);
   const [loadingRoute, setLoadingRoute] = useState(false);
+  const [riderLocation, setRiderLocation] = useState(run?.rider_location || null);
+
+  useEffect(() => {
+    if (run?.rider_location) {
+      setRiderLocation(run.rider_location);
+    }
+  }, [run?.rider_location]);
+
+  // Real-time rider location listener via Laravel Echo
+  useEffect(() => {
+    const riderId = run?.rider?.id;
+    if (!riderId) return;
+
+    const echo = getEcho();
+    if (echo) {
+      try {
+        const channel = echo.private(`rider.${riderId}.location`);
+        const onLocation = (e) => {
+          if (e && e.lat && e.lng) {
+            setRiderLocation({
+              lat: Number(e.lat),
+              lng: Number(e.lng),
+              heading: e.heading != null ? Number(e.heading) : null,
+              speed: e.speed != null ? Number(e.speed) : null,
+              updated_at: e.updated_at || new Date().toISOString(),
+              is_live: true,
+            });
+          }
+        };
+        channel.listen("rider.location.updated", onLocation);
+        channel.listen(".rider.location.updated", onLocation);
+      } catch (err) {
+        console.warn("Rider location echo subscription failed:", err);
+      }
+    }
+
+    return () => {
+      if (echo && riderId) {
+        try {
+          echo.leave(`rider.${riderId}.location`);
+        } catch {}
+      }
+    };
+  }, [run?.rider?.id]);
 
   // 1. Resolve branch origin
   const branchCoords = useMemo(() => {
@@ -321,8 +420,11 @@ export default function RunRouteMapInner({
     stops.forEach((s) => {
       if (s.point) pts.push({ lat: s.point.lat, lng: s.point.lng, id: s.id, seq: s.seq });
     });
+    if (riderLocation?.lat && riderLocation?.lng) {
+      pts.push({ lat: riderLocation.lat, lng: riderLocation.lng, isRider: true });
+    }
     return pts;
-  }, [branchCoords, stops]);
+  }, [branchCoords, stops, riderLocation]);
 
   // 4. Fetch routing polyline
   useEffect(() => {
@@ -378,7 +480,23 @@ export default function RunRouteMapInner({
           <Tag color="cyan" style={{ fontSize: 13, padding: "3px 8px" }}>
             <CarOutlined /> {run?.run_number}
           </Tag>
-          {run?.rider?.name ? (
+          {riderLocation?.lat && riderLocation?.lng ? (
+            <Space size={6}>
+              <Tag color="cyan" style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "2px 8px", margin: 0 }}>
+                <span style={{ width: 7, height: 7, borderRadius: "50%", background: "#10B981" }} />
+                <span>Rider Live: {run?.rider?.name || "Active"} {riderLocation.speed ? `(~${Math.round(riderLocation.speed)} km/h)` : ""}</span>
+              </Tag>
+              <Button
+                size="small"
+                type="primary"
+                icon={<CompassOutlined />}
+                onClick={() => setPanTarget({ lat: riderLocation.lat, lng: riderLocation.lng })}
+                style={{ background: "#0284c7", borderColor: "#0284c7" }}
+              >
+                Focus Rider
+              </Button>
+            </Space>
+          ) : run?.rider?.name ? (
             <Tag color="geekblue">
               <UserOutlined /> Rider: {run.rider.name}
             </Tag>
@@ -718,6 +836,56 @@ export default function RunRouteMapInner({
                   </Marker>
                 );
               })}
+
+              {/* Live Rider Position on Delivery Run Map */}
+              {riderLocation && riderLocation.lat && riderLocation.lng && (
+                <>
+                  <Marker
+                    position={[riderLocation.lat, riderLocation.lng]}
+                    icon={createRunRiderPin(run?.rider?.name)}
+                    zIndexOffset={3000}
+                  >
+                    <Popup>
+                      <div style={{ padding: 4, minWidth: 170 }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                          <span style={{ fontSize: 16 }}>🏍️</span>
+                          <span style={{ fontWeight: 700, fontSize: 13 }}>{run?.rider?.name || "Rider"}</span>
+                          <Tag color="cyan" style={{ margin: 0, fontSize: 10 }}>Live</Tag>
+                        </div>
+                        <div style={{ margin: "4px 0 0 0", fontSize: 11, color: "#2563EB", fontWeight: 700 }}>
+                          ● Active on {run?.run_number || "Delivery Run"}
+                        </div>
+                        {riderLocation.speed != null && (
+                          <div style={{ margin: "2px 0 0 0", fontSize: 11, color: "#64748B" }}>
+                            Speed: ~{Math.round(riderLocation.speed)} km/h {riderLocation.heading != null ? `• Heading ${Math.round(riderLocation.heading)}°` : ""}
+                          </div>
+                        )}
+                        {riderLocation.updated_at && (
+                          <div style={{ margin: "2px 0 0 0", fontSize: 10, color: "#94A3B8" }}>
+                            Updated: {new Date(riderLocation.updated_at).toLocaleTimeString()}
+                          </div>
+                        )}
+                      </div>
+                    </Popup>
+                  </Marker>
+
+                  {/* Live Path Line from Branch to Rider's Current Position */}
+                  {branchCoords && (
+                    <Polyline
+                      positions={[
+                        [branchCoords.lat, branchCoords.lng],
+                        [riderLocation.lat, riderLocation.lng],
+                      ]}
+                      pathOptions={{
+                        color: "#10B981",
+                        weight: 4,
+                        opacity: 0.85,
+                        dashArray: "6, 8",
+                      }}
+                    />
+                  )}
+                </>
+              )}
 
               {/* Road Route Path Polyline */}
               {routeData?.positions?.length > 1 && (

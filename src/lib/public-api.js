@@ -43,15 +43,29 @@ export function normalizeTracking(payload) {
       data?.tracking ||
       "",
     status: data?.status || data?.currentStatus || data?.current_status || "UNKNOWN",
+    currentStatus: data?.current_status || data?.status || "UNKNOWN",
+    isOutForDelivery: Boolean(data?.is_out_for_delivery || ["out_for_delivery", "arrived"].includes(String(data?.current_status || data?.status).toLowerCase())),
+    isDelivered: Boolean(data?.is_delivered || String(data?.current_status || data?.status).toLowerCase() === "delivered"),
     origin: data?.origin?.name || data?.origin || "-",
     destination: data?.destination?.name || data?.destination || "-",
     estimatedDelivery:
       data?.estimatedDelivery || data?.estimated_delivery || "-",
     currentLocation:
+      data?.current_location?.name ||
       data?.currentLocation?.name ||
       data?.current_location ||
       data?.location ||
       "-",
+    rider: data?.rider || null,
+    merchantOrderId: data?.merchant_order_id || data?.merchantOrderId || null,
+    paymentType: data?.payment_type || data?.paymentType || null,
+    collectAmount: data?.collect_amount != null ? Number(data.collect_amount) : (data?.pod_amount != null ? Number(data.pod_amount) : 0),
+    weight: data?.weight != null ? Number(data.weight) : null,
+    liveLocation: data?.live_location || null,
+    recipient: data?.recipient || null,
+    originData: data?.origin || null,
+    destinationData: data?.destination || null,
+    websocketChannel: data?.websocket_channel || (data?.tracking_number ? `tracking.${data.tracking_number}` : null),
     timeline:
       data?.timeline ||
       data?.events ||
