@@ -5,34 +5,49 @@ export async function updateRiderLocation(payload) {
   return response.data?.data || response.data;
 }
 
-/** Send single one-shot real GPS ping from browser */
+/** Send single one-shot real GPS ping from browser with automatic indoor/timeout fallback */
 export function sendCurrentRiderLocation({ runId, shipmentId, trackingNumber, onSuccess, onError } = {}) {
   if (typeof window === "undefined" || !navigator.geolocation) {
     onError?.(new Error("Geolocation is not supported by your browser."));
     return;
   }
 
+  const dispatch = async (position) => {
+    try {
+      const payload = {
+        run_id: runId || undefined,
+        shipment_id: shipmentId || undefined,
+        tracking_number: trackingNumber || undefined,
+        lat: position.coords.latitude,
+        lng: position.coords.longitude,
+        heading: Number.isFinite(position.coords.heading) && position.coords.heading >= 0 ? position.coords.heading : undefined,
+        speed: Number.isFinite(position.coords.speed) && position.coords.speed >= 0 ? position.coords.speed * 3.6 : undefined, // m/s to km/h
+        accuracy: position.coords.accuracy,
+      };
+      const result = await updateRiderLocation(payload);
+      onSuccess?.(result, payload);
+    } catch (err) {
+      onError?.(err);
+    }
+  };
+
+  // Step 1: Request high-accuracy GPS with a generous 18-second satellite search window
   navigator.geolocation.getCurrentPosition(
-    async (position) => {
-      try {
-        const payload = {
-          run_id: runId || undefined,
-          shipment_id: shipmentId || undefined,
-          tracking_number: trackingNumber || undefined,
-          lat: position.coords.latitude,
-          lng: position.coords.longitude,
-          heading: Number.isFinite(position.coords.heading) && position.coords.heading >= 0 ? position.coords.heading : undefined,
-          speed: Number.isFinite(position.coords.speed) && position.coords.speed >= 0 ? position.coords.speed * 3.6 : undefined, // m/s to km/h
-          accuracy: position.coords.accuracy,
-        };
-        const result = await updateRiderLocation(payload);
-        onSuccess?.(result, payload);
-      } catch (err) {
+    dispatch,
+    (err) => {
+      // If hardware satellite GPS timed out (code 3) or unavailable indoors (code 2), immediately try standard fused/cellular/wifi location
+      if (err.code === 3 || err.code === 2) {
+        console.warn("Satellite GPS cold-start timed out indoors, falling back to fused network location...");
+        navigator.geolocation.getCurrentPosition(
+          dispatch,
+          (err2) => onError?.(err2 || err),
+          { enableHighAccuracy: false, timeout: 15000, maximumAge: 60000 }
+        );
+      } else {
         onError?.(err);
       }
     },
-    (err) => onError?.(err),
-    { enableHighAccuracy: true, timeout: 12000, maximumAge: 0 }
+    { enableHighAccuracy: true, timeout: 18000, maximumAge: 10000 }
   );
 }
 
@@ -116,32 +131,60 @@ export function startBrowserRiderLocation({ runId, shipmentId, trackingNumber, i
     }
   }
 
-  const geoOptions = {
+  const geoOptionsHigh = {
     enableHighAccuracy: true,
-    timeout: 10000,
-    maximumAge: 0, // Force fresh hardware GPS fix
+    timeout: 15000,
+    maximumAge: 10000,
   };
 
-  // 1. Immediate initial fix
-  navigator.geolocation.getCurrentPosition(handlePosition, (err) => onError?.(err), geoOptions);
+  const geoOptionsFallback = {
+    enableHighAccuracy: false,
+    timeout: 15000,
+    maximumAge: 60000,
+  };
+
+  // 1. Immediate initial fix (with fallback if satellite GPS is slow indoors)
+  navigator.geolocation.getCurrentPosition(
+    handlePosition,
+    (err) => {
+      if (err.code === 3 || err.code === 2) {
+        navigator.geolocation.getCurrentPosition(handlePosition, () => {}, geoOptionsFallback);
+      } else {
+        onError?.(err);
+      }
+    },
+    geoOptionsHigh
+  );
 
   // 2. Hardware motion sensor continuous watcher
   try {
     watchId = navigator.geolocation.watchPosition(
       handlePosition,
       (err) => {
-        // Log watch error but keep polling interval alive
-        console.warn("GPS watchPosition signal:", err?.message);
+        // Timeouts while stationary indoors are normal; fallback to network location
+        if (err.code === 3 || err.code === 2) {
+          navigator.geolocation.getCurrentPosition(handlePosition, () => {}, geoOptionsFallback);
+        } else {
+          console.warn("GPS watchPosition signal:", err?.message);
+        }
       },
-      geoOptions
+      geoOptionsHigh
     );
   } catch (err) {
     console.warn("GPS watchPosition init failed:", err);
   }
 
-  // 3. Constant 5s interval keepalive to guarantee continuous GPS updates
+  // 3. Constant interval keepalive to guarantee continuous GPS updates on the road
   timer = window.setInterval(() => {
-    navigator.geolocation.getCurrentPosition(handlePosition, () => {}, geoOptions);
+    navigator.geolocation.getCurrentPosition(
+      handlePosition,
+      (err) => {
+        if (err.code === 3 || err.code === 2) {
+          navigator.geolocation.getCurrentPosition(handlePosition, () => {}, geoOptionsFallback);
+        }
+      },
+      geoOptionsHigh
+    );
   }, intervalMs);
 
   return () => {
