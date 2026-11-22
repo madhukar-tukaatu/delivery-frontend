@@ -151,7 +151,18 @@ function createBranchPin() {
   });
 }
 
-function createRunRiderPin(riderName) {
+function createRunRiderPin(riderName, statusText = "Live", statusType = "live") {
+  const isLive = statusType === "live";
+  const isIdle = statusType === "idle";
+
+  const ringBg = isLive ? "rgba(16, 185, 129, 0.28)" : isIdle ? "rgba(245, 158, 11, 0.22)" : "rgba(100, 116, 139, 0.15)";
+  const ringBorder = isLive ? "#10B981" : isIdle ? "#F59E0B" : "#64748B";
+  const pulseStyle = isLive ? "animation: realBikePulse 2s infinite ease-out;" : "";
+  const borderColor = isLive ? "#10B981" : isIdle ? "#F59E0B" : "#94A3B8";
+  const badgeBg = isLive ? "#064e3b" : isIdle ? "#78350f" : "#1e293b";
+  const badgeColor = isLive ? "#34d399" : isIdle ? "#fbbf24" : "#94a3b8";
+  const badgeBorder = isLive ? "rgba(16, 185, 129, 0.5)" : isIdle ? "rgba(245, 158, 11, 0.5)" : "rgba(100, 116, 139, 0.5)";
+
   const html = `
     <div style="position: relative; display: flex; flex-direction: column; align-items: center; transform: translate(-50%, -50%);">
       <div style="
@@ -159,16 +170,16 @@ function createRunRiderPin(riderName) {
         width: 46px;
         height: 46px;
         border-radius: 50%;
-        background: rgba(37, 99, 235, 0.28);
-        border: 2px solid #2563EB;
-        animation: realBikePulse 2s infinite ease-out;
+        background: ${ringBg};
+        border: 2px solid ${ringBorder};
+        ${pulseStyle}
       "></div>
       <div style="
         width: 38px;
         height: 38px;
         border-radius: 50%;
         background: #071722;
-        border: 2.5px solid #38BDF8;
+        border: 2.5px solid ${borderColor};
         color: #ffffff;
         font-size: 18px;
         display: flex;
@@ -183,17 +194,17 @@ function createRunRiderPin(riderName) {
       <div style="
         position: absolute;
         top: 38px;
-        background: #071722;
-        color: #38BDF8;
+        background: ${badgeBg};
+        color: ${badgeColor};
         font-size: 10px;
         font-weight: 800;
         padding: 2px 7px;
         border-radius: 6px;
         white-space: nowrap;
         box-shadow: 0 2px 8px rgba(0,0,0,0.4);
-        border: 1px solid rgba(56, 189, 248, 0.4);
+        border: 1px solid ${badgeBorder};
       ">
-        ${riderName || "Rider"} (Live)
+        ${riderName || "Rider"} (${statusText})
       </div>
     </div>
   `;
@@ -511,6 +522,71 @@ export default function RunRouteMapInner({
     });
   }, [run?.items, mode]);
 
+  const isRunOut = ["out_for_delivery", "in_progress", "out_for_pickup"].includes(String(run?.status || "").toLowerCase());
+
+  // Compute rider live freshness status
+  const riderFreshness = useMemo(() => {
+    if (!riderLocation?.lat || !riderLocation?.lng) {
+      return { status: "none", label: "Awaiting GPS Signal", isLive: false, isRecent: false, type: "none", ageText: "" };
+    }
+
+    let diffSec = riderLocation.seconds_ago;
+    if (diffSec == null && riderLocation.updated_at) {
+      try {
+        diffSec = Math.max(0, Math.round((Date.now() - new Date(riderLocation.updated_at).getTime()) / 1000));
+      } catch {}
+    }
+    if (diffSec == null) {
+      diffSec = riderLocation.is_live ? 20 : 9999;
+    }
+
+    if (!isRunOut) {
+      return {
+        status: "offline",
+        label: "Offline (Run inactive)",
+        type: "offline",
+        ageText: "Offline",
+        isLive: false,
+        isRecent: false,
+      };
+    }
+
+    if (diffSec <= 120 && riderLocation.is_live !== false) {
+      const speedText = riderLocation.speed ? ` · ${Math.round(riderLocation.speed)} km/h` : "";
+      return {
+        status: "live",
+        label: `Live (Just now${speedText})`,
+        type: "live",
+        ageText: "Live",
+        isLive: true,
+        isRecent: true,
+      };
+    }
+
+    if (diffSec <= 900) {
+      const mins = Math.max(1, Math.round(diffSec / 60));
+      return {
+        status: "idle",
+        label: `Idle (${mins}m ago)`,
+        type: "idle",
+        ageText: `${mins}m ago`,
+        isLive: false,
+        isRecent: true,
+      };
+    }
+
+    const mins = Math.round(diffSec / 60);
+    const ageText = mins > 60 ? `${Math.round(mins / 60)}h ago` : `${mins}m ago`;
+    return {
+      status: "offline",
+      label: `Offline (Last seen: ${ageText})`,
+      type: "offline",
+      ageText: ageText,
+      isLive: false,
+      isRecent: false,
+    };
+  }, [riderLocation, isRunOut]);
+
   // 3. Build ordered points starting from branch -> stop 1 -> stop 2 -> stop 3...
   const allPoints = useMemo(() => {
     const pts = [];
@@ -518,11 +594,11 @@ export default function RunRouteMapInner({
     stops.forEach((s) => {
       if (s.point) pts.push({ lat: s.point.lat, lng: s.point.lng, id: s.id, seq: s.seq });
     });
-    if (riderLocation?.lat && riderLocation?.lng) {
+    if (riderLocation?.lat && riderLocation?.lng && (isRunOut || riderFreshness.isRecent)) {
       pts.push({ lat: riderLocation.lat, lng: riderLocation.lng, isRider: true });
     }
     return pts;
-  }, [branchCoords, stops, riderLocation]);
+  }, [branchCoords, stops, riderLocation, isRunOut, riderFreshness.isRecent]);
 
   // 4. Fetch routing polyline
   useEffect(() => {
@@ -598,11 +674,21 @@ export default function RunRouteMapInner({
           <Tag color="cyan" style={{ fontSize: 13, padding: "3px 8px" }}>
             <CarOutlined /> {run?.run_number}
           </Tag>
-          {riderLocation?.lat && riderLocation?.lng ? (
+          {riderLocation?.lat && riderLocation?.lng && (isRunOut || riderFreshness.isRecent) ? (
             <Space size={6}>
-              <Tag color="cyan" style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "2px 8px", margin: 0 }}>
-                <span style={{ width: 7, height: 7, borderRadius: "50%", background: "#10B981" }} />
-                <span>Rider Live: {run?.rider?.name || "Active"} {riderLocation.speed ? `(~${Math.round(riderLocation.speed)} km/h)` : ""}</span>
+              <Tag
+                color={riderFreshness.type === "live" ? "success" : riderFreshness.type === "idle" ? "warning" : "default"}
+                style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "2px 8px", margin: 0, fontWeight: 600 }}
+              >
+                <span
+                  style={{
+                    width: 7,
+                    height: 7,
+                    borderRadius: "50%",
+                    background: riderFreshness.type === "live" ? "#10B981" : riderFreshness.type === "idle" ? "#F59E0B" : "#94A3B8",
+                  }}
+                />
+                <span>Rider: {run?.rider?.name || "Assigned"} · {riderFreshness.label}</span>
               </Tag>
               <Button
                 size="small"
@@ -619,7 +705,7 @@ export default function RunRouteMapInner({
               <Tag color="geekblue">
                 <UserOutlined /> Rider: {run.rider.name}
               </Tag>
-              {["out_for_delivery", "in_progress"].includes(String(run?.status || "").toLowerCase()) && (
+              {isRunOut && (
                 <Tag color="gold" style={{ margin: 0 }}>
                   ● Awaiting Live GPS
                 </Tag>
@@ -983,11 +1069,11 @@ export default function RunRouteMapInner({
               })}
 
               {/* Live Rider Position on Delivery Run Map */}
-              {riderLocation && riderLocation.lat && riderLocation.lng && (
+              {riderLocation && riderLocation.lat && riderLocation.lng && (isRunOut || riderFreshness.isRecent) && (
                 <>
                   <Marker
                     position={[riderLocation.lat, riderLocation.lng]}
-                    icon={createRunRiderPin(run?.rider?.name)}
+                    icon={createRunRiderPin(run?.rider?.name, riderFreshness.ageText, riderFreshness.type)}
                     zIndexOffset={3000}
                   >
                     <Popup>
@@ -995,10 +1081,15 @@ export default function RunRouteMapInner({
                         <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                           <span style={{ fontSize: 16 }}>🏍️</span>
                           <span style={{ fontWeight: 700, fontSize: 13 }}>{run?.rider?.name || "Rider"}</span>
-                          <Tag color="cyan" style={{ margin: 0, fontSize: 10 }}>Live</Tag>
+                          <Tag
+                            color={riderFreshness.type === "live" ? "green" : riderFreshness.type === "idle" ? "orange" : "default"}
+                            style={{ margin: 0, fontSize: 10, textTransform: "uppercase" }}
+                          >
+                            {riderFreshness.type}
+                          </Tag>
                         </div>
-                        <div style={{ margin: "4px 0 0 0", fontSize: 11, color: "#2563EB", fontWeight: 700 }}>
-                          ● Active on {run?.run_number || "Delivery Run"}
+                        <div style={{ margin: "4px 0 0 0", fontSize: 11, color: riderFreshness.isLive ? "#10B981" : "#64748B", fontWeight: 700 }}>
+                          ● {riderFreshness.label}
                         </div>
                         {riderLocation.speed != null && (
                           <div style={{ margin: "2px 0 0 0", fontSize: 11, color: "#64748B" }}>
@@ -1014,8 +1105,8 @@ export default function RunRouteMapInner({
                     </Popup>
                   </Marker>
 
-                  {/* Live Path Line from Branch to Rider's Current Position */}
-                  {branchCoords && (
+                  {/* Live Path Line from Branch to Rider's Current Position (only when active) */}
+                  {riderFreshness.isLive && branchCoords && (
                     <Polyline
                       positions={[
                         [branchCoords.lat, branchCoords.lng],
@@ -1030,8 +1121,8 @@ export default function RunRouteMapInner({
                     />
                   )}
 
-                  {/* Remaining connector from rider's live position to next stop */}
-                  {stops[0]?.point && (
+                  {/* Remaining connector from rider's live position to next stop (only when active) */}
+                  {riderFreshness.isLive && stops[0]?.point && (
                     <Polyline
                       positions={[
                         [riderLocation.lat, riderLocation.lng],

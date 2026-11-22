@@ -450,7 +450,18 @@ function StaffDeliveriesContent() {
   const [gpsSending, setGpsSending] = useState(false);
 
   useEffect(() => {
+    // Only stream background GPS if the rider has an active run out for delivery
+    const activeRun = rows.find(
+      (r) => r.delivery_run?.status === "out_for_delivery" || r.delivery_run?.status === "in_progress"
+    )?.delivery_run;
+
+    if (!activeRun?.id) {
+      setGpsActive(false);
+      return;
+    }
+
     const stopTracker = startBrowserRiderLocation({
+      runId: activeRun.id,
       intervalMs: 8000,
       onSuccess: (res, payload) => {
         setGpsActive(true);
@@ -514,8 +525,13 @@ function StaffDeliveriesContent() {
   };
 
   const pingLocationNow = () => {
+    const activeRun = rows.find(
+      (r) => r.delivery_run?.status === "out_for_delivery" || r.delivery_run?.status === "in_progress"
+    )?.delivery_run;
+
     setGpsSending(true);
     sendCurrentRiderLocation({
+      runId: activeRun?.id,
       onSuccess: (res, payload) => {
         setGpsSending(false);
         setGpsActive(true);

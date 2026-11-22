@@ -100,6 +100,19 @@ function RunCard({ run, selected, onClick }) {
               {run.run_number}
             </Text>
             <RunStatusTag status={run.status} />
+            {run.rider_location?.is_live ? (
+              <Tag color="success" style={{ margin: 0, fontSize: 10, padding: "0 6px", fontWeight: 700 }}>
+                ● Live GPS
+              </Tag>
+            ) : run.rider_location?.is_recent ? (
+              <Tag color="warning" style={{ margin: 0, fontSize: 10, padding: "0 6px" }}>
+                ● Idle
+              </Tag>
+            ) : run.status === "out_for_delivery" ? (
+              <Tag color="default" style={{ margin: 0, fontSize: 10, padding: "0 6px" }}>
+                Offline
+              </Tag>
+            ) : null}
           </Space>
           <div style={{ fontSize: 12 }}>
             {run.rider ? <Text>{run.rider.name}</Text> : <Text type="warning">No rider</Text>}

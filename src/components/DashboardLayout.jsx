@@ -596,6 +596,7 @@ function handleMenuClick({ key, item }) {
           background: "#fff",
           padding: isMobile ? "0 12px" : "0 20px",
           height: 60,
+          lineHeight: "normal",
           display: "flex",
           alignItems: "center",
           justifyContent: "space-between",
@@ -608,7 +609,7 @@ function handleMenuClick({ key, item }) {
         }}>
 
           {/* Left: collapse toggle + breadcrumb / brand */}
-          <Space size={8} style={{ minWidth: 0, flex: 1 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0, flex: 1 }}>
             <Button
               type="text"
               icon={isMobile ? <MenuOutlined /> : collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
@@ -631,10 +632,14 @@ function handleMenuClick({ key, item }) {
                   fontWeight: 700,
                   color: "#0369a1",
                   background: "#e0f2fe",
-                  padding: "1px 6px",
+                  padding: "2px 7px",
                   borderRadius: 4,
                   textTransform: "uppercase",
+                  lineHeight: "14px",
+                  display: "inline-flex",
+                  alignItems: "center",
                   flexShrink: 0,
+                  boxSizing: "border-box",
                 }}>
                   {userRole.split(",")[0] || section}
                 </span>
@@ -649,7 +654,7 @@ function handleMenuClick({ key, item }) {
                 </Typography.Text>
               </div>
             )}
-          </Space>
+          </div>
 
           {/* Right: actions */}
           <Space size={4} style={{ flexShrink: 0 }}>
