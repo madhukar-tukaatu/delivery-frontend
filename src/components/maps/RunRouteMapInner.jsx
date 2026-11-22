@@ -13,7 +13,6 @@ import {
   HomeOutlined,
   PhoneOutlined,
   FileTextOutlined,
-  PlayCircleOutlined,
   SendOutlined,
   ShopOutlined,
   UserOutlined,
@@ -401,55 +400,6 @@ export default function RunRouteMapInner({
     };
   }, [run?.id, run?.status, run?.branch_id, run?.branch?.id]);
 
-  // Interactive Live Movement Simulator (for testing on office/demo without active rider phone)
-  const [isSimulating, setIsSimulating] = useState(false);
-  const simIntervalRef = useRef(null);
-
-  const toggleSimulation = () => {
-    if (isSimulating) {
-      if (simIntervalRef.current) clearInterval(simIntervalRef.current);
-      setIsSimulating(false);
-      return;
-    }
-
-    const path = routeData?.positions && routeData.positions.length > 2
-      ? routeData.positions
-      : [
-          [branchCoords.lat, branchCoords.lng],
-          [branchCoords.lat + (stops[0]?.point?.lat ? (stops[0].point.lat - branchCoords.lat) * 0.35 : 0.005), branchCoords.lng + (stops[0]?.point?.lng ? (stops[0].point.lng - branchCoords.lng) * 0.35 : 0.005)],
-          [branchCoords.lat + (stops[0]?.point?.lat ? (stops[0].point.lat - branchCoords.lat) * 0.7 : 0.01), branchCoords.lng + (stops[0]?.point?.lng ? (stops[0].point.lng - branchCoords.lng) * 0.7 : 0.01)],
-          stops[0]?.point ? [stops[0].point.lat, stops[0].point.lng] : [branchCoords.lat + 0.012, branchCoords.lng + 0.012],
-        ];
-
-    let step = 0;
-    setIsSimulating(true);
-    message.info("Live rider movement simulation started along the route.");
-
-    simIntervalRef.current = setInterval(() => {
-      step = (step + 1) % path.length;
-      const pt = path[step];
-      const prevPt = path[step === 0 ? path.length - 1 : step - 1];
-      const dLat = pt[0] - prevPt[0];
-      const dLng = pt[1] - prevPt[1];
-      const heading = (Math.atan2(dLng, dLat) * 180) / Math.PI;
-
-      setRiderLocation({
-        lat: pt[0],
-        lng: pt[1],
-        speed: 24 + Math.round(Math.random() * 8),
-        heading: Math.round((heading + 360) % 360),
-        updated_at: new Date().toISOString(),
-        is_live: true,
-      });
-    }, 2000);
-  };
-
-  useEffect(() => {
-    return () => {
-      if (simIntervalRef.current) clearInterval(simIntervalRef.current);
-    };
-  }, []);
-
   // 1. Resolve branch origin
   const branchCoords = useMemo(() => {
     const b = run?.branch;
@@ -712,18 +662,6 @@ export default function RunRouteMapInner({
               )}
             </Space>
           ) : null}
-          {["out_for_delivery", "in_progress"].includes(String(run?.status || "").toLowerCase()) && (
-            <Button
-              size="small"
-              icon={<PlayCircleOutlined />}
-              onClick={toggleSimulation}
-              type={isSimulating ? "primary" : "default"}
-              danger={isSimulating}
-              style={!isSimulating ? { borderColor: "#0284c7", color: "#0284c7" } : undefined}
-            >
-              {isSimulating ? "Stop Simulation" : "Simulate Live Move"}
-            </Button>
-          )}
           <Text strong>{stops.length} Stops</Text>
           {stops.some((s) => !s.point) ? (
             <Tag color="orange" style={{ margin: 0 }}>
