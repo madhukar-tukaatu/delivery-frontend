@@ -1,4 +1,7 @@
-const API_URL = (process.env.NEXT_PUBLIC_API_URL || "").replace(/\/$/, "");
+const API_URL = (
+  process.env.NEXT_PUBLIC_API_URL ||
+  "https://api.tukaatuexpress.com/api/v1"
+).replace(/\/$/, "");
 
 export async function publicApi(path, options = {}) {
   if (!API_URL) {

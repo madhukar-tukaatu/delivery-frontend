@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { collectAmount } from "@/lib/collectAmount";
 import {
   Alert,
@@ -418,7 +418,7 @@ function CustomerReceiptFields() {
   );
 }
 
-export default function StaffDeliveriesPage() {
+function StaffDeliveriesContent() {
   const [rows, setRows] = useState([]);
   const [staffTab, setStaffTab] = useState("runs");
   const [activeRunCount, setActiveRunCount] = useState(null);
@@ -433,7 +433,7 @@ export default function StaffDeliveriesPage() {
   const [busyAction, setBusyAction] = useState("");
   const [form] = Form.useForm();
   const [paymentForm] = Form.useForm();
-  const paymentMethod = Form.useWatch("payment_method", paymentForm) || "cash";
+  const [paymentMethod, setPaymentMethod] = useState("cash");
   const checkoutLink = paymentCheckoutLink(paymentSession);
   const lastPodLogRef = useRef("");
   // HamroPay checkout tab: opened on the rider's click (popup-safe), then
@@ -824,6 +824,7 @@ export default function StaffDeliveriesPage() {
 
   function openDeliveryConfirmation(delivery) {
     paymentForm.resetFields();
+    setPaymentMethod("cash");
     paymentForm.setFieldsValue({
       ...(isCollectable(delivery) ? { payment_method: "cash" } : {}),
       customer_confirmed: false,
@@ -843,6 +844,7 @@ export default function StaffDeliveriesPage() {
     setPaymentSession(null);
     setPaymentSessionError("");
     setPaymentSessionLoading(false);
+    setPaymentMethod("cash");
     paymentForm.resetFields();
   }
 
@@ -1587,12 +1589,12 @@ export default function StaffDeliveriesPage() {
               ? "HTTP Origin: Browser blocks auto-GPS on plain HTTP IP"
               : "Live GPS Ready"}
           </span>
-          {gpsStatus && (
+          {gpsStatus && Number.isFinite(Number(gpsStatus.lat)) && Number.isFinite(Number(gpsStatus.lng)) && (
             <span style={{ fontSize: 12, color: "#64748B" }}>
-              ({gpsStatus.lat.toFixed(5)}, {gpsStatus.lng.toFixed(5)})
-              {gpsStatus.speed ? ` • ${Math.round(gpsStatus.speed)} km/h` : ""}
-              {gpsStatus.accuracy ? ` • Acc ±${Math.round(gpsStatus.accuracy)}m` : ""}
-              {` • ${gpsStatus.time}`}
+              ({Number(gpsStatus.lat).toFixed(5)}, {Number(gpsStatus.lng).toFixed(5)})
+              {Number.isFinite(Number(gpsStatus.speed)) ? ` • ${Math.round(Number(gpsStatus.speed))} km/h` : ""}
+              {Number.isFinite(Number(gpsStatus.accuracy)) ? ` • Acc ±${Math.round(Number(gpsStatus.accuracy))}m` : ""}
+              {gpsStatus.time ? ` • ${gpsStatus.time}` : ""}
             </span>
           )}
         </Space>
@@ -1954,8 +1956,12 @@ export default function StaffDeliveriesPage() {
                 rules={[{ required: true, message: "Select a payment method." }]}
               >
                 <Radio.Group
+                  value={paymentMethod}
                   onChange={(event) => {
-                    if (event?.target?.value === "online" && paymentDelivery) {
+                    const method = event?.target?.value || "cash";
+                    setPaymentMethod(method);
+                    paymentForm.setFieldsValue({ payment_method: method });
+                    if (method === "online" && paymentDelivery) {
                       openCheckoutTabOnClick(paymentDelivery.id);
                     }
                   }}
@@ -2230,3 +2236,45 @@ export default function StaffDeliveriesPage() {
     </>
   );
 }
+
+class StaffErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+  static getDerivedStateFromError(error) {
+    return { hasError: true, error };
+  }
+  componentDidCatch(error, errorInfo) {
+    console.error("StaffDeliveries render error caught:", error, errorInfo);
+  }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <Card style={{ margin: 16, borderRadius: 12, borderTop: "3px solid #ef4444" }}>
+          <Alert
+            type="warning"
+            showIcon
+            message="Deliveries Panel Notice"
+            description={this.state.error?.message || "There was an issue rendering this panel. Please refresh to load the latest run."}
+            action={
+              <Button size="small" type="primary" onClick={() => window.location.reload()}>
+                Refresh
+              </Button>
+            }
+          />
+        </Card>
+      );
+    }
+    return this.props.children;
+  }
+}
+
+export default function StaffDeliveriesPage() {
+  return (
+    <StaffErrorBoundary>
+      <StaffDeliveriesContent />
+    </StaffErrorBoundary>
+  );
+}
+

@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   Layout, Menu, Typography, Button, Space, Spin, Empty,
-  Avatar, Dropdown, Badge, Tooltip,
+  Avatar, Dropdown, Badge, Tooltip, Drawer,
 } from "antd";
 import {
   AppstoreOutlined, ShopOutlined, NodeIndexOutlined, InboxOutlined,
@@ -12,7 +12,7 @@ import {
   MenuOutlined, TeamOutlined, BarChartOutlined, BellOutlined,
   CustomerServiceOutlined, ReloadOutlined, CheckSquareOutlined,
   EnvironmentOutlined, MenuFoldOutlined, MenuUnfoldOutlined,
-  GlobalOutlined, SearchOutlined, LockOutlined,
+  GlobalOutlined, SearchOutlined, LockOutlined, CloseOutlined,
 } from "@ant-design/icons";
 import { usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
@@ -284,6 +284,25 @@ export default function DashboardLayout({ section: propsSection = "admin", child
   const [loadingMenus, setLoadingMenus] = useState(true);
   const [collapsed, setCollapsed] = useState(false);
   const [openKeys, setOpenKeys] = useState([]);
+  const [isMobile, setIsMobile] = useState(false);
+  const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false);
+
+  useEffect(() => {
+    const handleResize = () => {
+      const mobile = window.innerWidth < 992;
+      setIsMobile(mobile);
+      if (!mobile) {
+        setMobileDrawerOpen(false);
+      }
+    };
+    handleResize();
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
+
+  useEffect(() => {
+    setMobileDrawerOpen(false);
+  }, [pathname]);
 
   useEffect(() => {
     let active = true;
@@ -367,58 +386,49 @@ function handleMenuClick({ key, item }) {
   return (
     <Layout style={{ minHeight: "100vh" }}>
 
-      {/* ── Sidebar ── */}
-      <Sider
-        collapsible
-        collapsed={collapsed}
-        onCollapse={setCollapsed}
-        trigger={null}
-        breakpoint="lg"
-        collapsedWidth={64}
-        width={240}
-        style={{
-          background: "#0f172a",
-          boxShadow: "2px 0 12px rgba(0,0,0,.18)",
-          overflow: "auto",
-          height: "100vh",
-          position: "sticky",
-          top: 0,
-          left: 0,
-          display: "flex",
-          flexDirection: "column",
+      {/* ── Mobile Sidebar Drawer ── */}
+      <Drawer
+        placement="left"
+        open={mobileDrawerOpen}
+        onClose={() => setMobileDrawerOpen(false)}
+        width={280}
+        closable={false}
+        className="dashboard-mobile-drawer"
+        styles={{
+          body: {
+            padding: 0,
+            background: "#0f172a",
+            display: "flex",
+            flexDirection: "column",
+            height: "100%",
+            overflow: "hidden",
+          },
+          header: { display: "none" },
         }}
       >
-        {/* Logo */}
+        {/* Drawer Header with Logo and Close Button */}
         <div style={{
-          height: 64,
+          height: 60,
           display: "flex",
           alignItems: "center",
-          gap: 10,
-          padding: collapsed ? "0 18px" : "0 20px",
-          borderBottom: "1px solid rgba(255,255,255,.07)",
-          overflow: "hidden",
+          justifyContent: "space-between",
+          padding: "0 16px",
+          borderBottom: "1px solid rgba(255,255,255,.08)",
+          background: "#0b1329",
           flexShrink: 0,
         }}>
-          <div style={{
-            width: "100%", height: 34, borderRadius: 8, overflow: "hidden",
-            flexShrink: 0, background: "#1e293b",
-            display: "flex", alignItems: "center", justifyContent: "center",
-          }}>
-            <Image src="/images/logo.png" alt="logo" width={120} height={150} style={{ objectFit: "contain" }} />
+          <div style={{ height: 32, display: "flex", alignItems: "center" }}>
+            <Image src="/images/logo.png" alt="logo" width={110} height={32} style={{ objectFit: "contain" }} />
           </div>
-          {/* {!collapsed && (
-            <div style={{ overflow: "hidden" }}>
-              <div style={{ color: "#fff", fontWeight: 700, fontSize: 14, lineHeight: 1.2, whiteSpace: "nowrap" }}>
-                Tukaatu Express
-              </div>
-              <div style={{ color: "rgba(255,255,255,.4)", fontSize: 11, whiteSpace: "nowrap" }}>
-                Delivery Management
-              </div>
-            </div>
-          )} */}
+          <Button
+            type="text"
+            icon={<CloseOutlined style={{ color: "rgba(255,255,255,0.7)", fontSize: 16 }} />}
+            onClick={() => setMobileDrawerOpen(false)}
+            style={{ width: 36, height: 36, padding: 0 }}
+          />
         </div>
 
-        {/* Nav */}
+        {/* Drawer Nav Menu */}
         <div style={{ flex: 1, overflowY: "auto", overflowX: "hidden", paddingTop: 8 }}>
           {loadingMenus ? (
             <div style={{ display: "flex", justifyContent: "center", padding: 24 }}>
@@ -429,10 +439,13 @@ function handleMenuClick({ key, item }) {
               theme="dark"
               mode="inline"
               selectedKeys={[selectedKey]}
-              openKeys={collapsed ? [] : openKeys}
+              openKeys={openKeys}
               onOpenChange={setOpenKeys}
               items={items}
-              onClick={handleMenuClick}
+              onClick={(info) => {
+                handleMenuClick(info);
+                setMobileDrawerOpen(false);
+              }}
               style={{ background: "transparent", border: "none" }}
             />
           ) : (
@@ -445,38 +458,144 @@ function handleMenuClick({ key, item }) {
           )}
         </div>
 
-        {/* Sidebar user strip */}
-        {!collapsed && (
-          <div style={{
-            padding: "12px 16px",
-            borderTop: "1px solid rgba(255,255,255,.07)",
-            display: "flex",
-            alignItems: "center",
-            gap: 10,
-            flexShrink: 0,
-          }}>
-            <Avatar size={32} style={{ background: avatarColor(userName), flexShrink: 0, fontSize: 12, fontWeight: 700 }}>
+        {/* Drawer User Strip */}
+        <div style={{
+          padding: "12px 16px",
+          borderTop: "1px solid rgba(255,255,255,.08)",
+          background: "#0b1329",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: 10,
+          flexShrink: 0,
+        }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0, flex: 1 }}>
+            <Avatar size={34} style={{ background: avatarColor(userName), flexShrink: 0, fontSize: 13, fontWeight: 700 }}>
               {getInitials(userName)}
             </Avatar>
-            <div style={{ overflow: "hidden", flex: 1 }}>
-              <div style={{ color: "#fff", fontSize: 12, fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+            <div style={{ overflow: "hidden", minWidth: 0 }}>
+              <div style={{ color: "#fff", fontSize: 13, fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                 {userName}
               </div>
-              <div style={{ color: "rgba(255,255,255,.4)", fontSize: 11, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", textTransform: "capitalize" }}>
+              <div style={{ color: "rgba(255,255,255,.5)", fontSize: 11, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", textTransform: "capitalize" }}>
                 {userRole}
               </div>
             </div>
           </div>
-        )}
-      </Sider>
+          <Button
+            type="text"
+            danger
+            icon={<LogoutOutlined />}
+            onClick={logout}
+            title="Sign out"
+            style={{ color: "#f87171" }}
+          />
+        </div>
+      </Drawer>
+
+      {/* ── Desktop Sidebar ── */}
+      {!isMobile && (
+        <Sider
+          className="dashboard-desktop-sider"
+          collapsible
+          collapsed={collapsed}
+          onCollapse={setCollapsed}
+          trigger={null}
+          breakpoint="lg"
+          collapsedWidth={64}
+          width={240}
+          style={{
+            background: "#0f172a",
+            boxShadow: "2px 0 12px rgba(0,0,0,.18)",
+            overflow: "auto",
+            height: "100vh",
+            position: "sticky",
+            top: 0,
+            left: 0,
+            display: "flex",
+            flexDirection: "column",
+          }}
+        >
+          {/* Logo */}
+          <div style={{
+            height: 64,
+            display: "flex",
+            alignItems: "center",
+            gap: 10,
+            padding: collapsed ? "0 18px" : "0 20px",
+            borderBottom: "1px solid rgba(255,255,255,.07)",
+            overflow: "hidden",
+            flexShrink: 0,
+          }}>
+            <div style={{
+              width: "100%", height: 34, borderRadius: 8, overflow: "hidden",
+              flexShrink: 0, background: "#1e293b",
+              display: "flex", alignItems: "center", justifyContent: "center",
+            }}>
+              <Image src="/images/logo.png" alt="logo" width={120} height={150} style={{ objectFit: "contain" }} />
+            </div>
+          </div>
+
+          {/* Nav */}
+          <div style={{ flex: 1, overflowY: "auto", overflowX: "hidden", paddingTop: 8 }}>
+            {loadingMenus ? (
+              <div style={{ display: "flex", justifyContent: "center", padding: 24 }}>
+                <Spin size="small" />
+              </div>
+            ) : items.length ? (
+              <Menu
+                theme="dark"
+                mode="inline"
+                selectedKeys={[selectedKey]}
+                openKeys={collapsed ? [] : openKeys}
+                onOpenChange={setOpenKeys}
+                items={items}
+                onClick={handleMenuClick}
+                style={{ background: "transparent", border: "none" }}
+              />
+            ) : (
+              <div style={{ padding: 16 }}>
+                <Empty
+                  image={Empty.PRESENTED_IMAGE_SIMPLE}
+                  description={<span style={{ color: "rgba(255,255,255,.4)", fontSize: 12 }}>No menus</span>}
+                />
+              </div>
+            )}
+          </div>
+
+          {/* Sidebar user strip */}
+          {!collapsed && (
+            <div style={{
+              padding: "12px 16px",
+              borderTop: "1px solid rgba(255,255,255,.07)",
+              display: "flex",
+              alignItems: "center",
+              gap: 10,
+              flexShrink: 0,
+            }}>
+              <Avatar size={32} style={{ background: avatarColor(userName), flexShrink: 0, fontSize: 12, fontWeight: 700 }}>
+                {getInitials(userName)}
+              </Avatar>
+              <div style={{ overflow: "hidden", flex: 1 }}>
+                <div style={{ color: "#fff", fontSize: 12, fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                  {userName}
+                </div>
+                <div style={{ color: "rgba(255,255,255,.4)", fontSize: 11, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", textTransform: "capitalize" }}>
+                  {userRole}
+                </div>
+              </div>
+            </div>
+          )}
+        </Sider>
+      )}
 
       <Layout style={{ background: "#f8fafc" }}>
 
         {/* ── Header ── */}
         <Header style={{
           background: "#fff",
-          padding: "0 20px",
-          height: 64,
+          padding: isMobile ? "0 12px" : "0 20px",
+          height: 60,
           display: "flex",
           alignItems: "center",
           justifyContent: "space-between",
@@ -485,35 +604,61 @@ function handleMenuClick({ key, item }) {
           position: "sticky",
           top: 0,
           zIndex: 100,
-          gap: 12,
+          gap: 8,
         }}>
 
-          {/* Left: collapse toggle + breadcrumb */}
-          <Space size={12} style={{ minWidth: 0 }}>
+          {/* Left: collapse toggle + breadcrumb / brand */}
+          <Space size={8} style={{ minWidth: 0, flex: 1 }}>
             <Button
               type="text"
-              icon={collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
-              onClick={() => setCollapsed(!collapsed)}
-              style={{ color: "#64748b", fontSize: 16, width: 36, height: 36, padding: 0 }}
+              icon={isMobile ? <MenuOutlined /> : collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
+              onClick={() => {
+                if (isMobile) {
+                  setMobileDrawerOpen(true);
+                } else {
+                  setCollapsed(!collapsed);
+                }
+              }}
+              style={{ color: "#334155", fontSize: 18, width: 38, height: 38, padding: 0 }}
             />
-            <div style={{ display: "flex", flexDirection: "column", lineHeight: 1.3 }}>
-              <Typography.Text style={{ fontWeight: 600, fontSize: 14, color: "#0f172a" }}>
-                {userName}
-              </Typography.Text>
-              <Typography.Text style={{ fontSize: 12, color: "#94a3b8", textTransform: "capitalize" }}>
-                {userRole}
-              </Typography.Text>
-            </div>
+            {isMobile ? (
+              <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0, overflow: "hidden" }}>
+                <span style={{ fontWeight: 800, fontSize: 14, color: "#0f172a", whiteSpace: "nowrap", textOverflow: "ellipsis", overflow: "hidden" }}>
+                  {section === "staff" ? "Staff Portal" : "Tukaatu"}
+                </span>
+                <span style={{
+                  fontSize: 10,
+                  fontWeight: 700,
+                  color: "#0369a1",
+                  background: "#e0f2fe",
+                  padding: "1px 6px",
+                  borderRadius: 4,
+                  textTransform: "uppercase",
+                  flexShrink: 0,
+                }}>
+                  {userRole.split(",")[0] || section}
+                </span>
+              </div>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", lineHeight: 1.3 }}>
+                <Typography.Text style={{ fontWeight: 600, fontSize: 14, color: "#0f172a" }}>
+                  {userName}
+                </Typography.Text>
+                <Typography.Text style={{ fontSize: 12, color: "#94a3b8", textTransform: "capitalize" }}>
+                  {userRole}
+                </Typography.Text>
+              </div>
+            )}
           </Space>
 
           {/* Right: actions */}
-          <Space size={4}>
+          <Space size={4} style={{ flexShrink: 0 }}>
             <Tooltip title="Public Tracker">
               <Button
                 type="text"
                 icon={<GlobalOutlined />}
                 onClick={() => router.push("/track")}
-                style={{ color: "#64748b", width: 36, height: 36, padding: 0 }}
+                style={{ color: "#64748b", width: 34, height: 34, padding: 0 }}
               />
             </Tooltip>
 
@@ -522,35 +667,39 @@ function handleMenuClick({ key, item }) {
                 <Button
                   type="text"
                   icon={<BellOutlined />}
-                  style={{ color: "#64748b", width: 36, height: 36, padding: 0 }}
+                  style={{ color: "#64748b", width: 34, height: 34, padding: 0 }}
                 />
               </Badge>
             </Tooltip>
 
-            <div style={{ width: 1, height: 24, background: "#e2e8f0", margin: "0 4px" }} />
+            <div style={{ width: 1, height: 20, background: "#e2e8f0", margin: "0 2px" }} />
 
             <Dropdown menu={userDropdownItems} placement="bottomRight" trigger={["click"]}>
-              <Space style={{ cursor: "pointer", padding: "4px 8px", borderRadius: 8, transition: "background .15s" }}
+              <Space style={{ cursor: "pointer", padding: "4px 6px", borderRadius: 8, transition: "background .15s" }}
                 onMouseEnter={e => e.currentTarget.style.background = "#f1f5f9"}
                 onMouseLeave={e => e.currentTarget.style.background = "transparent"}
               >
-                <Avatar size={32} style={{ background: avatarColor(userName), fontSize: 12, fontWeight: 700 }}>
+                <Avatar size={32} style={{ background: avatarColor(userName), fontSize: 12, fontWeight: 700, flexShrink: 0 }}>
                   {getInitials(userName)}
                 </Avatar>
-                <div style={{ display: "flex", flexDirection: "column", lineHeight: 1.3 }}>
-                  <Typography.Text style={{ fontSize: 13, fontWeight: 600, color: "#0f172a" }}>
-                    {userName}
-                  </Typography.Text>
-                  <Typography.Text style={{ fontSize: 11, color: "#94a3b8", textTransform: "capitalize" }}>
-                    {userRole}
-                  </Typography.Text>
-                </div>
+                {!isMobile && (
+                  <div style={{ display: "flex", flexDirection: "column", lineHeight: 1.3 }}>
+                    <Typography.Text style={{ fontSize: 13, fontWeight: 600, color: "#0f172a" }}>
+                      {userName}
+                    </Typography.Text>
+                    <Typography.Text style={{ fontSize: 11, color: "#94a3b8", textTransform: "capitalize" }}>
+                      {userRole}
+                    </Typography.Text>
+                  </div>
+                )}
               </Space>
             </Dropdown>
           </Space>
         </Header>
 
-        <Content style={{ margin: 20 }}>{children}</Content>
+        <Content style={{ margin: isMobile ? "10px 8px" : 20, minWidth: 0, overflowX: "hidden" }}>
+          {children}
+        </Content>
       </Layout>
     </Layout>
   );

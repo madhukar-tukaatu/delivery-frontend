@@ -321,3 +321,15 @@ a {
     transition-duration: 0.01ms !important;
   }
 }
+
+/* Responsive Dashboard Layout & Mobile Drawer */
+@media (max-width: 991px) {
+  .dashboard-desktop-sider {
+    display: none !important;
+  }
+}
+@media (min-width: 992px) {
+  .dashboard-mobile-drawer {
+    display: none !important;
+  }
+}
