@@ -15,12 +15,14 @@ import {
   FileTextOutlined,
   SendOutlined,
   ShopOutlined,
+  ThunderboltOutlined,
   UserOutlined,
 } from "@ant-design/icons";
 import { MapContainer, Marker, Polyline, Popup, TileLayer, Tooltip as LeafletTooltip, useMap } from "react-leaflet";
 import L from "leaflet";
 import { getEcho } from "@/lib/echo";
-import { getDeliveryRun } from "@/services/admin/deliveryRunService";
+import { getDeliveryRun, sequenceRun } from "@/services/admin/deliveryRunService";
+import { sequencePickupRun } from "@/services/admin/pickupRunService";
 
 const { Text, Title } = Typography;
 
@@ -316,6 +318,7 @@ export default function RunRouteMapInner({
   // buttons supplied by the rider panels (Accept / Start / Arrive / Collect ...).
   renderStopActions = null,
   height = "520px",
+  onRefresh = null,
 }) {
   const [selectedStopId, setSelectedStopId] = useState(null);
   const [panTarget, setPanTarget] = useState(null);
@@ -323,6 +326,31 @@ export default function RunRouteMapInner({
   const [loadingRoute, setLoadingRoute] = useState(false);
   const [riderLocation, setRiderLocation] = useState(run?.rider_location || null);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [optimizing, setOptimizing] = useState(false);
+
+  const handleOptimizeRoute = async () => {
+    if (!run?.id) return;
+    setOptimizing(true);
+    try {
+      if (mode === "pickup") {
+        await sequencePickupRun(run.id, null);
+      } else {
+        await sequenceRun(run.id, null);
+      }
+      message.success("Stop sequence optimized along the shortest road route!");
+      if (typeof onRefresh === "function") {
+        onRefresh();
+      } else if (typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent("refreshRunData", { detail: { runId: run.id } }));
+        // Also trigger router refresh if supported
+        window.location.reload();
+      }
+    } catch (err) {
+      message.error(err?.message || "Failed to optimize route sequence");
+    } finally {
+      setOptimizing(false);
+    }
+  };
 
   useEffect(() => {
     if (run?.rider_location) {
@@ -482,6 +510,26 @@ export default function RunRouteMapInner({
       };
     });
   }, [run?.items, mode]);
+
+  // Compute travel distance from previous stop or branch origin along the route
+  const stopsWithLegs = useMemo(() => {
+    let prev = branchCoords;
+    return stops.map((stop, index) => {
+      let legDistKm = null;
+      if (prev && stop.point) {
+        const meters = haversineM(prev.lat, prev.lng, stop.point.lat, stop.point.lng);
+        legDistKm = Math.round((meters / 1000) * 10) / 10;
+      }
+      if (stop.point) {
+        prev = stop.point;
+      }
+      return {
+        ...stop,
+        legDistKm,
+        fromLabel: index === 0 ? "Branch" : `Stop #${index}`,
+      };
+    });
+  }, [stops, branchCoords]);
 
   const isRunOut = ["out_for_delivery", "in_progress", "out_for_pickup"].includes(String(run?.status || "").toLowerCase());
 
@@ -731,6 +779,18 @@ export default function RunRouteMapInner({
           ) : loadingRoute ? (
             <Text type="secondary">Calculating route path...</Text>
           ) : null}
+          {stops.length > 1 && (
+            <Button
+              size="small"
+              icon={<ThunderboltOutlined />}
+              loading={optimizing}
+              onClick={handleOptimizeRoute}
+              style={{ borderColor: "#0284c7", color: "#0284c7", fontWeight: 600 }}
+              title="Automatically reorder stops along the shortest road route"
+            >
+              ⚡ Optimize Stops
+            </Button>
+          )}
           <Button
             size="small"
             icon={isFullscreen ? <FullscreenExitOutlined /> : <FullscreenOutlined />}
@@ -759,10 +819,10 @@ export default function RunRouteMapInner({
               </Space>
             </div>
 
-            {stops.length === 0 ? (
+            {stopsWithLegs.length === 0 ? (
               <Empty description="No stops in this run." />
             ) : (
-              stops.map((stop) => {
+              stopsWithLegs.map((stop, index) => {
                 const isSelected = selectedStopId === stop.id;
                 const statusColor = stopStatusColor(stop.status);
                 return (
@@ -820,6 +880,11 @@ export default function RunRouteMapInner({
                         📍 {stop.area} {stop.address ? `· ${stop.address}` : ""}
                         {stop.point?.guessed ? " (area estimate)" : ""}
                       </div>
+                      {stop.legDistKm != null && (
+                        <div style={{ fontSize: 11, color: "#0284c7", fontWeight: 600, marginTop: 2 }}>
+                          🛵 ~{stop.legDistKm} km from {stop.fromLabel}
+                        </div>
+                      )}
                       {!stop.point ? (
                         <Tag color="orange" style={{ margin: "4px 0 0", fontSize: 10 }}>
                           <ExclamationCircleOutlined /> No location – not on map
