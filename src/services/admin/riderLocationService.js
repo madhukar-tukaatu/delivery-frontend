@@ -5,6 +5,21 @@ export async function updateRiderLocation(payload) {
   return response.data?.data || response.data;
 }
 
+export function getOrCreateDeviceId() {
+  if (typeof window === "undefined") return "server";
+  let id = null;
+  try {
+    id = localStorage.getItem("tukaatu_rider_device_id");
+    if (!id) {
+      id = "dev_" + Math.random().toString(36).substring(2, 9) + "_" + Date.now();
+      localStorage.setItem("tukaatu_rider_device_id", id);
+    }
+  } catch {
+    id = "dev_" + Date.now();
+  }
+  return id;
+}
+
 /** Send single one-shot real GPS ping from browser with automatic indoor/timeout fallback */
 export function sendCurrentRiderLocation({ runId, shipmentId, trackingNumber, onSuccess, onError } = {}) {
   if (typeof window === "undefined" || !navigator.geolocation) {
@@ -23,6 +38,7 @@ export function sendCurrentRiderLocation({ runId, shipmentId, trackingNumber, on
         heading: Number.isFinite(position.coords.heading) && position.coords.heading >= 0 ? position.coords.heading : undefined,
         speed: Number.isFinite(position.coords.speed) && position.coords.speed >= 0 ? position.coords.speed * 3.6 : undefined, // m/s to km/h
         accuracy: position.coords.accuracy,
+        device_id: getOrCreateDeviceId(),
       };
       const result = await updateRiderLocation(payload);
       onSuccess?.(result, payload);
@@ -122,6 +138,7 @@ export function startBrowserRiderLocation({ runId, shipmentId, trackingNumber, i
         heading: Number.isFinite(position.coords.heading) && position.coords.heading >= 0 ? position.coords.heading : undefined,
         speed: Number.isFinite(position.coords.speed) && position.coords.speed >= 0 ? position.coords.speed * 3.6 : undefined,
         accuracy: position.coords.accuracy,
+        device_id: getOrCreateDeviceId(),
       };
 
       const result = await updateRiderLocation(payload);
