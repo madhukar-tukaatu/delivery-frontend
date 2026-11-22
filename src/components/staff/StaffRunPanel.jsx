@@ -22,6 +22,7 @@ import {
   CarOutlined,
   CheckCircleOutlined,
   CloseCircleOutlined,
+  CompassOutlined,
   EnvironmentOutlined,
   ExclamationCircleOutlined,
   FileTextOutlined,
@@ -40,6 +41,7 @@ import {
   staffUnbagRun,
   runErrorText,
 } from "@/services/admin/deliveryRunService";
+import { startBrowserRiderLocation } from "@/services/admin/riderLocationService";
 import {
   ITEM_STATUS_META,
   OUTCOME_META,
@@ -67,6 +69,16 @@ const { Text } = Typography;
  *    (page runs the legacy endpoints and the POD / COD / fail modals)
  *  - busyAction: page's in-flight action key ("accept:12", ...)
  */
+function getGoogleMapsDirectionsUrl(stop) {
+  const lat = stop?.latitude || stop?.point?.lat || stop?.shipment?.delivery_latitude;
+  const lng = stop?.longitude || stop?.point?.lng || stop?.shipment?.delivery_longitude;
+  if (lat && lng) {
+    return `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`;
+  }
+  const addr = encodeURIComponent(`${stop?.area || ""} ${stop?.address || stop?.shipment?.delivery_address || ""}`.trim());
+  return `https://www.google.com/maps/dir/?api=1&destination=${addr}`;
+}
+
 export default function StaffRunPanel({
   deliveries = [],
   onOpenDelivery,
@@ -84,6 +96,9 @@ export default function StaffRunPanel({
   const [starting, setStarting] = useState(null);
   const [finishing, setFinishing] = useState(null);
   const [mapRun, setMapRun] = useState(null);
+  const [mobileNavRun, setMobileNavRun] = useState(null);
+  const [currentStopIndex, setCurrentStopIndex] = useState(0);
+  const [gpsLiveInfo, setGpsLiveInfo] = useState(null);
   const [runViewMode, setRunViewMode] = useState({});
   const [bagBusy, setBagBusy] = useState("");
   const [scanText, setScanText] = useState({});
@@ -93,6 +108,38 @@ export default function StaffRunPanel({
   onRunsLoadedRef.current = onRunsLoaded;
   // item ids already marked New per run, so a refresh only announces newly added parcels.
   const seenNewRef = useRef(null);
+
+  // Auto-start high-precision GPS tracking when any run is out_for_delivery
+  const activeOutRun = useMemo(() => runs.find((r) => r.status === "out_for_delivery"), [runs]);
+
+  useEffect(() => {
+    if (!activeOutRun?.id) {
+      setGpsLiveInfo(null);
+      return;
+    }
+
+    const stopTracking = startBrowserRiderLocation({
+      runId: activeOutRun.id,
+      intervalMs: 5000,
+      onSuccess: (res, payload) => {
+        setGpsLiveInfo({
+          lat: payload.lat,
+          lng: payload.lng,
+          speed: payload.speed,
+          heading: payload.heading,
+          accuracy: payload.accuracy,
+          time: new Date().toLocaleTimeString(),
+        });
+      },
+      onError: (err) => {
+        console.warn("Rider auto GPS signal:", err?.message);
+      },
+    });
+
+    return () => {
+      stopTracking?.();
+    };
+  }, [activeOutRun?.id]);
 
   const announceNew = (list) => {
     const first = seenNewRef.current === null;
@@ -159,6 +206,9 @@ export default function StaffRunPanel({
       message.success(res?.message || `${run.run_number} started.`);
       await load();
       onChanged?.();
+      // Auto-open mobile navigation mode
+      setMobileNavRun(run);
+      setCurrentStopIndex(0);
     } catch (e) {
       message.error(runErrorText(e, "Could not start the run."), 6);
       load({ silent: true });
@@ -590,6 +640,47 @@ export default function StaffRunPanel({
                   </Text>
                 ) : null}
 
+                {run.status === "out_for_delivery" && (
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      padding: "10px 14px",
+                      background: "linear-gradient(135deg, #0284c7 0%, #0369a1 100%)",
+                      borderRadius: 10,
+                      margin: "8px 0 12px",
+                      color: "#ffffff",
+                      flexWrap: "wrap",
+                      gap: 8,
+                      boxShadow: "0 4px 12px rgba(2, 132, 199, 0.3)",
+                    }}
+                  >
+                    <div>
+                      <div style={{ fontWeight: 800, fontSize: 14 }}>
+                        🏍️ Fullscreen Rider Navigation Active
+                      </div>
+                      <div style={{ fontSize: 11, opacity: 0.9, marginTop: 2 }}>
+                        {gpsLiveInfo
+                          ? `🟢 GPS Live (±${Math.round(gpsLiveInfo.accuracy || 3)}m) • Auto-tracking on`
+                          : "🟢 High-accuracy auto GPS streaming active"}
+                      </div>
+                    </div>
+                    <Button
+                      type="default"
+                      size="middle"
+                      icon={<CompassOutlined />}
+                      onClick={() => {
+                        setMobileNavRun(run);
+                        setCurrentStopIndex(0);
+                      }}
+                      style={{ fontWeight: 800, background: "#ffffff", color: "#0284c7", border: "none" }}
+                    >
+                      Open Mobile Navigation
+                    </Button>
+                  </div>
+                )}
+
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, flexWrap: "wrap", marginTop: 4, marginBottom: 8 }}>
                   <Segmented
                     size="small"
@@ -602,10 +693,14 @@ export default function StaffRunPanel({
                   />
                   <Button
                     size="small"
-                    icon={<EnvironmentOutlined />}
-                    onClick={() => setMapRun(run)}
+                    icon={<CompassOutlined />}
+                    onClick={() => {
+                      setMobileNavRun(run);
+                      setCurrentStopIndex(0);
+                    }}
+                    style={{ fontWeight: 700, borderColor: "#0284c7", color: "#0284c7" }}
                   >
-                    Full screen
+                    Mobile Fullscreen
                   </Button>
                 </div>
 
@@ -766,6 +861,261 @@ export default function StaffRunPanel({
           };
         })}
       />
+
+      {/* FULLSCREEN MOBILE NAVIGATION VIEW FOR RIDER */}
+      {mobileNavRun && (() => {
+        const navItems = mobileNavRun.items || [];
+        const openNavStops = navItems.filter((i) => !["delivered", "failed", "removed"].includes(i.status));
+        const activeNavStop = openNavStops[currentStopIndex] || openNavStops[0] || navItems[0];
+        const totalNavStops = navItems.length;
+
+        return (
+          <div
+            style={{
+              position: "fixed",
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              zIndex: 99999,
+              background: "#0f172a",
+              display: "flex",
+              flexDirection: "column",
+              height: "100dvh",
+              width: "100vw",
+              overflow: "hidden",
+            }}
+          >
+            {/* 1. TOP MOBILE HUD */}
+            <div
+              style={{
+                background: "rgba(15, 23, 42, 0.95)",
+                backdropFilter: "blur(12px)",
+                padding: "10px 14px",
+                borderBottom: "1px solid rgba(255,255,255,0.1)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                color: "#fff",
+                zIndex: 10,
+              }}
+            >
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <button
+                  type="button"
+                  onClick={() => setMobileNavRun(null)}
+                  style={{
+                    background: "rgba(255,255,255,0.15)",
+                    border: "none",
+                    color: "#fff",
+                    borderRadius: "50%",
+                    width: 34,
+                    height: 34,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    cursor: "pointer",
+                    fontSize: 16,
+                  }}
+                >
+                  ✕
+                </button>
+                <div>
+                  <div style={{ fontWeight: 800, fontSize: 15, display: "flex", alignItems: "center", gap: 6 }}>
+                    <span>🏍️ {mobileNavRun.run_number}</span>
+                    <span style={{ fontSize: 11, background: "#0284c7", padding: "1px 6px", borderRadius: 4, fontWeight: 700 }}>
+                      Stop {currentStopIndex + 1}/{totalNavStops}
+                    </span>
+                  </div>
+                  <div style={{ fontSize: 11, color: "#94a3b8", display: "flex", alignItems: "center", gap: 6, marginTop: 2 }}>
+                    <span style={{ width: 7, height: 7, borderRadius: "50%", background: "#10b981", display: "inline-block" }} />
+                    <span>
+                      {gpsLiveInfo
+                        ? `GPS Active (±${Math.round(gpsLiveInfo.accuracy || 3)}m) • ${Math.round(gpsLiveInfo.speed || 0)} km/h`
+                        : "Streaming Real GPS to Dispatch"}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (document.fullscreenElement) {
+                      document.exitFullscreen?.();
+                    } else {
+                      document.documentElement.requestFullscreen?.();
+                    }
+                  }}
+                  style={{
+                    background: "rgba(255,255,255,0.1)",
+                    border: "1px solid rgba(255,255,255,0.15)",
+                    color: "#38bdf8",
+                    borderRadius: 8,
+                    padding: "5px 10px",
+                    fontSize: 11,
+                    fontWeight: 700,
+                    cursor: "pointer",
+                  }}
+                >
+                  ⛶ Full
+                </button>
+              </div>
+            </div>
+
+            {/* 2. FULLSCREEN INTERACTIVE MAP (flex: 1) */}
+            <div style={{ flex: 1, position: "relative", width: "100%", height: "100%", overflow: "hidden" }}>
+              <RunRouteMap
+                run={mobileNavRun}
+                mode="delivery"
+                isRider
+                height="100%"
+                onOpenDelivery={(id) => {
+                  const stopItem = (mobileNavRun.items || []).find((x) => Number(x.shipment_id) === Number(id)) || { shipment_id: id };
+                  openStop(stopItem, mobileNavRun);
+                }}
+                onStopAction={(stop) => openStop(stop, mobileNavRun)}
+                renderStopActions={(stop, ctx) => renderDeliveryActions(mobileNavRun, stop, ctx, { fromModal: true })}
+              />
+            </div>
+
+            {/* 3. BOTTOM DOCKED STOP DETAILS CARD */}
+            {activeNavStop && (
+              <div
+                style={{
+                  background: "#ffffff",
+                  borderRadius: "16px 16px 0 0",
+                  boxShadow: "0 -4px 20px rgba(0,0,0,0.3)",
+                  padding: "14px 16px",
+                  zIndex: 20,
+                  color: "#0f172a",
+                }}
+              >
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                    <span style={{ background: "#2563eb", color: "#fff", fontWeight: 800, fontSize: 12, padding: "2px 8px", borderRadius: 12 }}>
+                      Stop #{activeNavStop.sequence}
+                    </span>
+                    <span style={{ fontWeight: 800, fontSize: 14, color: "#0f172a" }}>
+                      {activeNavStop.shipment?.recipient_name || activeNavStop.customer_name || "Recipient"}
+                    </span>
+                  </div>
+                  <div style={{ display: "flex", gap: 6 }}>
+                    <button
+                      type="button"
+                      disabled={currentStopIndex <= 0}
+                      onClick={() => setCurrentStopIndex((i) => Math.max(0, i - 1))}
+                      style={{
+                        border: "1px solid #cbd5e1",
+                        background: "#f8fafc",
+                        padding: "3px 8px",
+                        borderRadius: 6,
+                        fontSize: 11,
+                        cursor: currentStopIndex > 0 ? "pointer" : "not-allowed",
+                        opacity: currentStopIndex > 0 ? 1 : 0.4,
+                      }}
+                    >
+                      ◀ Prev
+                    </button>
+                    <button
+                      type="button"
+                      disabled={currentStopIndex >= openNavStops.length - 1}
+                      onClick={() => setCurrentStopIndex((i) => Math.min(openNavStops.length - 1, i + 1))}
+                      style={{
+                        border: "1px solid #cbd5e1",
+                        background: "#f8fafc",
+                        padding: "3px 8px",
+                        borderRadius: 6,
+                        fontSize: 11,
+                        cursor: currentStopIndex < openNavStops.length - 1 ? "pointer" : "not-allowed",
+                        opacity: currentStopIndex < openNavStops.length - 1 ? 1 : 0.4,
+                      }}
+                    >
+                      Next ▶
+                    </button>
+                  </div>
+                </div>
+
+                <div style={{ fontSize: 12, color: "#475569", marginBottom: 6, lineHeight: 1.35 }}>
+                  📍 {activeNavStop.area || ""} {activeNavStop.address || activeNavStop.shipment?.delivery_address || ""}
+                </div>
+
+                {Number(activeNavStop.cod_amount || activeNavStop.shipment?.cod_amount) > 0 && (
+                  <div style={{ fontSize: 13, fontWeight: 800, color: "#059669", marginBottom: 10 }}>
+                    💵 Collect COD: Rs {Number(activeNavStop.cod_amount || activeNavStop.shipment?.cod_amount).toFixed(2)}
+                  </div>
+                )}
+
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1.4fr", gap: 8 }}>
+                  <a
+                    href={getGoogleMapsDirectionsUrl(activeNavStop)}
+                    target="_blank"
+                    rel="noreferrer"
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      gap: 4,
+                      padding: "9px 6px",
+                      background: "#f1f5f9",
+                      border: "1px solid #cbd5e1",
+                      borderRadius: 8,
+                      color: "#0f172a",
+                      fontWeight: 700,
+                      fontSize: 12,
+                      textDecoration: "none",
+                    }}
+                  >
+                    🗺️ Maps
+                  </a>
+
+                  <a
+                    href={`tel:${activeNavStop.phone || activeNavStop.shipment?.recipient_phone || ""}`}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      gap: 4,
+                      padding: "9px 6px",
+                      background: "#ecfdf5",
+                      border: "1px solid #a7f3d0",
+                      borderRadius: 8,
+                      color: "#047857",
+                      fontWeight: 700,
+                      fontSize: 12,
+                      textDecoration: "none",
+                    }}
+                  >
+                    📞 Call
+                  </a>
+
+                  <button
+                    type="button"
+                    onClick={() => openStop(activeNavStop, mobileNavRun)}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      gap: 4,
+                      padding: "9px 6px",
+                      background: "#0284c7",
+                      border: "none",
+                      borderRadius: 8,
+                      color: "#ffffff",
+                      fontWeight: 800,
+                      fontSize: 12,
+                      cursor: "pointer",
+                    }}
+                  >
+                    ✅ Deliver Stop
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        );
+      })()}
 
       <Modal
         title={`Route Map · ${mapRun?.run_number || "Delivery Run"}`}

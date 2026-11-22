@@ -39,10 +39,23 @@ export default function PricingCalculationExampleCard({ pricingSetting, title = 
 
   // Rule parameters from active/viewed version
   const baseWeightKg = Number(s.base_weight_kg ?? 1.5);
+  const weightLimitEnabled = toBoolean(s.weight_limit_enabled ?? false);
+  const maxWeightKg =
+    s.max_weight_kg !== null && s.max_weight_kg !== undefined && s.max_weight_kg !== ""
+      ? Number(s.max_weight_kg)
+      : null;
   const baseDistanceKm = Number(s.base_distance_km ?? 5.0);
   const localExtraWtRate = Number(s.local_extra_weight_rate ?? 20.0);
   const transferExtraWtRate = Number(s.transfer_extra_weight_rate ?? 30.0);
   const extraDistRate = Number(s.extra_distance_rate ?? 6.0);
+  const boundsEnabled = toBoolean(s.delivery_charge_bounds_enabled ?? false);
+  const minDeliveryCharge = Number(s.min_delivery_charge ?? 0);
+  const maxDeliveryCharge =
+    s.max_delivery_charge !== null &&
+    s.max_delivery_charge !== undefined &&
+    s.max_delivery_charge !== ""
+      ? Number(s.max_delivery_charge)
+      : null;
 
   const fragileEnabled = toBoolean(s.fragile_enabled);
   const fragileMultiplier = fragileEnabled ? Number(s.fragile_multiplier ?? 1.5) : 1.0;
@@ -175,6 +188,22 @@ export default function PricingCalculationExampleCard({ pricingSetting, title = 
     else if (moneyRounding === "ceil") roundedFare = Math.ceil(finalFare);
     else if (moneyRounding === "floor") roundedFare = Math.floor(finalFare);
 
+    // Apply Dynamic Weight Limit check & Delivery Charge Bounds
+    const exceedsWeightLimit =
+      weightLimitEnabled && maxWeightKg !== null && parcelWeight > maxWeightKg;
+    let boundedFare = roundedFare;
+    let boundsAdjustmentType = null;
+    if (boundsEnabled) {
+      if (minDeliveryCharge > 0 && boundedFare < minDeliveryCharge) {
+        boundedFare = minDeliveryCharge;
+        boundsAdjustmentType = "min_floor";
+      }
+      if (maxDeliveryCharge !== null && boundedFare > maxDeliveryCharge) {
+        boundedFare = maxDeliveryCharge;
+        boundsAdjustmentType = "max_cap";
+      }
+    }
+
     return {
       isSameBranch,
       excessWeightKg,
@@ -197,7 +226,10 @@ export default function PricingCalculationExampleCard({ pricingSetting, title = 
       subtotalBeforeVat,
       vatAmount,
       finalFare,
-      roundedFare,
+      roundedFare: boundedFare,
+      roundedBeforeBounds: roundedFare,
+      boundsAdjustmentType,
+      exceedsWeightLimit,
     };
   }, [
     routeType,
@@ -208,10 +240,15 @@ export default function PricingCalculationExampleCard({ pricingSetting, title = 
     isFragile,
     packetCount,
     baseWeightKg,
+    weightLimitEnabled,
+    maxWeightKg,
     baseDistanceKm,
     localExtraWtRate,
     transferExtraWtRate,
     extraDistRate,
+    boundsEnabled,
+    minDeliveryCharge,
+    maxDeliveryCharge,
     fragileEnabled,
     fragileMultiplier,
     expressEnabled,
@@ -523,12 +560,24 @@ export default function PricingCalculationExampleCard({ pricingSetting, title = 
                     : "No VAT Calculated"}
                 </Tag>
               </Row>
-              <div style={{ fontSize: 26, fontWeight: "bold", color: "#15803d", marginTop: 4, fontVariantNumeric: "tabular-nums" }}>
-                {formatNpr(calc.roundedFare)}
+              <div style={{ fontSize: 26, fontWeight: "bold", color: calc.exceedsWeightLimit ? "#dc2626" : "#15803d", marginTop: 4, fontVariantNumeric: "tabular-nums" }}>
+                {calc.exceedsWeightLimit ? "Blocked (> Limit)" : formatNpr(calc.roundedFare)}
               </div>
-              <Text type="secondary" style={{ fontSize: 11, display: "block", marginTop: 2 }}>
-                Exact calculated: NPR {calc.finalFare.toFixed(2)} ({moneyRounding} rounding applied)
-              </Text>
+              {calc.exceedsWeightLimit ? (
+                <Text type="danger" style={{ fontSize: 11, display: "block", marginTop: 2 }}>
+                  Parcel weight ({parcelWeight} kg) exceeds configured maximum weight limit ({maxWeightKg} kg).
+                </Text>
+              ) : (
+                <Text type="secondary" style={{ fontSize: 11, display: "block", marginTop: 2 }}>
+                  Exact calculated: NPR {calc.finalFare.toFixed(2)} ({moneyRounding} rounding
+                  {calc.boundsAdjustmentType === "min_floor"
+                    ? `, raised to min NPR ${minDeliveryCharge}`
+                    : calc.boundsAdjustmentType === "max_cap"
+                      ? `, capped at max NPR ${maxDeliveryCharge}`
+                      : ""}
+                  )
+                </Text>
+              )}
 
               <Divider style={{ margin: "10px 0" }} />
 

@@ -61,6 +61,7 @@ import {
 import styles from "./deliveries.module.css";
 import StaffRunPanel from "@/components/staff/StaffRunPanel";
 import { runErrorText } from "@/services/admin/deliveryRunService";
+import { sendCurrentRiderLocation, startBrowserRiderLocation, updateRiderLocation } from "@/services/admin/riderLocationService";
 
 /** Parcel sits on a DR run the rider is still collecting: it leaves via Bag + Start run. */
 function onCollectingRun(delivery) {
@@ -442,6 +443,103 @@ export default function StaffDeliveriesPage() {
   const openedCheckoutSessionsRef = useRef(new Set());
   const [checkoutNeedsClick, setCheckoutNeedsClick] = useState(false);
   const checkoutReady = podCheckoutReady(paymentSession);
+
+  // Live GPS tracking from rider's device to dispatch and run maps
+  const [gpsActive, setGpsActive] = useState(false);
+  const [gpsStatus, setGpsStatus] = useState(null);
+  const [gpsSending, setGpsSending] = useState(false);
+
+  useEffect(() => {
+    const stopTracker = startBrowserRiderLocation({
+      intervalMs: 8000,
+      onSuccess: (res, payload) => {
+        setGpsActive(true);
+        setGpsStatus({
+          lat: payload.lat,
+          lng: payload.lng,
+          speed: payload.speed,
+          accuracy: payload.accuracy,
+          time: new Date().toLocaleTimeString(),
+        });
+      },
+      onError: (err) => {
+        console.warn("Rider live GPS error:", err);
+      },
+    });
+
+    return () => {
+      stopTracker?.();
+    };
+  }, [rows]);
+
+  const [isInsecureOrigin, setIsInsecureOrigin] = useState(false);
+  const [customCoordModal, setCustomCoordModal] = useState(false);
+  const [customLat, setCustomLat] = useState("27.6915");
+  const [customLng, setCustomLng] = useState("85.3420");
+  const [customSpeed, setCustomSpeed] = useState("25");
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const isSec = window.isSecureContext || window.location.protocol === "https:" || window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1";
+      setIsInsecureOrigin(!isSec);
+    }
+  }, []);
+
+  const sendCustomCoordinate = async (lat, lng, speed = 25) => {
+    setGpsSending(true);
+    try {
+      const activeRun = rows.find((r) => r.delivery_run?.id)?.delivery_run;
+      const payload = {
+        run_id: activeRun?.id || undefined,
+        lat: Number(lat),
+        lng: Number(lng),
+        speed: Number(speed) || 25,
+        heading: 120,
+      };
+      await updateRiderLocation(payload);
+      setGpsActive(true);
+      setGpsStatus({
+        lat: Number(lat),
+        lng: Number(lng),
+        speed: Number(speed) || 25,
+        time: new Date().toLocaleTimeString(),
+      });
+      message.success(`Sent GPS position (${lat}, ${lng}) to live run map!`);
+      setCustomCoordModal(false);
+    } catch (err) {
+      message.error(`Failed to send location: ${err.message}`);
+    } finally {
+      setGpsSending(false);
+    }
+  };
+
+  const pingLocationNow = () => {
+    setGpsSending(true);
+    sendCurrentRiderLocation({
+      onSuccess: (res, payload) => {
+        setGpsSending(false);
+        setGpsActive(true);
+        setGpsStatus({
+          lat: payload.lat,
+          lng: payload.lng,
+          speed: payload.speed,
+          accuracy: payload.accuracy,
+          time: new Date().toLocaleTimeString(),
+        });
+        message.success(`Real GPS coordinates sent: (${payload.lat.toFixed(4)}, ${payload.lng.toFixed(4)})`);
+      },
+      onError: (err) => {
+        setGpsSending(false);
+        const errMsg = err?.message || "";
+        if (errMsg.includes("secure origins") || !window.isSecureContext) {
+          message.warning("HTTP Server detected: Opening manual GPS coordinate sender.");
+          setCustomCoordModal(true);
+        } else {
+          message.error(`GPS Error: ${errMsg || "Could not access device GPS location"}`);
+        }
+      },
+    });
+  };
 
   // Log which marketplace pod-qr API the payment request used (create, poll,
   // retry). Only when status / api_url / http_status changes, not every 4s poll.
@@ -1465,6 +1563,147 @@ export default function StaffDeliveriesPage() {
 
   return (
     <>
+      {/* Live GPS Tracking Status for Rider's Device */}
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          flexWrap: "wrap",
+          padding: "10px 14px",
+          background: gpsActive ? "#f0fdf4" : isInsecureOrigin ? "#fffbeb" : "#f8fafc",
+          border: `1px solid ${gpsActive ? "#86efac" : isInsecureOrigin ? "#fde68a" : "#e2e8f0"}`,
+          borderRadius: 8,
+          marginBottom: 14,
+          gap: 10,
+        }}
+      >
+        <Space size={8} wrap>
+          <span style={{ fontSize: 16 }}>{gpsActive ? "🟢" : isInsecureOrigin ? "⚠️" : "📡"}</span>
+          <span style={{ color: gpsActive ? "#15803d" : isInsecureOrigin ? "#b45309" : "#475569", fontWeight: 700, fontSize: 13 }}>
+            {gpsActive
+              ? "Live GPS Active · Transmitting to Run Maps & Dispatch"
+              : isInsecureOrigin
+              ? "HTTP Origin: Browser blocks auto-GPS on plain HTTP IP"
+              : "Live GPS Ready"}
+          </span>
+          {gpsStatus && (
+            <span style={{ fontSize: 12, color: "#64748B" }}>
+              ({gpsStatus.lat.toFixed(5)}, {gpsStatus.lng.toFixed(5)})
+              {gpsStatus.speed ? ` • ${Math.round(gpsStatus.speed)} km/h` : ""}
+              {gpsStatus.accuracy ? ` • Acc ±${Math.round(gpsStatus.accuracy)}m` : ""}
+              {` • ${gpsStatus.time}`}
+            </span>
+          )}
+        </Space>
+
+        <Space size={8} wrap>
+          {isInsecureOrigin && (
+            <Button
+              size="small"
+              type="primary"
+              onClick={() => setCustomCoordModal(true)}
+              style={{ background: "#d97706", borderColor: "#d97706" }}
+            >
+              Send GPS Coords (HTTP Mode)
+            </Button>
+          )}
+          <Button
+            size="small"
+            icon={<EnvironmentOutlined />}
+            loading={gpsSending}
+            onClick={pingLocationNow}
+            style={{ borderColor: "#10b981", color: "#047857", fontWeight: 600 }}
+          >
+            Send Real GPS Ping
+          </Button>
+        </Space>
+      </div>
+
+      {/* Manual / HTTP IP Coordinate Sender Modal */}
+      <Modal
+        title="Send Rider GPS Location (HTTP IP Testing)"
+        open={customCoordModal}
+        onCancel={() => setCustomCoordModal(false)}
+        footer={null}
+        width={520}
+      >
+        <div style={{ padding: "8px 0" }}>
+          <Alert
+            type="warning"
+            showIcon
+            message="Why browser GPS is blocked on HTTP IP"
+            description={
+              <div style={{ fontSize: 12, marginTop: 4 }}>
+                Browsers restrict <code>navigator.geolocation</code> to HTTPS or localhost. To test on <code>http://103.160.22.123</code>, you can:
+                <ol style={{ paddingLeft: 18, margin: "6px 0" }}>
+                  <li>Use the quick coordinate presets below to test the live delivery run map immediately.</li>
+                  <li>Or enable Chrome flag: <code>chrome://flags/#unsafely-treat-insecure-origin-as-secure</code> and add <code>http://103.160.22.123</code>.</li>
+                </ol>
+              </div>
+            }
+            style={{ marginBottom: 16 }}
+          />
+
+          <div style={{ marginBottom: 12, fontWeight: 600 }}>Quick Kathmandu Route Locations:</div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 16 }}>
+            <Button size="small" onClick={() => sendCustomCoordinate(27.6915, 85.3420, 24)}>
+              🏢 Baneshwor (27.6915, 85.3420)
+            </Button>
+            <Button size="small" onClick={() => sendCustomCoordinate(27.6792, 85.3494, 28)}>
+              🏍️ Koteshwor (27.6792, 85.3494)
+            </Button>
+            <Button size="small" onClick={() => sendCustomCoordinate(27.6660, 85.3340, 20)}>
+              🏍️ Gwarko (27.6660, 85.3340)
+            </Button>
+            <Button size="small" onClick={() => sendCustomCoordinate(27.6672, 85.3242, 22)}>
+              🏍️ Lagankhel (27.6672, 85.3242)
+            </Button>
+            <Button size="small" onClick={() => sendCustomCoordinate(27.6575, 85.3255, 30)}>
+              📍 Satdobato (27.6575, 85.3255)
+            </Button>
+          </div>
+
+          <div style={{ marginBottom: 12, fontWeight: 600 }}>Or Enter Custom GPS Coordinates:</div>
+          <Row gutter={8} style={{ marginBottom: 12 }}>
+            <Col span={9}>
+              <Input
+                addonBefore="Lat"
+                placeholder="27.6915"
+                value={customLat}
+                onChange={(e) => setCustomLat(e.target.value)}
+              />
+            </Col>
+            <Col span={9}>
+              <Input
+                addonBefore="Lng"
+                placeholder="85.3420"
+                value={customLng}
+                onChange={(e) => setCustomLng(e.target.value)}
+              />
+            </Col>
+            <Col span={6}>
+              <Input
+                addonBefore="km/h"
+                placeholder="25"
+                value={customSpeed}
+                onChange={(e) => setCustomSpeed(e.target.value)}
+              />
+            </Col>
+          </Row>
+
+          <Button
+            type="primary"
+            block
+            loading={gpsSending}
+            onClick={() => sendCustomCoordinate(customLat, customLng, customSpeed)}
+            style={{ background: "#0284c7", borderColor: "#0284c7" }}
+          >
+            Broadcast GPS Coordinate to Live Map
+          </Button>
+        </div>
+      </Modal>
+
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, flexWrap: "wrap", marginBottom: 16 }}>
         <div style={{ maxWidth: "100%", overflowX: "auto" }}>
           <Segmented

@@ -10,6 +10,8 @@ export const ROUNDING_OPTIONS = [
 export const DEFAULT_PRICING_VALUES = {
   name: "Kathmandu Pricing Rules",
   base_weight_kg: 1.5,
+  max_weight_kg: 30,
+  weight_limit_enabled: true,
   base_distance_km: 5,
   local_extra_weight_rate: 20,
   transfer_extra_weight_rate: 30,
@@ -22,6 +24,9 @@ export const DEFAULT_PRICING_VALUES = {
   same_day_cutoff_time: dayjs("12:00", "HH:mm"),
   minimum_free_pickup_packets: 3,
   small_pickup_charge: 50,
+  min_delivery_charge: 0,
+  max_delivery_charge: null,
+  delivery_charge_bounds_enabled: false,
   vat_percentage: 13,
   weight_rounding: "none",
   distance_rounding: "none",
@@ -61,6 +66,15 @@ export function toPricingFormValues(record) {
       record.base_weight_kg ??
         record.included_weight_kg ??
         1.5,
+    ),
+    max_weight_kg:
+      record.max_weight_kg !== null &&
+      record.max_weight_kg !== undefined &&
+      record.max_weight_kg !== ""
+        ? Number(record.max_weight_kg)
+        : 30,
+    weight_limit_enabled: toBoolean(
+      record.weight_limit_enabled ?? false,
     ),
     base_distance_km: Number(
       record.base_distance_km ??
@@ -117,6 +131,18 @@ export function toPricingFormValues(record) {
         record.low_packet_pickup_charge ??
         50,
     ),
+    min_delivery_charge: Number(
+      record.min_delivery_charge ?? 0,
+    ),
+    max_delivery_charge:
+      record.max_delivery_charge !== null &&
+      record.max_delivery_charge !== undefined &&
+      record.max_delivery_charge !== ""
+        ? Number(record.max_delivery_charge)
+        : null,
+    delivery_charge_bounds_enabled: toBoolean(
+      record.delivery_charge_bounds_enabled ?? false,
+    ),
     vat_percentage: Number(record.vat_percentage ?? 13),
     fragile_enabled: toBoolean(
       record.fragile_enabled ?? true,
@@ -141,6 +167,13 @@ export function buildPricingPayload(
   return {
     name: String(values.name || "").trim(),
     base_weight_kg: Number(values.base_weight_kg),
+    max_weight_kg:
+      values.max_weight_kg !== null &&
+      values.max_weight_kg !== undefined &&
+      values.max_weight_kg !== ""
+        ? Number(values.max_weight_kg)
+        : null,
+    weight_limit_enabled: Boolean(values.weight_limit_enabled),
     base_distance_km: Number(values.base_distance_km),
     local_extra_weight_rate: Number(
       values.local_extra_weight_rate,
@@ -174,6 +207,21 @@ export function buildPricingPayload(
     ),
     small_pickup_charge: Number(
       values.small_pickup_charge,
+    ),
+    min_delivery_charge:
+      values.min_delivery_charge !== null &&
+      values.min_delivery_charge !== undefined &&
+      values.min_delivery_charge !== ""
+        ? Number(values.min_delivery_charge)
+        : 0,
+    max_delivery_charge:
+      values.max_delivery_charge !== null &&
+      values.max_delivery_charge !== undefined &&
+      values.max_delivery_charge !== ""
+        ? Number(values.max_delivery_charge)
+        : null,
+    delivery_charge_bounds_enabled: Boolean(
+      values.delivery_charge_bounds_enabled,
     ),
     vat_percentage: Number(values.vat_percentage),
     vat_inclusive: true,

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Button, Card, Col, Empty, Row, Space, Tag, Typography, message } from "antd";
 import {
   CarOutlined,
@@ -8,15 +8,20 @@ import {
   CompassOutlined,
   EnvironmentOutlined,
   ExclamationCircleOutlined,
+  FullscreenOutlined,
+  FullscreenExitOutlined,
   HomeOutlined,
   PhoneOutlined,
   FileTextOutlined,
+  PlayCircleOutlined,
   SendOutlined,
   ShopOutlined,
   UserOutlined,
 } from "@ant-design/icons";
 import { MapContainer, Marker, Polyline, Popup, TileLayer, Tooltip as LeafletTooltip, useMap } from "react-leaflet";
 import L from "leaflet";
+import { getEcho } from "@/lib/echo";
+import { getDeliveryRun } from "@/services/admin/deliveryRunService";
 
 const { Text, Title } = Typography;
 
@@ -146,6 +151,60 @@ function createBranchPin() {
   });
 }
 
+function createRunRiderPin(riderName) {
+  const html = `
+    <div style="position: relative; display: flex; flex-direction: column; align-items: center; transform: translate(-50%, -50%);">
+      <div style="
+        position: absolute;
+        width: 46px;
+        height: 46px;
+        border-radius: 50%;
+        background: rgba(37, 99, 235, 0.28);
+        border: 2px solid #2563EB;
+        animation: realBikePulse 2s infinite ease-out;
+      "></div>
+      <div style="
+        width: 38px;
+        height: 38px;
+        border-radius: 50%;
+        background: #071722;
+        border: 2.5px solid #38BDF8;
+        color: #ffffff;
+        font-size: 18px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        box-shadow: 0 4px 14px rgba(7, 23, 34, 0.5);
+        position: relative;
+        z-index: 5;
+      ">
+        🏍️
+      </div>
+      <div style="
+        position: absolute;
+        top: 38px;
+        background: #071722;
+        color: #38BDF8;
+        font-size: 10px;
+        font-weight: 800;
+        padding: 2px 7px;
+        border-radius: 6px;
+        white-space: nowrap;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.4);
+        border: 1px solid rgba(56, 189, 248, 0.4);
+      ">
+        ${riderName || "Rider"} (Live)
+      </div>
+    </div>
+  `;
+  return L.divIcon({
+    className: "run-rider-marker",
+    html,
+    iconSize: [42, 42],
+    iconAnchor: [21, 21],
+  });
+}
+
 function MapAutoFit({ points }) {
   const map = useMap();
   const key = points.map((p) => `${p.lat.toFixed(4)},${p.lng.toFixed(4)}`).join("|");
@@ -241,6 +300,144 @@ export default function RunRouteMapInner({
   const [panTarget, setPanTarget] = useState(null);
   const [routeData, setRouteData] = useState(null);
   const [loadingRoute, setLoadingRoute] = useState(false);
+  const [riderLocation, setRiderLocation] = useState(run?.rider_location || null);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+
+  useEffect(() => {
+    if (run?.rider_location) {
+      setRiderLocation(run.rider_location);
+    }
+  }, [run?.rider_location]);
+
+  // Real-time rider location listener via Laravel Echo (private & public channels)
+  useEffect(() => {
+    const riderId = run?.rider?.id;
+    if (!riderId) return;
+
+    const echo = getEcho();
+    if (echo) {
+      try {
+        const onLocation = (e) => {
+          if (e && e.lat && e.lng) {
+            setRiderLocation({
+              lat: Number(e.lat),
+              lng: Number(e.lng),
+              heading: e.heading != null ? Number(e.heading) : null,
+              speed: e.speed != null ? Number(e.speed) : null,
+              updated_at: e.updated_at || new Date().toISOString(),
+              is_live: true,
+            });
+          }
+        };
+
+        const privChannel = echo.private(`rider.${riderId}.location`);
+        privChannel.listen("rider.location.updated", onLocation);
+        privChannel.listen(".rider.location.updated", onLocation);
+
+        const pubChannel = echo.channel(`rider.${riderId}.public-location`);
+        pubChannel.listen("rider.location.updated", onLocation);
+        pubChannel.listen(".rider.location.updated", onLocation);
+
+        if (run?.id) {
+          const runChannel = echo.channel(`delivery-runs.${run.id}.location`);
+          runChannel.listen("rider.location.updated", onLocation);
+          runChannel.listen(".rider.location.updated", onLocation);
+        }
+      } catch (err) {
+        console.warn("Rider location echo subscription failed:", err);
+      }
+    }
+
+    return () => {
+      if (echo && riderId) {
+        try {
+          echo.leave(`rider.${riderId}.location`);
+          echo.leave(`rider.${riderId}.public-location`);
+          if (run?.id) echo.leave(`delivery-runs.${run.id}.location`);
+        } catch {}
+      }
+    };
+  }, [run?.rider?.id, run?.id]);
+
+  // Periodic polling fallback for active runs (6s)
+  useEffect(() => {
+    if (!run?.id) return;
+    const isLive = ["out_for_delivery", "in_progress", "assigned"].includes(String(run?.status || "").toLowerCase());
+    if (!isLive) return;
+
+    let cancelled = false;
+    const timer = setInterval(async () => {
+      try {
+        const fresh = await getDeliveryRun(run.id, run.branch_id || run.branch?.id);
+        const freshRun = fresh?.run || fresh;
+        if (!cancelled && freshRun?.rider_location) {
+          setRiderLocation((prev) => {
+            const nextLoc = freshRun.rider_location;
+            if (!prev || prev.lat !== nextLoc.lat || prev.lng !== nextLoc.lng) {
+              return nextLoc;
+            }
+            return prev;
+          });
+        }
+      } catch (err) {
+        // quiet fallback
+      }
+    }, 6000);
+
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+    };
+  }, [run?.id, run?.status, run?.branch_id, run?.branch?.id]);
+
+  // Interactive Live Movement Simulator (for testing on office/demo without active rider phone)
+  const [isSimulating, setIsSimulating] = useState(false);
+  const simIntervalRef = useRef(null);
+
+  const toggleSimulation = () => {
+    if (isSimulating) {
+      if (simIntervalRef.current) clearInterval(simIntervalRef.current);
+      setIsSimulating(false);
+      return;
+    }
+
+    const path = routeData?.positions && routeData.positions.length > 2
+      ? routeData.positions
+      : [
+          [branchCoords.lat, branchCoords.lng],
+          [branchCoords.lat + (stops[0]?.point?.lat ? (stops[0].point.lat - branchCoords.lat) * 0.35 : 0.005), branchCoords.lng + (stops[0]?.point?.lng ? (stops[0].point.lng - branchCoords.lng) * 0.35 : 0.005)],
+          [branchCoords.lat + (stops[0]?.point?.lat ? (stops[0].point.lat - branchCoords.lat) * 0.7 : 0.01), branchCoords.lng + (stops[0]?.point?.lng ? (stops[0].point.lng - branchCoords.lng) * 0.7 : 0.01)],
+          stops[0]?.point ? [stops[0].point.lat, stops[0].point.lng] : [branchCoords.lat + 0.012, branchCoords.lng + 0.012],
+        ];
+
+    let step = 0;
+    setIsSimulating(true);
+    message.info("Live rider movement simulation started along the route.");
+
+    simIntervalRef.current = setInterval(() => {
+      step = (step + 1) % path.length;
+      const pt = path[step];
+      const prevPt = path[step === 0 ? path.length - 1 : step - 1];
+      const dLat = pt[0] - prevPt[0];
+      const dLng = pt[1] - prevPt[1];
+      const heading = (Math.atan2(dLng, dLat) * 180) / Math.PI;
+
+      setRiderLocation({
+        lat: pt[0],
+        lng: pt[1],
+        speed: 24 + Math.round(Math.random() * 8),
+        heading: Math.round((heading + 360) % 360),
+        updated_at: new Date().toISOString(),
+        is_live: true,
+      });
+    }, 2000);
+  };
+
+  useEffect(() => {
+    return () => {
+      if (simIntervalRef.current) clearInterval(simIntervalRef.current);
+    };
+  }, []);
 
   // 1. Resolve branch origin
   const branchCoords = useMemo(() => {
@@ -321,8 +518,11 @@ export default function RunRouteMapInner({
     stops.forEach((s) => {
       if (s.point) pts.push({ lat: s.point.lat, lng: s.point.lng, id: s.id, seq: s.seq });
     });
+    if (riderLocation?.lat && riderLocation?.lng) {
+      pts.push({ lat: riderLocation.lat, lng: riderLocation.lng, isRider: true });
+    }
     return pts;
-  }, [branchCoords, stops]);
+  }, [branchCoords, stops, riderLocation]);
 
   // 4. Fetch routing polyline
   useEffect(() => {
@@ -358,8 +558,28 @@ export default function RunRouteMapInner({
     return `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(stop.address + ", " + stop.area)}`;
   };
 
+  const effectiveHeight = isFullscreen ? "calc(100vh - 56px)" : height;
+
   return (
-    <div>
+    <div
+      style={
+        isFullscreen
+          ? {
+              position: "fixed",
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              zIndex: 99999,
+              background: "#ffffff",
+              display: "flex",
+              flexDirection: "column",
+              height: "100vh",
+              width: "100vw",
+            }
+          : undefined
+      }
+    >
       {/* Route Header Stats */}
       <div
         style={{
@@ -370,7 +590,7 @@ export default function RunRouteMapInner({
           padding: "10px 14px",
           background: "#f8fafc",
           border: "1px solid #e2e8f0",
-          borderRadius: "8px 8px 0 0",
+          borderRadius: isFullscreen ? 0 : "8px 8px 0 0",
           gap: 8,
         }}
       >
@@ -378,11 +598,46 @@ export default function RunRouteMapInner({
           <Tag color="cyan" style={{ fontSize: 13, padding: "3px 8px" }}>
             <CarOutlined /> {run?.run_number}
           </Tag>
-          {run?.rider?.name ? (
-            <Tag color="geekblue">
-              <UserOutlined /> Rider: {run.rider.name}
-            </Tag>
+          {riderLocation?.lat && riderLocation?.lng ? (
+            <Space size={6}>
+              <Tag color="cyan" style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "2px 8px", margin: 0 }}>
+                <span style={{ width: 7, height: 7, borderRadius: "50%", background: "#10B981" }} />
+                <span>Rider Live: {run?.rider?.name || "Active"} {riderLocation.speed ? `(~${Math.round(riderLocation.speed)} km/h)` : ""}</span>
+              </Tag>
+              <Button
+                size="small"
+                type="primary"
+                icon={<CompassOutlined />}
+                onClick={() => setPanTarget({ lat: riderLocation.lat, lng: riderLocation.lng })}
+                style={{ background: "#0284c7", borderColor: "#0284c7" }}
+              >
+                Focus Rider
+              </Button>
+            </Space>
+          ) : run?.rider?.name ? (
+            <Space size={6}>
+              <Tag color="geekblue">
+                <UserOutlined /> Rider: {run.rider.name}
+              </Tag>
+              {["out_for_delivery", "in_progress"].includes(String(run?.status || "").toLowerCase()) && (
+                <Tag color="gold" style={{ margin: 0 }}>
+                  ● Awaiting Live GPS
+                </Tag>
+              )}
+            </Space>
           ) : null}
+          {["out_for_delivery", "in_progress"].includes(String(run?.status || "").toLowerCase()) && (
+            <Button
+              size="small"
+              icon={<PlayCircleOutlined />}
+              onClick={toggleSimulation}
+              type={isSimulating ? "primary" : "default"}
+              danger={isSimulating}
+              style={!isSimulating ? { borderColor: "#0284c7", color: "#0284c7" } : undefined}
+            >
+              {isSimulating ? "Stop Simulation" : "Simulate Live Move"}
+            </Button>
+          )}
           <Text strong>{stops.length} Stops</Text>
           {stops.some((s) => !s.point) ? (
             <Tag color="orange" style={{ margin: 0 }}>
@@ -401,13 +656,21 @@ export default function RunRouteMapInner({
           ) : loadingRoute ? (
             <Text type="secondary">Calculating route path...</Text>
           ) : null}
+          <Button
+            size="small"
+            icon={isFullscreen ? <FullscreenExitOutlined /> : <FullscreenOutlined />}
+            onClick={() => setIsFullscreen((v) => !v)}
+            style={isFullscreen ? { background: "#0284c7", color: "#fff", borderColor: "#0284c7" } : undefined}
+          >
+            {isFullscreen ? "Exit Fullscreen" : "Fullscreen Map"}
+          </Button>
         </Space>
       </div>
 
-      <Row gutter={0} style={{ border: "1px solid #e2e8f0", borderTop: "none", borderRadius: "0 0 8px 8px" }}>
+      <Row gutter={0} style={{ border: "1px solid #e2e8f0", borderTop: "none", borderRadius: isFullscreen ? 0 : "0 0 8px 8px", flex: isFullscreen ? 1 : undefined }}>
         {/* Left Side: Sequenced Stops List */}
         <Col xs={24} md={8} style={{ borderRight: "1px solid #e2e8f0", background: "#ffffff" }}>
-          <div style={{ height, overflowY: "auto", padding: 12 }}>
+          <div style={{ height: effectiveHeight, overflowY: "auto", padding: 12 }}>
             <div style={{ marginBottom: 12, padding: "8px 10px", background: "#f1f5f9", borderRadius: 6 }}>
               <Space>
                 <HomeOutlined style={{ color: "#1e1b4b", fontSize: 16 }} />
@@ -592,7 +855,7 @@ export default function RunRouteMapInner({
 
         {/* Right Side: Leaflet Interactive Route Map */}
         <Col xs={24} md={16}>
-          <div style={{ height, width: "100%", position: "relative" }}>
+          <div style={{ height: effectiveHeight, width: "100%", position: "relative" }}>
             <MapContainer
               center={[branchCoords.lat, branchCoords.lng]}
               zoom={13}
@@ -718,6 +981,72 @@ export default function RunRouteMapInner({
                   </Marker>
                 );
               })}
+
+              {/* Live Rider Position on Delivery Run Map */}
+              {riderLocation && riderLocation.lat && riderLocation.lng && (
+                <>
+                  <Marker
+                    position={[riderLocation.lat, riderLocation.lng]}
+                    icon={createRunRiderPin(run?.rider?.name)}
+                    zIndexOffset={3000}
+                  >
+                    <Popup>
+                      <div style={{ padding: 4, minWidth: 170 }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                          <span style={{ fontSize: 16 }}>🏍️</span>
+                          <span style={{ fontWeight: 700, fontSize: 13 }}>{run?.rider?.name || "Rider"}</span>
+                          <Tag color="cyan" style={{ margin: 0, fontSize: 10 }}>Live</Tag>
+                        </div>
+                        <div style={{ margin: "4px 0 0 0", fontSize: 11, color: "#2563EB", fontWeight: 700 }}>
+                          ● Active on {run?.run_number || "Delivery Run"}
+                        </div>
+                        {riderLocation.speed != null && (
+                          <div style={{ margin: "2px 0 0 0", fontSize: 11, color: "#64748B" }}>
+                            Speed: ~{Math.round(riderLocation.speed)} km/h {riderLocation.heading != null ? `• Heading ${Math.round(riderLocation.heading)}°` : ""}
+                          </div>
+                        )}
+                        {riderLocation.updated_at && (
+                          <div style={{ margin: "2px 0 0 0", fontSize: 10, color: "#94A3B8" }}>
+                            Updated: {new Date(riderLocation.updated_at).toLocaleTimeString()}
+                          </div>
+                        )}
+                      </div>
+                    </Popup>
+                  </Marker>
+
+                  {/* Live Path Line from Branch to Rider's Current Position */}
+                  {branchCoords && (
+                    <Polyline
+                      positions={[
+                        [branchCoords.lat, branchCoords.lng],
+                        [riderLocation.lat, riderLocation.lng],
+                      ]}
+                      pathOptions={{
+                        color: "#10B981",
+                        weight: 4,
+                        opacity: 0.85,
+                        dashArray: "6, 8",
+                      }}
+                    />
+                  )}
+
+                  {/* Remaining connector from rider's live position to next stop */}
+                  {stops[0]?.point && (
+                    <Polyline
+                      positions={[
+                        [riderLocation.lat, riderLocation.lng],
+                        [stops[0].point.lat, stops[0].point.lng],
+                      ]}
+                      pathOptions={{
+                        color: "#0284c7",
+                        weight: 4,
+                        opacity: 0.85,
+                        dashArray: "4, 6",
+                      }}
+                    />
+                  )}
+                </>
+              )}
 
               {/* Road Route Path Polyline */}
               {routeData?.positions?.length > 1 && (

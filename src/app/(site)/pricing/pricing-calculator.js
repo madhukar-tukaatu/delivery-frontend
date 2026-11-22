@@ -5,7 +5,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import dynamic from "next/dynamic";
 import { AlertCircle, ChevronDown, Loader2, MapPin, Navigation, X } from "lucide-react";
-import { getDeliveryEstimate } from "@/services/pricingEstimateService";
+import { getDeliveryEstimate, getPublicPricingLimits } from "@/services/pricingEstimateService";
 
 /* ── Nominatim helpers ───────────────────────────────────────────────── */
 const NOMINATIM = "https://nominatim.openstreetmap.org";
@@ -255,6 +255,24 @@ export default function PricingCalculator() {
   const [result, setResult] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [limits, setLimits] = useState(null);
+
+  useEffect(() => {
+    let active = true;
+    getPublicPricingLimits().then((data) => {
+      if (active && data) {
+        setLimits(data);
+      }
+    });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const maxWeightKg =
+    limits?.weight_limit_enabled && Number(limits?.max_weight_kg) > 0
+      ? Number(limits.max_weight_kg)
+      : null;
 
   const updateDim = useCallback((k, v) => setDims((d) => ({ ...d, [k]: v })), []);
   const hasDims = dims.length || dims.width || dims.height;
@@ -265,6 +283,10 @@ export default function PricingCalculator() {
     if (!pickup)  { setError("Select a pickup location on the map."); return; }
     if (!delivery) { setError("Select a delivery location on the map."); return; }
     if (Number(weight) <= 0) { setError("Enter a valid parcel weight."); return; }
+    if (maxWeightKg !== null && Number(weight) > maxWeightKg) {
+      setError(`Parcel weight exceeds the maximum allowed limit of ${maxWeightKg} kg.`);
+      return;
+    }
     if (hasDims && !allDims) { setError("Enter all three dimensions or leave them all empty."); return; }
 
     setLoading(true);
@@ -321,9 +343,17 @@ export default function PricingCalculator() {
 
           <div className="form-row-2">
             <div>
-              <p className="field-label">Actual Weight (kg)</p>
+              <p className="field-label">
+                Actual Weight (kg)
+                {maxWeightKg !== null ? (
+                  <span className="field-optional"> max {maxWeightKg} kg</span>
+                ) : null}
+              </p>
               <input
-                type="number" min="0.1" step="0.1"
+                type="number"
+                min="0.1"
+                max={maxWeightKg !== null ? maxWeightKg : undefined}
+                step="0.1"
                 value={weight}
                 onChange={(e) => setWeight(e.target.value)}
                 className="field-input"

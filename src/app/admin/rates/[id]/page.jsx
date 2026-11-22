@@ -273,6 +273,39 @@ export default function PricingSettingViewPage() {
                 </Text>
               </Descriptions.Item>
 
+              <Descriptions.Item label="Maximum Weight Limit">
+                {toBoolean(record.weight_limit_enabled) && record.max_weight_kg ? (
+                  <Space size={6}>
+                    <Tag color="volcano">Enabled</Tag>
+                    <Text strong>{Number(record.max_weight_kg).toFixed(2)} kg</Text>
+                  </Space>
+                ) : (
+                  <Tag color="default">Disabled (No cap)</Tag>
+                )}
+                <Text type="secondary" style={{ fontSize: 11, display: "block" }}>
+                  Shipments exceeding this chargeable weight are rejected dynamically across APIs.
+                </Text>
+              </Descriptions.Item>
+
+              <Descriptions.Item label="Delivery Charge Bounds">
+                {toBoolean(record.delivery_charge_bounds_enabled) ? (
+                  <Space size={6} wrap>
+                    <Tag color="blue">Enabled</Tag>
+                    <Text strong>
+                      Min NPR {Number(record.min_delivery_charge || 0).toFixed(2)}
+                      {record.max_delivery_charge
+                        ? ` · Max NPR ${Number(record.max_delivery_charge).toFixed(2)}`
+                        : " · No max cap"}
+                    </Text>
+                  </Space>
+                ) : (
+                  <Tag color="default">Disabled</Tag>
+                )}
+                <Text type="secondary" style={{ fontSize: 11, display: "block" }}>
+                  Floor and ceiling applied to final calculated delivery charges.
+                </Text>
+              </Descriptions.Item>
+
               <Descriptions.Item label="Included Destination Distance">
                 <Text strong>{Number(record.base_distance_km || 5.0).toFixed(2)} km</Text>
                 <Text type="secondary" style={{ fontSize: 11, display: "block" }}>
