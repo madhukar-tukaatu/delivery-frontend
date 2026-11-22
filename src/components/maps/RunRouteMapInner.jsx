@@ -23,6 +23,7 @@ import L from "leaflet";
 import { getEcho } from "@/lib/echo";
 import { getDeliveryRun, sequenceRun } from "@/services/admin/deliveryRunService";
 import { sequencePickupRun } from "@/services/admin/pickupRunService";
+import { computeRiderStatus } from "@/services/admin/riderLocationService";
 
 const { Text, Title } = Typography;
 
@@ -167,27 +168,94 @@ function createRunRiderPin(riderName, statusText = "Live", statusType = "live") 
   const isAtStop = statusType === "at_stop";
   const isStationaryAlert = statusType === "stationary_alert";
   const isOutOfNetwork = statusType === "out_of_network";
-  const isLive = statusType === "live" || isAtBranch || isAtStop;
+  const isLive = statusType === "live";
   const isIdle = statusType === "idle";
+  const isOffline = statusType === "offline";
 
   const ringBg = isStationaryAlert
     ? "rgba(239, 68, 68, 0.35)"
     : isOutOfNetwork
-    ? "rgba(185, 28, 28, 0.25)"
+    ? "rgba(220, 38, 38, 0.25)"
     : isAtBranch
     ? "rgba(2, 132, 199, 0.28)"
     : isAtStop
     ? "rgba(124, 58, 237, 0.28)"
     : isLive
     ? "rgba(16, 185, 129, 0.28)"
+    : isIdle
+    ? "rgba(245, 158, 11, 0.28)"
     : "rgba(100, 116, 139, 0.15)";
 
-  const ringBorder = isStationaryAlert ? "#ef4444" : isOutOfNetwork ? "#dc2626" : isAtBranch ? "#0284c7" : isAtStop ? "#7c3aed" : isLive ? "#10B981" : isIdle ? "#F59E0B" : "#64748B";
+  const ringBorder = isStationaryAlert
+    ? "#ef4444"
+    : isOutOfNetwork
+    ? "#dc2626"
+    : isAtBranch
+    ? "#0284c7"
+    : isAtStop
+    ? "#7c3aed"
+    : isLive
+    ? "#10B981"
+    : isIdle
+    ? "#F59E0B"
+    : "#64748B";
+
   const pulseStyle = (isLive || isStationaryAlert) ? "animation: realBikePulse 2s infinite ease-out;" : "";
-  const borderColor = isStationaryAlert ? "#f87171" : isOutOfNetwork ? "#ef4444" : isAtBranch ? "#38bdf8" : isAtStop ? "#a78bfa" : isLive ? "#10B981" : isIdle ? "#F59E0B" : "#94A3B8";
-  const badgeBg = isStationaryAlert ? "#7f1d1d" : isOutOfNetwork ? "#450a0a" : isAtBranch ? "#0c4a6e" : isAtStop ? "#4c1d95" : isLive ? "#064e3b" : isIdle ? "#78350f" : "#1e293b";
-  const badgeColor = isStationaryAlert ? "#fca5a5" : isOutOfNetwork ? "#fca5a5" : isAtBranch ? "#7dd3fc" : isAtStop ? "#ddd6fe" : isLive ? "#34d399" : isIdle ? "#fbbf24" : "#94a3b8";
-  const badgeBorder = isStationaryAlert ? "rgba(239, 68, 68, 0.6)" : isOutOfNetwork ? "rgba(220, 38, 38, 0.6)" : isAtBranch ? "rgba(56, 189, 248, 0.5)" : isAtStop ? "rgba(167, 139, 250, 0.5)" : isLive ? "rgba(16, 185, 129, 0.5)" : isIdle ? "rgba(245, 158, 11, 0.5)" : "rgba(100, 116, 139, 0.5)";
+  const borderColor = isStationaryAlert
+    ? "#f87171"
+    : isOutOfNetwork
+    ? "#ef4444"
+    : isAtBranch
+    ? "#38bdf8"
+    : isAtStop
+    ? "#a78bfa"
+    : isLive
+    ? "#10B981"
+    : isIdle
+    ? "#F59E0B"
+    : "#94A3B8";
+
+  const badgeBg = isStationaryAlert
+    ? "#7f1d1d"
+    : isOutOfNetwork
+    ? "#450a0a"
+    : isAtBranch
+    ? "#0c4a6e"
+    : isAtStop
+    ? "#4c1d95"
+    : isLive
+    ? "#064e3b"
+    : isIdle
+    ? "#78350f"
+    : "#1e293b";
+
+  const badgeColor = isStationaryAlert
+    ? "#fca5a5"
+    : isOutOfNetwork
+    ? "#fca5a5"
+    : isAtBranch
+    ? "#7dd3fc"
+    : isAtStop
+    ? "#ddd6fe"
+    : isLive
+    ? "#34d399"
+    : isIdle
+    ? "#fbbf24"
+    : "#94a3b8";
+
+  const badgeBorder = isStationaryAlert
+    ? "rgba(239, 68, 68, 0.6)"
+    : isOutOfNetwork
+    ? "rgba(220, 38, 38, 0.6)"
+    : isAtBranch
+    ? "rgba(56, 189, 248, 0.6)"
+    : isAtStop
+    ? "rgba(167, 139, 250, 0.6)"
+    : isLive
+    ? "rgba(16, 185, 129, 0.6)"
+    : isIdle
+    ? "rgba(245, 158, 11, 0.6)"
+    : "rgba(100, 116, 139, 0.5)";
 
   const html = `
     <div style="position: relative; display: flex; flex-direction: column; align-items: center; transform: translate(-50%, -50%);">
@@ -553,136 +621,17 @@ export default function RunRouteMapInner({
     return haversineM(riderLocation.lat, riderLocation.lng, branchCoords.lat, branchCoords.lng);
   }, [riderLocation, branchCoords]);
 
-  // If the rider is within 400m of the branch office and stationary / slow (< 10 km/h), they are physically at the branch.
-  // Snapping them to the branch office eliminates indoor GPS cellular/WiFi drift (e.g. drifting 200m away to neighboring alleys).
-  const isAtBranch = useMemo(() => {
-    if (distToBranchMeters == null) return false;
-    const speed = Number(riderLocation?.speed || 0);
-    return distToBranchMeters <= 400 && speed <= 10;
-  }, [distToBranchMeters, riderLocation?.speed]);
-
-  const effectiveRiderPos = useMemo(() => {
-    if (!riderLocation?.lat || !riderLocation?.lng) return null;
-    if (isAtBranch && branchCoords) {
-      return { lat: branchCoords.lat, lng: branchCoords.lng, isAtBranch: true };
-    }
-    return { lat: riderLocation.lat, lng: riderLocation.lng, isAtBranch: false };
-  }, [riderLocation, isAtBranch, branchCoords]);
-
-  // Proximity to nearest delivery / pickup stop
-  const closestStopDist = useMemo(() => {
-    if (!effectiveRiderPos) return null;
-    let minD = Infinity;
-    let closest = null;
-    stops.forEach((s) => {
-      if (s.point) {
-        const d = haversineM(effectiveRiderPos.lat, effectiveRiderPos.lng, s.point.lat, s.point.lng);
-        if (d < minD) {
-          minD = d;
-          closest = s;
-        }
-      }
-    });
-    return closest ? { distM: minD, stop: closest } : null;
-  }, [effectiveRiderPos, stops]);
-
-  // Compute rider live freshness status & operational alerts
+  // Unified 7-state connected vs disconnected rider tracking status
   const riderFreshness = useMemo(() => {
-    if (!riderLocation?.lat || !riderLocation?.lng) {
-      return { status: "none", label: "Awaiting GPS Signal", isLive: false, isRecent: false, type: "none", ageText: "" };
-    }
+    return computeRiderStatus({
+      runStatus: run?.status,
+      riderLocation,
+      branchCoords,
+      stops,
+    });
+  }, [run?.status, riderLocation, branchCoords, stops]);
 
-    let diffSec = riderLocation.seconds_ago;
-    if (diffSec == null && riderLocation.updated_at) {
-      try {
-        diffSec = Math.max(0, Math.round((Date.now() - new Date(riderLocation.updated_at).getTime()) / 1000));
-      } catch {}
-    }
-    if (diffSec == null) {
-      diffSec = riderLocation.is_live ? 20 : 9999;
-    }
-
-    if (!isRunOut) {
-      return {
-        status: "offline",
-        label: "Offline (Run inactive)",
-        type: "offline",
-        ageText: "Offline",
-        isLive: false,
-        isRecent: false,
-      };
-    }
-
-    // 1. Offline (no ping for > 15 minutes)
-    if (diffSec > 900) {
-      const mins = Math.round(diffSec / 60);
-      const ageText = mins > 60 ? `${Math.round(mins / 60)}h ago` : `${mins}m ago`;
-      return {
-        status: "offline",
-        label: `Offline (Last seen: ${ageText})`,
-        type: "offline",
-        ageText: ageText,
-        isLive: false,
-        isRecent: false,
-      };
-    }
-
-    // 2. Idle (no signal for 2 to 15 minutes) -> Matches the table tag ● Idle in warning/amber color
-    if (diffSec > 120 || riderLocation.is_live === false) {
-      const mins = Math.max(1, Math.round(diffSec / 60));
-      const locText = isAtBranch
-        ? `at ${branchCoords?.name || "Kathmandu Franchise"}`
-        : closestStopDist?.distM <= 220
-        ? `at Stop #${closestStopDist.stop.seq}`
-        : "on Road";
-      return {
-        status: "idle",
-        label: `● Idle ${locText} (${mins}m ago)`,
-        type: "idle",
-        ageText: `Idle (${mins}m)`,
-        isLive: false,
-        isRecent: true,
-      };
-    }
-
-    // 3. Actively Live (signal received within last 2 minutes):
-    // 3a. Stationary at branch / warehouse preparing for departure
-    if (isAtBranch) {
-      return {
-        status: "at_branch",
-        label: `At ${branchCoords?.name || "Kathmandu Franchise"} (Loading / Ready)`,
-        type: "at_branch",
-        ageText: "At Branch",
-        isLive: true,
-        isRecent: true,
-      };
-    }
-
-    // 3b. At merchant pickup location or customer stop (within 220m of an active stop)
-    if (closestStopDist?.distM != null && closestStopDist.distM <= 220) {
-      const st = closestStopDist.stop;
-      return {
-        status: "at_stop",
-        label: `At Stop #${st.seq} (${st.area}) · At Destination`,
-        type: "at_stop",
-        ageText: `Stop #${st.seq}`,
-        isLive: true,
-        isRecent: true,
-      };
-    }
-
-    // 3c. Active moving on the road
-    const speed = Number(riderLocation.speed || 0);
-    const speedText = speed > 0 ? ` · ${Math.round(speed)} km/h` : " · Paused on Road";
-    return {
-      status: "live",
-      label: `Live on Road${speedText}`,
-      type: "live",
-      ageText: speed > 0 ? `${Math.round(speed)} km/h` : "Live",
-      isLive: true,
-      isRecent: true,
-    };
-  }, [riderLocation, isRunOut, isAtBranch, branchCoords?.name, closestStopDist]);
+  const effectiveRiderPos = riderFreshness.effectivePos;
 
   // Delivered stops for covered path highlighting
   const deliveredStops = useMemo(() => {
@@ -793,42 +742,23 @@ export default function RunRouteMapInner({
           {effectiveRiderPos && (isRunOut || riderFreshness.isRecent) ? (
             <Space size={6}>
               <Tag
-                color={
-                  riderFreshness.type === "at_branch"
-                    ? "processing"
-                    : riderFreshness.type === "at_stop"
-                    ? "purple"
-                    : riderFreshness.type === "live"
-                    ? "success"
-                    : riderFreshness.type === "stationary_alert"
-                    ? "error"
-                    : riderFreshness.type === "out_of_network"
-                    ? "volcano"
-                    : riderFreshness.type === "idle"
-                    ? "warning"
-                    : "default"
-                }
-                style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "2px 8px", margin: 0, fontWeight: 600 }}
+                color={riderFreshness.tagColor}
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 6,
+                  padding: "2px 8px",
+                  margin: 0,
+                  fontWeight: 600,
+                  borderColor: riderFreshness.dotColor,
+                }}
               >
                 <span
                   style={{
-                    width: 7,
-                    height: 7,
+                    width: 8,
+                    height: 8,
                     borderRadius: "50%",
-                    background:
-                      riderFreshness.type === "at_branch"
-                        ? "#0284C7"
-                        : riderFreshness.type === "at_stop"
-                        ? "#7c3aed"
-                        : riderFreshness.type === "live"
-                        ? "#10B981"
-                        : riderFreshness.type === "stationary_alert"
-                        ? "#ef4444"
-                        : riderFreshness.type === "out_of_network"
-                        ? "#dc2626"
-                        : riderFreshness.type === "idle"
-                        ? "#F59E0B"
-                        : "#94A3B8",
+                    background: riderFreshness.dotColor,
                   }}
                 />
                 <span>Rider: {run?.rider?.name || "Assigned"} · {riderFreshness.label}</span>
@@ -1220,7 +1150,7 @@ export default function RunRouteMapInner({
               {effectiveRiderPos && (isRunOut || riderFreshness.isRecent) && (
                 <Marker
                   position={[effectiveRiderPos.lat, effectiveRiderPos.lng]}
-                  icon={createRunRiderPin(run?.rider?.name, riderFreshness.ageText, riderFreshness.type)}
+                  icon={createRunRiderPin(run?.rider?.name, riderFreshness.pinBadgeText, riderFreshness.type)}
                   zIndexOffset={3000}
                 >
                   <Popup>
@@ -1229,32 +1159,10 @@ export default function RunRouteMapInner({
                         <span style={{ fontSize: 16 }}>🏍️</span>
                         <span style={{ fontWeight: 700, fontSize: 13 }}>{run?.rider?.name || "Rider"}</span>
                         <Tag
-                          color={
-                            riderFreshness.type === "at_branch"
-                              ? "blue"
-                              : riderFreshness.type === "at_stop"
-                              ? "purple"
-                              : riderFreshness.type === "live"
-                              ? "green"
-                              : riderFreshness.type === "stationary_alert"
-                              ? "error"
-                              : riderFreshness.type === "out_of_network"
-                              ? "volcano"
-                              : riderFreshness.type === "idle"
-                              ? "orange"
-                              : "default"
-                          }
-                          style={{ margin: 0, fontSize: 10, textTransform: "uppercase" }}
+                          color={riderFreshness.tagColor}
+                          style={{ margin: 0, fontSize: 10, fontWeight: 700, borderColor: riderFreshness.dotColor }}
                         >
-                          {riderFreshness.type === "at_branch"
-                            ? "AT BRANCH"
-                            : riderFreshness.type === "at_stop"
-                            ? "AT STOP"
-                            : riderFreshness.type === "stationary_alert"
-                            ? "STATIONARY ALERT"
-                            : riderFreshness.type === "out_of_network"
-                            ? "OUT OF NETWORK"
-                            : riderFreshness.type}
+                          {riderFreshness.shortLabel}
                         </Tag>
                       </div>
                       <div style={{ margin: "4px 0 0 0", fontSize: 11, color: riderFreshness.isLive ? "#10B981" : "#64748B", fontWeight: 700 }}>
