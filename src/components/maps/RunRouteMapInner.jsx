@@ -613,7 +613,40 @@ export default function RunRouteMapInner({
       };
     }
 
-    // 1. Stationary at branch / warehouse preparing for departure or unloading
+    // 1. Offline (no ping for > 15 minutes)
+    if (diffSec > 900) {
+      const mins = Math.round(diffSec / 60);
+      const ageText = mins > 60 ? `${Math.round(mins / 60)}h ago` : `${mins}m ago`;
+      return {
+        status: "offline",
+        label: `Offline (Last seen: ${ageText})`,
+        type: "offline",
+        ageText: ageText,
+        isLive: false,
+        isRecent: false,
+      };
+    }
+
+    // 2. Idle (no signal for 2 to 15 minutes) -> Matches the table tag ● Idle in warning/amber color
+    if (diffSec > 120 || riderLocation.is_live === false) {
+      const mins = Math.max(1, Math.round(diffSec / 60));
+      const locText = isAtBranch
+        ? `at ${branchCoords?.name || "Kathmandu Franchise"}`
+        : closestStopDist?.distM <= 220
+        ? `at Stop #${closestStopDist.stop.seq}`
+        : "on Road";
+      return {
+        status: "idle",
+        label: `● Idle ${locText} (${mins}m ago)`,
+        type: "idle",
+        ageText: `Idle (${mins}m)`,
+        isLive: false,
+        isRecent: true,
+      };
+    }
+
+    // 3. Actively Live (signal received within last 2 minutes):
+    // 3a. Stationary at branch / warehouse preparing for departure
     if (isAtBranch) {
       return {
         status: "at_branch",
@@ -625,20 +658,7 @@ export default function RunRouteMapInner({
       };
     }
 
-    // 2. Out of network / signal lost for > 3 minutes while run is out for delivery
-    if (diffSec > 180) {
-      const mins = Math.max(1, Math.round(diffSec / 60));
-      return {
-        status: "out_of_network",
-        label: `⚠️ Out of Network (Signal lost ${mins}m ago)`,
-        type: "out_of_network",
-        ageText: `Lost ${mins}m ago`,
-        isLive: false,
-        isRecent: diffSec <= 900,
-      };
-    }
-
-    // 3. At merchant pickup location or customer stop (within 220m of an active stop)
+    // 3b. At merchant pickup location or customer stop (within 220m of an active stop)
     if (closestStopDist?.distM != null && closestStopDist.distM <= 220) {
       const st = closestStopDist.stop;
       return {
@@ -651,20 +671,8 @@ export default function RunRouteMapInner({
       };
     }
 
-    // 4. Check for prolonged stationary stop on the road (away from branch and stops)
+    // 3c. Active moving on the road
     const speed = Number(riderLocation.speed || 0);
-    if (speed <= 2 && diffSec >= 60 && riderLocation.is_stationary_prolonged) {
-      return {
-        status: "stationary_alert",
-        label: `⚠️ Alert: Prolonged Stop on Road (Stationary)`,
-        type: "stationary_alert",
-        ageText: `Alert`,
-        isLive: true,
-        isRecent: true,
-      };
-    }
-
-    // 5. Active live moving on the road
     const speedText = speed > 0 ? ` · ${Math.round(speed)} km/h` : " · Paused on Road";
     return {
       status: "live",
