@@ -150,17 +150,28 @@ function createBranchPin() {
   });
 }
 
+function haversineM(lat1, lon1, lat2, lon2) {
+  const R = 6371e3;
+  const p1 = (lat1 * Math.PI) / 180;
+  const p2 = (lat2 * Math.PI) / 180;
+  const dp = ((lat2 - lat1) * Math.PI) / 180;
+  const dl = ((lon2 - lon1) * Math.PI) / 180;
+  const a = Math.sin(dp / 2) ** 2 + Math.cos(p1) * Math.cos(p2) * Math.sin(dl / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
 function createRunRiderPin(riderName, statusText = "Live", statusType = "live") {
-  const isLive = statusType === "live";
+  const isAtBranch = statusType === "at_branch";
+  const isLive = statusType === "live" || isAtBranch;
   const isIdle = statusType === "idle";
 
-  const ringBg = isLive ? "rgba(16, 185, 129, 0.28)" : isIdle ? "rgba(245, 158, 11, 0.22)" : "rgba(100, 116, 139, 0.15)";
-  const ringBorder = isLive ? "#10B981" : isIdle ? "#F59E0B" : "#64748B";
+  const ringBg = isAtBranch ? "rgba(2, 132, 199, 0.28)" : isLive ? "rgba(16, 185, 129, 0.28)" : isIdle ? "rgba(245, 158, 11, 0.22)" : "rgba(100, 116, 139, 0.15)";
+  const ringBorder = isAtBranch ? "#0284c7" : isLive ? "#10B981" : isIdle ? "#F59E0B" : "#64748B";
   const pulseStyle = isLive ? "animation: realBikePulse 2s infinite ease-out;" : "";
-  const borderColor = isLive ? "#10B981" : isIdle ? "#F59E0B" : "#94A3B8";
-  const badgeBg = isLive ? "#064e3b" : isIdle ? "#78350f" : "#1e293b";
-  const badgeColor = isLive ? "#34d399" : isIdle ? "#fbbf24" : "#94a3b8";
-  const badgeBorder = isLive ? "rgba(16, 185, 129, 0.5)" : isIdle ? "rgba(245, 158, 11, 0.5)" : "rgba(100, 116, 139, 0.5)";
+  const borderColor = isAtBranch ? "#38bdf8" : isLive ? "#10B981" : isIdle ? "#F59E0B" : "#94A3B8";
+  const badgeBg = isAtBranch ? "#0c4a6e" : isLive ? "#064e3b" : isIdle ? "#78350f" : "#1e293b";
+  const badgeColor = isAtBranch ? "#7dd3fc" : isLive ? "#34d399" : isIdle ? "#fbbf24" : "#94a3b8";
+  const badgeBorder = isAtBranch ? "rgba(56, 189, 248, 0.5)" : isLive ? "rgba(16, 185, 129, 0.5)" : isIdle ? "rgba(245, 158, 11, 0.5)" : "rgba(100, 116, 139, 0.5)";
 
   const html = `
     <div style="position: relative; display: flex; flex-direction: column; align-items: center; transform: translate(-50%, -50%);">
@@ -474,6 +485,28 @@ export default function RunRouteMapInner({
 
   const isRunOut = ["out_for_delivery", "in_progress", "out_for_pickup"].includes(String(run?.status || "").toLowerCase());
 
+  // Distance from rider's reported coordinates to the branch office
+  const distToBranchMeters = useMemo(() => {
+    if (!riderLocation?.lat || !riderLocation?.lng || !branchCoords?.lat || !branchCoords?.lng) return null;
+    return haversineM(riderLocation.lat, riderLocation.lng, branchCoords.lat, branchCoords.lng);
+  }, [riderLocation, branchCoords]);
+
+  // If the rider is within 400m of the branch office and stationary / slow (< 10 km/h), they are physically at the branch.
+  // Snapping them to the branch office eliminates indoor GPS cellular/WiFi drift (e.g. drifting 200m away to neighboring alleys).
+  const isAtBranch = useMemo(() => {
+    if (distToBranchMeters == null) return false;
+    const speed = Number(riderLocation?.speed || 0);
+    return distToBranchMeters <= 400 && speed <= 10;
+  }, [distToBranchMeters, riderLocation?.speed]);
+
+  const effectiveRiderPos = useMemo(() => {
+    if (!riderLocation?.lat || !riderLocation?.lng) return null;
+    if (isAtBranch && branchCoords) {
+      return { lat: branchCoords.lat, lng: branchCoords.lng, isAtBranch: true };
+    }
+    return { lat: riderLocation.lat, lng: riderLocation.lng, isAtBranch: false };
+  }, [riderLocation, isAtBranch, branchCoords]);
+
   // Compute rider live freshness status
   const riderFreshness = useMemo(() => {
     if (!riderLocation?.lat || !riderLocation?.lng) {
@@ -501,11 +534,23 @@ export default function RunRouteMapInner({
       };
     }
 
+    // Stationary at branch office preparing for departure
+    if (isAtBranch) {
+      return {
+        status: "at_branch",
+        label: `At ${branchCoords?.name || "Kathmandu Franchise"} (Ready for departure)`,
+        type: "at_branch",
+        ageText: "At Branch",
+        isLive: true,
+        isRecent: true,
+      };
+    }
+
     if (diffSec <= 120 && riderLocation.is_live !== false) {
       const speedText = riderLocation.speed ? ` · ${Math.round(riderLocation.speed)} km/h` : "";
       return {
         status: "live",
-        label: `Live (Just now${speedText})`,
+        label: `Live on Road${speedText}`,
         type: "live",
         ageText: "Live",
         isLive: true,
@@ -535,30 +580,36 @@ export default function RunRouteMapInner({
       isLive: false,
       isRecent: false,
     };
-  }, [riderLocation, isRunOut]);
+  }, [riderLocation, isRunOut, isAtBranch, branchCoords?.name]);
 
-  // 3. Build ordered points starting from branch -> stop 1 -> stop 2 -> stop 3...
-  const allPoints = useMemo(() => {
+  // 3. The planned delivery route path: Branch -> Stop 1 -> Stop 2 -> Stop 3 (in road sequence)
+  const plannedRoutePoints = useMemo(() => {
     const pts = [];
     if (branchCoords) pts.push({ lat: branchCoords.lat, lng: branchCoords.lng, isBranch: true });
     stops.forEach((s) => {
       if (s.point) pts.push({ lat: s.point.lat, lng: s.point.lng, id: s.id, seq: s.seq });
     });
-    if (riderLocation?.lat && riderLocation?.lng && (isRunOut || riderFreshness.isRecent)) {
-      pts.push({ lat: riderLocation.lat, lng: riderLocation.lng, isRider: true });
+    return pts;
+  }, [branchCoords, stops]);
+
+  // Points included for map auto-fit viewport
+  const allPoints = useMemo(() => {
+    const pts = [...plannedRoutePoints];
+    if (effectiveRiderPos) {
+      pts.push({ lat: effectiveRiderPos.lat, lng: effectiveRiderPos.lng, isRider: true });
     }
     return pts;
-  }, [branchCoords, stops, riderLocation, isRunOut, riderFreshness.isRecent]);
+  }, [plannedRoutePoints, effectiveRiderPos]);
 
-  // 4. Fetch routing polyline
+  // 4. Fetch routing polyline along actual streets from Branch to Stops
   useEffect(() => {
-    if (allPoints.length < 2) {
+    if (plannedRoutePoints.length < 2) {
       setRouteData(null);
       return;
     }
     let cancelled = false;
     setLoadingRoute(true);
-    fetchRoutePolyline(allPoints)
+    fetchRoutePolyline(plannedRoutePoints)
       .then((res) => {
         if (!cancelled && res) setRouteData(res);
       })
@@ -568,7 +619,7 @@ export default function RunRouteMapInner({
     return () => {
       cancelled = true;
     };
-  }, [allPoints]);
+  }, [plannedRoutePoints]);
 
   const selectStop = (stop) => {
     setSelectedStopId(stop.id);
@@ -624,10 +675,10 @@ export default function RunRouteMapInner({
           <Tag color="cyan" style={{ fontSize: 13, padding: "3px 8px" }}>
             <CarOutlined /> {run?.run_number}
           </Tag>
-          {riderLocation?.lat && riderLocation?.lng && (isRunOut || riderFreshness.isRecent) ? (
+          {effectiveRiderPos && (isRunOut || riderFreshness.isRecent) ? (
             <Space size={6}>
               <Tag
-                color={riderFreshness.type === "live" ? "success" : riderFreshness.type === "idle" ? "warning" : "default"}
+                color={riderFreshness.type === "at_branch" ? "processing" : riderFreshness.type === "live" ? "success" : riderFreshness.type === "idle" ? "warning" : "default"}
                 style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "2px 8px", margin: 0, fontWeight: 600 }}
               >
                 <span
@@ -635,7 +686,7 @@ export default function RunRouteMapInner({
                     width: 7,
                     height: 7,
                     borderRadius: "50%",
-                    background: riderFreshness.type === "live" ? "#10B981" : riderFreshness.type === "idle" ? "#F59E0B" : "#94A3B8",
+                    background: riderFreshness.type === "at_branch" ? "#0284C7" : riderFreshness.type === "live" ? "#10B981" : riderFreshness.type === "idle" ? "#F59E0B" : "#94A3B8",
                   }}
                 />
                 <span>Rider: {run?.rider?.name || "Assigned"} · {riderFreshness.label}</span>
@@ -644,7 +695,7 @@ export default function RunRouteMapInner({
                 size="small"
                 type="primary"
                 icon={<CompassOutlined />}
-                onClick={() => setPanTarget({ lat: riderLocation.lat, lng: riderLocation.lng })}
+                onClick={() => setPanTarget({ lat: effectiveRiderPos.lat, lng: effectiveRiderPos.lng })}
                 style={{ background: "#0284c7", borderColor: "#0284c7" }}
               >
                 Focus Rider
@@ -1007,74 +1058,40 @@ export default function RunRouteMapInner({
               })}
 
               {/* Live Rider Position on Delivery Run Map */}
-              {riderLocation && riderLocation.lat && riderLocation.lng && (isRunOut || riderFreshness.isRecent) && (
-                <>
-                  <Marker
-                    position={[riderLocation.lat, riderLocation.lng]}
-                    icon={createRunRiderPin(run?.rider?.name, riderFreshness.ageText, riderFreshness.type)}
-                    zIndexOffset={3000}
-                  >
-                    <Popup>
-                      <div style={{ padding: 4, minWidth: 170 }}>
-                        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                          <span style={{ fontSize: 16 }}>🏍️</span>
-                          <span style={{ fontWeight: 700, fontSize: 13 }}>{run?.rider?.name || "Rider"}</span>
-                          <Tag
-                            color={riderFreshness.type === "live" ? "green" : riderFreshness.type === "idle" ? "orange" : "default"}
-                            style={{ margin: 0, fontSize: 10, textTransform: "uppercase" }}
-                          >
-                            {riderFreshness.type}
-                          </Tag>
-                        </div>
-                        <div style={{ margin: "4px 0 0 0", fontSize: 11, color: riderFreshness.isLive ? "#10B981" : "#64748B", fontWeight: 700 }}>
-                          ● {riderFreshness.label}
-                        </div>
-                        {riderLocation.speed != null && (
-                          <div style={{ margin: "2px 0 0 0", fontSize: 11, color: "#64748B" }}>
-                            Speed: ~{Math.round(riderLocation.speed)} km/h {riderLocation.heading != null ? `• Heading ${Math.round(riderLocation.heading)}°` : ""}
-                          </div>
-                        )}
-                        {riderLocation.updated_at && (
-                          <div style={{ margin: "2px 0 0 0", fontSize: 10, color: "#94A3B8" }}>
-                            Updated: {new Date(riderLocation.updated_at).toLocaleTimeString()}
-                          </div>
-                        )}
+              {effectiveRiderPos && (isRunOut || riderFreshness.isRecent) && (
+                <Marker
+                  position={[effectiveRiderPos.lat, effectiveRiderPos.lng]}
+                  icon={createRunRiderPin(run?.rider?.name, riderFreshness.ageText, riderFreshness.type)}
+                  zIndexOffset={3000}
+                >
+                  <Popup>
+                    <div style={{ padding: 4, minWidth: 170 }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                        <span style={{ fontSize: 16 }}>🏍️</span>
+                        <span style={{ fontWeight: 700, fontSize: 13 }}>{run?.rider?.name || "Rider"}</span>
+                        <Tag
+                          color={riderFreshness.type === "at_branch" ? "blue" : riderFreshness.type === "live" ? "green" : riderFreshness.type === "idle" ? "orange" : "default"}
+                          style={{ margin: 0, fontSize: 10, textTransform: "uppercase" }}
+                        >
+                          {riderFreshness.type === "at_branch" ? "AT BRANCH" : riderFreshness.type}
+                        </Tag>
                       </div>
-                    </Popup>
-                  </Marker>
-
-                  {/* Live Path Line from Branch to Rider's Current Position (only when active) */}
-                  {riderFreshness.isLive && branchCoords && (
-                    <Polyline
-                      positions={[
-                        [branchCoords.lat, branchCoords.lng],
-                        [riderLocation.lat, riderLocation.lng],
-                      ]}
-                      pathOptions={{
-                        color: "#10B981",
-                        weight: 4,
-                        opacity: 0.85,
-                        dashArray: "6, 8",
-                      }}
-                    />
-                  )}
-
-                  {/* Remaining connector from rider's live position to next stop (only when active) */}
-                  {riderFreshness.isLive && stops[0]?.point && (
-                    <Polyline
-                      positions={[
-                        [riderLocation.lat, riderLocation.lng],
-                        [stops[0].point.lat, stops[0].point.lng],
-                      ]}
-                      pathOptions={{
-                        color: "#0284c7",
-                        weight: 4,
-                        opacity: 0.85,
-                        dashArray: "4, 6",
-                      }}
-                    />
-                  )}
-                </>
+                      <div style={{ margin: "4px 0 0 0", fontSize: 11, color: riderFreshness.isLive ? "#10B981" : "#64748B", fontWeight: 700 }}>
+                        ● {riderFreshness.label}
+                      </div>
+                      {riderLocation?.speed != null && Number(riderLocation.speed) > 0 && (
+                        <div style={{ margin: "2px 0 0 0", fontSize: 11, color: "#64748B" }}>
+                          Speed: ~{Math.round(riderLocation.speed)} km/h {riderLocation.heading != null ? `• Heading ${Math.round(riderLocation.heading)}°` : ""}
+                        </div>
+                      )}
+                      {riderLocation?.updated_at && (
+                        <div style={{ margin: "2px 0 0 0", fontSize: 10, color: "#94A3B8" }}>
+                          Updated: {new Date(riderLocation.updated_at).toLocaleTimeString()}
+                        </div>
+                      )}
+                    </div>
+                  </Popup>
+                </Marker>
               )}
 
               {/* Road Route Path Polyline */}

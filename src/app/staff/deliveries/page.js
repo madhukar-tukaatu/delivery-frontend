@@ -28,16 +28,17 @@ import {
   message,
 } from "antd";
 import {
+  CarOutlined,
   CheckCircleOutlined,
   DollarOutlined,
   EnvironmentOutlined,
   FileTextOutlined,
+  HomeOutlined,
   MenuOutlined,
   PhoneOutlined,
   ReloadOutlined,
   SearchOutlined,
   UnorderedListOutlined,
-  CarOutlined,
 } from "@ant-design/icons";
 import {
   staffAcceptDelivery,
