@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Button, Card, Col, Empty, Row, Space, Tag, Typography, message } from "antd";
+import { Button, Card, Col, Empty, Row, Space, Tag, Tooltip, Typography, message } from "antd";
 import {
   CarOutlined,
   CheckCircleOutlined,
@@ -1129,7 +1129,7 @@ export default function RunRouteMapInner({
                       click: () => setSelectedStopId(stop.id),
                     }}
                   >
-                    <Tooltip direction="top" offset={[0, -14]} opacity={0.95}>
+                    <LeafletTooltip direction="top" offset={[0, -14]} opacity={0.95}>
                       <div style={{ fontWeight: 700, fontSize: 12 }}>
                         #{stop.seq} · {stop.title}
                       </div>
@@ -1141,7 +1141,7 @@ export default function RunRouteMapInner({
                       <div style={{ fontSize: 11, color: "#334" }}>
                         👤 {stop.subtitle} ({stop.area})
                       </div>
-                    </Tooltip>
+                    </LeafletTooltip>
                     <Popup>
                       <div style={{ padding: 4, minWidth: 220 }}>
                         <div style={{ display: "flex", justifyContent: "space-between", gap: 8, alignItems: "center" }}>
