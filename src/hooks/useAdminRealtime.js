@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, useCallback } from "react";
-import { Tag, message } from "antd";
+import { Tag } from "antd";
 import { getEcho } from "@/lib/echo";
 
 /**
@@ -41,30 +41,48 @@ export function RealtimeStatusBadge({ connected, style = {} }) {
 }
 
 /**
- * Universal hook for real-time admin channel subscriptions
+ * Universal hook for real-time admin channel subscriptions.
+ * Updates data silently in the background without intrusive toast popups
+ * or disruptive full-page flashes.
  *
  * @param {Object} options
- * @param {string} options.channelName - Primary private channel (e.g., 'admin.shipments', 'admin.deliveries', 'admin.pickups', 'admin.transfers')
+ * @param {string} options.channelName - Primary private channel ('admin.shipments', 'admin.deliveries', 'admin.pickups', 'admin.transfers')
  * @param {Function} options.onRefresh - Callback to reload data when an event is received
- * @param {boolean} [options.showToasts=false] - Whether to show toast notifications
- * @param {number} [options.debounceMs=300] - Debounce burst updates
+ * @param {number} [options.debounceMs=1000] - Debounce burst updates
  */
 export function useAdminRealtime({
   channelName,
   onRefresh,
-  showToasts = false,
-  debounceMs = 300,
+  debounceMs = 1000,
 } = {}) {
   const [realtimeConnected, setRealtimeConnected] = useState(false);
   const onRefreshRef = useRef(onRefresh);
   const debounceTimerRef = useRef(null);
+  const seenEventsRef = useRef(new Map());
 
   useEffect(() => {
     onRefreshRef.current = onRefresh;
   }, [onRefresh]);
 
   const triggerRefresh = useCallback(
-    (event) => {
+    (event, eventName) => {
+      // 1. Deduplicate identical events arriving within 2.5 seconds
+      const eventKey = `${eventName}:${event?.id || event?.tracking_number || event?.transfer?.id || ""}:${event?.status || event?.action || ""}`;
+      const now = Date.now();
+      const lastSeen = seenEventsRef.current.get(eventKey);
+      if (lastSeen && now - lastSeen < 2500) {
+        return;
+      }
+      seenEventsRef.current.set(eventKey, now);
+
+      // Clean up old seen keys periodically
+      if (seenEventsRef.current.size > 100) {
+        for (const [k, t] of seenEventsRef.current.entries()) {
+          if (now - t > 10000) seenEventsRef.current.delete(k);
+        }
+      }
+
+      // 2. Debounce burst triggers into a single silent refresh
       if (debounceTimerRef.current) {
         clearTimeout(debounceTimerRef.current);
       }
@@ -76,6 +94,8 @@ export function useAdminRealtime({
   );
 
   useEffect(() => {
+    if (!channelName) return undefined;
+
     const echo = getEcho();
     if (!echo) return undefined;
 
@@ -96,98 +116,60 @@ export function useAdminRealtime({
 
     setRealtimeConnected(connection?.state === "connected");
 
-    // Channels to listen on: primary channel and admin.dashboard
-    const channels = [];
-    if (channelName) {
-      channels.push(echo.private(channelName));
+    // ONLY listen to the specific channel requested (never bleed admin.dashboard into other pages)
+    const channel = echo.private(channelName);
+
+    // Map channels to their specific event listeners
+    const listeners = [];
+
+    const bind = (eventName) => {
+      const handler = (event) => triggerRefresh(event, eventName);
+      channel.listen(`.${eventName}`, handler);
+      channel.listen(eventName, handler);
+      listeners.push({ eventName, handler });
+    };
+
+    if (channelName === "admin.shipments") {
+      bind("shipment.status.updated");
+    } else if (channelName === "admin.pickups") {
+      bind("pickup.assigned");
+      bind("pickup.status.updated");
+    } else if (channelName === "admin.deliveries") {
+      bind("delivery.assigned");
+      bind("delivery.status.updated");
+    } else if (channelName === "admin.transfers") {
+      bind("transfer.status.updated");
+    } else if (channelName === "admin.dashboard") {
+      bind("shipment.status.updated");
+      bind("pickup.assigned");
+      bind("pickup.status.updated");
+      bind("delivery.assigned");
+      bind("delivery.status.updated");
+      bind("transfer.status.updated");
     }
-    if (channelName !== "admin.dashboard") {
-      channels.push(echo.private("admin.dashboard"));
-    }
-
-    const handleShipmentUpdated = (event) => {
-      if (showToasts && (event?.tracking_number || event?.id)) {
-        message.info(`Shipment ${event.tracking_number || event.id} updated`);
-      }
-      triggerRefresh(event);
-    };
-
-    const handlePickupAssigned = (event) => {
-      if (showToasts) {
-        message.success(`Pickup assigned: ${event?.tracking_number || event?.id}`);
-      }
-      triggerRefresh(event);
-    };
-
-    const handlePickupUpdated = (event) => {
-      triggerRefresh(event);
-    };
-
-    const handleDeliveryAssigned = (event) => {
-      if (showToasts) {
-        message.success(`Delivery assigned: ${event?.tracking_number || event?.id}`);
-      }
-      triggerRefresh(event);
-    };
-
-    const handleDeliveryUpdated = (event) => {
-      triggerRefresh(event);
-    };
-
-    const handleTransferUpdated = (event) => {
-      if (showToasts && event?.action) {
-        message.info(`Transfer ${event.action}`);
-      }
-      triggerRefresh(event);
-    };
-
-    channels.forEach((ch) => {
-      ch.listen(".shipment.status.updated", handleShipmentUpdated);
-      ch.listen("shipment.status.updated", handleShipmentUpdated);
-      ch.listen(".pickup.assigned", handlePickupAssigned);
-      ch.listen("pickup.assigned", handlePickupAssigned);
-      ch.listen(".pickup.status.updated", handlePickupUpdated);
-      ch.listen("pickup.status.updated", handlePickupUpdated);
-      ch.listen(".delivery.assigned", handleDeliveryAssigned);
-      ch.listen("delivery.assigned", handleDeliveryAssigned);
-      ch.listen(".delivery.status.updated", handleDeliveryUpdated);
-      ch.listen("delivery.status.updated", handleDeliveryUpdated);
-      ch.listen(".transfer.status.updated", handleTransferUpdated);
-      ch.listen("transfer.status.updated", handleTransferUpdated);
-    });
 
     return () => {
       if (debounceTimerRef.current) {
         clearTimeout(debounceTimerRef.current);
       }
 
-      channels.forEach((ch) => {
-        ch.stopListening(".shipment.status.updated");
-        ch.stopListening("shipment.status.updated");
-        ch.stopListening(".pickup.assigned");
-        ch.stopListening("pickup.assigned");
-        ch.stopListening(".pickup.status.updated");
-        ch.stopListening("pickup.status.updated");
-        ch.stopListening(".delivery.assigned");
-        ch.stopListening("delivery.assigned");
-        ch.stopListening(".delivery.status.updated");
-        ch.stopListening("delivery.status.updated");
-        ch.stopListening(".transfer.status.updated");
-        ch.stopListening("transfer.status.updated");
+      listeners.forEach(({ eventName, handler }) => {
+        try {
+          channel.stopListening(`.${eventName}`);
+          channel.stopListening(eventName);
+        } catch {}
       });
 
-      if (channelName) {
-        try {
-          echo.leave(channelName);
-        } catch {}
-      }
+      try {
+        echo.leave(channelName);
+      } catch {}
 
       connection?.unbind("connected", handleConnected);
       connection?.unbind("disconnected", handleDisconnected);
       connection?.unbind("error", handleDisconnected);
       connection?.unbind("unavailable", handleDisconnected);
     };
-  }, [channelName, showToasts, triggerRefresh]);
+  }, [channelName, triggerRefresh]);
 
   return { realtimeConnected };
 }

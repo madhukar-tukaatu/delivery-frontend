@@ -457,9 +457,12 @@ function createStore(
 function buildPackets(
   packages,
 ) {
-  return safeArray(
+  const result = [];
+  let packetId = 1;
+
+  safeArray(
     packages,
-  ).map(
+  ).forEach(
     (
       packageItem,
       index,
@@ -470,37 +473,28 @@ function buildPackets(
           index,
         );
 
-      return {
-        id: index + 1,
+      const qty = Math.max(1, integerValue(pkg.quantity, 1));
 
-        name: pkg.name,
-
-        quantity:
-          pkg.quantity,
-
-        actual_weight_kg:
-          pkg.actual_weight_kg,
-
-        weight_kg:
-          pkg.actual_weight_kg,
-
-        length_cm:
-          pkg.length_cm,
-
-        width_cm:
-          pkg.width_cm,
-
-        height_cm:
-          pkg.height_cm,
-
-        parcel_type:
-          pkg.parcel_type,
-
-        unit_price:
-          pkg.unit_price,
-      };
+      for (let i = 0; i < qty; i++) {
+        result.push({
+          id: packetId,
+          packet_reference: `PKT-${packetId}`,
+          name: qty > 1 ? `${pkg.name} (${i + 1}/${qty})` : pkg.name,
+          quantity: 1,
+          actual_weight_kg: pkg.actual_weight_kg,
+          weight_kg: pkg.actual_weight_kg,
+          length_cm: pkg.length_cm,
+          width_cm: pkg.width_cm,
+          height_cm: pkg.height_cm,
+          parcel_type: pkg.parcel_type,
+          unit_price: pkg.unit_price,
+        });
+        packetId++;
+      }
     },
   );
+
+  return result;
 }
 
 function buildStorePayload(
@@ -1471,23 +1465,32 @@ function RouteTimeline({
   stores,
   delivery,
 }) {
-  const transfers =
-    safeArray(
-      result?.transfer_lanes ||
-        result?.transferLanes ||
-        result?.route
-          ?.transfer_lanes ||
-        result?.transfers ||
-        result?.route
-          ?.transfers,
-    );
+  const originBranch =
+    result?.pickup_serving_branch?.name ||
+    result?.pickup_branch?.operational_branch_name ||
+    result?.pickup_branch?.name ||
+    null;
+
+  const destBranch =
+    result?.delivery_serving_branch?.name ||
+    result?.delivery_branch?.operational_branch_name ||
+    result?.delivery_branch?.name ||
+    null;
+
+  const isSameBranch = Boolean(
+    result?.route?.same_branch ??
+    (originBranch && destBranch && originBranch === destBranch)
+  );
+
+  const routeDistanceKm = Number(result?.route?.total_distance_km ?? 0);
+  const extraMileKm = Number(result?.breakdown?.extra_delivery_distance?.extra_distance_km ?? 0);
 
   return (
     <div className="route-timeline">
       {stores.map(
         (store, index) => (
           <React.Fragment
-            key={store.id}
+            key={store.id || index}
           >
             <div className="timeline-item">
               <div className="timeline-marker pickup">
@@ -1496,12 +1499,13 @@ function RouteTimeline({
 
               <div className="timeline-content">
                 <div className="timeline-title">
-                  Pickup
+                  Pickup Store
                 </div>
 
                 <Text strong>
                   {
-                    store.external_store_id
+                    store.external_store_id ||
+                    `Store ${index + 1}`
                   }
                 </Text>
 
@@ -1519,45 +1523,94 @@ function RouteTimeline({
         ),
       )}
 
-      {transfers.map(
-        (
-          transfer,
-          index,
-        ) => {
-          const name =
-            transfer?.name ||
-            transfer?.branch_name ||
-            transfer?.branch
-              ?.name ||
-            transfer?.code ||
-            `Transfer ${
-              index + 1
-            }`;
-
-          return (
-            <React.Fragment
-              key={`transfer-${index}`}
+      {originBranch && (
+        <React.Fragment>
+          <div className="timeline-item">
+            <div
+              className="timeline-marker transfer"
+              style={{ background: "#1677ff", borderColor: "#1677ff", color: "#fff" }}
             >
-              <div className="timeline-item">
-                <div className="timeline-marker transfer">
-                  {index + 1}
-                </div>
+              O
+            </div>
 
-                <div className="timeline-content">
-                  <div className="timeline-title">
-                    Transfer
-                  </div>
-
-                  <Text strong>
-                    {name}
-                  </Text>
-                </div>
+            <div className="timeline-content">
+              <div className="timeline-title">
+                Origin Branch
               </div>
 
-              <div className="timeline-line" />
-            </React.Fragment>
-          );
-        },
+              <Text strong>
+                {originBranch}
+              </Text>
+
+              <Text type="secondary">
+                {result?.pickup_branch?.name
+                  ? `Coverage Zone: ${result.pickup_branch.name}`
+                  : "Pickup serving hub"}
+              </Text>
+            </div>
+          </div>
+
+          <div className="timeline-line" />
+        </React.Fragment>
+      )}
+
+      {!isSameBranch && destBranch && (
+        <React.Fragment>
+          <div className="timeline-item">
+            <div className="timeline-marker transfer">
+              T
+            </div>
+
+            <div className="timeline-content">
+              <div className="timeline-title">
+                Inter-Branch Corridor
+              </div>
+
+              <Text strong>
+                {result?.route?.path_text ||
+                  `${originBranch || "Origin"} → ${destBranch}`}
+              </Text>
+
+              <Text type="secondary">
+                {routeDistanceKm > 0
+                  ? `${routeDistanceKm.toFixed(1)} km corridor`
+                  : "Transfer Route"}
+                {result?.route?.base_rate
+                  ? ` · Base Rate: ${money(result.route.base_rate)}`
+                  : ""}
+              </Text>
+            </div>
+          </div>
+
+          <div className="timeline-line" />
+
+          <div className="timeline-item">
+            <div
+              className="timeline-marker transfer"
+              style={{ background: "#722ed1", borderColor: "#722ed1", color: "#fff" }}
+            >
+              D
+            </div>
+
+            <div className="timeline-content">
+              <div className="timeline-title">
+                Destination Branch
+              </div>
+
+              <Text strong>
+                {destBranch}
+              </Text>
+
+              <Text type="secondary">
+                {result?.delivery_branch?.name
+                  ? `Coverage Zone: ${result.delivery_branch.name}`
+                  : "Delivery serving hub"}
+              </Text>
+            </div>
+          </div>
+
+          <div className="timeline-line" />
+        </React.Fragment>
       )}
 
       <div className="timeline-item">
@@ -1567,13 +1620,19 @@ function RouteTimeline({
 
         <div className="timeline-content">
           <div className="timeline-title">
-            Delivery
+            Customer Delivery
           </div>
 
           <Text strong>
             {delivery?.address ||
               "Delivery location"}
           </Text>
+
+          {extraMileKm > 0 && (
+            <Text type="secondary">
+              +{extraMileKm.toFixed(2)} km extra mile from {destBranch || "hub"}
+            </Text>
+          )}
         </div>
       </div>
     </div>
@@ -1587,6 +1646,7 @@ function RouteTimeline({
 function ChargeRow({
   label,
   value,
+  subtext,
 }) {
   const amount =
     numberValue(value);
@@ -1599,9 +1659,16 @@ function ChargeRow({
           : "charge-row"
       }
     >
-      <Text>
-        {label}
-      </Text>
+      <div>
+        <Text>
+          {label}
+        </Text>
+        {subtext && (
+          <div style={{ fontSize: "11px", color: "#8c8c8c", marginTop: "2px" }}>
+            {subtext}
+          </div>
+        )}
+      </div>
 
       <Text strong>
         {money(amount)}
@@ -1650,6 +1717,7 @@ function PricingResult({
       result?.final_price ??
         result?.grand_total ??
         result?.total ??
+        breakdown?.final_price ??
         breakdown?.total,
     );
 
@@ -1663,6 +1731,105 @@ function PricingResult({
     getTotalWeight(
       allPackages,
     );
+
+  const originName =
+    result?.pickup_serving_branch?.name ||
+    result?.pickup_branch?.operational_branch_name ||
+    result?.pickup_branch?.name ||
+    null;
+
+  const destName =
+    result?.delivery_serving_branch?.name ||
+    result?.delivery_branch?.operational_branch_name ||
+    result?.delivery_branch?.name ||
+    null;
+
+  const routeSubtext =
+    originName && destName
+      ? `${originName} → ${destName} (${result?.route?.same_branch ? "Local" : "Inter-Branch Transfer"})`
+      : null;
+
+  const weightAmount =
+    breakdown?.additional_weight?.total ??
+    weightSummary?.total_weight_charge ??
+    breakdown?.extra_weight ??
+    0;
+
+  const excessWeightKg = Number(weightSummary?.excess_weight_kg ?? breakdown?.additional_weight?.excess_weight_kg ?? 0);
+  const weightRatePerKg = Number(weightSummary?.rate_per_kg ?? breakdown?.additional_weight?.rate_per_kg ?? 0);
+  const includedWeightKg = Number(weightSummary?.included_weight_kg ?? breakdown?.additional_weight?.included_weight_kg ?? 2);
+  const weightSubtext =
+    excessWeightKg > 0
+      ? `+${excessWeightKg} kg excess @ ${money(weightRatePerKg)}/kg (${includedWeightKg} kg included)`
+      : `Within included ${includedWeightKg} kg`;
+
+  const extraDistAmount =
+    breakdown?.extra_delivery_distance?.total ??
+    breakdown?.extra_distance ??
+    0;
+
+  const extraDistanceKm = Number(breakdown?.extra_delivery_distance?.extra_distance_km ?? 0);
+  const distanceRatePerKm = Number(breakdown?.extra_delivery_distance?.rate_per_km ?? 0);
+  const includedDistanceKm = Number(breakdown?.extra_delivery_distance?.included_distance_km ?? 5);
+  const distSubtext =
+    extraDistanceKm > 0
+      ? `+${extraDistanceKm} km extra mile @ ${money(distanceRatePerKm)}/kg (${includedDistanceKm} km base)`
+      : `Within base coverage (${includedDistanceKm} km)`;
+
+  const fragileAmount =
+    breakdown?.fragile?.total ??
+    breakdown?.fragile_charge ??
+    0;
+
+  const fragileSubtext =
+    breakdown?.fragile?.applied
+      ? `Fragile multiplier ×${breakdown?.fragile?.multiplier ?? 1.05}`
+      : null;
+
+  const serviceAmount =
+    breakdown?.service?.total ??
+    breakdown?.service_charge ??
+    breakdown?.same_day?.total ??
+    breakdown?.express?.total ??
+    0;
+
+  const serviceSubtext =
+    breakdown?.same_day?.applied
+      ? `Same-Day Delivery (+${money(breakdown?.same_day?.total ?? 0)})`
+      : breakdown?.express?.applied
+        ? `Express Delivery (+${money(breakdown?.express?.total ?? 0)})`
+        : null;
+
+  const pickupAmount =
+    breakdown?.pickup?.total ??
+    breakdown?.pickup_charge ??
+    breakdown?.minimum_packet_charge?.total ??
+    breakdown?.pickup_minimum?.charge ??
+    0;
+
+  const pickupSubtext =
+    pickupAmount > 0
+      ? "Small pickup surcharge"
+      : null;
+
+  const boundsApplied = Boolean(breakdown?.delivery_charge_bounds?.applied);
+  const boundsAdjustment = Number(breakdown?.delivery_charge_bounds?.adjustment_amount ?? 0);
+  const boundsSubtext = boundsApplied
+    ? (breakdown?.delivery_charge_bounds?.adjustment_type === "min_floor"
+        ? `Adjusted to minimum delivery floor (${money(breakdown?.delivery_charge_bounds?.min_delivery_charge ?? 0)})`
+        : `Capped at maximum delivery charge (${money(breakdown?.delivery_charge_bounds?.max_delivery_charge ?? 0)})`)
+    : null;
+
+  const vatAmount =
+    breakdown?.vat?.total ??
+    breakdown?.vat?.amount ??
+    breakdown?.vat_amount ??
+    0;
+
+  const vatSubtext =
+    breakdown?.vat?.enabled
+      ? `${breakdown?.vat?.percentage ?? 13}% ${breakdown?.vat?.inclusive ? "inclusive" : "added"}`
+      : "VAT disabled";
 
   return (
     <div className="result-container">
@@ -1746,64 +1913,55 @@ function PricingResult({
             breakdown
               ?.route_base_rate
               ?.total ??
-            breakdown?.base
+            breakdown?.base ??
+            result?.route?.base_rate ??
+            0
           }
+          subtext={routeSubtext}
         />
 
         <ChargeRow
           label="Additional Weight"
-          value={
-            breakdown
-              ?.additional_weight
-              ?.total ??
-            breakdown?.extra_weight
-          }
-        />
-
-        <ChargeRow
-          label="Fragile Surcharge"
-          value={
-            breakdown?.fragile
-              ?.total ??
-            breakdown?.fragile_charge
-          }
+          value={weightAmount}
+          subtext={weightSubtext}
         />
 
         <ChargeRow
           label="Extra Distance"
-          value={
-            breakdown
-              ?.extra_delivery_distance
-              ?.total ??
-            breakdown?.extra_distance
-          }
+          value={extraDistAmount}
+          subtext={distSubtext}
+        />
+
+        <ChargeRow
+          label="Fragile Surcharge"
+          value={fragileAmount}
+          subtext={fragileSubtext}
         />
 
         <ChargeRow
           label="Service Charge"
-          value={
-            breakdown?.service
-              ?.total ??
-            breakdown?.service_charge
-          }
+          value={serviceAmount}
+          subtext={serviceSubtext}
         />
 
         <ChargeRow
           label="Pickup Charge"
-          value={
-            breakdown?.pickup
-              ?.total ??
-            breakdown?.pickup_charge
-          }
+          value={pickupAmount}
+          subtext={pickupSubtext}
         />
 
+        {boundsApplied && (
+          <ChargeRow
+            label="Rate Bounds Adjustment"
+            value={boundsAdjustment}
+            subtext={boundsSubtext}
+          />
+        )}
+
         <ChargeRow
-          label="VAT"
-          value={
-            breakdown?.vat
-              ?.total ??
-            breakdown?.vat_amount
-          }
+          label="Tax / VAT"
+          value={vatAmount}
+          subtext={vatSubtext}
         />
 
         <div className="charge-total">

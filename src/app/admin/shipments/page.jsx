@@ -364,11 +364,16 @@ function ShipmentsPageInner() {
   const [facets, setFacets] = useState({ merchants: [], branches: [] });
   const [searchText, setSearchText] = useState(filters.search || "");
   const [reloadKey, setReloadKey] = useState(0);
+  const silentRefreshRef = useRef(false);
+
+  const silentReload = useCallback(() => {
+    silentRefreshRef.current = true;
+    setReloadKey((k) => k + 1);
+  }, []);
 
   const { realtimeConnected } = useAdminRealtime({
     channelName: "admin.shipments",
-    onRefresh: () => setReloadKey((k) => k + 1),
-    showToasts: true,
+    onRefresh: silentReload,
   });
 
   const requestRef = useRef(0);
@@ -396,7 +401,11 @@ function ShipmentsPageInner() {
   /* Load list + counts whenever URL filters/page change. */
   useEffect(() => {
     const requestId = ++requestRef.current;
-    setLoading(true);
+    const isSilent = silentRefreshRef.current;
+    silentRefreshRef.current = false;
+    if (!isSilent) {
+      setLoading(true);
+    }
 
     api
       .get("/admin/shipments", {

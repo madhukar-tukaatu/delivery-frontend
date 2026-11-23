@@ -716,7 +716,6 @@ export default function AdminPickupsPage() {
       load(pagination.current, pagination.pageSize);
       loadSummary();
     },
-    showToasts: true,
   });
 
   useEffect(() => {

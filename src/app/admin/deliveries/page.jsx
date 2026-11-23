@@ -473,7 +473,6 @@ export default function DeliveriesPage() {
     onRefresh: () => {
       refresh();
     },
-    showToasts: true,
   });
 
   const changeStatus = useCallback((key) => {

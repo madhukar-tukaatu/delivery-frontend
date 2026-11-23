@@ -2655,7 +2655,6 @@ export default function TransfersPage() {
     onRefresh: () => {
       refresh();
     },
-    showToasts: true,
   });
 
   const [reconciling, setReconciling] = useState(false);
