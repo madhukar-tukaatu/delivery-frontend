@@ -36,6 +36,7 @@ import {
   runErrorText,
   suggestDeliveryRuns,
 } from "@/services/admin/deliveryRunService";
+import { computeRiderStatus } from "@/services/admin/riderLocationService";
 
 const { Text } = Typography;
 
@@ -100,6 +101,29 @@ function RunCard({ run, selected, onClick }) {
               {run.run_number}
             </Text>
             <RunStatusTag status={run.status} />
+            {(() => {
+              const rStatus = computeRiderStatus({
+                runStatus: run.status,
+                riderLocation: run.rider_location,
+                branchCoords: run.branch ? { lat: run.branch.latitude, lng: run.branch.longitude, name: run.branch.name } : null,
+                stops: run.items || [],
+              });
+              if (!rStatus || rStatus.type === "none") return null;
+              return (
+                <Tag
+                  color={rStatus.tagColor}
+                  style={{
+                    margin: 0,
+                    fontSize: 10,
+                    padding: "0 6px",
+                    fontWeight: 700,
+                    borderColor: rStatus.dotColor,
+                  }}
+                >
+                  {rStatus.shortLabel}
+                </Tag>
+              );
+            })()}
           </Space>
           <div style={{ fontSize: 12 }}>
             {run.rider ? <Text>{run.rider.name}</Text> : <Text type="warning">No rider</Text>}

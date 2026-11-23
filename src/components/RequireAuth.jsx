@@ -25,8 +25,8 @@ const MERCHANT_PORTAL_ROLES = new Set([
   "merchant_staff",
 ]);
 
-// Everything else (super_admin, main_admin, branch_manager, sub_branch_manager,
-// pricing_manager, booking_staff) -> /admin/*
+// Everything else (super_admin, main_admin, hq_admin, hq_manager, hq_accounts_staff,
+// hq_operations_staff, branch_manager, sub_branch_manager, pricing_manager, booking_staff) -> /admin/*
 
 function getPrimaryRole(user) {
   if (!user) return "";

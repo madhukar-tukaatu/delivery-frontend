@@ -41,6 +41,7 @@ import {
   getReadyForPickup,
   runErrorText,
 } from "@/services/admin/pickupRunService";
+import { computeRiderStatus } from "@/services/admin/riderLocationService";
 import { VEHICLE_OPTIONS, fmtDate, vehicleText } from "@/components/admin/delivery-runs/runMeta";
 import PickupRunDetail from "./PickupRunDetail";
 import RunRouteMap from "@/components/maps/RunRouteMap";
@@ -317,7 +318,32 @@ export default function PickupRunBoard({ branchId = null, onOpenPickup = null })
                       >
                         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                           <Text strong style={{ fontSize: 14 }}>{run.run_number}</Text>
-                          <Tag color={statusTag.color}>{statusTag.label}</Tag>
+                          <Space size={4}>
+                            <Tag color={statusTag.color}>{statusTag.label}</Tag>
+                            {(() => {
+                              const rStatus = computeRiderStatus({
+                                runStatus: run.status,
+                                riderLocation: run.rider_location,
+                                branchCoords: run.branch ? { lat: run.branch.latitude, lng: run.branch.longitude, name: run.branch.name } : null,
+                                stops: run.items || [],
+                              });
+                              if (!rStatus || rStatus.type === "none") return null;
+                              return (
+                                <Tag
+                                  color={rStatus.tagColor}
+                                  style={{
+                                    margin: 0,
+                                    fontSize: 10,
+                                    padding: "0 6px",
+                                    fontWeight: 700,
+                                    borderColor: rStatus.dotColor,
+                                  }}
+                                >
+                                  {rStatus.shortLabel}
+                                </Tag>
+                              );
+                            })()}
+                          </Space>
                         </div>
                         <div style={{ marginTop: 4, display: "flex", justifyContent: "space-between", fontSize: 12 }}>
                           <Text type="secondary">Rider:</Text>

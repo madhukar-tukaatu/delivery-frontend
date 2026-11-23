@@ -28,16 +28,17 @@ import {
   message,
 } from "antd";
 import {
+  CarOutlined,
   CheckCircleOutlined,
   DollarOutlined,
   EnvironmentOutlined,
   FileTextOutlined,
+  HomeOutlined,
   MenuOutlined,
   PhoneOutlined,
   ReloadOutlined,
   SearchOutlined,
   UnorderedListOutlined,
-  CarOutlined,
 } from "@ant-design/icons";
 import {
   staffAcceptDelivery,
@@ -450,7 +451,18 @@ function StaffDeliveriesContent() {
   const [gpsSending, setGpsSending] = useState(false);
 
   useEffect(() => {
+    // Only stream background GPS if the rider has an active run out for delivery
+    const activeRun = rows.find(
+      (r) => r.delivery_run?.status === "out_for_delivery" || r.delivery_run?.status === "in_progress"
+    )?.delivery_run;
+
+    if (!activeRun?.id) {
+      setGpsActive(false);
+      return;
+    }
+
     const stopTracker = startBrowserRiderLocation({
+      runId: activeRun.id,
       intervalMs: 8000,
       onSuccess: (res, payload) => {
         setGpsActive(true);
@@ -514,8 +526,13 @@ function StaffDeliveriesContent() {
   };
 
   const pingLocationNow = () => {
+    const activeRun = rows.find(
+      (r) => r.delivery_run?.status === "out_for_delivery" || r.delivery_run?.status === "in_progress"
+    )?.delivery_run;
+
     setGpsSending(true);
     sendCurrentRiderLocation({
+      runId: activeRun?.id,
       onSuccess: (res, payload) => {
         setGpsSending(false);
         setGpsActive(true);
@@ -532,8 +549,10 @@ function StaffDeliveriesContent() {
         setGpsSending(false);
         const errMsg = err?.message || "";
         if (errMsg.includes("secure origins") || !window.isSecureContext) {
-          message.warning("HTTP Server detected: Opening manual GPS coordinate sender.");
+          message.warning("HTTP Demo Server: Tap '🏢 At KTM Franchise' or 'Send GPS Coords'.");
           setCustomCoordModal(true);
+        } else if (err?.code === 3 || errMsg.toLowerCase().includes("timeout")) {
+          message.warning("GPS satellite lock timed out indoors. Tap '🏢 At KTM Franchise' while inside the building.");
         } else {
           message.error(`GPS Error: ${errMsg || "Could not access device GPS location"}`);
         }
@@ -1600,6 +1619,15 @@ function StaffDeliveriesContent() {
         </Space>
 
         <Space size={8} wrap>
+          <Button
+            size="small"
+            icon={<HomeOutlined />}
+            loading={gpsSending}
+            onClick={() => sendCustomCoordinate(27.6915, 85.3420, 0)}
+            style={{ borderColor: "#0284c7", color: "#0284c7", fontWeight: 600 }}
+          >
+            🏢 At KTM Franchise
+          </Button>
           {isInsecureOrigin && (
             <Button
               size="small"

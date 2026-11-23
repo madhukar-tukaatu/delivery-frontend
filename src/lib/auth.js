@@ -94,7 +94,8 @@ export function routeForRole(role, user = null) {
   )
     return "/staff/dashboard";
 
-  // super_admin, main_admin, branch_manager, sub_branch_manager,
+  // super_admin, main_admin, hq_admin, hq_manager, hq_accounts_staff,
+  // hq_operations_staff, branch_manager, sub_branch_manager,
   // pricing_manager, booking_staff → admin portal
   return "/admin/dashboard";
 }
