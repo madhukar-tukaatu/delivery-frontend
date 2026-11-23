@@ -77,7 +77,7 @@ import PickupRunBoard, { CreatePickupRunModal } from "@/components/admin/pickup-
 import { formatMerchantLabel } from "@/lib/merchantLabel";
 import { getMerchants } from "@/services/merchant/merchantService";
 import { usePermissions } from "@/hooks/usePermission";
-import { useAdminDashboardSocket } from "@/hooks/useAdminDashboardSocket";
+import { useAdminRealtime, RealtimeStatusBadge } from "@/hooks/useAdminRealtime";
 
 const { Title, Text } = Typography;
 
@@ -710,11 +710,13 @@ export default function AdminPickupsPage() {
     loadSummary();
   }, [loadSummary]);
 
-  useAdminDashboardSocket({
+  const { realtimeConnected } = useAdminRealtime({
+    channelName: "admin.pickups",
     onRefresh: () => {
       load(pagination.current, pagination.pageSize);
       loadSummary();
     },
+    showToasts: true,
   });
 
   useEffect(() => {
@@ -1316,6 +1318,7 @@ export default function AdminPickupsPage() {
       <AdminPageHeader
         title="Pickups"
         subtitle="Organize pickups into structured Pickup Runs (PR), monitor live route maps, and reconcile legacy requests"
+        tags={<RealtimeStatusBadge connected={realtimeConnected} />}
         actions={
           <Space wrap size={6}>
             <Segmented
@@ -1369,6 +1372,7 @@ export default function AdminPickupsPage() {
           onStatusChange={(key) => {
             setActiveTab(TABS.some((t) => t.key === key) ? key : "all");
             setPagination((p) => ({ ...p, current: 1 }));
+            setMapSelected([]);
           }}
           selectedIds={mapSelected}
           onSelectedIdsChange={setMapSelected}
@@ -1436,6 +1440,10 @@ export default function AdminPickupsPage() {
               loc?.street ||
               "";
             const stLower = String(pickup.status || "").toLowerCase();
+            const riderName = pickup.assigned_staff?.name || pickup.assignedStaff?.name || "";
+            const isAssigned = !!(pickup.assigned_to || riderName || stLower === "assigned");
+            const canAssign = !isAssigned && (stLower === "requested" || stLower === "pending");
+
             return {
               id: getPickupId(pickup),
               title: getRequestNumber(pickup),
@@ -1445,10 +1453,11 @@ export default function AdminPickupsPage() {
               lat,
               lng,
               status: pickup.status,
-              statusLabel: (STATUS_META[stLower] || {}).label || pickup.status,
+              statusLabel: isAssigned && riderName ? `Assigned · ${riderName}` : (STATUS_META[stLower] || {}).label || pickup.status,
               color: (STATUS_META[stLower] || {}).hex || "#6B7280",
-              riderName: pickup.assigned_staff?.name || pickup.assignedStaff?.name || "",
+              riderName,
               riderRole: pickup.assigned_staff?.role || pickup.assignedStaff?.role || "",
+              canAssign,
             };
           })}
         />

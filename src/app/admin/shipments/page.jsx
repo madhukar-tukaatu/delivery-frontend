@@ -39,7 +39,7 @@ import { formatMerchantLabel } from "@/lib/merchantLabel";
 import { collectAmount } from "@/lib/collectAmount";
 import { labelForStatus } from "@/config/workflowStatus";
 import { usePermissions } from "@/hooks/usePermission";
-import { useAdminDashboardSocket } from "@/hooks/useAdminDashboardSocket";
+import { useAdminRealtime, RealtimeStatusBadge } from "@/hooks/useAdminRealtime";
 import AdminPageHeader from "@/components/admin/ui/AdminPageHeader";
 import { useShipmentDrawer } from "@/components/admin/shipments/ShipmentDrawerProvider";
 import DataImportModal from "@/components/admin/ui/DataImportModal";
@@ -365,8 +365,10 @@ function ShipmentsPageInner() {
   const [searchText, setSearchText] = useState(filters.search || "");
   const [reloadKey, setReloadKey] = useState(0);
 
-  useAdminDashboardSocket({
+  const { realtimeConnected } = useAdminRealtime({
+    channelName: "admin.shipments",
     onRefresh: () => setReloadKey((k) => k + 1),
+    showToasts: true,
   });
 
   const requestRef = useRef(0);
@@ -859,6 +861,7 @@ function ShipmentsPageInner() {
       <AdminPageHeader
         title="Shipments"
         subtitle="Track every shipment in your scope"
+        tags={<RealtimeStatusBadge connected={realtimeConnected} />}
         actions={
           <span className={styles.headerActions}>
             <Link href="/admin/shipments/create">

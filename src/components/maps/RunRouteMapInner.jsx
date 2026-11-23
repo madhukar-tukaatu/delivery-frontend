@@ -442,8 +442,9 @@ export default function RunRouteMapInner({
 
   // Real-time rider location listener via Laravel Echo (private & public channels)
   useEffect(() => {
-    const riderId = run?.rider?.id;
-    if (!riderId) return;
+    const riderId = run?.rider?.id || run?.rider_user_id || run?.rider_id || run?.assigned_to;
+    const runId = run?.id;
+    if (!riderId && !runId) return;
 
     const echo = getEcho();
     if (echo) {
@@ -461,18 +462,24 @@ export default function RunRouteMapInner({
           }
         };
 
-        const privChannel = echo.private(`rider.${riderId}.location`);
-        privChannel.listen("rider.location.updated", onLocation);
-        privChannel.listen(".rider.location.updated", onLocation);
+        if (riderId) {
+          const privChannel = echo.private(`rider.${riderId}.location`);
+          privChannel.listen("rider.location.updated", onLocation);
+          privChannel.listen(".rider.location.updated", onLocation);
 
-        const pubChannel = echo.channel(`rider.${riderId}.public-location`);
-        pubChannel.listen("rider.location.updated", onLocation);
-        pubChannel.listen(".rider.location.updated", onLocation);
+          const pubChannel = echo.channel(`rider.${riderId}.public-location`);
+          pubChannel.listen("rider.location.updated", onLocation);
+          pubChannel.listen(".rider.location.updated", onLocation);
+        }
 
-        if (run?.id) {
-          const runChannel = echo.channel(`delivery-runs.${run.id}.location`);
+        if (runId) {
+          const runChannel = echo.channel(`delivery-runs.${runId}.location`);
           runChannel.listen("rider.location.updated", onLocation);
           runChannel.listen(".rider.location.updated", onLocation);
+
+          const altRunChannel = echo.channel(`runs.${runId}`);
+          altRunChannel.listen("rider.location.updated", onLocation);
+          altRunChannel.listen(".rider.location.updated", onLocation);
         }
       } catch (err) {
         console.warn("Rider location echo subscription failed:", err);
@@ -480,15 +487,20 @@ export default function RunRouteMapInner({
     }
 
     return () => {
-      if (echo && riderId) {
+      if (echo) {
         try {
-          echo.leave(`rider.${riderId}.location`);
-          echo.leave(`rider.${riderId}.public-location`);
-          if (run?.id) echo.leave(`delivery-runs.${run.id}.location`);
+          if (riderId) {
+            echo.leave(`rider.${riderId}.location`);
+            echo.leave(`rider.${riderId}.public-location`);
+          }
+          if (runId) {
+            echo.leave(`delivery-runs.${runId}.location`);
+            echo.leave(`runs.${runId}`);
+          }
         } catch {}
       }
     };
-  }, [run?.rider?.id, run?.id]);
+  }, [run?.rider?.id, run?.rider_user_id, run?.rider_id, run?.assigned_to, run?.id]);
 
   // Periodic polling fallback for active runs (6s)
   useEffect(() => {
@@ -542,6 +554,12 @@ export default function RunRouteMapInner({
     const rawItems = (run?.items || []).filter((i) => i.status !== "removed");
     const seenLocations = {};
 
+    // Seed branch location so stops at the branch don't get completely hidden behind branch marker
+    if (branchCoords?.lat && branchCoords?.lng) {
+      const bKey = `${branchCoords.lat.toFixed(4)},${branchCoords.lng.toFixed(4)}`;
+      seenLocations[bKey] = 1;
+    }
+
     return rawItems.map((item, index) => {
       const seq = item.sequence || index + 1;
       const isPickup = mode === "pickup";
@@ -562,20 +580,32 @@ export default function RunRouteMapInner({
         : item.receiver_name || "Recipient";
       const phone = isPickup ? pr?.pickup_phone || item.pickup_phone : item.receiver_phone;
 
+      const merchantName = isPickup
+        ? pr?.merchant?.name || pr?.pickup_name || item.pickup_name || item.merchant_name || item.merchant?.name
+        : item.merchant_name || item.merchant?.name || item.shipment?.merchant?.name;
+      const merchantPhone = isPickup
+        ? pr?.merchant?.phone || pr?.pickup_phone || item.pickup_phone || item.merchant_phone || item.merchant?.phone
+        : item.merchant_phone || item.merchant?.phone || item.shipment?.merchant?.phone;
+
       const point = resolveCoords(latVal, lngVal, areaVal, addrVal);
 
-      // Slight jitter if multiple stops are at the same exact point
+      // Jitter / radial offset so multiple stops or branch-overlapping stops are clearly visible
       let adjustedPoint = null;
       if (point) {
         const key = `${point.lat.toFixed(4)},${point.lng.toFixed(4)}`;
         const count = seenLocations[key] || 0;
         seenLocations[key] = count + 1;
-        const shift = count * 0.0006;
-        adjustedPoint = {
-          lat: point.lat + shift,
-          lng: point.lng + shift,
-          guessed: point.guessed,
-        };
+        if (count > 0) {
+          const angle = (count - 1) * 1.5708;
+          const dist = 0.00075;
+          adjustedPoint = {
+            lat: point.lat + dist * Math.cos(angle),
+            lng: point.lng + dist * Math.sin(angle),
+            guessed: point.guessed,
+          };
+        } else {
+          adjustedPoint = point;
+        }
       }
 
       const rawStatus = isPickup ? (item.status || pr?.status) : item.status;
@@ -585,13 +615,15 @@ export default function RunRouteMapInner({
         title,
         subtitle,
         phone,
+        merchantName,
+        merchantPhone,
         status: rawStatus,
         area: areaVal || "Kathmandu Area",
         address: addrVal || "No address provided",
         point: adjustedPoint,
       };
     });
-  }, [run?.items, mode]);
+  }, [run?.items, mode, branchCoords]);
 
   // Compute travel distance from previous stop or branch origin along the route
   const stopsWithLegs = useMemo(() => {
@@ -895,8 +927,39 @@ export default function RunRouteMapInner({
                         </Tag>
                       </div>
 
-                      <div style={{ fontSize: 12, color: "#334155", fontWeight: 500, marginTop: 2 }}>
-                        {stop.subtitle}
+                      {/* Merchant / Store Tag */}
+                      {stop.merchantName ? (
+                        <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 3, flexWrap: "wrap" }}>
+                          <Tag
+                            color="cyan"
+                            style={{
+                              margin: 0,
+                              fontSize: 11,
+                              lineHeight: "20px",
+                              padding: "0 6px",
+                              fontWeight: 700,
+                              display: "inline-flex",
+                              alignItems: "center",
+                              gap: 4,
+                            }}
+                          >
+                            🏬 {stop.merchantName}
+                          </Tag>
+                          {stop.merchantPhone ? (
+                            <a
+                              href={`tel:${stop.merchantPhone}`}
+                              onClick={(e) => e.stopPropagation()}
+                              style={{ fontSize: 11, color: "#0891b2", textDecoration: "none" }}
+                              title="Call Merchant"
+                            >
+                              📞 {stop.merchantPhone}
+                            </a>
+                          ) : null}
+                        </div>
+                      ) : null}
+
+                      <div style={{ fontSize: 12, color: "#334155", fontWeight: 500, marginTop: 3 }}>
+                        👤 {stop.subtitle}
                         {stop.phone ? ` · ${stop.phone}` : ""}
                       </div>
 
@@ -1061,18 +1124,65 @@ export default function RunRouteMapInner({
                     key={stop.id}
                     position={[stop.point.lat, stop.point.lng]}
                     icon={createNumberedPin(stop.seq, stop.status, isSelected)}
+                    zIndexOffset={isSelected ? 3500 : 2000}
                     eventHandlers={{
                       click: () => setSelectedStopId(stop.id),
                     }}
                   >
+                    <Tooltip direction="top" offset={[0, -14]} opacity={0.95}>
+                      <div style={{ fontWeight: 700, fontSize: 12 }}>
+                        #{stop.seq} · {stop.title}
+                      </div>
+                      {stop.merchantName ? (
+                        <div style={{ fontSize: 11, color: "#0891b2", fontWeight: 700 }}>
+                          🏬 {stop.merchantName}
+                        </div>
+                      ) : null}
+                      <div style={{ fontSize: 11, color: "#334" }}>
+                        👤 {stop.subtitle} ({stop.area})
+                      </div>
+                    </Tooltip>
                     <Popup>
-                      <div style={{ padding: 4, minWidth: 200 }}>
+                      <div style={{ padding: 4, minWidth: 220 }}>
                         <div style={{ display: "flex", justifyContent: "space-between", gap: 8, alignItems: "center" }}>
                           <Tag color="cyan">Stop #{stop.seq}</Tag>
                           <Tag color={stopStatusColor(stop.status)}>{stop.status || "queued"}</Tag>
                         </div>
                         <div style={{ fontWeight: 700, fontSize: 14, marginTop: 4 }}>{stop.title}</div>
-                        <div style={{ fontSize: 12, color: "#334" }}>{stop.subtitle}</div>
+
+                        {/* Merchant Details in Popup */}
+                        {stop.merchantName ? (
+                          <div
+                            style={{
+                              display: "flex",
+                              alignItems: "center",
+                              gap: 6,
+                              marginTop: 4,
+                              padding: "3px 6px",
+                              background: "#f0fdf4",
+                              border: "1px solid #bbf7d0",
+                              borderRadius: 4,
+                            }}
+                          >
+                            <span style={{ fontSize: 12 }}>🏬</span>
+                            <span style={{ fontSize: 11, fontWeight: 700, color: "#166534" }}>
+                              {stop.merchantName}
+                            </span>
+                            {stop.merchantPhone ? (
+                              <a
+                                href={`tel:${stop.merchantPhone}`}
+                                style={{ fontSize: 11, color: "#0284c7", marginLeft: "auto", textDecoration: "none" }}
+                              >
+                                📞 {stop.merchantPhone}
+                              </a>
+                            ) : null}
+                          </div>
+                        ) : null}
+
+                        <div style={{ fontSize: 12, color: "#334", marginTop: 4 }}>
+                          👤 <strong>{stop.subtitle}</strong>
+                          {stop.phone ? ` · ${stop.phone}` : ""}
+                        </div>
                         <div style={{ fontSize: 12, color: "#666", marginTop: 2 }}>📍 {stop.area}</div>
                         <div style={{ fontSize: 11, color: "#888" }}>{stop.address}</div>
 

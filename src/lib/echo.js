@@ -81,12 +81,8 @@ function getReverbConfig() {
 
     const host =
         process.env.NEXT_PUBLIC_REVERB_HOST ||
-        (
-            window.location.hostname ===
-            "localhost"
-                ? "localhost"
-                : "ws.tukaatuexpress.com"
-        );
+        window.location.hostname ||
+        "localhost";
 
     const configuredPort = Number(
         process.env.NEXT_PUBLIC_REVERB_PORT
