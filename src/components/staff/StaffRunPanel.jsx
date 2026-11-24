@@ -790,7 +790,27 @@ export default function StaffRunPanel({
                                 <Tag style={{ margin: 0 }}>Prepaid</Tag>
                               )}
                             </Space>
-                            <div style={{ fontSize: 13 }}>{i.receiver_name || "-"}</div>
+
+                            {/* Merchant Tag */}
+                            {(i.merchant_name || i.merchant?.name) ? (
+                              <div style={{ marginTop: 3, display: "flex", alignItems: "center", gap: 6 }}>
+                                <Tag color="cyan" style={{ margin: 0, fontSize: 11, fontWeight: 700 }}>
+                                  🏬 {i.merchant_name || i.merchant?.name}
+                                </Tag>
+                                {(i.merchant_phone || i.merchant?.phone) ? (
+                                  <a
+                                    href={`tel:${i.merchant_phone || i.merchant?.phone}`}
+                                    onClick={(e) => e.stopPropagation()}
+                                    style={{ fontSize: 11, color: "#0891b2", textDecoration: "none" }}
+                                    title="Call Merchant"
+                                  >
+                                    📞 {i.merchant_phone || i.merchant?.phone}
+                                  </a>
+                                ) : null}
+                              </div>
+                            ) : null}
+
+                            <div style={{ fontSize: 13, marginTop: 2 }}>👤 {i.receiver_name || "-"}</div>
                             <Text type="secondary" style={{ fontSize: 12 }}>
                               {areaOf(i)} · {i.delivery_address || "-"}
                             </Text>
@@ -998,7 +1018,7 @@ export default function StaffRunPanel({
                       Stop #{activeNavStop.sequence}
                     </span>
                     <span style={{ fontWeight: 800, fontSize: 14, color: "#0f172a" }}>
-                      {activeNavStop.shipment?.recipient_name || activeNavStop.customer_name || "Recipient"}
+                      {activeNavStop.shipment?.recipient_name || activeNavStop.receiver_name || activeNavStop.customer_name || "Recipient"}
                     </span>
                   </div>
                   <div style={{ display: "flex", gap: 6 }}>
@@ -1037,6 +1057,34 @@ export default function StaffRunPanel({
                   </div>
                 </div>
 
+                {/* Merchant Store Header in Mobile HUD */}
+                {(activeNavStop.merchant_name || activeNavStop.merchant?.name || activeNavStop.shipment?.merchant?.name) && (
+                  <div
+                    style={{
+                      fontSize: 12,
+                      fontWeight: 700,
+                      color: "#0891b2",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 6,
+                      marginTop: 3,
+                      marginBottom: 4,
+                    }}
+                  >
+                    <span>🏬 Store:</span>
+                    <span>{activeNavStop.merchant_name || activeNavStop.merchant?.name || activeNavStop.shipment?.merchant?.name}</span>
+                    {(activeNavStop.merchant_phone || activeNavStop.merchant?.phone || activeNavStop.shipment?.merchant?.phone) && (
+                      <a
+                        href={`tel:${activeNavStop.merchant_phone || activeNavStop.merchant?.phone || activeNavStop.shipment?.merchant?.phone}`}
+                        style={{ color: "#0284c7", textDecoration: "none", marginLeft: 4 }}
+                        title="Call Store"
+                      >
+                        📞
+                      </a>
+                    )}
+                  </div>
+                )}
+
                 <div style={{ fontSize: 12, color: "#475569", marginBottom: 6, lineHeight: 1.35 }}>
                   📍 {activeNavStop.area || ""} {activeNavStop.address || activeNavStop.shipment?.delivery_address || ""}
                 </div>
@@ -1071,7 +1119,7 @@ export default function StaffRunPanel({
                   </a>
 
                   <a
-                    href={`tel:${activeNavStop.phone || activeNavStop.shipment?.recipient_phone || ""}`}
+                    href={`tel:${activeNavStop.phone || activeNavStop.receiver_phone || activeNavStop.shipment?.recipient_phone || ""}`}
                     style={{
                       display: "flex",
                       alignItems: "center",

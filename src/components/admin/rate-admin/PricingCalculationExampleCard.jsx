@@ -80,9 +80,9 @@ export default function PricingCalculationExampleCard({ pricingSetting, title = 
 
   // Simulation inputs
   const [routeType, setRouteType] = useState("transfer"); // 'local' | 'transfer'
-  const [baseRate, setBaseRate] = useState(299);
-  const [parcelWeight, setParcelWeight] = useState(3.5);
-  const [deliveryDistance, setDeliveryDistance] = useState(12.0);
+  const [baseRate, setBaseRate] = useState(209);
+  const [parcelWeight, setParcelWeight] = useState(3.05);
+  const [deliveryDistance, setDeliveryDistance] = useState(33.81);
   const [serviceType, setServiceType] = useState("standard"); // 'standard' | 'express' | 'same_day'
   const [isFragile, setIsFragile] = useState(false);
   const [packetCount, setPacketCount] = useState(5);
@@ -91,9 +91,17 @@ export default function PricingCalculationExampleCard({ pricingSetting, title = 
   const applyPreset = (preset) => {
     if (preset === "standard_transfer") {
       setRouteType("transfer");
-      setBaseRate(299);
-      setParcelWeight(3.5);
-      setDeliveryDistance(12.0);
+      setBaseRate(209);
+      setParcelWeight(3.05);
+      setDeliveryDistance(33.81);
+      setServiceType("standard");
+      setIsFragile(false);
+      setPacketCount(5);
+    } else if (preset === "kohalpur_transfer_41km") {
+      setRouteType("transfer");
+      setBaseRate(209);
+      setParcelWeight(3.05);
+      setDeliveryDistance(41.6);
       setServiceType("standard");
       setIsFragile(false);
       setPacketCount(5);
@@ -288,7 +296,14 @@ export default function PricingCalculationExampleCard({ pricingSetting, title = 
                 style={{ cursor: "pointer" }}
                 onClick={() => applyPreset("standard_transfer")}
               >
-                Standard Transfer (3.5kg)
+                Kohalpur Actual (33.81km → NPR 380.55)
+              </Tag>
+              <Tag
+                color="blue"
+                style={{ cursor: "pointer" }}
+                onClick={() => applyPreset("kohalpur_transfer_41km")}
+              >
+                Kohalpur Test (41.6km → NPR 419.50)
               </Tag>
               <Tag
                 color="orange"

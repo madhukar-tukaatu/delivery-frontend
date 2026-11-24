@@ -61,7 +61,12 @@ function vehicleKind(stop) {
 }
 
 function canAssign(stop) {
+  if (stop.canAssign === false) return false;
+  if (stop.isOnRun || stop.isPlanned || stop.runNumber) return false;
   const status = String(stop.status || "").toLowerCase();
+  if (["assigned", "accepted", "out_for_delivery", "delivered", "failed", "planned"].includes(status)) {
+    return false;
+  }
   return status === "pending" || status === "requested";
 }
 
@@ -203,7 +208,7 @@ export default function AreaAssignmentMapInner({
       if (areaFilter && area !== areaFilter) return false;
       if (vehicleFilter && vehicleKind(stop) !== vehicleFilter) return false;
       if (!q) return true;
-      const hay = [stop.title, stop.subtitle, stop.address, stop.area, stop.statusLabel, stop.riderName, stop.runNumber]
+      const hay = [stop.title, stop.merchantName, stop.subtitle, stop.address, stop.area, stop.statusLabel, stop.riderName, stop.runNumber]
         .filter(Boolean)
         .join(" ")
         .toLowerCase();
@@ -253,6 +258,7 @@ export default function AreaAssignmentMapInner({
 
   const activeStatus = controlled ? statusValue : localStatus;
   const pickStatus = (key) => {
+    onSelectedIdsChange?.([]);
     if (controlled) onStatusChange(key ?? "all");
     else setLocalStatus(key ?? null);
   };
@@ -388,7 +394,7 @@ export default function AreaAssignmentMapInner({
               </Button>
               <Button onClick={() => { setRoute(null); setRiderId(null); onSelectedIdsChange?.([]); }}>Clear</Button>
             </Space>
-            {selectedIds.length > 0 && (
+            {assignableSelected.length > 0 && (
               <Card
                 size="small"
                 style={{
@@ -505,11 +511,21 @@ export default function AreaAssignmentMapInner({
                           actions={onOpen ? [<a key="open" onClick={(e) => { e.stopPropagation(); onOpen(stop.id); }}>Open</a>] : []}
                         >
                           <List.Item.Meta
-                            title={<span style={{ fontSize: 13 }}>{stop.title}</span>}
+                            title={
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                                <span style={{ fontSize: 13, fontWeight: 600 }}>{stop.title}</span>
+                                {stop.merchantName ? (
+                                  <Tag color="cyan" style={{ margin: 0, fontSize: 10, lineHeight: '18px', padding: '0 5px', fontWeight: 600 }}>
+                                    🏬 {stop.merchantName}
+                                  </Tag>
+                                ) : null}
+                              </div>
+                            }
                             description={
                               <span style={{ fontSize: 11 }}>
                                 {stop.statusLabel ? stop.statusLabel + " · " : ""}
-                                {stop.subtitle || stop.address || "No address"}
+                                {stop.subtitle ? stop.subtitle + " · " : ""}
+                                {stop.address || "No address"}
                                 {vehicleKind(stop) === "bike" ? " · bike" : ""}
                                 {vehicleKind(stop) === "van" ? " · van" : ""}
                                 {stop.point?.guessed ? " · area pin" : ""}
@@ -543,9 +559,19 @@ export default function AreaAssignmentMapInner({
                 >
                   <Popup>
                     <strong>{stop.title}</strong>
-                    <div>{stop.area}</div>
-                    <div>{stop.address}</div>
-                    {!canAssign(stop) && <div>Already assigned. Not available to assign.</div>}
+                    {stop.merchantName && (
+                      <div style={{ fontSize: 12, color: "#0891b2", fontWeight: 700, marginTop: 2 }}>
+                        🏬 Store: {stop.merchantName}
+                      </div>
+                    )}
+                    {stop.subtitle && <div style={{ fontSize: 12, color: "#334" }}>👤 {stop.subtitle}</div>}
+                    <div>📍 {stop.area}</div>
+                    <div style={{ fontSize: 11, color: "#666" }}>{stop.address}</div>
+                    {!canAssign(stop) && (
+                      <div style={{ color: "#722ed1", fontWeight: 600, marginTop: 4 }}>
+                        {stop.runNumber ? `On ${stop.runNumber}` : stop.statusLabel || "Already assigned"}
+                      </div>
+                    )}
                   </Popup>
                 </Marker>
               ))}

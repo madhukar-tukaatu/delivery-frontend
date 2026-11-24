@@ -747,17 +747,85 @@ export default function ShipmentDetailDrawer({ open, shipmentId, onClose }) {
       ? (shipment.route_steps ?? shipment.routeSteps)
       : [];
 
-    const priceBreakdown =
+    const rawBreakdown = parseJsonField(
       data?.price_breakdown ??
-      shipment.price_breakdown ??
-      shipment.priceBreakdown ??
-      null;
+        shipment.price_breakdown ??
+        shipment.priceBreakdown ??
+        data?.delivery_charge_breakdown ??
+        shipment.delivery_charge_breakdown ??
+        shipment.deliveryChargeBreakdown ??
+        null,
+    );
+
+    let priceBreakdown = null;
+    if (rawBreakdown && typeof rawBreakdown === "object") {
+      const b = rawBreakdown.breakdown ?? rawBreakdown;
+      const routeBase =
+        rawBreakdown.route_base_rate ??
+        rawBreakdown.base_delivery_fee ??
+        b?.route_base_rate?.total ??
+        b?.route_base_rate?.amount ??
+        rawBreakdown.route?.base_rate ??
+        shipment.route_fee ??
+        0;
+
+      const extraDist =
+        rawBreakdown.delivery_extra_charge ??
+        b?.extra_delivery_distance?.total ??
+        rawBreakdown.distance?.charge ??
+        rawBreakdown.distance_fee ??
+        shipment.last_mile_fee ??
+        0;
+
+      const extraKm =
+        rawBreakdown.extra_distance_km ??
+        b?.extra_delivery_distance?.extra_distance_km ??
+        rawBreakdown.distance?.extra_distance_km ??
+        0;
+
+      let weightChg =
+        rawBreakdown.weight_charge ??
+        b?.additional_weight?.total ??
+        rawBreakdown.weight_summary?.total_weight_charge ??
+        rawBreakdown.weight?.charge ??
+        rawBreakdown.weight_fee ??
+        shipment.weight_fee ??
+        0;
+
+      const finalPrice =
+        rawBreakdown.final_price ??
+        b?.final_price ??
+        shipment.delivery_charge ??
+        shipment.delivery_fee ??
+        0;
+
+      if (Number(weightChg) <= 0 && Number(finalPrice) > (Number(routeBase) + Number(extraDist))) {
+        weightChg = Math.round((Number(finalPrice) - (Number(routeBase) + Number(extraDist))) * 100) / 100;
+      }
+
+      priceBreakdown = {
+        ...rawBreakdown,
+        route_base_rate: Number(routeBase),
+        delivery_extra_charge: Number(extraDist),
+        extra_distance_km: Number(extraKm),
+        weight_charge: Number(weightChg),
+        final_price: Number(finalPrice),
+      };
+    }
+
+    const deliveryTotal = Number(shipment.delivery_charge ?? shipment.delivery_fee ?? 0);
+    const routeFeeVal = Number(shipment.route_fee ?? priceBreakdown?.route_base_rate ?? 0);
+    const lastMileVal = Number(shipment.last_mile_fee ?? priceBreakdown?.delivery_extra_charge ?? 0);
+    let resolvedWeightFee = Number(shipment.weight_fee ?? priceBreakdown?.weight_charge ?? 0);
+    if ((!resolvedWeightFee || resolvedWeightFee === 0) && deliveryTotal > (routeFeeVal + lastMileVal)) {
+      resolvedWeightFee = Math.round((deliveryTotal - (routeFeeVal + lastMileVal)) * 100) / 100;
+    }
 
     const feeFromShipment = {
       pickup_fee: moneyValue(shipment.pickup_fee),
-      route_fee: moneyValue(shipment.route_fee),
-      last_mile_fee: moneyValue(shipment.last_mile_fee),
-      weight_fee: moneyValue(shipment.weight_fee),
+      route_fee: moneyValue(shipment.route_fee ?? (routeFeeVal > 0 ? routeFeeVal : null)),
+      last_mile_fee: moneyValue(shipment.last_mile_fee ?? (lastMileVal > 0 ? lastMileVal : null)),
+      weight_fee: moneyValue(resolvedWeightFee > 0 ? resolvedWeightFee : shipment.weight_fee),
       pod_charge: moneyValue(shipment.pod_charge),
       delivery_charge: moneyValue(
         shipment.delivery_charge,
@@ -864,15 +932,21 @@ export default function ShipmentDetailDrawer({ open, shipmentId, onClose }) {
 
         // 2. Extra mile from destination: Destination branch to customer destination
         const extraDistObj =
-          priceBreakdown?.breakdown?.extra_delivery_distance ||
           priceBreakdown?.extra_delivery_distance ||
+          priceBreakdown?.raw?.breakdown?.extra_delivery_distance ||
+          priceBreakdown?.breakdown?.extra_delivery_distance ||
           priceBreakdown?.extra_distance ||
           (typeof shipment.delivery_charge_breakdown === "object"
-            ? shipment.delivery_charge_breakdown?.extra_delivery_distance
+            ? (shipment.delivery_charge_breakdown?.breakdown?.extra_delivery_distance || shipment.delivery_charge_breakdown?.extra_delivery_distance)
+            : null) ||
+          (typeof rawBreakdown === "object"
+            ? (rawBreakdown?.breakdown?.extra_delivery_distance || rawBreakdown?.extra_delivery_distance)
             : null);
 
         let destToCustomerDistance = null;
-        if (extraDistObj?.delivery_distance_km != null) {
+        if (serverDist?.destination_to_customer_km != null && Number(serverDist.destination_to_customer_km) > 0) {
+          destToCustomerDistance = Math.round(Number(serverDist.destination_to_customer_km) * 100) / 100;
+        } else if (extraDistObj?.delivery_distance_km != null && Number(extraDistObj.delivery_distance_km) > 0) {
           destToCustomerDistance = Math.round(Number(extraDistObj.delivery_distance_km) * 100) / 100;
         } else if (destBranchCoords && customerCoords) {
           destToCustomerDistance = haversineDistanceKm(
@@ -883,14 +957,16 @@ export default function ShipmentDetailDrawer({ open, shipmentId, onClose }) {
           );
         }
 
-        // 3. Base distance included in base fare (e.g. 5.0 km)
+        // 3. Base distance included in base fare (e.g. 10.0 km from settings)
         const baseDistanceKm = Number(
-          extraDistObj?.included_distance_km ?? 5.0
+          serverDist?.base_distance_km ?? extraDistObj?.included_distance_km ?? 10.0
         );
 
         // 4. Extra mile from destination, excluding the base distance
         let extraMileKm = 0;
-        if (extraDistObj?.extra_distance_km != null) {
+        if (serverDist?.extra_mile_km != null) {
+          extraMileKm = Math.round(Number(serverDist.extra_mile_km) * 100) / 100;
+        } else if (extraDistObj?.extra_distance_km != null && Number(extraDistObj.extra_distance_km) > 0) {
           extraMileKm = Math.round(Number(extraDistObj.extra_distance_km) * 100) / 100;
         } else if (destToCustomerDistance != null) {
           extraMileKm = Math.max(0, Math.round((destToCustomerDistance - baseDistanceKm) * 100) / 100);
@@ -1707,7 +1783,7 @@ export default function ShipmentDetailDrawer({ open, shipmentId, onClose }) {
             },
             {
               label: "Base covered distance",
-              value: `${view.distanceData.baseDistanceKm ?? 5} km (Included in base fare)`,
+              value: `${view.distanceData.baseDistanceKm ?? 10} km (Included in base fare)`,
             },
             {
               label: "Extra mile from destination",
@@ -1945,7 +2021,7 @@ export default function ShipmentDetailDrawer({ open, shipmentId, onClose }) {
                   </Text>
                   {(view.priceBreakdown.extra_distance_km || view.distanceData?.extraMileKm > 0) && (
                     <Text type="secondary" style={{ fontSize: 12 }}>
-                      +{view.priceBreakdown.extra_distance_km ?? view.distanceData.extraMileKm} km extra mile (Excluding {view.distanceData?.baseDistanceKm ?? 5} km base distance)
+                      +{view.priceBreakdown.extra_distance_km ?? view.distanceData.extraMileKm} km extra mile (Excluding {view.distanceData?.baseDistanceKm ?? 10} km base distance)
                     </Text>
                   )}
                 </Space>
@@ -1954,8 +2030,17 @@ export default function ShipmentDetailDrawer({ open, shipmentId, onClose }) {
             {
               label: "Weight charge",
               show: Number(view.priceBreakdown.weight_charge ?? 0) > 0,
-              value: formatMoney(
-                Number(view.priceBreakdown.weight_charge ?? 0),
+              value: (
+                <Space direction="vertical" size={2}>
+                  <Text strong>
+                    {formatMoney(Number(view.priceBreakdown.weight_charge ?? 0))}
+                  </Text>
+                  {Number(view.priceBreakdown.weight_charge ?? 0) > 0 && view.parcelWeight != null && (
+                    <Text type="secondary" style={{ fontSize: 12 }}>
+                      +{Math.max(0, Math.round((Number(view.parcelWeight) - Number(view.priceBreakdown.included_weight_kg ?? 2.0)) * 100) / 100)} kg excess weight (Excluding {view.priceBreakdown.included_weight_kg ?? 2.0} kg included)
+                    </Text>
+                  )}
+                </Space>
               ),
             },
             {

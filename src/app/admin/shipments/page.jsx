@@ -39,7 +39,7 @@ import { formatMerchantLabel } from "@/lib/merchantLabel";
 import { collectAmount } from "@/lib/collectAmount";
 import { labelForStatus } from "@/config/workflowStatus";
 import { usePermissions } from "@/hooks/usePermission";
-import { useAdminDashboardSocket } from "@/hooks/useAdminDashboardSocket";
+import { useAdminRealtime, RealtimeStatusBadge } from "@/hooks/useAdminRealtime";
 import AdminPageHeader from "@/components/admin/ui/AdminPageHeader";
 import { useShipmentDrawer } from "@/components/admin/shipments/ShipmentDrawerProvider";
 import DataImportModal from "@/components/admin/ui/DataImportModal";
@@ -364,9 +364,16 @@ function ShipmentsPageInner() {
   const [facets, setFacets] = useState({ merchants: [], branches: [] });
   const [searchText, setSearchText] = useState(filters.search || "");
   const [reloadKey, setReloadKey] = useState(0);
+  const silentRefreshRef = useRef(false);
 
-  useAdminDashboardSocket({
-    onRefresh: () => setReloadKey((k) => k + 1),
+  const silentReload = useCallback(() => {
+    silentRefreshRef.current = true;
+    setReloadKey((k) => k + 1);
+  }, []);
+
+  const { realtimeConnected } = useAdminRealtime({
+    channelName: "admin.shipments",
+    onRefresh: silentReload,
   });
 
   const requestRef = useRef(0);
@@ -394,7 +401,11 @@ function ShipmentsPageInner() {
   /* Load list + counts whenever URL filters/page change. */
   useEffect(() => {
     const requestId = ++requestRef.current;
-    setLoading(true);
+    const isSilent = silentRefreshRef.current;
+    silentRefreshRef.current = false;
+    if (!isSilent) {
+      setLoading(true);
+    }
 
     api
       .get("/admin/shipments", {
@@ -859,6 +870,7 @@ function ShipmentsPageInner() {
       <AdminPageHeader
         title="Shipments"
         subtitle="Track every shipment in your scope"
+        tags={<RealtimeStatusBadge connected={realtimeConnected} />}
         actions={
           <span className={styles.headerActions}>
             <Link href="/admin/shipments/create">

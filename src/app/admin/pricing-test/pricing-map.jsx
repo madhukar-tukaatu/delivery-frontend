@@ -453,6 +453,58 @@ function extractTransferPoints(
     return [];
   }
 
+  const points = [];
+
+  // 1. Serving branch origin & destination
+  const pickupServing = result?.pickup_serving_branch || result?.pickup_branch;
+  const deliveryServing = result?.delivery_serving_branch || result?.delivery_branch;
+  const isSameBranch = Boolean(result?.route?.same_branch);
+
+  const originLat = pickupServing?.latitude ?? pickupServing?.operational_branch_latitude;
+  const originLng = pickupServing?.longitude ?? pickupServing?.operational_branch_longitude;
+
+  if (isValidCoordinate(originLat, originLng)) {
+    points.push({
+      latitude: Number(originLat),
+      longitude: Number(originLng),
+      type: "transfer",
+      label: `Origin Branch: ${pickupServing.name || pickupServing.operational_branch_name || "Origin Hub"}`,
+    });
+  }
+
+  // 2. Intermediate transit branches
+  const transitBranches = Array.isArray(result?.route?.transit_branches)
+    ? result.route.transit_branches
+    : [];
+  transitBranches.forEach((tb, idx) => {
+    if (isValidCoordinate(tb?.latitude, tb?.longitude)) {
+      points.push({
+        latitude: Number(tb.latitude),
+        longitude: Number(tb.longitude),
+        type: "transfer",
+        label: `Transit Hub: ${tb.name || `Hub #${idx + 1}`}`,
+      });
+    }
+  });
+
+  // 3. Destination serving branch (if not same branch)
+  const destLat = deliveryServing?.latitude ?? deliveryServing?.operational_branch_latitude;
+  const destLng = deliveryServing?.longitude ?? deliveryServing?.operational_branch_longitude;
+
+  if (
+    !isSameBranch &&
+    isValidCoordinate(destLat, destLng) &&
+    (Number(destLat) !== Number(originLat) || Number(destLng) !== Number(originLng))
+  ) {
+    points.push({
+      latitude: Number(destLat),
+      longitude: Number(destLng),
+      type: "transfer",
+      label: `Destination Branch: ${deliveryServing.name || deliveryServing.operational_branch_name || "Destination Hub"}`,
+    });
+  }
+
+  // 4. Any legacy transfer lanes if present
   const transfers =
     result?.transfer_lanes ??
     result?.transferLanes ??
@@ -473,10 +525,8 @@ function extractTransferPoints(
   if (
     !Array.isArray(transfers)
   ) {
-    return [];
+    return points;
   }
-
-  const points = [];
 
   transfers.forEach(
     (transfer) => {

@@ -38,7 +38,7 @@ import {
   UploadOutlined,
 } from "@ant-design/icons";
 import { usePermissions } from "@/hooks/usePermission";
-import { useAdminDashboardSocket } from "@/hooks/useAdminDashboardSocket";
+import { useAdminRealtime, RealtimeStatusBadge } from "@/hooks/useAdminRealtime";
 import {
   getDeliveries,
   getDeliverySummary,
@@ -468,7 +468,8 @@ export default function DeliveriesPage() {
     refreshMenuBadges();
   }, []);
 
-  useAdminDashboardSocket({
+  const { realtimeConnected } = useAdminRealtime({
+    channelName: "admin.deliveries",
     onRefresh: () => {
       refresh();
     },
@@ -477,6 +478,7 @@ export default function DeliveriesPage() {
   const changeStatus = useCallback((key) => {
     setStatusTab(STATUS_TABS.some((t) => t.key === key) ? key : "all");
     setPagination((p) => ({ ...p, current: 1 }));
+    setSelectedRowKeys([]);
   }, []);
 
   const openRun = useCallback((id) => {
@@ -901,6 +903,7 @@ export default function DeliveriesPage() {
       <AdminPageHeader
         title="Deliveries"
         subtitle="Organize shipments into Delivery Runs (DR), monitor live route maps, and reconcile legacy parcels"
+        tags={<RealtimeStatusBadge connected={realtimeConnected} />}
         actions={
           <Space wrap size={6}>
             <Segmented
@@ -971,9 +974,28 @@ export default function DeliveriesPage() {
           }}
           stops={mapRows.map((row) => {
             const shipment = row.shipment ?? {};
+            const isOnRun = !!row.delivery_run?.active;
+            const runNum = row.delivery_run?.run_number;
+            const riderName = row.rider?.name || (isOnRun ? row.delivery_run?.rider?.name : "") || "";
+            const isPlanned = row.status === "pending" && isOnRun;
+            const isAssigned = row.status === "assigned" || isPlanned;
+
+            let statusLabel = statusMeta(row.status).label;
+            let color = statusMeta(row.status).hex;
+
+            if (isPlanned) {
+              statusLabel = runNum ? `On DR (${runNum})` : "On DR";
+              color = "#722ed1";
+            } else if (row.status === "assigned") {
+              statusLabel = riderName ? `Assigned (${riderName})` : "Assigned";
+              color = "#722ed1";
+            }
+
             return {
               id: row.id,
               title: shipment.tracking_number || `#${row.shipment_id}`,
+              merchantName: shipment.merchant?.name || row.merchant?.name || "",
+              merchantPhone: shipment.merchant?.phone || row.merchant?.phone || "",
               subtitle: shipment.receiver_name || "",
               area:
                 shipment.receiver_area ||
@@ -983,13 +1005,16 @@ export default function DeliveriesPage() {
               address: shipment.delivery_address || shipment.receiver_address || "",
               lat: shipment.delivery_lat,
               lng: shipment.delivery_lng,
-              status: row.status,
-              statusLabel: statusMeta(row.status).label,
-              color: statusMeta(row.status).hex,
+              status: isPlanned ? "planned" : row.status,
+              statusLabel,
+              color,
               deliveryType: row.delivery_type,
-              riderName: row.rider?.name || "",
+              riderName,
               riderRole: row.rider?.role || "",
-              runNumber: row.delivery_run?.active ? row.delivery_run.run_number : "",
+              runNumber: isOnRun ? runNum : "",
+              isOnRun,
+              isPlanned,
+              canAssign: !isOnRun && !isAssigned && row.status === "pending",
             };
           })}
         />

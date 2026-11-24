@@ -1,6 +1,7 @@
 "use client";
 
 import AdminPageHeader from "@/components/admin/ui/AdminPageHeader";
+import { useAdminRealtime, RealtimeStatusBadge } from "@/hooks/useAdminRealtime";
 import Link from "next/link";
 
 import { useCallback, useEffect, useRef, useState, useMemo } from "react";
@@ -2649,6 +2650,13 @@ export default function TransfersPage() {
     await Promise.all([loadStats(), loadData()]);
   }, [loadStats, loadData]);
 
+  const { realtimeConnected } = useAdminRealtime({
+    channelName: "admin.transfers",
+    onRefresh: () => {
+      refresh();
+    },
+  });
+
   const [reconciling, setReconciling] = useState(false);
   const handleReconcile = useCallback(async () => {
     setReconciling(true);
@@ -3712,6 +3720,7 @@ export default function TransfersPage() {
         title="Transfers"
         subtitle="Hop-by-hop branch handoffs - organized by service type"
         icon={<SwapOutlined />}
+        tags={<RealtimeStatusBadge connected={realtimeConnected} />}
         actions={
           <Button icon={<ReloadOutlined />} onClick={refresh}>Refresh</Button>
         }
