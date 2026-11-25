@@ -192,6 +192,7 @@ export default function EditDeliveryLocationModal({
       open={open}
       onCancel={onClose}
       width={780}
+      style={{ maxWidth: "calc(100vw - 24px)" }}
       title={
         <Space size={8}>
           <EnvironmentOutlined style={{ color: "#0891B2" }} />

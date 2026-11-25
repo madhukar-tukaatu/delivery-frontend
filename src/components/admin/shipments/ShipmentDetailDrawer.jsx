@@ -1,26 +1,25 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Alert,
   Badge,
   Button,
   Card,
   Col,
+  Collapse,
   Descriptions,
   Drawer,
   Empty,
-  Form,
+  Image,
   Input,
   Modal,
-  Progress,
   Row,
+  Skeleton,
   Space,
-  Spin,
-  Statistic,
   Table,
   Tag,
-  Timeline,
+  Tooltip,
   Typography,
   message,
 } from "antd";
@@ -36,11 +35,15 @@ import {
   InfoCircleOutlined,
   HistoryOutlined,
   FileTextOutlined,
-  CompassOutlined,
   AimOutlined,
   StopOutlined,
   RollbackOutlined,
   CheckCircleOutlined,
+  CopyOutlined,
+  PhoneOutlined,
+  ExpandAltOutlined,
+  CloseOutlined,
+  ArrowRightOutlined,
 } from "@ant-design/icons";
 
 import ShipmentWorkflowActions from "@/features/workflow/components/ShipmentWorkflowActions";
@@ -67,6 +70,7 @@ import {
   formatMoney,
   labelForStatus,
 } from "@/config/workflowStatus";
+import styles from "./ShipmentDetailDrawer.module.css";
 
 const { Text, Paragraph } = Typography;
 
@@ -87,6 +91,26 @@ function hasText(value) {
   if (value === null || value === undefined) return false;
   if (typeof value === "object") return true;
   return String(value).trim() !== "";
+}
+
+function formatKm(value) {
+  const km = Number(value);
+  if (!Number.isFinite(km) || km <= 0) return null;
+  const digits = km < 1 ? 2 : km < 10 ? 1 : 0;
+  return `${Number(km.toFixed(digits))} km`;
+}
+
+function formatKathmandu(value, withDate = true) {
+  if (!value) return null;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return String(value);
+  return date.toLocaleString("en-GB", {
+    timeZone: "Asia/Kathmandu",
+    ...(withDate ? { day: "2-digit", month: "short", year: "numeric" } : {}),
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: true,
+  });
 }
 
 function BranchRibbonTag({ name, id, color = "geekblue" }) {
@@ -156,18 +180,6 @@ function BranchRibbonTag({ name, id, color = "geekblue" }) {
   );
 }
 
-function branchLabel(branch, fallbackId) {
-  if (branch && typeof branch === "object") {
-    const name = firstValue(branch.name, branch.legal_name, branch.branch_name);
-    if (name) {
-      return branch.area ? `${name}, ${branch.area}` : name;
-    }
-  }
-  if (typeof branch === "string" && branch.trim()) return branch;
-  if (fallbackId != null && fallbackId !== "") return `Branch #${fallbackId}`;
-  return null;
-}
-
 function coordinateLabel(latitude, longitude) {
   if (
     latitude === null ||
@@ -191,10 +203,6 @@ function moneyValue(...values) {
   return null;
 }
 
-function displayOrDash(value) {
-  return hasText(value) ? value : "—";
-}
-
 function parseJsonField(value) {
   if (value == null) return null;
   if (typeof value === "object") return value;
@@ -214,7 +222,13 @@ function haversineDistanceKm(lat1, lon1, lat2, lon2) {
   const nLon1 = Number(lon1);
   const nLat2 = Number(lat2);
   const nLon2 = Number(lon2);
-  if (Number.isNaN(nLat1) || Number.isNaN(nLon1) || Number.isNaN(nLat2) || Number.isNaN(nLon2)) return null;
+  if (
+    Number.isNaN(nLat1) ||
+    Number.isNaN(nLon1) ||
+    Number.isNaN(nLat2) ||
+    Number.isNaN(nLon2)
+  )
+    return null;
 
   const R = 6371; // Earth radius in km
   const dLat = ((nLat2 - nLat1) * Math.PI) / 180;
@@ -233,37 +247,310 @@ function resolveBranchCoords(branch) {
   if (!branch || typeof branch !== "object") return null;
   const lat = branch.latitude ?? branch.office_latitude ?? branch.lat ?? null;
   const lng = branch.longitude ?? branch.office_longitude ?? branch.lng ?? null;
-  if (lat != null && lng != null && !Number.isNaN(Number(lat)) && !Number.isNaN(Number(lng))) {
+  if (
+    lat != null &&
+    lng != null &&
+    !Number.isNaN(Number(lat)) &&
+    !Number.isNaN(Number(lng))
+  ) {
     return { lat: Number(lat), lng: Number(lng) };
   }
   return null;
 }
 
-const STATUS_STEPS = [
-  "pending",
-  "confirmed",
-  "pickup_requested",
-  "pickup_assigned",
-  "picked_up",
-  "received_at_origin",
-  "in_transit",
-  "received_at_destination",
-  "out_for_delivery",
-  "assigned_to_rider",
-  "delivered",
-];
+const STATUS_COLOR_MAP = {
+  booked: "#64748B",
+  pending: "#94A3B8",
+  confirmed: "#3B82F6",
+  awaiting_pickup: "#F59E0B",
+  pickup_requested: "#F59E0B",
+  pickup_assigned: "#8B5CF6",
+  picked_up: "#6366F1",
+  pickup_failed: "#F43F5E",
+  received_at_origin_sub_branch: "#7C3AED",
+  received_at_origin_branch: "#7C3AED",
+  received_at_origin: "#7C3AED",
+  sorted_for_delivery: "#14B8A6",
+  sorted_for_transfer: "#F97316",
+  in_transit: "#0891B2",
+  received_at_transit_hub: "#0E7490",
+  dispatched_to_destination_branch: "#0369A1",
+  received_at_destination_branch: "#CA8A04",
+  received_at_destination_sub_branch: "#CA8A04",
+  received_at_destination: "#CA8A04",
+  assigned_to_rider: "#DB2777",
+  out_for_delivery: "#2563EB",
+  delivered: "#10B981",
+  delivery_failed: "#EF4444",
+  failed: "#EF4444",
+  return_initiated: "#D97706",
+  returned_to_origin: "#B45309",
+  returned_to_merchant: "#059669",
+  cancelled: "#9CA3AF",
+};
 
-function getStatusProgress(status) {
-  if (!status) return 0;
-  if (status === "failed" || status === "cancelled") return 100;
-  const idx = STATUS_STEPS.indexOf(status);
-  if (idx === -1) return 0;
-  return Math.round(((idx + 1) / STATUS_STEPS.length) * 100);
+function statusColor(status) {
+  return STATUS_COLOR_MAP[status] || "#64748B";
 }
 
-/* -------------------------------------------------------------------------- */
-/* UI pieces                                                                  */
-/* -------------------------------------------------------------------------- */
+function StatusChip({ status }) {
+  if (!status) return null;
+  return (
+    <span
+      className={styles.statusChip}
+      style={{ "--status-color": statusColor(status) }}
+    >
+      <span
+        className={styles.dot}
+        style={{ background: statusColor(status) }}
+      />
+      {labelForStatus(status)}
+    </span>
+  );
+}
+
+function InfoRow({ label, children, wrap = false }) {
+  if (children === null || children === undefined || children === "")
+    return null;
+  return (
+    <div className={styles.infoRow}>
+      <span className={styles.infoLabel}>{label}</span>
+      <span className={wrap ? styles.infoValueWrap : styles.infoValue}>
+        {children}
+      </span>
+    </div>
+  );
+}
+
+function PhoneLink({ phone }) {
+  if (!phone) return null;
+  return (
+    <a className={styles.phone} href={`tel:${phone}`}>
+      {phone}
+    </a>
+  );
+}
+
+function eventTimestamp(event) {
+  return (
+    event?.created_at ||
+    event?.event_time ||
+    event?.timestamp ||
+    event?.logged_at ||
+    null
+  );
+}
+
+function eventStatus(event) {
+  return String(
+    event?.status ??
+      event?.to_status ??
+      event?.new_status ??
+      event?.event ??
+      "",
+  ).toLowerCase();
+}
+
+function firstEventTime(events, statuses) {
+  const wanted = new Set(statuses);
+  for (const event of events || []) {
+    if (wanted.has(eventStatus(event))) return eventTimestamp(event);
+  }
+  return null;
+}
+
+const LIFECYCLE_STAGES = [
+  {
+    key: "created",
+    label: "Created",
+    statuses: ["booked", "pending", "confirmed"],
+    times: (s, events) =>
+      s.created_at ||
+      firstEventTime(events, ["booked", "pending", "confirmed"]),
+  },
+  {
+    key: "pickup",
+    label: "Pickup",
+    statuses: [
+      "awaiting_pickup",
+      "pickup_requested",
+      "pickup_assigned",
+      "pickup_failed",
+    ],
+    times: (s, events) =>
+      firstEventTime(events, [
+        "awaiting_pickup",
+        "pickup_requested",
+        "pickup_assigned",
+        "picked_up",
+      ]) ||
+      s.pickup_assigned_at ||
+      s.picked_up_at,
+  },
+  {
+    key: "origin",
+    label: "At origin",
+    statuses: [
+      "picked_up",
+      "received_at_origin_sub_branch",
+      "received_at_origin_branch",
+      "received_at_origin",
+      "sorted_for_delivery",
+      "sorted_for_transfer",
+    ],
+    times: (s, events) =>
+      firstEventTime(events, [
+        "picked_up",
+        "received_at_origin_sub_branch",
+        "received_at_origin_branch",
+        "received_at_origin",
+        "sorted_for_delivery",
+        "sorted_for_transfer",
+      ]) || s.picked_up_at,
+  },
+  {
+    key: "transfer",
+    label: "Transfer",
+    transferOnly: true,
+    statuses: [
+      "in_transit",
+      "received_at_transit_hub",
+      "dispatched_to_destination_branch",
+    ],
+    times: (s, events) =>
+      firstEventTime(events, [
+        "in_transit",
+        "received_at_transit_hub",
+        "dispatched_to_destination_branch",
+        "sorted_for_transfer",
+      ]) || s.dispatched_at,
+  },
+  {
+    key: "destination",
+    label: "At destination",
+    statuses: [
+      "received_at_destination_branch",
+      "received_at_destination_sub_branch",
+      "received_at_destination",
+      "assigned_to_rider",
+    ],
+    times: (s, events) =>
+      firstEventTime(events, [
+        "received_at_destination_branch",
+        "received_at_destination_sub_branch",
+        "received_at_destination",
+        "assigned_to_rider",
+      ]) ||
+      s.received_at_destination_at ||
+      s.sorted_for_delivery_at,
+  },
+  {
+    key: "ofd",
+    label: "Out for delivery",
+    statuses: ["out_for_delivery"],
+    times: (s, events) =>
+      firstEventTime(events, ["out_for_delivery", "assigned_to_rider"]) ||
+      s.dispatched_at,
+  },
+  {
+    key: "end",
+    label: "Delivered",
+    statuses: [
+      "delivered",
+      "delivery_failed",
+      "failed",
+      "cancelled",
+      "return_initiated",
+      "returned_to_origin",
+      "returned_to_merchant",
+    ],
+    times: (s, events) =>
+      s.delivered_at ||
+      s.cancelled_at ||
+      s.returned_to_merchant_at ||
+      s.returned_to_origin_at ||
+      s.return_initiated_at ||
+      firstEventTime(events, [
+        "delivered",
+        "delivery_failed",
+        "failed",
+        "cancelled",
+        "return_initiated",
+        "returned_to_origin",
+        "returned_to_merchant",
+      ]),
+  },
+];
+
+function buildLifecycle(shipment, events, isTransfer) {
+  const status = String(shipment?.status || "").toLowerCase();
+  const stages = LIFECYCLE_STAGES.filter(
+    (stage) => !stage.transferOnly || isTransfer,
+  );
+  const indexOfStatus = (value) =>
+    stages.findIndex((stage) => stage.statuses.includes(value));
+  let current = indexOfStatus(status);
+  if (current < 0) {
+    if (status === "delivered") current = stages.length - 1;
+    else current = 0;
+  }
+
+  const isTerminalFailed = ["failed", "delivery_failed", "cancelled"].includes(
+    status,
+  );
+
+  return stages.map((stage, index) => {
+    const isDone =
+      index < current || (index === current && status === "delivered");
+    const isCurrent = index === current && status !== "delivered";
+    const isFailed = isCurrent && isTerminalFailed;
+    const timeRaw = stage.times(shipment, events);
+    const timeFormatted = timeRaw
+      ? formatKathmandu(timeRaw, stage.key === "created" || stage.key === "end")
+      : null;
+
+    let dynamicLabel = stage.label;
+    if (stage.key === "end") {
+      if (status === "cancelled") dynamicLabel = "Cancelled";
+      else if (
+        [
+          "return_initiated",
+          "returned_to_origin",
+          "returned_to_merchant",
+        ].includes(status)
+      ) {
+        dynamicLabel = "Returned";
+      } else if (status === "delivery_failed" || status === "failed") {
+        dynamicLabel = "Failed";
+      }
+    }
+
+    return {
+      key: stage.key,
+      label: dynamicLabel,
+      done: isDone,
+      current: isCurrent,
+      failed: isFailed,
+      time: timeFormatted,
+    };
+  });
+}
+
+function collectProofs(shipment) {
+  if (!shipment) return [];
+  const list = [];
+  const add = (url, label) => {
+    if (url && typeof url === "string" && url.trim()) {
+      list.push({ url: url.trim(), label });
+    }
+  };
+  add(shipment.delivery_proof_url, "Delivery proof");
+  add(shipment.pod_image_url, "POD photo");
+  add(shipment.signature_url, "Signature");
+  add(shipment.pickup_proof_url, "Pickup proof");
+  add(shipment.receiver_signature_url, "Receiver signature");
+  return list;
+}
 
 function SectionCard({ title, icon, children, extra, style }) {
   return (
@@ -300,37 +587,6 @@ function FieldDescriptions({ items, column = 1 }) {
   );
 }
 
-function MoneyStat({ title, value, color, tag }) {
-  return (
-    <Card size="small" styles={{ body: { padding: "12px 16px" } }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 4 }}>
-        <Text type="secondary" style={{ fontSize: 12 }}>
-          {title}
-        </Text>
-        {tag}
-      </div>
-      <Statistic
-        value={
-          value === null || value === undefined || !Number.isFinite(Number(value))
-            ? "—"
-            : Number(value)
-        }
-        precision={
-          value === null || value === undefined || !Number.isFinite(Number(value))
-            ? undefined
-            : 2
-        }
-        prefix={
-          value === null || value === undefined || !Number.isFinite(Number(value))
-            ? ""
-            : "NPR "
-        }
-        valueStyle={{ fontSize: 18, fontWeight: 600, color }}
-      />
-    </Card>
-  );
-}
-
 /* -------------------------------------------------------------------------- */
 /* Main                                                                       */
 /* -------------------------------------------------------------------------- */
@@ -339,7 +595,7 @@ export default function ShipmentDetailDrawer({ open, shipmentId, onClose }) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
-  // ~720px on desktop, full width on phones.
+
   const [viewportWidth, setViewportWidth] = useState(
     typeof window !== "undefined" ? window.innerWidth : 1280,
   );
@@ -347,6 +603,7 @@ export default function ShipmentDetailDrawer({ open, shipmentId, onClose }) {
   useEffect(() => {
     if (typeof window === "undefined") return undefined;
     const onResize = () => setViewportWidth(window.innerWidth);
+    onResize();
     window.addEventListener("resize", onResize);
     return () => window.removeEventListener("resize", onResize);
   }, []);
@@ -369,7 +626,7 @@ export default function ShipmentDetailDrawer({ open, shipmentId, onClose }) {
     }
   };
 
-  const load = async () => {
+  const load = useCallback(async () => {
     if (!shipmentId) return;
     try {
       setLoading(true);
@@ -384,13 +641,12 @@ export default function ShipmentDetailDrawer({ open, shipmentId, onClose }) {
     } finally {
       setLoading(false);
     }
-  };
+  }, [shipmentId]);
 
   useEffect(() => {
     if (!open || !shipmentId) return;
     load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, shipmentId]);
+  }, [open, shipmentId, load]);
 
   const runAction = async (fn, successMessage) => {
     try {
@@ -414,8 +670,12 @@ export default function ShipmentDetailDrawer({ open, shipmentId, onClose }) {
       return;
     }
     await runAction(
-      () => cancelShipment(shipment.id, { remarks: cancelReason.trim(), reason: cancelReason.trim() }),
-      "Shipment cancelled successfully."
+      () =>
+        cancelShipment(shipment.id, {
+          remarks: cancelReason.trim(),
+          reason: cancelReason.trim(),
+        }),
+      "Shipment cancelled successfully.",
     );
     setCancelModalOpen(false);
     setCancelReason("");
@@ -427,8 +687,9 @@ export default function ShipmentDetailDrawer({ open, shipmentId, onClose }) {
       return;
     }
     await runAction(
-      () => initiateShipmentReturn(shipment.id, { reason: returnReason.trim() }),
-      "Return initiated successfully."
+      () =>
+        initiateShipmentReturn(shipment.id, { reason: returnReason.trim() }),
+      "Return initiated successfully.",
     );
     setReturnModalOpen(false);
     setReturnReason("");
@@ -441,7 +702,7 @@ export default function ShipmentDetailDrawer({ open, shipmentId, onClose }) {
           receiver_name: merchantReturnRecipient.trim(),
           remarks: merchantReturnRemarks.trim(),
         }),
-      "Shipment marked as returned to merchant."
+      "Shipment marked as returned to merchant.",
     );
     setMerchantReturnModalOpen(false);
     setMerchantReturnRecipient("");
@@ -450,10 +711,15 @@ export default function ShipmentDetailDrawer({ open, shipmentId, onClose }) {
 
   // Support { data: {...} }, { shipment: {...} }, or flat model
   const shipment = data?.shipment ?? data?.data ?? (data?.id ? data : null);
-
   const status = shipment?.status;
-  const isTerminal = ["delivered", "cancelled", "returned_to_merchant"].includes(status);
-  const isReturning = ["return_initiated", "returned_to_origin"].includes(status);
+  const isTerminal = [
+    "delivered",
+    "cancelled",
+    "returned_to_merchant",
+  ].includes(status);
+  const isReturning = ["return_initiated", "returned_to_origin"].includes(
+    status,
+  );
   const canInitiateReturn =
     shipment &&
     !isTerminal &&
@@ -478,6 +744,17 @@ export default function ShipmentDetailDrawer({ open, shipmentId, onClose }) {
     ].includes(status);
   const canCancel = shipment && !isTerminal && status !== "delivered";
 
+  const copyTracking = async () => {
+    const value = shipment?.tracking_number;
+    if (!value) return;
+    try {
+      await navigator.clipboard.writeText(value);
+      message.success(`Copied ${value}`);
+    } catch {
+      message.info(value);
+    }
+  };
+
   const view = useMemo(() => {
     if (!shipment) return null;
 
@@ -501,7 +778,6 @@ export default function ShipmentDetailDrawer({ open, shipmentId, onClose }) {
     const nextHopBranch =
       shipment.next_hop_branch ?? shipment.nextHopBranch ?? null;
 
-    // path_text fallback for branch names
     const pathText = firstValue(hop?.path_text, shipment.path_text);
     let pathOrigin = null;
     let pathDestination = null;
@@ -533,14 +809,19 @@ export default function ShipmentDetailDrawer({ open, shipmentId, onClose }) {
     );
     const originId = shipment.origin_branch_id ?? originBranch?.id ?? null;
     const originLabel = originName
-      ? (originBranch?.area ? `${originName}, ${originBranch.area}` : originName)
-      : (originId ? `Branch #${originId}` : null);
-    const originRibbon = (originName || originId) ? (
-      <BranchRibbonTag name={originName} id={originId} color="blue" />
-    ) : null;
+      ? originBranch?.area
+        ? `${originName}, ${originBranch.area}`
+        : originName
+      : originId
+        ? `Branch #${originId}`
+        : null;
+    const originRibbon =
+      originName || originId ? (
+        <BranchRibbonTag name={originName} id={originId} color="blue" />
+      ) : null;
 
-    const destinationId = shipment.destination_branch_id ?? destinationBranch?.id ?? null;
-
+    const destinationId =
+      shipment.destination_branch_id ?? destinationBranch?.id ?? null;
     const isSameBranchShipment = Boolean(
       originId && destinationId && String(originId) === String(destinationId),
     );
@@ -563,11 +844,20 @@ export default function ShipmentDetailDrawer({ open, shipmentId, onClose }) {
           breakdownDest,
         );
     const destinationLabel = destinationName
-      ? (destinationBranch?.area ? `${destinationName}, ${destinationBranch.area}` : destinationName)
-      : (destinationId ? `Branch #${destinationId}` : null);
-    const destinationRibbon = (destinationName || destinationId) ? (
-      <BranchRibbonTag name={destinationName} id={destinationId} color="geekblue" />
-    ) : null;
+      ? destinationBranch?.area
+        ? `${destinationName}, ${destinationBranch.area}`
+        : destinationName
+      : destinationId
+        ? `Branch #${destinationId}`
+        : null;
+    const destinationRibbon =
+      destinationName || destinationId ? (
+        <BranchRibbonTag
+          name={destinationName}
+          id={destinationId}
+          color="geekblue"
+        />
+      ) : null;
 
     const currentName = firstValue(
       currentBranch?.name,
@@ -576,18 +866,23 @@ export default function ShipmentDetailDrawer({ open, shipmentId, onClose }) {
       shipment.current_branch_name,
       hop?.current_name,
       hop?.current_branch_name,
-      originId && destinationId && String(originId) === String(destinationId) ? originName : null,
+      isSameBranchShipment ? originName : null,
     );
     const currentId =
       shipment.current_branch_id ??
       currentBranch?.id ??
-      (originId && destinationId && String(originId) === String(destinationId) ? originId : null);
+      (isSameBranchShipment ? originId : null);
     const currentLabel = currentName
-      ? (currentBranch?.area ? `${currentName}, ${currentBranch.area}` : currentName)
-      : (currentId ? `Branch #${currentId}` : null);
-    const currentRibbon = (currentName || currentId) ? (
-      <BranchRibbonTag name={currentName} id={currentId} color="cyan" />
-    ) : null;
+      ? currentBranch?.area
+        ? `${currentName}, ${currentBranch.area}`
+        : currentName
+      : currentId
+        ? `Branch #${currentId}`
+        : null;
+    const currentRibbon =
+      currentName || currentId ? (
+        <BranchRibbonTag name={currentName} id={currentId} color="cyan" />
+      ) : null;
 
     const nextHopName = firstValue(
       nextHopBranch?.name,
@@ -597,11 +892,16 @@ export default function ShipmentDetailDrawer({ open, shipmentId, onClose }) {
     );
     const nextHopId = shipment.next_hop_branch_id ?? nextHopBranch?.id ?? null;
     const nextHopLabel = nextHopName
-      ? (nextHopBranch?.area ? `${nextHopName}, ${nextHopBranch.area}` : nextHopName)
-      : (nextHopId ? `Branch #${nextHopId}` : null);
-    const nextHopRibbon = (nextHopName || nextHopId) ? (
-      <BranchRibbonTag name={nextHopName} id={nextHopId} color="orange" />
-    ) : null;
+      ? nextHopBranch?.area
+        ? `${nextHopName}, ${nextHopBranch.area}`
+        : nextHopName
+      : nextHopId
+        ? `Branch #${nextHopId}`
+        : null;
+    const nextHopRibbon =
+      nextHopName || nextHopId ? (
+        <BranchRibbonTag name={nextHopName} id={nextHopId} color="orange" />
+      ) : null;
 
     const originSubName = firstValue(
       originSub?.name,
@@ -609,47 +909,61 @@ export default function ShipmentDetailDrawer({ open, shipmentId, onClose }) {
       shipment.origin_sub_branch_name,
     );
     const originSubId = shipment.origin_sub_branch_id ?? originSub?.id ?? null;
-    const originSubLabel = originSubName || (originSubId ? `Branch #${originSubId}` : null);
-    const originSubRibbon = (originSubName || originSubId) ? (
-      <BranchRibbonTag name={originSubName} id={originSubId} color="purple" />
-    ) : null;
+    const originSubLabel =
+      originSubName || (originSubId ? `Branch #${originSubId}` : null);
+    const originSubRibbon =
+      originSubName || originSubId ? (
+        <BranchRibbonTag name={originSubName} id={originSubId} color="purple" />
+      ) : null;
 
     const destinationSubName = firstValue(
       destinationSub?.name,
       destinationSub?.legal_name,
       shipment.destination_sub_branch_name,
     );
-    const destinationSubId = shipment.destination_sub_branch_id ?? destinationSub?.id ?? null;
-    const destinationSubLabel = destinationSubName || (destinationSubId ? `Branch #${destinationSubId}` : null);
-    const destinationSubRibbon = (destinationSubName || destinationSubId) ? (
-      <BranchRibbonTag name={destinationSubName} id={destinationSubId} color="purple" />
-    ) : null;
+    const destinationSubId =
+      shipment.destination_sub_branch_id ?? destinationSub?.id ?? null;
+    const destinationSubLabel =
+      destinationSubName ||
+      (destinationSubId ? `Branch #${destinationSubId}` : null);
+    const destinationSubRibbon =
+      destinationSubName || destinationSubId ? (
+        <BranchRibbonTag
+          name={destinationSubName}
+          id={destinationSubId}
+          color="purple"
+        />
+      ) : null;
 
     const currentSubName = firstValue(
       currentSub?.name,
       currentSub?.legal_name,
       shipment.current_sub_branch_name,
     );
-    const currentSubId = shipment.current_sub_branch_id ?? currentSub?.id ?? null;
-    const currentSubLabel = currentSubName || (currentSubId ? `Branch #${currentSubId}` : null);
-    const currentSubRibbon = (currentSubName || currentSubId) ? (
-      <BranchRibbonTag name={currentSubName} id={currentSubId} color="purple" />
-    ) : null;
+    const currentSubId =
+      shipment.current_sub_branch_id ?? currentSub?.id ?? null;
+    const currentSubLabel =
+      currentSubName || (currentSubId ? `Branch #${currentSubId}` : null);
+    const currentSubRibbon =
+      currentSubName || currentSubId ? (
+        <BranchRibbonTag
+          name={currentSubName}
+          id={currentSubId}
+          color="purple"
+        />
+      ) : null;
 
-    // Parties / Pickup resolution:
-    // Priority: pickupLocation model -> merchant model -> shipment root fields
+    // Parties resolution
     const merchantName = firstValue(
       merchant?.name,
       merchant?.business_name,
       merchant?.store_name,
       shipment.merchant_name,
     );
-
     const pickupLocationName = firstValue(
       pickupLocation?.name,
       shipment.pickup_location_name,
     );
-
     const senderName = firstValue(
       pickupLocation?.contact_person,
       merchant?.contact_person,
@@ -729,7 +1043,6 @@ export default function ShipmentDetailDrawer({ open, shipmentId, onClose }) {
         shipment.tracking_events ??
         shipment.trackingEvents)
       : [];
-
     const tasks = Array.isArray(data?.tasks ?? shipment.tasks)
       ? (data?.tasks ?? shipment.tasks)
       : [];
@@ -768,7 +1081,6 @@ export default function ShipmentDetailDrawer({ open, shipmentId, onClose }) {
         rawBreakdown.route?.base_rate ??
         shipment.route_fee ??
         0;
-
       const extraDist =
         rawBreakdown.delivery_extra_charge ??
         b?.extra_delivery_distance?.total ??
@@ -776,13 +1088,11 @@ export default function ShipmentDetailDrawer({ open, shipmentId, onClose }) {
         rawBreakdown.distance_fee ??
         shipment.last_mile_fee ??
         0;
-
       const extraKm =
         rawBreakdown.extra_distance_km ??
         b?.extra_delivery_distance?.extra_distance_km ??
         rawBreakdown.distance?.extra_distance_km ??
         0;
-
       let weightChg =
         rawBreakdown.weight_charge ??
         b?.additional_weight?.total ??
@@ -791,7 +1101,6 @@ export default function ShipmentDetailDrawer({ open, shipmentId, onClose }) {
         rawBreakdown.weight_fee ??
         shipment.weight_fee ??
         0;
-
       const finalPrice =
         rawBreakdown.final_price ??
         b?.final_price ??
@@ -799,8 +1108,15 @@ export default function ShipmentDetailDrawer({ open, shipmentId, onClose }) {
         shipment.delivery_fee ??
         0;
 
-      if (Number(weightChg) <= 0 && Number(finalPrice) > (Number(routeBase) + Number(extraDist))) {
-        weightChg = Math.round((Number(finalPrice) - (Number(routeBase) + Number(extraDist))) * 100) / 100;
+      if (
+        Number(weightChg) <= 0 &&
+        Number(finalPrice) > Number(routeBase) + Number(extraDist)
+      ) {
+        weightChg =
+          Math.round(
+            (Number(finalPrice) - (Number(routeBase) + Number(extraDist))) *
+              100,
+          ) / 100;
       }
 
       priceBreakdown = {
@@ -813,19 +1129,37 @@ export default function ShipmentDetailDrawer({ open, shipmentId, onClose }) {
       };
     }
 
-    const deliveryTotal = Number(shipment.delivery_charge ?? shipment.delivery_fee ?? 0);
-    const routeFeeVal = Number(shipment.route_fee ?? priceBreakdown?.route_base_rate ?? 0);
-    const lastMileVal = Number(shipment.last_mile_fee ?? priceBreakdown?.delivery_extra_charge ?? 0);
-    let resolvedWeightFee = Number(shipment.weight_fee ?? priceBreakdown?.weight_charge ?? 0);
-    if ((!resolvedWeightFee || resolvedWeightFee === 0) && deliveryTotal > (routeFeeVal + lastMileVal)) {
-      resolvedWeightFee = Math.round((deliveryTotal - (routeFeeVal + lastMileVal)) * 100) / 100;
+    const deliveryTotal = Number(
+      shipment.delivery_charge ?? shipment.delivery_fee ?? 0,
+    );
+    const routeFeeVal = Number(
+      shipment.route_fee ?? priceBreakdown?.route_base_rate ?? 0,
+    );
+    const lastMileVal = Number(
+      shipment.last_mile_fee ?? priceBreakdown?.delivery_extra_charge ?? 0,
+    );
+    let resolvedWeightFee = Number(
+      shipment.weight_fee ?? priceBreakdown?.weight_charge ?? 0,
+    );
+    if (
+      (!resolvedWeightFee || resolvedWeightFee === 0) &&
+      deliveryTotal > routeFeeVal + lastMileVal
+    ) {
+      resolvedWeightFee =
+        Math.round((deliveryTotal - (routeFeeVal + lastMileVal)) * 100) / 100;
     }
 
     const feeFromShipment = {
       pickup_fee: moneyValue(shipment.pickup_fee),
-      route_fee: moneyValue(shipment.route_fee ?? (routeFeeVal > 0 ? routeFeeVal : null)),
-      last_mile_fee: moneyValue(shipment.last_mile_fee ?? (lastMileVal > 0 ? lastMileVal : null)),
-      weight_fee: moneyValue(resolvedWeightFee > 0 ? resolvedWeightFee : shipment.weight_fee),
+      route_fee: moneyValue(
+        shipment.route_fee ?? (routeFeeVal > 0 ? routeFeeVal : null),
+      ),
+      last_mile_fee: moneyValue(
+        shipment.last_mile_fee ?? (lastMileVal > 0 ? lastMileVal : null),
+      ),
+      weight_fee: moneyValue(
+        resolvedWeightFee > 0 ? resolvedWeightFee : shipment.weight_fee,
+      ),
       pod_charge: moneyValue(shipment.pod_charge),
       delivery_charge: moneyValue(
         shipment.delivery_charge,
@@ -847,6 +1181,165 @@ export default function ShipmentDetailDrawer({ open, shipmentId, onClose }) {
         shipment.destination_branch_id &&
         Number(shipment.origin_branch_id) !==
           Number(shipment.destination_branch_id));
+
+    // Distance metrics calculation
+    const distanceData = (() => {
+      const serverDist = data?.distance_data ?? shipment.distance_data ?? null;
+      const customerCoords =
+        hasText(deliveryLat) && hasText(deliveryLng)
+          ? { lat: Number(deliveryLat), lng: Number(deliveryLng) }
+          : null;
+      const originBranchCoords =
+        resolveBranchCoords(originSub) ??
+        resolveBranchCoords(originBranch) ??
+        (hasText(pickupLat) && hasText(pickupLng)
+          ? { lat: Number(pickupLat), lng: Number(pickupLng) }
+          : null);
+      const destBranchCoords =
+        resolveBranchCoords(destinationSub) ??
+        resolveBranchCoords(destinationBranch);
+      const currentCoords =
+        resolveBranchCoords(currentSub) ??
+        resolveBranchCoords(currentBranch) ??
+        originBranchCoords;
+
+      let originToCustomerDistance = null;
+      if (
+        shipment.route_distance_km &&
+        Number(shipment.route_distance_km) > 0
+      ) {
+        originToCustomerDistance =
+          Math.round(Number(shipment.route_distance_km) * 100) / 100;
+      } else if (originBranchCoords && customerCoords) {
+        originToCustomerDistance = haversineDistanceKm(
+          originBranchCoords.lat,
+          originBranchCoords.lng,
+          customerCoords.lat,
+          customerCoords.lng,
+        );
+      }
+
+      const extraDistObj =
+        priceBreakdown?.extra_delivery_distance ||
+        priceBreakdown?.raw?.breakdown?.extra_delivery_distance ||
+        priceBreakdown?.breakdown?.extra_delivery_distance ||
+        priceBreakdown?.extra_distance;
+
+      let destToCustomerDistance = null;
+      if (
+        serverDist?.destination_to_customer_km != null &&
+        Number(serverDist.destination_to_customer_km) > 0
+      ) {
+        destToCustomerDistance =
+          Math.round(Number(serverDist.destination_to_customer_km) * 100) / 100;
+      } else if (
+        extraDistObj?.delivery_distance_km != null &&
+        Number(extraDistObj.delivery_distance_km) > 0
+      ) {
+        destToCustomerDistance =
+          Math.round(Number(extraDistObj.delivery_distance_km) * 100) / 100;
+      } else if (destBranchCoords && customerCoords) {
+        destToCustomerDistance = haversineDistanceKm(
+          destBranchCoords.lat,
+          destBranchCoords.lng,
+          customerCoords.lat,
+          customerCoords.lng,
+        );
+      }
+
+      const baseDistanceKm = Number(
+        serverDist?.base_distance_km ??
+          extraDistObj?.included_distance_km ??
+          10.0,
+      );
+
+      let extraMileKm = 0;
+      if (serverDist?.extra_mile_km != null) {
+        extraMileKm = Math.round(Number(serverDist.extra_mile_km) * 100) / 100;
+      } else if (
+        extraDistObj?.extra_distance_km != null &&
+        Number(extraDistObj.extra_distance_km) > 0
+      ) {
+        extraMileKm =
+          Math.round(Number(extraDistObj.extra_distance_km) * 100) / 100;
+      } else if (destToCustomerDistance != null) {
+        extraMileKm = Math.max(
+          0,
+          Math.round((destToCustomerDistance - baseDistanceKm) * 100) / 100,
+        );
+      }
+
+      let totalDist =
+        originToCustomerDistance ?? moneyValue(shipment.route_distance_km);
+      if (
+        isSameBranchShipment &&
+        (totalDist == null || totalDist > 20 || totalDist <= 0) &&
+        originBranchCoords &&
+        customerCoords
+      ) {
+        totalDist = haversineDistanceKm(
+          originBranchCoords.lat,
+          originBranchCoords.lng,
+          customerCoords.lat,
+          customerCoords.lng,
+        );
+      }
+      totalDist = totalDist != null ? Math.round(totalDist * 100) / 100 : 0;
+
+      const statusStr = String(shipment.status || "").toLowerCase();
+      const isDelivered = statusStr === "delivered";
+      const isAtDestBranch =
+        [
+          "received_at_destination",
+          "received_at_destination_branch",
+          "received_at_destination_sub_branch",
+          "assigned_to_rider",
+          "out_for_delivery",
+          "delivered",
+        ].includes(statusStr) ||
+        (shipment.current_branch_id &&
+          shipment.destination_branch_id &&
+          Number(shipment.current_branch_id) ===
+            Number(shipment.destination_branch_id));
+
+      let coveredDist = 0;
+      let distFromDest = totalDist;
+      let progressPct = 0;
+
+      if (serverDist) {
+        totalDist = Number(serverDist.total_distance_km ?? totalDist);
+        coveredDist = Number(serverDist.covered_distance_km ?? 0);
+        distFromDest = Number(
+          serverDist.distance_from_destination_branch_km ?? 0,
+        );
+        progressPct = Number(serverDist.progress_percent ?? 0);
+      } else if (isDelivered) {
+        coveredDist = totalDist;
+        distFromDest = 0;
+        progressPct = 100;
+      } else if (isAtDestBranch) {
+        distFromDest = 0;
+        coveredDist = totalDist * 0.9;
+        progressPct = 90;
+      } else {
+        coveredDist = totalDist * 0.4;
+        distFromDest = totalDist * 0.6;
+        progressPct = 40;
+      }
+
+      return {
+        totalDistanceKm: Math.round(totalDist * 100) / 100,
+        originToCustomerKm: originToCustomerDistance,
+        destinationToCustomerKm: destToCustomerDistance,
+        baseDistanceKm,
+        extraMileKm,
+        coveredDistanceKm: Math.round(coveredDist * 100) / 100,
+        distanceFromDestinationBranchKm: Math.round(distFromDest * 100) / 100,
+        progressPercent: progressPct,
+        isAtDestinationBranch: isAtDestBranch,
+        isDelivered,
+      };
+    })();
 
     return {
       pickupLocation,
@@ -893,287 +1386,36 @@ export default function ShipmentDetailDrawer({ open, shipmentId, onClose }) {
       viaNames,
       transferStageLabel:
         shipment.transfer_stage_label || shipment.transferStageLabel,
-      distanceData: (() => {
-        const serverDist = data?.distance_data ?? shipment.distance_data ?? null;
-
-        const customerCoords =
-          hasText(deliveryLat) && hasText(deliveryLng)
-            ? { lat: Number(deliveryLat), lng: Number(deliveryLng) }
-            : null;
-
-        const originBranchCoords =
-          resolveBranchCoords(originSub) ??
-          resolveBranchCoords(originBranch) ??
-          (hasText(pickupLat) && hasText(pickupLng)
-            ? { lat: Number(pickupLat), lng: Number(pickupLng) }
-            : null);
-
-        const destBranchCoords =
-          resolveBranchCoords(destinationSub) ??
-          resolveBranchCoords(destinationBranch);
-
-        const currentCoords =
-          resolveBranchCoords(currentSub) ??
-          resolveBranchCoords(currentBranch) ??
-          originBranchCoords;
-
-        // 1. Maintain distance value from origin branch to destination of customer
-        let originToCustomerDistance = null;
-        if (shipment.route_distance_km && Number(shipment.route_distance_km) > 0) {
-          originToCustomerDistance = Math.round(Number(shipment.route_distance_km) * 100) / 100;
-        } else if (originBranchCoords && customerCoords) {
-          originToCustomerDistance = haversineDistanceKm(
-            originBranchCoords.lat,
-            originBranchCoords.lng,
-            customerCoords.lat,
-            customerCoords.lng
-          );
-        }
-
-        // 2. Extra mile from destination: Destination branch to customer destination
-        const extraDistObj =
-          priceBreakdown?.extra_delivery_distance ||
-          priceBreakdown?.raw?.breakdown?.extra_delivery_distance ||
-          priceBreakdown?.breakdown?.extra_delivery_distance ||
-          priceBreakdown?.extra_distance ||
-          (typeof shipment.delivery_charge_breakdown === "object"
-            ? (shipment.delivery_charge_breakdown?.breakdown?.extra_delivery_distance || shipment.delivery_charge_breakdown?.extra_delivery_distance)
-            : null) ||
-          (typeof rawBreakdown === "object"
-            ? (rawBreakdown?.breakdown?.extra_delivery_distance || rawBreakdown?.extra_delivery_distance)
-            : null);
-
-        let destToCustomerDistance = null;
-        if (serverDist?.destination_to_customer_km != null && Number(serverDist.destination_to_customer_km) > 0) {
-          destToCustomerDistance = Math.round(Number(serverDist.destination_to_customer_km) * 100) / 100;
-        } else if (extraDistObj?.delivery_distance_km != null && Number(extraDistObj.delivery_distance_km) > 0) {
-          destToCustomerDistance = Math.round(Number(extraDistObj.delivery_distance_km) * 100) / 100;
-        } else if (destBranchCoords && customerCoords) {
-          destToCustomerDistance = haversineDistanceKm(
-            destBranchCoords.lat,
-            destBranchCoords.lng,
-            customerCoords.lat,
-            customerCoords.lng
-          );
-        }
-
-        // 3. Base distance included in base fare (e.g. 10.0 km from settings)
-        const baseDistanceKm = Number(
-          serverDist?.base_distance_km ?? extraDistObj?.included_distance_km ?? 10.0
-        );
-
-        // 4. Extra mile from destination, excluding the base distance
-        let extraMileKm = 0;
-        if (serverDist?.extra_mile_km != null) {
-          extraMileKm = Math.round(Number(serverDist.extra_mile_km) * 100) / 100;
-        } else if (extraDistObj?.extra_distance_km != null && Number(extraDistObj.extra_distance_km) > 0) {
-          extraMileKm = Math.round(Number(extraDistObj.extra_distance_km) * 100) / 100;
-        } else if (destToCustomerDistance != null) {
-          extraMileKm = Math.max(0, Math.round((destToCustomerDistance - baseDistanceKm) * 100) / 100);
-        }
-
-        // Sum route steps if defined
-        let routeStepsTotal = 0;
-        let routeStepsCovered = 0;
-        if (routeSteps.length > 0) {
-          for (const step of routeSteps) {
-            const stepDist = Number(step.distance_km || 0);
-            routeStepsTotal += stepDist;
-            const sStatus = String(step.status || "").toLowerCase();
-            if (
-              sStatus === "completed" ||
-              sStatus === "received" ||
-              step.completed_at
-            ) {
-              routeStepsCovered += stepDist;
-            }
-          }
-        }
-
-        let totalDist = originToCustomerDistance ?? moneyValue(shipment.route_distance_km);
-        if (
-          isSameBranchShipment &&
-          (totalDist == null || totalDist > 20 || totalDist <= 0) &&
-          originBranchCoords &&
-          customerCoords
-        ) {
-          totalDist = haversineDistanceKm(
-            originBranchCoords.lat,
-            originBranchCoords.lng,
-            customerCoords.lat,
-            customerCoords.lng,
-          );
-        }
-        if ((totalDist == null || totalDist <= 0) && routeStepsTotal > 0) {
-          totalDist = routeStepsTotal;
-        }
-        if ((totalDist == null || totalDist <= 0) && originBranchCoords && customerCoords) {
-          totalDist = haversineDistanceKm(
-            originBranchCoords.lat,
-            originBranchCoords.lng,
-            customerCoords.lat,
-            customerCoords.lng,
-          );
-        }
-        totalDist = totalDist != null ? Math.round(totalDist * 100) / 100 : 0;
-
-        const statusStr = String(shipment.status || "").toLowerCase();
-        const isDelivered = statusStr === "delivered";
-        const isAtDestBranch =
-          [
-            "received_at_destination",
-            "received_at_destination_branch",
-            "received_at_destination_sub_branch",
-            "assigned_to_rider",
-            "out_for_delivery",
-            "delivered",
-          ].includes(statusStr) ||
-          (shipment.current_branch_id &&
-            shipment.destination_branch_id &&
-            Number(shipment.current_branch_id) ===
-              Number(shipment.destination_branch_id));
-
-        let coveredDist = 0;
-        let distFromDest = totalDist;
-        let progressPct = 0;
-
-        if (serverDist) {
-          totalDist = Number(serverDist.total_distance_km ?? totalDist);
-          coveredDist = Number(serverDist.covered_distance_km ?? 0);
-          if (coveredDist > totalDist) coveredDist = totalDist;
-          distFromDest = Number(
-            serverDist.distance_from_destination_branch_km ?? 0,
-          );
-          progressPct = Number(serverDist.progress_percent ?? 0);
-        } else if (isDelivered) {
-          coveredDist = totalDist;
-          distFromDest = 0;
-          progressPct = 100;
-        } else if (isAtDestBranch) {
-          distFromDest = 0;
-          coveredDist =
-            routeStepsCovered > 0
-              ? Math.max(routeStepsCovered, totalDist * 0.9)
-              : totalDist * 0.9;
-          progressPct =
-            totalDist > 0 ? Math.round((coveredDist / totalDist) * 100) : 90;
-        } else if (
-          statusStr === "in_transit" ||
-          statusStr === "received_at_transit_hub"
-        ) {
-          if (currentCoords && (destBranchCoords || customerCoords)) {
-            const target = destBranchCoords || customerCoords;
-            distFromDest =
-              haversineDistanceKm(
-                currentCoords.lat,
-                currentCoords.lng,
-                target.lat,
-                target.lng
-              ) ?? Math.max(0, totalDist - routeStepsCovered);
-          } else {
-            distFromDest = Math.max(0, totalDist - routeStepsCovered);
-          }
-          coveredDist =
-            routeStepsCovered > 0
-              ? routeStepsCovered
-              : Math.max(0, totalDist - distFromDest);
-          progressPct =
-            totalDist > 0
-              ? Math.min(
-                  95,
-                  Math.max(15, Math.round((coveredDist / totalDist) * 100))
-                )
-              : 50;
-        } else if (
-          [
-            "picked_up",
-            "received_at_origin",
-            "received_at_origin_branch",
-            "sorted_for_transfer",
-          ].includes(statusStr)
-        ) {
-          if (originBranchCoords && (destBranchCoords || customerCoords)) {
-            const target = destBranchCoords || customerCoords;
-            distFromDest =
-              haversineDistanceKm(
-                originBranchCoords.lat,
-                originBranchCoords.lng,
-                target.lat,
-                target.lng
-              ) ?? totalDist;
-          } else {
-            distFromDest = totalDist;
-          }
-          coveredDist = Math.min(totalDist * 0.1, 5);
-          progressPct = 10;
-        } else {
-          if (originBranchCoords && (destBranchCoords || customerCoords)) {
-            const target = destBranchCoords || customerCoords;
-            distFromDest =
-              haversineDistanceKm(
-                originBranchCoords.lat,
-                originBranchCoords.lng,
-                target.lat,
-                target.lng
-              ) ?? totalDist;
-          } else {
-            distFromDest = totalDist;
-          }
-          coveredDist = 0;
-          progressPct = 0;
-        }
-
-        return {
-          totalDistanceKm: Math.round(totalDist * 100) / 100,
-          originToCustomerKm: originToCustomerDistance,
-          destinationToCustomerKm: destToCustomerDistance,
-          baseDistanceKm: baseDistanceKm,
-          extraMileKm: extraMileKm,
-          coveredDistanceKm: Math.round(coveredDist * 100) / 100,
-          distanceFromDestinationBranchKm:
-            Math.round(distFromDest * 100) / 100,
-          progressPercent: progressPct,
-          isAtDestinationBranch: isAtDestBranch,
-          isDelivered,
-        };
-      })(),
+      distanceData,
     };
   }, [shipment, data]);
 
-  const drawerTitle = shipment?.tracking_number || "Shipment details";
-
-  // Financial & Pricing rules:
-  // - delivery_charge: the delivery fee amount.
-  // - delivery_free_by: indicates if a free delivery coupon/promotion was applied ('marketplace', 'store', or 'none').
-  // - delivery_charge_paid_by: who covers the delivery fee ('customer', 'merchant', or 'admin').
-  //   * Note: Merchant or Admin covering the delivery charge does NOT mean a free delivery coupon was applied.
-  // - Goods value: exact packet products total (or declared goods value) - never deducted.
-  // - Collect from customer (POD):
-  //   * When customer pays delivery fee: Goods value + delivery charge.
-  //   * When delivery is free or paid by merchant/admin: Goods value only.
-  const deliveryCharge = moneyValue(
+  // Financial & Pricing rules
+  const rawDeliveryCharge = moneyValue(
     shipment?.delivery_charge,
     shipment?.delivery_fee,
   );
   const isPodShipment =
-    String(shipment?.payment_type ?? shipment?.payment_method ?? "")
-      .toLowerCase() === "pod";
+    String(
+      shipment?.payment_type ?? shipment?.payment_method ?? "",
+    ).toLowerCase() === "pod";
   const podAmount = moneyValue(shipment?.pod_amount);
   const totalCollectable = moneyValue(
     shipment?.total_collectable_amount,
     shipment?.total_collectable,
   );
 
-  const paidBy = String(shipment?.delivery_charge_paid_by ?? "customer").toLowerCase().trim();
-  const freeBy = String(shipment?.delivery_free_by ?? "none").toLowerCase().trim();
+  const paidBy = String(shipment?.delivery_charge_paid_by ?? "customer")
+    .toLowerCase()
+    .trim();
+  const freeBy = String(shipment?.delivery_free_by ?? "none")
+    .toLowerCase()
+    .trim();
 
-  // Free delivery coupon / promo flags (ONLY true if delivery_free_by is explicitly store/merchant or marketplace/admin)
   const isFreeDeliveryByAdmin = freeBy === "marketplace" || freeBy === "admin";
   const isFreeDeliveryByStore = freeBy === "store" || freeBy === "merchant";
   const hasFreeDeliveryCoupon = isFreeDeliveryByAdmin || isFreeDeliveryByStore;
-  const isFreeDelivery = hasFreeDeliveryCoupon;
 
-  // Who actually pays/covers the delivery charge invoice
   const isPaidByMerchant =
     !isFreeDeliveryByAdmin &&
     (isFreeDeliveryByStore || ["merchant", "store", "seller"].includes(paidBy));
@@ -1181,7 +1423,6 @@ export default function ShipmentDetailDrawer({ open, shipmentId, onClose }) {
     isFreeDeliveryByAdmin || paidBy === "admin" || paidBy === "marketplace";
   const isPaidByCustomer = !isPaidByMerchant && !isPaidByAdmin;
 
-  // Calculate packet products total (exact sum of all packet products: qty * unit_price)
   const packetProductsTotal = useMemo(() => {
     const list = view?.packetProducts || [];
     if (!list.length) return null;
@@ -1198,65 +1439,248 @@ export default function ShipmentDetailDrawer({ open, shipmentId, onClose }) {
     return hasValid ? Math.round(sum * 100) / 100 : null;
   }, [view?.packetProducts]);
 
-  // Declared goods value
+  const totalProductsWeight = useMemo(() => {
+    const list = view?.packetProducts || [];
+    if (!list.length) return null;
+    let sum = 0;
+    for (const item of list) {
+      const qty = Number(item.quantity ?? 1) || 1;
+      const unitWeight = Number(item.unit_weight ?? item.weight ?? 1.0) || 1.0;
+      sum += qty * unitWeight;
+    }
+    return sum > 0 ? Math.round(sum * 100) / 100 : null;
+  }, [view?.packetProducts]);
+
+  const effectiveWeight = useMemo(() => {
+    const stored = Number(shipment?.weight || 0);
+    if (totalProductsWeight != null && totalProductsWeight > 0) {
+      return stored > 0
+        ? Math.max(stored, totalProductsWeight)
+        : totalProductsWeight;
+    }
+    return stored > 0 ? stored : null;
+  }, [shipment?.weight, totalProductsWeight]);
+
   const rawDeclaredValue = moneyValue(
     shipment?.declared_value,
     shipment?.merchandise_value,
     shipment?.items_subtotal,
   );
 
-  // If customer pays delivery fee and raw declared value equals POD total/collectable amount,
-  // it indicates the store sent the gross total (goods + delivery) inside declared_value.
   const isDeclaredGrossTotal = Boolean(
     isPaidByCustomer &&
-    (deliveryCharge ?? 0) > 0 &&
+    (rawDeliveryCharge ?? 0) > 0 &&
     rawDeclaredValue != null &&
-    (
-      (totalCollectable != null && Math.abs(rawDeclaredValue - totalCollectable) < 0.01) ||
-      (podAmount != null && Math.abs(rawDeclaredValue - podAmount) < 0.01)
-    )
+    ((totalCollectable != null &&
+      Math.abs(rawDeclaredValue - totalCollectable) < 0.01) ||
+      (podAmount != null && Math.abs(rawDeclaredValue - podAmount) < 0.01)),
   );
 
   const netDeclaredValue = isDeclaredGrossTotal
-    ? Math.max(0, Math.round((rawDeclaredValue - (deliveryCharge ?? 0)) * 100) / 100)
+    ? Math.max(
+        0,
+        Math.round((rawDeclaredValue - (rawDeliveryCharge ?? 0)) * 100) / 100,
+      )
     : rawDeclaredValue;
 
-  // Exact Goods Value: prefer packet products total, then net declared value, then fallback
   const goodsValue =
     packetProductsTotal != null && packetProductsTotal > 0
       ? packetProductsTotal
       : netDeclaredValue != null
         ? netDeclaredValue
-        : (isPodShipment
-            ? (isPaidByCustomer && (deliveryCharge ?? 0) > 0 && podAmount != null && Math.abs(podAmount - (totalCollectable ?? podAmount)) < 0.01
-                ? Math.max(0, Math.round((podAmount - deliveryCharge) * 100) / 100)
-                : podAmount)
-            : null);
+        : isPodShipment
+          ? isPaidByCustomer &&
+            (rawDeliveryCharge ?? 0) > 0 &&
+            podAmount != null &&
+            Math.abs(podAmount - (totalCollectable ?? podAmount)) < 0.01
+            ? Math.max(
+                0,
+                Math.round((podAmount - rawDeliveryCharge) * 100) / 100,
+              )
+            : podAmount
+          : null;
 
-  // Amount the rider collects at customer doorstep (actual pod_amount from shipment data)
-  // Shared rule (lib/collectAmount = backend Shipment::collect_amount) so the
-  // shipments list, CSV export and this drawer always show the same POD amount.
   const ruleCollectAmount = collectAmount(shipment);
   const collectableAmount =
-    ruleCollectAmount > 0 || !isPodShipment || podAmount != null || totalCollectable != null
+    ruleCollectAmount > 0 ||
+    !isPodShipment ||
+    podAmount != null ||
+    totalCollectable != null
       ? ruleCollectAmount
-      : (goodsValue ?? 0) + (isPaidByCustomer ? (deliveryCharge ?? 0) : 0);
+      : (goodsValue ?? 0) + (isPaidByCustomer ? (rawDeliveryCharge ?? 0) : 0);
 
-  /* ---- drawer sections ---- */
+  const deliveryCharge = useMemo(() => {
+    if (
+      isPaidByCustomer &&
+      collectableAmount > 0 &&
+      goodsValue != null &&
+      goodsValue > 0
+    ) {
+      const impliedFee =
+        Math.round((collectableAmount - goodsValue) * 100) / 100;
+      if (impliedFee > 0) {
+        return rawDeliveryCharge != null
+          ? Math.max(rawDeliveryCharge, impliedFee)
+          : impliedFee;
+      }
+    }
+    return rawDeliveryCharge;
+  }, [isPaidByCustomer, collectableAmount, goodsValue, rawDeliveryCharge]);
 
-  const overviewTab = view && (
-    <Space direction="vertical" size={16} style={{ width: "100%" }}>
+  const receiverPhone = firstValue(
+    shipment?.receiver_phone,
+    shipment?.customer_phone,
+  );
+  const receiverName = firstValue(
+    shipment?.receiver_name,
+    shipment?.customer_name,
+  );
+  const receiverAddress = firstValue(
+    shipment?.receiver_address,
+    shipment?.delivery_address,
+  );
+  const orderRef =
+    shipment?.merchant_order_id ||
+    shipment?.order_reference ||
+    shipment?.external_order_id ||
+    null;
+  const lifecycle = view
+    ? buildLifecycle(shipment, view.trackingEvents, view.isTransfer)
+    : [];
+  const proofs = view ? collectProofs(shipment) : [];
+
+  const routeKm = formatKm(
+    shipment?.route_distance_km ?? view?.distanceData?.totalDistanceKm,
+  );
+  const serviceType = shipment?.service_type
+    ? String(shipment.service_type).replaceAll("_", " ")
+    : null;
+  const drawerTitle = shipment?.tracking_number || "Shipment details";
+  const shipmentHref =
+    shipment?.id || shipmentId
+      ? `/admin/shipments/${shipment?.id ?? shipmentId}`
+      : null;
+
+  const paymentType = String(
+    shipment?.payment_type ?? shipment?.payment_method ?? "",
+  ).toLowerCase();
+  const isPodChip = paymentType === "pod";
+
+  const sessionStatus = firstValue(
+    shipment?.payment_session_status,
+    shipment?.pod_payment_status,
+    shipment?.online_payment_status,
+    shipment?.payment_status,
+    isPodShipment ? shipment?.pod_status : null,
+  );
+
+  const paidByLabel = isPaidByMerchant
+    ? isFreeDeliveryByStore
+      ? "Merchant / Store (Free Delivery Coupon)"
+      : "Merchant / Store"
+    : isPaidByAdmin
+      ? isFreeDeliveryByAdmin
+        ? "Admin / Marketplace (Free Delivery Coupon)"
+        : "Admin / Marketplace"
+      : "Customer";
+
+  const paidByTag = isFreeDeliveryByAdmin ? (
+    <span
+      className={styles.chip}
+      style={{ background: "#f3e8ff", color: "#6b21a8" }}
+    >
+      Free · Marketplace
+    </span>
+  ) : isFreeDeliveryByStore ? (
+    <span
+      className={styles.chip}
+      style={{ background: "#cffafe", color: "#0e7490" }}
+    >
+      Free · Store
+    </span>
+  ) : isPaidByMerchant ? (
+    <span
+      className={styles.chip}
+      style={{ background: "#cffafe", color: "#0e7490" }}
+    >
+      Paid by merchant
+    </span>
+  ) : isPaidByAdmin ? (
+    <span
+      className={styles.chip}
+      style={{ background: "#f3e8ff", color: "#6b21a8" }}
+    >
+      Paid by admin
+    </span>
+  ) : (
+    <span className={`${styles.chip} ${styles.chipPod}`}>Paid by customer</span>
+  );
+
+  const collectTag = !isPodShipment ? (
+    <span className={`${styles.chip} ${styles.chipPrepaid}`}>Prepaid</span>
+  ) : isPaidByCustomer ? (
+    <span className={`${styles.chip} ${styles.chipPod}`}>
+      Products + Delivery
+    </span>
+  ) : (
+    <span className={`${styles.chip} ${styles.chipPod}`}>Products only</span>
+  );
+
+  const goodsLabel =
+    packetProductsTotal != null && packetProductsTotal > 0
+      ? "Packet total"
+      : isDeclaredGrossTotal
+        ? "Excl. delivery"
+        : netDeclaredValue != null
+          ? "Declared value"
+          : "Products";
+
+  const activityItems = view
+    ? [
+        ...view.trackingEvents.map((event, index) => ({
+          key: `evt-${event.id ?? index}`,
+          time: eventTimestamp(event),
+          status: eventStatus(event) || event.type,
+          text:
+            event.description ??
+            event.note ??
+            event.message ??
+            labelForStatus(eventStatus(event) || event.type) ??
+            "Update",
+        })),
+        ...view.statusLogs.map((log, index) => ({
+          key: `log-${log.id ?? index}`,
+          time: log.created_at || log.logged_at,
+          status: log.status || log.to_status || log.new_status,
+          text:
+            log.remarks ||
+            log.note ||
+            log.message ||
+            (log.status
+              ? `Status: ${labelForStatus(log.status)}`
+              : "Status update"),
+        })),
+      ]
+        .filter((item) => item.text)
+        .sort((a, b) => new Date(b.time || 0) - new Date(a.time || 0))
+    : [];
+
+  const statusAlerts = view && (
+    <>
       {status === "cancelled" && (
         <Alert
           type="error"
           showIcon
-          message="Shipment Cancelled"
+          message="Shipment cancelled"
           description={
             <Space direction="vertical" size={2}>
-              <Text>{shipment.cancellation_reason || "This shipment has been cancelled."}</Text>
+              <Text>
+                {shipment.cancellation_reason ||
+                  "This shipment has been cancelled."}
+              </Text>
               {shipment.cancelled_at && (
                 <Text type="secondary" style={{ fontSize: 12 }}>
-                  Cancelled at: {formatDateTime(shipment.cancelled_at)}
+                  Cancelled at: {formatKathmandu(shipment.cancelled_at)}
                 </Text>
               )}
             </Space>
@@ -1268,7 +1692,7 @@ export default function ShipmentDetailDrawer({ open, shipmentId, onClose }) {
         <Alert
           type="warning"
           showIcon
-          message="Return to Origin In Progress"
+          message="Return to origin in progress"
           description={
             <Space direction="vertical" size={6} style={{ width: "100%" }}>
               <Text>
@@ -1278,10 +1702,10 @@ export default function ShipmentDetailDrawer({ open, shipmentId, onClose }) {
               </Text>
               {shipment.return_initiated_at && (
                 <Text type="secondary" style={{ fontSize: 12 }}>
-                  Initiated at: {formatDateTime(shipment.return_initiated_at)}
+                  Initiated at: {formatKathmandu(shipment.return_initiated_at)}
                 </Text>
               )}
-              <div style={{ marginTop: 4 }}>
+              <div>
                 <Button
                   type="primary"
                   size="small"
@@ -1290,11 +1714,11 @@ export default function ShipmentDetailDrawer({ open, shipmentId, onClose }) {
                   onClick={() =>
                     runAction(
                       () => markShipmentReturnedToOrigin(shipment.id),
-                      "Shipment marked as received at origin hub."
+                      "Shipment marked as received at origin hub.",
                     )
                   }
                 >
-                  Mark Received at Origin Hub
+                  Mark received at origin hub
                 </Button>
               </div>
             </Space>
@@ -1306,18 +1730,19 @@ export default function ShipmentDetailDrawer({ open, shipmentId, onClose }) {
         <Alert
           type="info"
           showIcon
-          message="Received at Origin Hub"
+          message="Received at origin hub"
           description={
             <Space direction="vertical" size={6} style={{ width: "100%" }}>
               <Text>
-                The parcel has arrived back at the origin hub and is ready for merchant handover.
+                The parcel has arrived back at the origin hub and is ready for
+                merchant handover.
               </Text>
               {shipment.returned_to_origin_at && (
                 <Text type="secondary" style={{ fontSize: 12 }}>
-                  Received at: {formatDateTime(shipment.returned_to_origin_at)}
+                  Received at: {formatKathmandu(shipment.returned_to_origin_at)}
                 </Text>
               )}
-              <div style={{ marginTop: 4 }}>
+              <div>
                 <Button
                   type="primary"
                   size="small"
@@ -1325,7 +1750,7 @@ export default function ShipmentDetailDrawer({ open, shipmentId, onClose }) {
                   icon={<CheckCircleOutlined />}
                   onClick={() => setMerchantReturnModalOpen(true)}
                 >
-                  Hand Over to Merchant
+                  Hand over to merchant
                 </Button>
               </div>
             </Space>
@@ -1337,1153 +1762,971 @@ export default function ShipmentDetailDrawer({ open, shipmentId, onClose }) {
         <Alert
           type="success"
           showIcon
-          message="Returned to Merchant"
+          message="Returned to merchant"
           description={
             <Space direction="vertical" size={2}>
               <Text>
                 Successfully returned to merchant
-                {shipment.merchant_return_receiver ? ` (Received by: ${shipment.merchant_return_receiver})` : ""}.
+                {shipment.merchant_return_receiver
+                  ? ` (Received by: ${shipment.merchant_return_receiver})`
+                  : ""}
+                .
               </Text>
               {shipment.returned_to_merchant_at && (
                 <Text type="secondary" style={{ fontSize: 12 }}>
-                  Returned at: {formatDateTime(shipment.returned_to_merchant_at)}
+                  Returned at:{" "}
+                  {formatKathmandu(shipment.returned_to_merchant_at)}
                 </Text>
               )}
             </Space>
           }
         />
       )}
+    </>
+  );
 
-      <Card size="small">
-        <Space direction="vertical" size={8} style={{ width: "100%" }}>
-          <Space wrap>
-            <WorkflowStatusTag status={shipment.status} />
-            {shipment.merchant_status && (
-              <Tag>Merchant: {labelForStatus(shipment.merchant_status)}</Tag>
-            )}
-            {view.isTransfer && (
-              <Tag icon={<SwapOutlined />} color="orange">
-                {view.transferStageLabel ? `Transfer · ${view.transferStageLabel}` : "Transfer"}
-              </Tag>
-            )}
-            {shipment.pod_status &&
-              String(shipment.payment_type).toLowerCase() === "pod" && (
-                <Tag>POD: {labelForStatus(shipment.pod_status)}</Tag>
-              )}
-            {isFreeDeliveryByAdmin && (
-              <Tag color="purple">Free Delivery (Marketplace Coupon)</Tag>
-            )}
-            {isFreeDeliveryByStore && (
-              <Tag color="cyan">Free Delivery (Store Coupon)</Tag>
-            )}
-            {!hasFreeDeliveryCoupon && isPaidByMerchant && (
-              <Tag color="cyan">Delivery Paid by Merchant</Tag>
-            )}
-            {!hasFreeDeliveryCoupon && isPaidByAdmin && (
-              <Tag color="purple">Delivery Paid by Admin</Tag>
-            )}
-          </Space>
-          <Progress
-            percent={getStatusProgress(shipment.status)}
-            status={
-              shipment.status === "failed" || shipment.status === "cancelled"
-                ? "exception"
-                : shipment.status === "delivered"
-                  ? "success"
-                  : "active"
-            }
-            size="small"
-            showInfo={false}
-          />
-          <Text type="secondary" style={{ fontSize: 12 }}>
-            {labelForStatus(shipment.status)}
-            {view.currentLabel ? ` · Currently at ${view.currentLabel}` : ""}
-          </Text>
-        </Space>
-      </Card>
+  /* -------------------------------------------------------------------------- */
+  /* Header                                                                     */
+  /* -------------------------------------------------------------------------- */
 
-      <Row gutter={[12, 12]}>
-        <Col xs={12} sm={12} lg={8}>
-          <MoneyStat
-            title="Delivery charge"
-            value={deliveryCharge}
-            color="#0891B2"
-            tag={
-              isFreeDeliveryByAdmin ? (
-                <Tag color="purple" style={{ margin: 0, fontSize: 10 }}>Free (Marketplace)</Tag>
-              ) : isFreeDeliveryByStore ? (
-                <Tag color="cyan" style={{ margin: 0, fontSize: 10 }}>Free (Store)</Tag>
-              ) : isPaidByMerchant ? (
-                <Tag color="cyan" style={{ margin: 0, fontSize: 10 }}>Paid by Merchant</Tag>
-              ) : isPaidByAdmin ? (
-                <Tag color="purple" style={{ margin: 0, fontSize: 10 }}>Paid by Admin</Tag>
-              ) : (
-                <Tag color="blue" style={{ margin: 0, fontSize: 10 }}>Paid by Customer</Tag>
-              )
-            }
-          />
-        </Col>
-        
-        <Col xs={12} sm={12} lg={8}>
-          <MoneyStat
-            title="Collect from customer (POD total)"
-            value={collectableAmount}
-            color="#D97706"
-            tag={
-              !isPodShipment ? (
-                <Tag color="green" style={{ margin: 0, fontSize: 10 }}>Prepaid</Tag>
-              ) : isPaidByCustomer ? (
-                <Tag color="gold" style={{ margin: 0, fontSize: 10 }}>Products + Delivery</Tag>
-              ) : (
-                <Tag color="gold" style={{ margin: 0, fontSize: 10 }}>Products Only</Tag>
-              )
-            }
-          />
-        </Col>
-        
-        <Col xs={12} sm={12} lg={8}>
-          <MoneyStat
-            title={
-              packetProductsTotal != null && packetProductsTotal > 0
-                ? "Products price (Packet total)"
-                : isDeclaredGrossTotal
-                  ? "Products price (excl. delivery)"
-                  : "Products price"
-            }
-            value={goodsValue}
-            color="#059669"
-            tag={
-              packetProductsTotal != null && packetProductsTotal > 0 ? (
-                <Tag color="success" style={{ margin: 0, fontSize: 10 }}>Packet Total</Tag>
-              ) : isDeclaredGrossTotal ? (
-                <Tag color="success" style={{ margin: 0, fontSize: 10 }}>Excl. Delivery</Tag>
-              ) : netDeclaredValue != null ? (
-                <Tag color="success" style={{ margin: 0, fontSize: 10 }}>Declared Value</Tag>
-              ) : null
-            }
-          />
-        </Col>
-        {/* <Col xs={12} sm={12} lg={6}>
-          <Card size="small" styles={{ body: { padding: "12px 16px" } }}>
-            <Statistic
-              title={
-                <Text type="secondary" style={{ fontSize: 12 }}>
-                  Route distance
-                </Text>
-              }
-              value={view.distanceData.totalDistanceKm || "—"}
-              precision={view.distanceData.totalDistanceKm ? 2 : undefined}
-              suffix={view.distanceData.totalDistanceKm ? " km" : ""}
-              valueStyle={{ fontSize: 18, fontWeight: 600 }}
-            />
-          </Card>
-        </Col> */}
-      </Row>
-
-      {/* Distance & Journey Metrics */}
-      {/* <Card
-        size="small"
-        title={
-          <Space size={8}>
-            <CompassOutlined style={{ color: "#0891B2" }} />
-            <span style={{ fontWeight: 600 }}>Distance & Journey Progress</span>
-          </Space>
-        }
-        extra={
-          view.distanceData.isAtDestinationBranch ? (
-            <Tag color="green" icon={<AimOutlined />}>
-              {view.distanceData.isDelivered ? "Delivered" : "At Destination Branch"}
-            </Tag>
-          ) : view.distanceData.coveredDistanceKm > 0 ? (
-            <Tag color="processing">In Transit</Tag>
-          ) : (
-            <Tag color="default">Pending Dispatch</Tag>
-          )
-        }
-      >
-        <Row gutter={[16, 16]} align="middle">
-          <Col xs={24} sm={8}>
-            <Statistic
-              title={<Text type="secondary" style={{ fontSize: 12 }}>Total Route Distance</Text>}
-              value={view.distanceData.totalDistanceKm}
-              precision={2}
-              suffix="km"
-              valueStyle={{ fontSize: 20, fontWeight: 700, color: "#1E293B" }}
-            />
-            <Text type="secondary" style={{ fontSize: 11 }}>
-              Full planned route path
-            </Text>
-          </Col>
-
-          <Col xs={24} sm={8}>
-            <Statistic
-              title={<Text type="secondary" style={{ fontSize: 12 }}>Total Distance Covered</Text>}
-              value={view.distanceData.coveredDistanceKm}
-              precision={2}
-              suffix="km"
-              valueStyle={{ fontSize: 20, fontWeight: 700, color: "#0891B2" }}
-            />
-            <Text type="secondary" style={{ fontSize: 11 }}>
-              {view.distanceData.progressPercent}% traveled so far
-            </Text>
-          </Col>
-
-          <Col xs={24} sm={8}>
-            <Statistic
-              title={<Text type="secondary" style={{ fontSize: 12 }}>Distance from Destination Branch</Text>}
-              value={view.distanceData.isAtDestinationBranch ? 0 : view.distanceData.distanceFromDestinationBranchKm}
-              precision={2}
-              suffix={view.distanceData.isAtDestinationBranch ? "km (Arrived)" : "km remaining"}
-              valueStyle={{
-                fontSize: 20,
-                fontWeight: 700,
-                color: view.distanceData.isAtDestinationBranch ? "#10B981" : "#D97706",
-              }}
-            />
-            <Text style={{ fontSize: 11, color: view.distanceData.isAtDestinationBranch ? "#10B981" : "#64748B" }}>
-              {view.distanceData.isAtDestinationBranch
-                ? "Parcel reached destination branch"
-                : `${view.distanceData.distanceFromDestinationBranchKm} km to reach destination branch`}
-            </Text>
-          </Col>
-        </Row>
-
-        <div style={{ marginTop: 14, paddingTop: 12, borderTop: "1px solid #F1F5F9" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
-            <Space size={4}>
-              <EnvironmentOutlined style={{ color: "#64748B", fontSize: 12 }} />
-              <Text type="secondary" style={{ fontSize: 12 }}>
-                Origin: <Text strong>{view.originLabel || "Origin Branch"}</Text>
-              </Text>
-            </Space>
-            <Space size={4}>
-              <AimOutlined style={{ color: "#10B981", fontSize: 12 }} />
-              <Text type="secondary" style={{ fontSize: 12 }}>
-                Destination: <Text strong>{view.destinationLabel || "Destination Branch"}</Text>
-              </Text>
-            </Space>
-          </div>
-          <Progress
-            percent={view.distanceData.progressPercent}
-            strokeColor={{
-              "0%": "#0891B2",
-              "100%": "#10B981",
-            }}
-            status={view.distanceData.isDelivered ? "success" : "active"}
-            size="small"
-          />
+  const header = (
+    <div className={styles.header}>
+      <div className={styles.headerMain}>
+        <div className={styles.trackingRow}>
+          <span
+            className={styles.tracking}
+            title={shipment?.tracking_number || drawerTitle}
+          >
+            {shipment?.tracking_number || drawerTitle}
+          </span>
+          {shipment?.tracking_number ? (
+            <Tooltip title="Copy tracking number">
+              <button
+                type="button"
+                className={styles.copyBtn}
+                onClick={copyTracking}
+                aria-label="Copy tracking number"
+              >
+                <CopyOutlined />
+              </button>
+            </Tooltip>
+          ) : null}
         </div>
-      </Card> */}
-
-      <SectionCard title="Current location" icon={<EnvironmentOutlined />}>
-        <FieldDescriptions
-          column={{ xs: 1, sm: 2 }}
-          items={[
-            { label: "Origin", value: view.originRibbon || view.originLabel },
-            { label: "Destination", value: view.destinationRibbon || view.destinationLabel },
-            { label: "Current branch", value: view.currentRibbon || view.currentLabel },
-            { label: "Next hop", value: view.nextHopRibbon || view.nextHopLabel },
-            { label: "Origin sub-branch", value: view.originSubRibbon || view.originSubLabel },
-            {
-              label: "Destination sub-branch",
-              value: view.destinationSubRibbon || view.destinationSubLabel,
-            },
-            { label: "Current sub-branch", value: view.currentSubRibbon || view.currentSubLabel },
-          ]}
-        />
-        {!view.originLabel && !view.destinationLabel && !view.currentLabel && (
-          <Empty
-            image={Empty.PRESENTED_IMAGE_SIMPLE}
-            description="No branch assignments yet"
-          />
-        )}
-      </SectionCard>
-
-      <SectionCard title="Parcel summary" icon={<FileTextOutlined />}>
-        <FieldDescriptions
-          column={{ xs: 1, sm: 2, md: 3 }}
-          items={[
-            { label: "Service", value: shipment.service_type },
-            {
-              label: "Payment",
-              value: shipment.payment_type
-                ? String(shipment.payment_type).toUpperCase()
-                : null,
-            },
-            {
-              label: "Charge paid by",
-              value: isPaidByMerchant
-                ? isFreeDeliveryByStore
-                  ? "Merchant / Store (Free Delivery Coupon)"
-                  : "Merchant / Store"
-                : isPaidByAdmin
-                  ? isFreeDeliveryByAdmin
-                    ? "Admin / Marketplace (Free Delivery Coupon)"
-                    : "Admin / Marketplace"
-                  : "Customer",
-            },
-            {
-              label: "Free delivery",
-              value: isFreeDeliveryByAdmin ? (
-                <Tag color="purple">Yes (Marketplace Coupon)</Tag>
-              ) : isFreeDeliveryByStore ? (
-                <Tag color="cyan">Yes (Store Coupon)</Tag>
-              ) : (
-                <Tag color="default">No</Tag>
-              ),
-            },
-            {
-              label: "Parcel type",
-              value: shipment.parcel_type || shipment.package_type,
-            },
-            {
-              label: "Weight",
-              value: shipment.weight != null ? `${shipment.weight} kg` : null,
-            },
-            {
-              label: "Actual weight",
-              show: shipment.actual_weight != null && Number(shipment.actual_weight) > 0,
-              value: shipment.actual_weight != null ? `${shipment.actual_weight} kg` : null,
-            },
-            {
-              label: "Volumetric weight",
-              show: shipment.volumetric_weight != null && Number(shipment.volumetric_weight) > 0,
-              value: shipment.volumetric_weight != null ? `${shipment.volumetric_weight} kg` : null,
-            },
-            {
-              label: "Chargeable weight",
-              show: shipment.chargeable_weight != null && Number(shipment.chargeable_weight) > 0,
-              value: shipment.chargeable_weight != null ? `${shipment.chargeable_weight} kg` : null,
-            },
-            {
-              label: "Dimensions (L×W×H)",
-              show: Boolean(shipment.length_cm && shipment.width_cm && shipment.height_cm),
-              value:
-                shipment.length_cm && shipment.width_cm && shipment.height_cm
-                  ? `${shipment.length_cm} × ${shipment.width_cm} × ${shipment.height_cm} cm`
-                  : null,
-            },
-            {
-              label: "Quantity",
-              value:
-                shipment.quantity != null ? String(shipment.quantity) : null,
-            },
-            {
-              label: "Declared value",
-              value: (() => {
-                if (packetProductsTotal != null && packetProductsTotal > 0) {
-                  return `${formatMoney(packetProductsTotal)} (Packet total)`;
-                }
-                if (isDeclaredGrossTotal) {
-                  return `${formatMoney(netDeclaredValue)} (excl. delivery)`;
-                }
-                const val = rawDeclaredValue ?? moneyValue(shipment.declared_value);
-                return val != null ? formatMoney(Number(val)) : null;
-              })(),
-            },
-            {
-              label: "Fragile",
-              value:
-                shipment.fragile != null
-                  ? shipment.fragile
-                    ? "Yes"
-                    : "No"
-                  : null,
-            },
-            {
-              label: "Description",
-              value: shipment.description || shipment.package_description,
-            },
-            { label: "Remarks", value: shipment.remarks },
-            {
-              label: "Special instructions",
-              value: shipment.special_instructions,
-            },
-          ]}
-        />
-      </SectionCard>
-    </Space>
-  );
-
-  const routeTab = view && (
-    <Space direction="vertical" size={16} style={{ width: "100%" }}>
-      {(view.isTransfer || view.pathText || view.nextHopLabel) && (
-        <SectionCard title="Transfer route" icon={<SwapOutlined />}>
-          <Space direction="vertical" size={12} style={{ width: "100%" }}>
-            <Space wrap size={[8, 8]}>
-              <Tag>{displayOrDash(view.originLabel)}</Tag>
-              <Text type="secondary">→</Text>
-              {view.viaNames.map((name) => (
-                <Tag key={name} color="cyan">
-                  via {name}
-                </Tag>
-              ))}
-              <Tag color="blue">{displayOrDash(view.destinationLabel)}</Tag>
-            </Space>
-
-            {view.pathText && (
-              <Paragraph type="secondary" style={{ margin: 0 }}>
-                Path: {view.pathText}
-              </Paragraph>
-            )}
-
-            {(view.hop?.route_code || view.hop?.route_name) && (
-              <Text type="secondary">
-                Route {view.hop?.route_code}
-                {view.hop?.route_name ? ` · ${view.hop.route_name}` : ""}
-              </Text>
-            )}
-
-            {view.nextHopLabel ? (
-              <div>
-                <Badge status="processing" />{" "}
-                <Text>
-                  Next hop: <Text strong>{view.nextHopLabel}</Text>
-                  {view.hop?.in_transit_label && (
-                    <Text type="secondary"> · {view.hop.in_transit_label}</Text>
-                  )}
-                </Text>
-              </div>
-            ) : view.hop?.in_transit_label ? (
-              <Text type="secondary">{view.hop.in_transit_label}</Text>
-            ) : null}
-
-            {view.transferStageLabel && (
-              <Tag color="orange">{view.transferStageLabel}</Tag>
-            )}
-          </Space>
-        </SectionCard>
-      )}
-
-      <SectionCard title="Branch assignments & Distances" icon={<EnvironmentOutlined />}>
-        <FieldDescriptions
-          column={{ xs: 1, sm: 2 }}
-          items={[
-            { label: "Origin", value: view.originRibbon || view.originLabel },
-            { label: "Destination", value: view.destinationRibbon || view.destinationLabel },
-            { label: "Current branch", value: view.currentRibbon || view.currentLabel },
-            { label: "Next hop", value: view.nextHopRibbon || view.nextHopLabel },
-            { label: "Origin sub-branch", value: view.originSubRibbon || view.originSubLabel },
-            {
-              label: "Destination sub-branch",
-              value: view.destinationSubRibbon || view.destinationSubLabel,
-            },
-            { label: "Current sub-branch", value: view.currentSubRibbon || view.currentSubLabel },
-            {
-              label: "Route distance (Origin → Customer)",
-              value: (view.distanceData.originToCustomerKm ?? view.distanceData.totalDistanceKm)
-                ? `${view.distanceData.originToCustomerKm ?? view.distanceData.totalDistanceKm} km`
-                : "—",
-            },
-            {
-              label: "Destination branch → Customer",
-              value: view.distanceData.destinationToCustomerKm != null
-                ? `${view.distanceData.destinationToCustomerKm} km`
-                : "—",
-            },
-            {
-              label: "Base covered distance",
-              value: `${view.distanceData.baseDistanceKm ?? 10} km (Included in base fare)`,
-            },
-            {
-              label: "Extra mile from destination",
-              value: view.distanceData.extraMileKm != null
-                ? (
-                    <Space size={6} wrap>
-                      <Text
-                        strong
-                        style={{
-                          color: view.distanceData.extraMileKm > 0 ? "#d97706" : "#059669",
-                        }}
-                      >
-                        {view.distanceData.extraMileKm > 0
-                          ? `+${view.distanceData.extraMileKm} km extra`
-                          : "0 km (Within base coverage)"}
-                      </Text>
-                      {view.distanceData.extraMileKm > 0 && (
-                        <Tag color="orange">Excludes {view.distanceData.baseDistanceKm ?? 5} km base</Tag>
-                      )}
-                    </Space>
-                  )
-                : "—",
-            },
-            {
-              label: "Distance covered",
-              value: `${view.distanceData.coveredDistanceKm} km (${view.distanceData.progressPercent}%)`,
-            },
-            {
-              label: "Distance to destination branch",
-              value: view.distanceData.isAtDestinationBranch
-                ? "0.00 km (At destination branch)"
-                : `${view.distanceData.distanceFromDestinationBranchKm} km remaining`,
-            },
-          ]}
-        />
-      </SectionCard>
-
-      <ShipmentWorkflowActions
-        shipment={shipment}
-        loading={actionLoading}
-        onReceiveOrigin={() =>
-          runAction(
-            () => receiveOriginSubBranch(shipment.id),
-            "Received at origin sub-branch.",
-          )
-        }
-        onDispatchNext={() =>
-          runAction(
-            () => dispatchNextRouteStep(shipment.id),
-            "Next route step dispatched.",
-          )
-        }
-        onReceiveCurrent={() =>
-          runAction(
-            () => receiveCurrentRouteStep(shipment.id),
-            "Current route step received.",
-          )
-        }
-      />
-    </Space>
-  );
-
-  const partiesTab = view && (
-    <Row gutter={[16, 16]}>
-      {(view.hasSenderBlock ||
-        coordinateLabel(view.pickupLat, view.pickupLng)) && (
-        <Col xs={24} lg={12}>
-          <SectionCard title="Pickup" icon={<ShopOutlined />}>
-            <FieldDescriptions
-              items={[
-                { label: "Merchant / Store", value: view.merchantName },
-                {
-                  label: "Pickup location",
-                  value: view.pickupLocationName,
-                },
-                { label: "Contact person", value: view.senderName },
-                { label: "Phone", value: view.senderPhone },
-                { label: "Email", value: view.senderEmail },
-                { label: "Address", value: view.senderAddress },
-                { label: "City", value: view.senderCity },
-                { label: "Area", value: view.senderArea },
-                {
-                  label: "Coordinates",
-                  value: coordinateLabel(view.pickupLat, view.pickupLng),
-                },
-              ]}
-            />
-          </SectionCard>
-        </Col>
-      )}
-
-      <Col
-        xs={24}
-        lg={
-          view.hasSenderBlock || coordinateLabel(view.pickupLat, view.pickupLng)
-            ? 12
-            : 24
-        }
-      >
-        <SectionCard title="Receiver / Delivery" icon={<UserOutlined />}>
-          <FieldDescriptions
-            items={[
-              {
-                label: "Name",
-                value: firstValue(
-                  shipment.receiver_name,
-                  shipment.customer_name,
-                ),
-              },
-              {
-                label: "Phone",
-                value: firstValue(
-                  shipment.receiver_phone,
-                  shipment.customer_phone,
-                ),
-              },
-              {
-                label: "Email",
-                value: firstValue(
-                  shipment.receiver_email,
-                  shipment.customer_email,
-                ),
-              },
-              {
-                label: "Address",
-                value: firstValue(
-                  shipment.receiver_address,
-                  shipment.delivery_address,
-                ),
-              },
-              { label: "City", value: shipment.receiver_city },
-              { label: "Area", value: shipment.receiver_area },
-              {
-                label: "Coordinates",
-                value: coordinateLabel(view.deliveryLat, view.deliveryLng),
-              },
-            ]}
-          />
-        </SectionCard>
-      </Col>
-
-      {view.packetProducts.length > 0 && (
-        <Col span={24}>
-          <SectionCard title="Packet products" icon={<ShopOutlined />}>
-            <Table
+        <div className={styles.chipRow}>
+          <StatusChip status={shipment?.status} />
+          {serviceType ? (
+            <span
+              className={`${styles.chip} ${shipment?.service_type === "express" ? styles.chipExpress : ""}`}
+            >
+              {serviceType}
+            </span>
+          ) : null}
+          {view ? (
+            <span
+              className={`${styles.chip} ${view.isTransfer ? styles.chipTransfer : styles.chipLastMile}`}
+            >
+              {view.isTransfer
+                ? `Transfer${view.transferStageLabel ? ` · ${view.transferStageLabel}` : ""}`
+                : "Last-mile"}
+            </span>
+          ) : null}
+          {orderRef ? (
+            <span className={styles.orderRef} title={orderRef}>
+              {orderRef}
+            </span>
+          ) : null}
+        </div>
+      </div>
+      <div className={styles.headerActions}>
+        {!isTerminal && !isReturning && shipment ? (
+          <Tooltip title="Update location">
+            <button
+              type="button"
+              className={styles.iconBtn}
+              onClick={() => setLocationModalOpen(true)}
+              aria-label="Update location"
+            >
+              <AimOutlined />
+            </button>
+          </Tooltip>
+        ) : null}
+        {canInitiateReturn ? (
+          <Tooltip title="Initiate return">
+            <button
+              type="button"
+              className={`${styles.iconBtn} ${styles.iconBtnDanger}`}
+              onClick={() => setReturnModalOpen(true)}
+              aria-label="Initiate return"
+            >
+              <RollbackOutlined />
+            </button>
+          </Tooltip>
+        ) : null}
+        {status === "return_initiated" ? (
+          <Tooltip title="Receive at origin">
+            <Button
+              type="primary"
               size="small"
-              rowKey={(_, i) => `pp-${i}`}
-              pagination={false}
-              dataSource={view.packetProducts}
-              columns={[
-                {
-                  title: "Name",
-                  dataIndex: "name",
-                  render: (v) => v || "—",
-                },
-                { title: "Qty", dataIndex: "quantity", width: 70 },
-                {
-                  title: "Unit price",
-                  dataIndex: "unit_price",
-                  render: (v) => (v != null ? formatMoney(Number(v)) : "—"),
-                },
-                {
-                  title: "Total",
-                  key: "total_price",
-                  width: 120,
-                  render: (_, row) => {
-                    const q = Number(row.quantity ?? 1) || 1;
-                    const p = moneyValue(row.unit_price, row.price);
-                    return p != null ? formatMoney(q * p) : "—";
-                  },
-                },
-                {
-                  title: "Tracking",
-                  dataIndex: "product_tracking_number",
-                  render: (v) => v || "—",
-                },
-              ]}
-              summary={() => {
-                if (packetProductsTotal == null) return null;
-                return (
-                  <Table.Summary.Row style={{ background: "#FAFAFA", fontWeight: 600 }}>
-                    <Table.Summary.Cell index={0} colSpan={3} style={{ textAlign: "right" }}>
-                      Packet products total:
-                    </Table.Summary.Cell>
-                    <Table.Summary.Cell index={1}>
-                      <Text strong style={{ color: "#059669" }}>
-                        {formatMoney(packetProductsTotal)}
-                      </Text>
-                    </Table.Summary.Cell>
-                    <Table.Summary.Cell index={2} />
-                  </Table.Summary.Row>
-                );
-              }}
+              icon={<RollbackOutlined />}
+              loading={actionLoading}
+              onClick={() =>
+                runAction(
+                  () => markShipmentReturnedToOrigin(shipment.id),
+                  "Shipment marked as received at origin hub.",
+                )
+              }
             />
-          </SectionCard>
-        </Col>
-      )}
-    </Row>
+          </Tooltip>
+        ) : null}
+        {status === "returned_to_origin" ? (
+          <Tooltip title="Hand over to merchant">
+            <Button
+              type="primary"
+              size="small"
+              style={{ background: "#059669", borderColor: "#059669" }}
+              icon={<CheckCircleOutlined />}
+              loading={actionLoading}
+              onClick={() => setMerchantReturnModalOpen(true)}
+            />
+          </Tooltip>
+        ) : null}
+        {canCancel ? (
+          <Tooltip title="Cancel shipment">
+            <button
+              type="button"
+              className={`${styles.iconBtn} ${styles.iconBtnDanger}`}
+              onClick={() => setCancelModalOpen(true)}
+              aria-label="Cancel shipment"
+            >
+              <StopOutlined />
+            </button>
+          </Tooltip>
+        ) : null}
+        <Tooltip title="Print label">
+          <button
+            type="button"
+            className={styles.iconBtn}
+            onClick={printLabel}
+            disabled={!shipment}
+            aria-label="Print label"
+          >
+            <PrinterOutlined />
+          </button>
+        </Tooltip>
+        {shipmentHref ? (
+          <Tooltip title="Open full page">
+            <a
+              className={styles.iconBtn}
+              href={shipmentHref}
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label="Open full page"
+            >
+              <ExpandAltOutlined />
+            </a>
+          </Tooltip>
+        ) : null}
+        {receiverPhone ? (
+          <Tooltip title={`Call ${receiverName || "receiver"}`}>
+            <a
+              className={styles.iconBtn}
+              href={`tel:${receiverPhone}`}
+              aria-label="Call receiver"
+            >
+              <PhoneOutlined />
+            </a>
+          </Tooltip>
+        ) : null}
+        <Tooltip title="Refresh">
+          <button
+            type="button"
+            className={styles.iconBtn}
+            onClick={load}
+            aria-label="Refresh"
+          >
+            <ReloadOutlined spin={loading} />
+          </button>
+        </Tooltip>
+        <Tooltip title="Close">
+          <button
+            type="button"
+            className={styles.iconBtn}
+            onClick={onClose}
+            aria-label="Close"
+          >
+            <CloseOutlined />
+          </button>
+        </Tooltip>
+      </div>
+    </div>
   );
 
-  const pricingTab = view && (view.priceBreakdown || view.hasFeeColumns) && (
-    <SectionCard title="Pricing breakdown" icon={<DollarOutlined />}>
-      {view.priceBreakdown ? (
-        <FieldDescriptions
-          column={2}
-          items={[
-            {
-              label: "Pricing route",
-              show: Boolean(
-                view.priceBreakdown.pickup_branch_name ||
-                view.priceBreakdown.delivery_branch_name
-              ),
-              value: `${view.priceBreakdown.pickup_branch_name || view.originLabel || "Origin"} → ${view.priceBreakdown.delivery_branch_name || view.destinationLabel || "Destination"} (${view.priceBreakdown.same_branch ? "Local / Same Branch" : "Inter-Branch Transfer"})`,
-            },
-            {
-              label: "Route base rate",
-              value: formatMoney(
-                Number(
-                  view.priceBreakdown.route_base_rate ??
-                  view.priceBreakdown.base_delivery_fee ??
-                  0,
-                ),
-              ),
-            },
-            {
-              label: "Extra distance charge",
-              show:
-                Number(view.priceBreakdown.delivery_extra_charge ?? 0) > 0 ||
-                Boolean(view.priceBreakdown.extra_distance_km) ||
-                (view.distanceData?.extraMileKm != null && view.distanceData.extraMileKm > 0),
-              value: (
-                <Space direction="vertical" size={2}>
-                  <Text strong>
-                    {formatMoney(Number(view.priceBreakdown.delivery_extra_charge ?? 0))}
-                  </Text>
-                  {(view.priceBreakdown.extra_distance_km || view.distanceData?.extraMileKm > 0) && (
-                    <Text type="secondary" style={{ fontSize: 12 }}>
-                      +{view.priceBreakdown.extra_distance_km ?? view.distanceData.extraMileKm} km extra mile (Excluding {view.distanceData?.baseDistanceKm ?? 10} km base distance)
-                    </Text>
-                  )}
-                </Space>
-              ),
-            },
-            {
-              label: "Weight charge",
-              show: Number(view.priceBreakdown.weight_charge ?? 0) > 0,
-              value: (
-                <Space direction="vertical" size={2}>
-                  <Text strong>
-                    {formatMoney(Number(view.priceBreakdown.weight_charge ?? 0))}
-                  </Text>
-                  {Number(view.priceBreakdown.weight_charge ?? 0) > 0 && view.parcelWeight != null && (
-                    <Text type="secondary" style={{ fontSize: 12 }}>
-                      +{Math.max(0, Math.round((Number(view.parcelWeight) - Number(view.priceBreakdown.included_weight_kg ?? 2.0)) * 100) / 100)} kg excess weight (Excluding {view.priceBreakdown.included_weight_kg ?? 2.0} kg included)
-                    </Text>
-                  )}
-                </Space>
-              ),
-            },
-            {
-              label: "Fragile fee",
-              show: Number(view.priceBreakdown.fragile_charge ?? 0) > 0,
-              value: formatMoney(
-                Number(view.priceBreakdown.fragile_charge ?? 0),
-              ),
-            },
-            {
-              label: "Expedited fee",
-              show: Number(view.priceBreakdown.same_day_charge || view.priceBreakdown.express_charge || 0) > 0,
-              value: formatMoney(
-                Number(view.priceBreakdown.same_day_charge || view.priceBreakdown.express_charge || 0),
-              ),
-            },
-            {
-              label: "POD fee",
-              show: isPodShipment || Number(view.priceBreakdown.pod_fee ?? 0) > 0,
-              value: formatMoney(Number(view.priceBreakdown.pod_fee ?? 0)),
-            },
-            {
-              label: "Final price",
-              value: (
-                <Text strong>
-                  {formatMoney(
-                    Number(
-                      view.priceBreakdown.final_price ??
-                        shipment.delivery_charge ??
-                        0,
-                    ),
-                  )}
-                </Text>
-              ),
-            },
-            {
-              label: "Fee covered by",
-              value: isPaidByMerchant ? (
-                isFreeDeliveryByStore ? (
-                  <Tag color="cyan">Merchant / Store (Free Delivery Coupon)</Tag>
-                ) : (
-                  <Tag color="cyan">Merchant / Store</Tag>
-                )
-              ) : isPaidByAdmin ? (
-                isFreeDeliveryByAdmin ? (
-                  <Tag color="purple">Admin / Marketplace (Free Delivery Coupon)</Tag>
-                ) : (
-                  <Tag color="purple">Admin / Marketplace</Tag>
-                )
-              ) : (
-                <Tag color="blue">Customer</Tag>
-              ),
-            },
-            {
-              label: "Customer delivery fee",
-              value: !isPaidByCustomer
-                ? `NPR 0.00 (${isFreeDeliveryByAdmin ? "Free - Marketplace Coupon" : isFreeDeliveryByStore ? "Free - Store Coupon" : isPaidByMerchant ? "Paid by Merchant" : "Paid by Admin"})`
-                : formatMoney(Number(shipment.delivery_charge ?? 0)),
-            },
-          ]}
-        />
-      ) : (
-        <FieldDescriptions
-          column={2}
-          items={[
-            {
-              label: "Pickup fee",
-              value:
-                view.feeFromShipment.pickup_fee != null
-                  ? formatMoney(view.feeFromShipment.pickup_fee)
-                  : null,
-            },
-            {
-              label: "Route fee",
-              value:
-                view.feeFromShipment.route_fee != null
-                  ? formatMoney(view.feeFromShipment.route_fee)
-                  : null,
-            },
-            {
-              label: "Last-mile fee",
-              value:
-                view.feeFromShipment.last_mile_fee != null
-                  ? formatMoney(view.feeFromShipment.last_mile_fee)
-                  : null,
-            },
-            {
-              label: "Weight fee",
-              value:
-                view.feeFromShipment.weight_fee != null
-                  ? formatMoney(view.feeFromShipment.weight_fee)
-                  : null,
-            },
-            {
-              label: "POD charge",
-              value:
-                view.feeFromShipment.pod_charge != null
-                  ? formatMoney(view.feeFromShipment.pod_charge)
-                  : null,
-            },
-            {
-              label: "Delivery charge",
-              value:
-                view.feeFromShipment.delivery_charge != null
-                  ? formatMoney(view.feeFromShipment.delivery_charge)
-                  : null,
-            },
-            {
-              label: "Fee covered by",
-              value: isPaidByMerchant ? (
-                isFreeDeliveryByStore ? (
-                  <Tag color="cyan">Merchant / Store (Free Delivery Coupon)</Tag>
-                ) : (
-                  <Tag color="cyan">Merchant / Store</Tag>
-                )
-              ) : isPaidByAdmin ? (
-                isFreeDeliveryByAdmin ? (
-                  <Tag color="purple">Admin / Marketplace (Free Delivery Coupon)</Tag>
-                ) : (
-                  <Tag color="purple">Admin / Marketplace</Tag>
-                )
-              ) : (
-                <Tag color="blue">Customer</Tag>
-              ),
-            },
-            {
-              label: "Customer delivery fee",
-              value: !isPaidByCustomer
-                ? `NPR 0.00 (${isFreeDeliveryByAdmin ? "Free - Marketplace Coupon" : isFreeDeliveryByStore ? "Free - Store Coupon" : isPaidByMerchant ? "Paid by Merchant" : "Paid by Admin"})`
-                : formatMoney(Number(shipment.delivery_charge ?? 0)),
-            },
-          ]}
-        />
-      )}
-    </SectionCard>
-  );
-
-  const activityTab = view && (
-    <Space direction="vertical" size={16} style={{ width: "100%" }}>
-      {view.tasks.length > 0 && (
-        <SectionCard title="Shipment tasks" icon={<CarOutlined />}>
-          <Table
-            size="small"
-            rowKey="id"
-            dataSource={view.tasks}
-            pagination={false}
-            scroll={{ x: 700 }}
-            columns={[
-              {
-                title: "Task",
-                dataIndex: "task_number",
-                render: (v) => v || "—",
-              },
-              {
-                title: "Type",
-                dataIndex: "type",
-                render: (v) => v || "—",
-              },
-              {
-                title: "Status",
-                dataIndex: "status",
-                render: (v) => <WorkflowStatusTag status={v} />,
-              },
-              {
-                title: "Priority",
-                dataIndex: "priority",
-                render: (v) => v || "—",
-              },
-              {
-                title: "Due",
-                dataIndex: "due_at",
-                render: (v) => formatDateTime(v),
-              },
-            ]}
-          />
-        </SectionCard>
-      )}
-
-      {view.trackingEvents.length > 0 && (
-        <SectionCard title="Tracking timeline" icon={<HistoryOutlined />}>
-          <Timeline
-            items={view.trackingEvents.map((event) => ({
-              color: event.status === "delivered" ? "green" : "blue",
-              children: (
-                <div>
-                  <Text strong>{labelForStatus(event.status)}</Text>
-                  <div>{event.description ?? event.note ?? "—"}</div>
-                  <Text type="secondary" style={{ fontSize: 12 }}>
-                    {event.location_text ? `${event.location_text} · ` : ""}
-                    {formatDateTime(event.created_at)}
-                  </Text>
-                </div>
-              ),
-            }))}
-          />
-        </SectionCard>
-      )}
-
-      {view.statusLogs.length > 0 && (
-        <SectionCard title="Status logs" icon={<InfoCircleOutlined />}>
-          <Table
-            size="small"
-            rowKey="id"
-            dataSource={view.statusLogs}
-            pagination={false}
-            columns={[
-              {
-                title: "Old",
-                dataIndex: "old_status",
-                render: (v) => v || "—",
-              },
-              {
-                title: "New",
-                dataIndex: "new_status",
-                render: (v) => <WorkflowStatusTag status={v} />,
-              },
-              {
-                title: "Note",
-                dataIndex: "note",
-                render: (v) => v || "—",
-              },
-              {
-                title: "At",
-                dataIndex: "created_at",
-                render: (v) => formatDateTime(v),
-              },
-            ]}
-          />
-        </SectionCard>
-      )}
-
-      {view.notifications.length > 0 && (
-        <SectionCard title="Notifications">
-          <Table
-            size="small"
-            rowKey="id"
-            dataSource={view.notifications}
-            pagination={false}
-            columns={[
-              {
-                title: "Title",
-                dataIndex: "title",
-                render: (v) => v || "—",
-              },
-              {
-                title: "Message",
-                dataIndex: "message",
-                render: (v) => v || "—",
-              },
-              {
-                title: "Type",
-                dataIndex: "type",
-                render: (v) => v || "—",
-              },
-              {
-                title: "Created",
-                dataIndex: "created_at",
-                render: (v) => formatDateTime(v),
-              },
-            ]}
-          />
-        </SectionCard>
-      )}
-
-      {!view.tasks.length &&
-        !view.trackingEvents.length &&
-        !view.statusLogs.length &&
-        !view.notifications.length && (
-          <Empty description="No activity recorded yet" />
-        )}
-    </Space>
-  );
+  /* -------------------------------------------------------------------------- */
+  /* Main Drawer View                                                           */
+  /* -------------------------------------------------------------------------- */
 
   return (
     <Drawer
       open={!!open}
       onClose={onClose}
       placement="right"
-      width={isMobile ? "100%" : Math.min(720, viewportWidth - 24)}
+      width={
+        isMobile ? "100%" : Math.min(880, Math.max(viewportWidth - 24, 320))
+      }
+      style={{ maxWidth: "100vw" }}
       destroyOnClose
       maskClosable
-      title={
-        <Space direction="vertical" size={0} style={{ width: "100%" }}>
-          <Space align="center" wrap>
-            <Text strong style={{ fontSize: 17 }}>
-              {drawerTitle}
-            </Text>
-            {shipment?.status && <WorkflowStatusTag status={shipment.status} />}
-            {shipment?.payment_type && (
-              <Tag
-                color={
-                  String(shipment.payment_type).toLowerCase() === "pod"
-                    ? "gold"
-                    : "blue"
+      keyboard
+      closable={false}
+      title={null}
+      rootClassName={styles.drawerRoot}
+    >
+      {header}
+
+      {loading ? (
+        <div className={styles.skeleton} style={{ padding: 12 }}>
+          <Skeleton active title={{ width: "40%" }} paragraph={{ rows: 1 }} />
+          <Skeleton active title={false} paragraph={{ rows: 2 }} />
+          <div className={styles.grid}>
+            <Skeleton active paragraph={{ rows: 5 }} />
+            <Skeleton active paragraph={{ rows: 5 }} />
+            <Skeleton active paragraph={{ rows: 5 }} />
+            <Skeleton active paragraph={{ rows: 5 }} />
+          </div>
+        </div>
+      ) : !shipment || !view ? (
+        <div className={styles.empty}>
+          <Empty description="Shipment not found" />
+        </div>
+      ) : (
+        <div className={styles.body}>
+          {statusAlerts}
+
+          {/* Stepper Card */}
+          {lifecycle.length > 0 && (
+            <div
+              className={styles.stepper}
+              role="list"
+              aria-label="Shipment lifecycle"
+            >
+              {lifecycle.map((step, index) => (
+                <div
+                  key={step.key}
+                  role="listitem"
+                  className={`${styles.step} ${step.done ? styles.stepDone : ""} ${step.current ? styles.stepCurrent : ""} ${step.failed ? styles.stepFailed : ""}`}
+                >
+                  <div className={styles.stepTrack}>
+                    <span
+                      className={
+                        index > 0 && lifecycle[index - 1].done
+                          ? styles.stepLineDone
+                          : styles.stepLine
+                      }
+                    />
+                    <span className={styles.stepDot} />
+                    <span
+                      className={
+                        step.done ? styles.stepLineDone : styles.stepLine
+                      }
+                    />
+                  </div>
+                  <div className={styles.stepLabel}>{step.label}</div>
+                  {step.time ? (
+                    <div className={styles.stepTime}>{step.time}</div>
+                  ) : (
+                    <div className={styles.stepTime}>&nbsp;</div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* 3-Column Combined Financial Card */}
+          <div className={styles.moneyCard}>
+            <div className={styles.moneyCell}>
+              <div className={styles.moneyLabel}>
+                PRODUCTS
+                <span className={`${styles.chip} ${styles.chipLastMile}`}>
+                  {goodsLabel}
+                </span>
+              </div>
+              <div className={styles.moneyValue}>
+                {goodsValue != null ? formatMoney(goodsValue) : "—"}
+              </div>
+              {sessionStatus ? (
+                <div className={styles.moneySub}>
+                  {isPodShipment ? "POD" : "Payment"} status:{" "}
+                  {labelForStatus(sessionStatus)}
+                </div>
+              ) : (
+                <div className={styles.moneySub}>
+                  {shipment.merchant_status
+                    ? `Merchant: ${labelForStatus(shipment.merchant_status)}`
+                    : "\u00a0"}
+                </div>
+              )}
+            </div>
+            <div className={styles.moneyCell}>
+              <div className={styles.moneyLabel}>
+                DELIVERY CHARGE
+                {paidByTag}
+              </div>
+              <div className={styles.moneyValue}>
+                {deliveryCharge != null ? formatMoney(deliveryCharge) : "—"}
+              </div>
+              <div className={styles.moneySub}>{paidByLabel}</div>
+            </div>
+            <div className={styles.moneyMain}>
+              <div className={styles.moneyLabel}>
+                COLLECT FROM CUSTOMER
+                {collectTag}
+              </div>
+              <div
+                className={
+                  collectableAmount > 0
+                    ? styles.moneyValue
+                    : `${styles.moneyValue} ${styles.moneyValueMuted}`
                 }
               >
-                {String(shipment.payment_type).toUpperCase()}
-              </Tag>
-            )}
-            {shipment?.service_type && (
-              <Tag color="purple">
-                {String(shipment.service_type).replaceAll("_", " ")}
-              </Tag>
-            )}
-          </Space>
-          {shipment?.merchant_order_id && (
-            <Text type="secondary" style={{ fontSize: 12 }}>
-              Merchant order: {shipment.merchant_order_id}
-              {view?.merchantName ? ` · ${view.merchantName}` : ""}
-            </Text>
-          )}
-        </Space>
-      }
-      extra={
-        <Space size={6} wrap>
-          {!isTerminal && !isReturning && (
-            <Button
-              icon={<AimOutlined />}
-              onClick={() => setLocationModalOpen(true)}
-              size="small"
-            >
-              {isMobile ? null : "Update location"}
-            </Button>
-          )}
+                {formatMoney(collectableAmount ?? 0)}
+              </div>
+              <div className={styles.moneySub}>
+                {isPodChip
+                  ? "POD total — same rule as the shipments list"
+                  : "Nothing to collect at the door"}
+                {paymentType &&
+                paymentType !== "pod" &&
+                paymentType !== "prepaid"
+                  ? ` · ${paymentType.replaceAll("_", " ")}`
+                  : ""}
+              </div>
+            </div>
+          </div>
 
-          {canInitiateReturn && (
-            <Button
-              icon={<RollbackOutlined />}
-              danger
-              onClick={() => setReturnModalOpen(true)}
-              size="small"
-            >
-              {isMobile ? null : "Initiate return"}
-            </Button>
-          )}
+          {/* 2-Column Grid Row 1: Sender / Merchant & Receiver */}
+          <div className={styles.grid}>
+            <section className={styles.card}>
+              <div className={styles.cardTitle}>
+                <span>
+                  <ShopOutlined /> SENDER / MERCHANT
+                </span>
+              </div>
+              <InfoRow label="Merchant">
+                {view.merchantName ? (
+                  <span className={styles.name}>{view.merchantName}</span>
+                ) : null}
+              </InfoRow>
+              <InfoRow label="Pickup">{view.pickupLocationName}</InfoRow>
+              <InfoRow label="Contact">{view.senderName}</InfoRow>
+              <InfoRow label="Phone">
+                {view.senderPhone ? (
+                  <PhoneLink phone={view.senderPhone} />
+                ) : null}
+              </InfoRow>
+              <InfoRow label="Email">{view.senderEmail}</InfoRow>
+              <InfoRow label="Address" wrap>
+                {view.senderAddress}
+              </InfoRow>
+              <InfoRow label="Area">
+                {[view.senderArea, view.senderCity]
+                  .filter(Boolean)
+                  .join(", ") || null}
+              </InfoRow>
+              <InfoRow label="Coords">
+                {coordinateLabel(view.pickupLat, view.pickupLng)}
+              </InfoRow>
+            </section>
 
-          {status === "return_initiated" && (
-            <Button
-              type="primary"
-              icon={<RollbackOutlined />}
-              onClick={() =>
-                runAction(
-                  () => markShipmentReturnedToOrigin(shipment.id),
-                  "Shipment marked as received at origin hub."
-                )
-              }
-              loading={actionLoading}
-              size="small"
-            >
-              Receive at origin
-            </Button>
-          )}
+            <section className={styles.card}>
+              <div className={styles.cardTitle}>
+                <span>
+                  <UserOutlined /> RECEIVER
+                </span>
+                {receiverPhone ? (
+                  <a className={styles.phone} href={`tel:${receiverPhone}`}>
+                    CALL
+                  </a>
+                ) : null}
+              </div>
+              <InfoRow label="Name">
+                {receiverName ? (
+                  <span className={styles.name}>{receiverName}</span>
+                ) : null}
+              </InfoRow>
+              <InfoRow label="Phone">
+                {receiverPhone ? <PhoneLink phone={receiverPhone} /> : null}
+              </InfoRow>
+              <InfoRow label="Address" wrap>
+                {receiverAddress}
+              </InfoRow>
+              <InfoRow label="Coords">
+                {coordinateLabel(view.deliveryLat, view.deliveryLng)}
+              </InfoRow>
+              {!isTerminal && !isReturning ? (
+                <div style={{ marginTop: 8 }}>
+                  <Button
+                    size="small"
+                    icon={<AimOutlined />}
+                    onClick={() => setLocationModalOpen(true)}
+                  >
+                    Update location
+                  </Button>
+                </div>
+              ) : null}
+            </section>
+          </div>
 
-          {status === "returned_to_origin" && (
-            <Button
-              type="primary"
-              style={{ background: "#059669", borderColor: "#059669" }}
-              icon={<CheckCircleOutlined />}
-              onClick={() => setMerchantReturnModalOpen(true)}
-              loading={actionLoading}
-              size="small"
-            >
-              Hand over to merchant
-            </Button>
-          )}
+          {/* 2-Column Grid Row 2: Route & Parcel */}
+          <div className={styles.grid}>
+            <section className={styles.card}>
+              <div className={styles.cardTitle}>
+                <span>
+                  <EnvironmentOutlined /> ROUTE
+                </span>
+                {routeKm ? (
+                  <span className={styles.muted}>{routeKm.toUpperCase()}</span>
+                ) : null}
+              </div>
+              <div className={styles.routeFlow}>
+                <span
+                  className={styles.routeNode}
+                  title={view.originLabel || "Origin"}
+                >
+                  {view.originLabel || "Origin"}
+                </span>
+                <ArrowRightOutlined className={styles.routeArrow} />
+                {view.currentLabel ? (
+                  <>
+                    <span
+                      className={`${styles.routeNode} ${styles.routeNodeCurrent}`}
+                      title={`At ${view.currentLabel}`}
+                    >
+                      At {view.currentLabel}
+                    </span>
+                    <ArrowRightOutlined className={styles.routeArrow} />
+                  </>
+                ) : null}
+                {view.nextHopLabel ? (
+                  <>
+                    <span
+                      className={styles.routeNode}
+                      title={`Next ${view.nextHopLabel}`}
+                    >
+                      Next {view.nextHopLabel}
+                    </span>
+                    <ArrowRightOutlined className={styles.routeArrow} />
+                  </>
+                ) : null}
+                <span
+                  className={styles.routeNode}
+                  title={view.destinationLabel || "Destination"}
+                >
+                  {view.destinationLabel || "Destination"}
+                </span>
+              </div>
+              <InfoRow label="Origin">
+                {view.originRibbon || view.originLabel}
+              </InfoRow>
+              <InfoRow label="Current">
+                {view.currentRibbon || view.currentLabel}
+              </InfoRow>
+              <InfoRow label="Destination">
+                {view.destinationRibbon || view.destinationLabel}
+              </InfoRow>
+              <InfoRow label="Distance">{routeKm}</InfoRow>
+              <InfoRow label="Path" wrap>
+                {view.pathText}
+              </InfoRow>
+              {view.nextHopLabel && (
+                <InfoRow label="Next hop">
+                  {view.nextHopRibbon || view.nextHopLabel}
+                </InfoRow>
+              )}
+              {view.originSubLabel ||
+              view.destinationSubLabel ||
+              view.currentSubLabel ? (
+                <InfoRow label="Sub-branch">
+                  {[
+                    view.originSubLabel && `Origin: ${view.originSubLabel}`,
+                    view.currentSubLabel && `At: ${view.currentSubLabel}`,
+                    view.destinationSubLabel &&
+                      `Dest: ${view.destinationSubLabel}`,
+                  ]
+                    .filter(Boolean)
+                    .join(" · ") || null}
+                </InfoRow>
+              ) : null}
+            </section>
 
-          {canCancel && (
-            <Button
-              danger
-              icon={<StopOutlined />}
-              onClick={() => setCancelModalOpen(true)}
-              size="small"
-            >
-              {isMobile ? null : "Cancel"}
-            </Button>
-          )}
+            <section className={styles.card}>
+              <div className={styles.cardTitle}>
+                <span>
+                  <FileTextOutlined /> PARCEL
+                </span>
+                {shipment.fragile ? (
+                  <span className={`${styles.chip} ${styles.chipTransfer}`}>
+                    Fragile
+                  </span>
+                ) : null}
+              </div>
+              <InfoRow label="Service">{serviceType}</InfoRow>
+              <InfoRow label="Type">
+                {shipment.parcel_type || shipment.package_type}
+              </InfoRow>
+              <InfoRow label="Weight">
+                {effectiveWeight != null
+                  ? `${effectiveWeight} kg`
+                  : shipment.weight != null
+                    ? `${shipment.weight} kg`
+                    : null}
+              </InfoRow>
+              <InfoRow label="Actual">
+                {shipment.actual_weight != null &&
+                Number(shipment.actual_weight) > 0
+                  ? `${shipment.actual_weight} kg`
+                  : null}
+              </InfoRow>
+              <InfoRow label="Chargeable">
+                {shipment.chargeable_weight != null &&
+                Number(shipment.chargeable_weight) > 0
+                  ? `${shipment.chargeable_weight} kg`
+                  : null}
+              </InfoRow>
+              <InfoRow label="Qty">
+                {shipment.quantity != null ? String(shipment.quantity) : null}
+              </InfoRow>
+              <InfoRow label="Value">
+                {goodsValue != null ? formatMoney(goodsValue) : null}
+              </InfoRow>
+              <InfoRow label="Details" wrap>
+                {shipment.description || shipment.package_description}
+              </InfoRow>
+              <InfoRow label="Remarks" wrap>
+                {shipment.remarks}
+              </InfoRow>
+              <InfoRow label="Instructions" wrap>
+                {shipment.special_instructions}
+              </InfoRow>
+            </section>
+          </div>
 
-          <Button
-            icon={<PrinterOutlined />}
-            onClick={printLabel}
-            disabled={!shipment}
-            size="small"
-          >
-            {isMobile ? null : "Print label"}
-          </Button>
-          <Button
-            icon={<ReloadOutlined />}
-            onClick={load}
-            loading={loading}
-            size="small"
-          >
-            {isMobile ? null : "Refresh"}
-          </Button>
-        </Space>
-      }
-      styles={{
-        header: {
-          position: "sticky",
-          top: 0,
-          zIndex: 2,
-          background: "#fff",
-          padding: isMobile ? "10px 12px" : "12px 16px",
-        },
-        body: {
-          background: "#f5f7fa",
-          padding: "12px 16px 24px",
-          display: "block",
-          overflowY: "auto",
-        },
-      }}
-    >
-      {loading ? (
-        <Card>
-          <Space>
-            <Spin />
-            <Text>Loading shipment…</Text>
-          </Space>
-        </Card>
-      ) : !shipment || !view ? (
-        <Card>
-          <Empty description="Shipment not found" />
-        </Card>
-      ) : (
-        <Space
-          direction="vertical"
-          size={16}
-          style={{ width: "100%", paddingBottom: 8 }}
-        >
-          {overviewTab}
-          {routeTab}
-          <ShipmentTransferHops shipmentId={shipment.id ?? shipmentId} />
-          {partiesTab}
-          {pricingTab || (
-            <SectionCard title="Pricing breakdown" icon={<DollarOutlined />}>
-              <Empty
-                image={Empty.PRESENTED_IMAGE_SIMPLE}
-                description="Pricing breakdown is not available for this shipment"
+          {/* Full Width Transfer Hops */}
+          <ShipmentTransferHops
+            shipmentId={shipment.id ?? shipmentId}
+            compact
+          />
+
+          {/* Workflow Action Buttons for Branch Staff */}
+          <ShipmentWorkflowActions
+            shipment={shipment}
+            loading={actionLoading}
+            onReceiveOrigin={() =>
+              runAction(
+                () => receiveOriginSubBranch(shipment.id),
+                "Received at origin sub-branch.",
+              )
+            }
+            onDispatchNext={() =>
+              runAction(
+                () => dispatchNextRouteStep(shipment.id),
+                "Next route step dispatched.",
+              )
+            }
+            onReceiveCurrent={() =>
+              runAction(
+                () => receiveCurrentRouteStep(shipment.id),
+                "Current route step received.",
+              )
+            }
+          />
+
+          {/* Packet Products (if available) */}
+          {view.packetProducts.length > 0 && (
+            <section className={styles.card}>
+              <div className={styles.cardTitle}>
+                <span>
+                  <ShopOutlined /> Packet products
+                </span>
+                {packetProductsTotal != null ? (
+                  <span className={styles.muted}>
+                    {formatMoney(packetProductsTotal)}
+                  </span>
+                ) : null}
+              </div>
+              <Table
+                size="small"
+                pagination={false}
+                rowKey={(row, index) =>
+                  row.id ?? row.product_tracking_number ?? index
+                }
+                dataSource={view.packetProducts}
+                scroll={{ x: 560 }}
+                columns={[
+                  {
+                    title: "Name",
+                    dataIndex: "name",
+                    render: (v, row) => v || row.product_name || "—",
+                  },
+                  {
+                    title: "Qty",
+                    dataIndex: "quantity",
+                    width: 64,
+                    render: (v) => v ?? 1,
+                  },
+                  {
+                    title: "Unit price",
+                    key: "unit_price",
+                    width: 110,
+                    render: (_, row) => {
+                      const p = moneyValue(row.unit_price, row.price);
+                      return p != null ? formatMoney(p) : "—";
+                    },
+                  },
+                  {
+                    title: "Total",
+                    key: "total_price",
+                    width: 110,
+                    render: (_, row) => {
+                      const q = Number(row.quantity ?? 1) || 1;
+                      const p = moneyValue(row.unit_price, row.price);
+                      return p != null ? formatMoney(q * p) : "—";
+                    },
+                  },
+                  {
+                    title: "Tracking",
+                    dataIndex: "product_tracking_number",
+                    render: (v) => v || "—",
+                  },
+                ]}
+                summary={() => {
+                  if (packetProductsTotal == null) return null;
+                  return (
+                    <Table.Summary.Row
+                      style={{ background: "#FAFAFA", fontWeight: 600 }}
+                    >
+                      <Table.Summary.Cell
+                        index={0}
+                        colSpan={3}
+                        style={{ textAlign: "right" }}
+                      >
+                        Packet products total:
+                      </Table.Summary.Cell>
+                      <Table.Summary.Cell index={1}>
+                        <Text strong style={{ color: "#059669" }}>
+                          {formatMoney(packetProductsTotal)}
+                        </Text>
+                      </Table.Summary.Cell>
+                      <Table.Summary.Cell index={2} />
+                    </Table.Summary.Row>
+                  );
+                }}
               />
-            </SectionCard>
+            </section>
           )}
-          <BranchShareBreakdown shipmentId={shipment.id ?? shipmentId} />
-          {activityTab}
-        </Space>
+
+          {/* Proofs (if available) */}
+          {proofs.length > 0 && (
+            <section className={styles.card}>
+              <div className={styles.cardTitle}>
+                <span>
+                  <FileTextOutlined /> Proofs
+                </span>
+              </div>
+              <div className={styles.proofs}>
+                <Image.PreviewGroup>
+                  {proofs.map((proof) => (
+                    <Image
+                      key={proof.url}
+                      src={proof.url}
+                      alt={proof.label}
+                      width={72}
+                      height={72}
+                      className={styles.proof}
+                      style={{ objectFit: "cover", borderRadius: 8 }}
+                    />
+                  ))}
+                </Image.PreviewGroup>
+              </div>
+            </section>
+          )}
+
+          {/* Collapsible Details */}
+          <div className={styles.details}>
+            <Collapse
+              bordered={false}
+              defaultActiveKey={[]}
+              items={[
+                {
+                  key: "activity",
+                  label: `Activity${activityItems.length ? ` · ${activityItems.length}` : ""}`,
+                  children: activityItems.length ? (
+                    <div className={styles.activityList}>
+                      {activityItems.map((item) => (
+                        <div key={item.key} className={styles.activityItem}>
+                          <span
+                            className={styles.dot}
+                            style={{
+                              background: statusColor(item.status),
+                              marginTop: 5,
+                            }}
+                          />
+                          <div className={styles.activityText}>
+                            <div>{item.text}</div>
+                            {item.status ? (
+                              <div className={styles.muted}>
+                                {labelForStatus(item.status)}
+                              </div>
+                            ) : null}
+                          </div>
+                          <div className={styles.activityTime}>
+                            {formatKathmandu(item.time) || "—"}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <Empty
+                      image={Empty.PRESENTED_IMAGE_SIMPLE}
+                      description="No activity recorded yet"
+                    />
+                  ),
+                },
+                view.tasks.length
+                  ? {
+                      key: "tasks",
+                      label: `Tasks · ${view.tasks.length}`,
+                      children: (
+                        <Table
+                          size="small"
+                          rowKey="id"
+                          dataSource={view.tasks}
+                          pagination={false}
+                          scroll={{ x: 600 }}
+                          columns={[
+                            {
+                              title: "Task",
+                              dataIndex: "task_number",
+                              render: (v) => v || "—",
+                            },
+                            {
+                              title: "Type",
+                              dataIndex: "type",
+                              render: (v) => v || "—",
+                            },
+                            {
+                              title: "Status",
+                              dataIndex: "status",
+                              render: (v) => <WorkflowStatusTag status={v} />,
+                            },
+                            {
+                              title: "Priority",
+                              dataIndex: "priority",
+                              render: (v) => v || "—",
+                            },
+                            {
+                              title: "Due",
+                              dataIndex: "due_at",
+                              render: (v) => formatKathmandu(v) || "—",
+                            },
+                          ]}
+                        />
+                      ),
+                    }
+                  : null,
+                view.notifications.length
+                  ? {
+                      key: "notifications",
+                      label: `Notifications · ${view.notifications.length}`,
+                      children: (
+                        <Table
+                          size="small"
+                          rowKey={(row, index) => row.id ?? index}
+                          dataSource={view.notifications}
+                          pagination={false}
+                          scroll={{ x: 560 }}
+                          columns={[
+                            {
+                              title: "Title",
+                              dataIndex: "title",
+                              render: (v) => v || "—",
+                            },
+                            {
+                              title: "Message",
+                              dataIndex: "message",
+                              render: (v) => v || "—",
+                            },
+                            {
+                              title: "Type",
+                              dataIndex: "type",
+                              render: (v) => v || "—",
+                            },
+                            {
+                              title: "Created",
+                              dataIndex: "created_at",
+                              render: (v) => formatKathmandu(v) || "—",
+                            },
+                          ]}
+                        />
+                      ),
+                    }
+                  : null,
+                {
+                  key: "pricing",
+                  label: "Pricing breakdown",
+                  children: (
+                    <FieldDescriptions
+                      column={2}
+                      items={
+                        view.priceBreakdown
+                          ? [
+                              {
+                                label: "Route base rate",
+                                value: formatMoney(
+                                  view.priceBreakdown.route_base_rate ?? 0,
+                                ),
+                              },
+                              {
+                                label: "Extra distance charge",
+                                show:
+                                  Number(
+                                    view.priceBreakdown.delivery_extra_charge ??
+                                      0,
+                                  ) > 0 ||
+                                  Boolean(
+                                    view.priceBreakdown.extra_distance_km,
+                                  ),
+                                value: `${formatMoney(view.priceBreakdown.delivery_extra_charge ?? 0)}${view.priceBreakdown.extra_distance_km ? ` (+${view.priceBreakdown.extra_distance_km} km)` : ""}`,
+                              },
+                              {
+                                label: "Weight charge",
+                                show:
+                                  Number(
+                                    view.priceBreakdown.weight_charge ?? 0,
+                                  ) > 0,
+                                value: formatMoney(
+                                  view.priceBreakdown.weight_charge ?? 0,
+                                ),
+                              },
+                              {
+                                label: "Final price",
+                                value: formatMoney(
+                                  deliveryCharge ??
+                                    view.priceBreakdown.final_price ??
+                                    0,
+                                ),
+                              },
+                              {
+                                label: "Fee covered by",
+                                value: paidByLabel,
+                              },
+                            ]
+                          : [
+                              {
+                                label: "Route fee",
+                                value:
+                                  view.feeFromShipment.route_fee != null
+                                    ? formatMoney(
+                                        view.feeFromShipment.route_fee,
+                                      )
+                                    : null,
+                              },
+                              {
+                                label: "Delivery charge",
+                                value:
+                                  deliveryCharge != null
+                                    ? formatMoney(deliveryCharge)
+                                    : null,
+                              },
+                              {
+                                label: "Fee covered by",
+                                value: paidByLabel,
+                              },
+                            ]
+                      }
+                    />
+                  ),
+                },
+                {
+                  key: "distances",
+                  label: "Branch assignments & distances",
+                  children: (
+                    <FieldDescriptions
+                      column={{ xs: 1, sm: 2 }}
+                      items={[
+                        {
+                          label: "Origin",
+                          value: view.originRibbon || view.originLabel,
+                        },
+                        {
+                          label: "Destination",
+                          value:
+                            view.destinationRibbon || view.destinationLabel,
+                        },
+                        {
+                          label: "Current branch",
+                          value: view.currentRibbon || view.currentLabel,
+                        },
+                        {
+                          label: "Next hop",
+                          value: view.nextHopRibbon || view.nextHopLabel,
+                        },
+                        {
+                          label: "Origin sub-branch",
+                          value: view.originSubRibbon || view.originSubLabel,
+                        },
+                        {
+                          label: "Destination sub-branch",
+                          value:
+                            view.destinationSubRibbon ||
+                            view.destinationSubLabel,
+                        },
+                        {
+                          label: "Current sub-branch",
+                          value: view.currentSubRibbon || view.currentSubLabel,
+                        },
+                        {
+                          label: "Route distance",
+                          value:
+                            routeKm ||
+                            ((view.distanceData.originToCustomerKm ??
+                            view.distanceData.totalDistanceKm)
+                              ? `${view.distanceData.originToCustomerKm ?? view.distanceData.totalDistanceKm} km`
+                              : "—"),
+                        },
+                        {
+                          label: "Base covered distance",
+                          value: `${view.distanceData.baseDistanceKm ?? 10} km`,
+                        },
+                        {
+                          label: "Extra mile",
+                          value:
+                            view.distanceData.extraMileKm != null
+                              ? view.distanceData.extraMileKm > 0
+                                ? `+${view.distanceData.extraMileKm} km extra`
+                                : "0 km (Within base)"
+                              : "—",
+                        },
+                        {
+                          label: "Distance covered",
+                          value: `${view.distanceData.coveredDistanceKm} km (${view.distanceData.progressPercent}%)`,
+                        },
+                      ]}
+                    />
+                  ),
+                },
+                {
+                  key: "shares",
+                  label: "Branch shares",
+                  children: (
+                    <BranchShareBreakdown
+                      shipmentId={shipment.id ?? shipmentId}
+                    />
+                  ),
+                },
+              ].filter(Boolean)}
+            />
+          </div>
+        </div>
       )}
 
       {/* Edit Delivery Location Modal */}
@@ -2510,20 +2753,26 @@ export default function ShipmentDetailDrawer({ open, shipmentId, onClose }) {
         okButtonProps={{ danger: true, loading: actionLoading }}
         destroyOnClose
       >
-        <Space direction="vertical" style={{ width: "100%", marginTop: 12 }} size={12}>
+        <Space
+          direction="vertical"
+          style={{ width: "100%", marginTop: 12 }}
+          size={12}
+        >
           <Text>
-            Are you sure you want to cancel shipment <strong>#{shipment?.tracking_number || shipment?.id}</strong>?
+            Are you sure you want to cancel shipment{" "}
+            <strong>#{shipment?.tracking_number || shipment?.id}</strong>?
           </Text>
           <Text type="secondary" style={{ fontSize: 13 }}>
-            This will detach the shipment from active pickup/delivery assignments and notify the store partner.
+            This will detach the parcel from any active pickup/delivery
+            assignments and notify the merchant.
           </Text>
           <div>
             <Text strong style={{ display: "block", marginBottom: 6 }}>
-              Cancellation reason / remarks <span style={{ color: "#ff4d4f" }}>*</span>
+              Cancellation Reason <span style={{ color: "#ff4d4f" }}>*</span>
             </Text>
             <Input.TextArea
               rows={3}
-              placeholder="Enter cancellation reason (e.g. Customer requested cancellation, duplicate order...)"
+              placeholder="Enter reason (e.g. Customer cancelled order, duplicate booking...)"
               value={cancelReason}
               onChange={(e) => setCancelReason(e.target.value)}
             />
@@ -2544,20 +2793,27 @@ export default function ShipmentDetailDrawer({ open, shipmentId, onClose }) {
         okButtonProps={{ danger: true, loading: actionLoading }}
         destroyOnClose
       >
-        <Space direction="vertical" style={{ width: "100%", marginTop: 12 }} size={12}>
+        <Space
+          direction="vertical"
+          style={{ width: "100%", marginTop: 12 }}
+          size={12}
+        >
           <Text>
-            Initiate return for shipment <strong>#{shipment?.tracking_number || shipment?.id}</strong> back to origin hub and merchant.
+            Initiate return for shipment{" "}
+            <strong>#{shipment?.tracking_number || shipment?.id}</strong> back
+            to origin hub and merchant.
           </Text>
           <Text type="secondary" style={{ fontSize: 13 }}>
-            Any active delivery rider task will be cancelled, and the shipment will be marked for return. The store partner will be immediately notified.
+            Active delivery tasks will be stopped, and the parcel will be marked
+            for return processing.
           </Text>
           <div>
             <Text strong style={{ display: "block", marginBottom: 6 }}>
-              Reason for return <span style={{ color: "#ff4d4f" }}>*</span>
+              Reason for Return <span style={{ color: "#ff4d4f" }}>*</span>
             </Text>
             <Input.TextArea
               rows={3}
-              placeholder="Enter reason for return (e.g. Customer unreachable, refused delivery, damaged package...)"
+              placeholder="Enter reason (e.g. Customer refused delivery, customer unreachable, incorrect address...)"
               value={returnReason}
               onChange={(e) => setReturnReason(e.target.value)}
             />
@@ -2583,13 +2839,23 @@ export default function ShipmentDetailDrawer({ open, shipmentId, onClose }) {
         }}
         destroyOnClose
       >
-        <Space direction="vertical" style={{ width: "100%", marginTop: 12 }} size={12}>
+        <Space
+          direction="vertical"
+          style={{ width: "100%", marginTop: 12 }}
+          size={12}
+        >
           <Text>
-            Confirm handover of returned parcel <strong>#{shipment?.tracking_number || shipment?.id}</strong> to merchant <strong>{shipment?.merchant?.name || view?.merchantName || "Store"}</strong>.
+            Confirm handover of returned parcel{" "}
+            <strong>#{shipment?.tracking_number || shipment?.id}</strong> to
+            merchant{" "}
+            <strong>
+              {shipment?.merchant?.name || view?.merchantName || "Store"}
+            </strong>
+            .
           </Text>
           <div>
             <Text strong style={{ display: "block", marginBottom: 6 }}>
-              Received by (Merchant contact / staff name)
+              Received by (Store Staff / Contact Name)
             </Text>
             <Input
               placeholder="e.g. Ram Shrestha (Store Manager)"
@@ -2599,11 +2865,11 @@ export default function ShipmentDetailDrawer({ open, shipmentId, onClose }) {
           </div>
           <div>
             <Text strong style={{ display: "block", marginBottom: 6 }}>
-              Handover notes / remarks
+              Handover Notes / Condition
             </Text>
             <Input.TextArea
               rows={3}
-              placeholder="Optional notes or condition of parcel upon return"
+              placeholder="Optional notes regarding condition of package upon return"
               value={merchantReturnRemarks}
               onChange={(e) => setMerchantReturnRemarks(e.target.value)}
             />
