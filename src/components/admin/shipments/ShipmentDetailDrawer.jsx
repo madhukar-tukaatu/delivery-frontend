@@ -1151,7 +1151,7 @@ export default function ShipmentDetailDrawer({ open, shipmentId, onClose }) {
   // - Collect from customer (POD):
   //   * When customer pays delivery fee: Goods value + delivery charge.
   //   * When delivery is free or paid by merchant/admin: Goods value only.
-  const deliveryCharge = moneyValue(
+  const rawDeliveryCharge = moneyValue(
     shipment?.delivery_charge,
     shipment?.delivery_fee,
   );
@@ -1198,6 +1198,27 @@ export default function ShipmentDetailDrawer({ open, shipmentId, onClose }) {
     return hasValid ? Math.round(sum * 100) / 100 : null;
   }, [view?.packetProducts]);
 
+  // Calculate total products weight from packet products (unit_weight * quantity)
+  const totalProductsWeight = useMemo(() => {
+    const list = view?.packetProducts || [];
+    if (!list.length) return null;
+    let sum = 0;
+    for (const item of list) {
+      const qty = Number(item.quantity ?? 1) || 1;
+      const unitWeight = Number(item.unit_weight ?? item.weight ?? 1.0) || 1.0;
+      sum += qty * unitWeight;
+    }
+    return sum > 0 ? Math.round(sum * 100) / 100 : null;
+  }, [view?.packetProducts]);
+
+  const effectiveWeight = useMemo(() => {
+    const stored = Number(shipment?.weight || 0);
+    if (totalProductsWeight != null && totalProductsWeight > 0) {
+      return stored > 0 ? Math.max(stored, totalProductsWeight) : totalProductsWeight;
+    }
+    return stored > 0 ? stored : null;
+  }, [shipment?.weight, totalProductsWeight]);
+
   // Declared goods value
   const rawDeclaredValue = moneyValue(
     shipment?.declared_value,
@@ -1209,7 +1230,7 @@ export default function ShipmentDetailDrawer({ open, shipmentId, onClose }) {
   // it indicates the store sent the gross total (goods + delivery) inside declared_value.
   const isDeclaredGrossTotal = Boolean(
     isPaidByCustomer &&
-    (deliveryCharge ?? 0) > 0 &&
+    (rawDeliveryCharge ?? 0) > 0 &&
     rawDeclaredValue != null &&
     (
       (totalCollectable != null && Math.abs(rawDeclaredValue - totalCollectable) < 0.01) ||
@@ -1218,7 +1239,7 @@ export default function ShipmentDetailDrawer({ open, shipmentId, onClose }) {
   );
 
   const netDeclaredValue = isDeclaredGrossTotal
-    ? Math.max(0, Math.round((rawDeclaredValue - (deliveryCharge ?? 0)) * 100) / 100)
+    ? Math.max(0, Math.round((rawDeclaredValue - (rawDeliveryCharge ?? 0)) * 100) / 100)
     : rawDeclaredValue;
 
   // Exact Goods Value: prefer packet products total, then net declared value, then fallback
@@ -1228,8 +1249,8 @@ export default function ShipmentDetailDrawer({ open, shipmentId, onClose }) {
       : netDeclaredValue != null
         ? netDeclaredValue
         : (isPodShipment
-            ? (isPaidByCustomer && (deliveryCharge ?? 0) > 0 && podAmount != null && Math.abs(podAmount - (totalCollectable ?? podAmount)) < 0.01
-                ? Math.max(0, Math.round((podAmount - deliveryCharge) * 100) / 100)
+            ? (isPaidByCustomer && (rawDeliveryCharge ?? 0) > 0 && podAmount != null && Math.abs(podAmount - (totalCollectable ?? podAmount)) < 0.01
+                ? Math.max(0, Math.round((podAmount - rawDeliveryCharge) * 100) / 100)
                 : podAmount)
             : null);
 
@@ -1240,7 +1261,20 @@ export default function ShipmentDetailDrawer({ open, shipmentId, onClose }) {
   const collectableAmount =
     ruleCollectAmount > 0 || !isPodShipment || podAmount != null || totalCollectable != null
       ? ruleCollectAmount
-      : (goodsValue ?? 0) + (isPaidByCustomer ? (deliveryCharge ?? 0) : 0);
+      : (goodsValue ?? 0) + (isPaidByCustomer ? (rawDeliveryCharge ?? 0) : 0);
+
+  // Reconciled delivery charge: when customer pays delivery and the physically collected
+  // amount (collectableAmount) covers goods value plus shipping, ensure deliveryCharge reflects
+  // the exact delivery fee charged to the customer (e.g. 2929 - 2800 = 129).
+  const deliveryCharge = useMemo(() => {
+    if (isPaidByCustomer && collectableAmount > 0 && goodsValue != null && goodsValue > 0) {
+      const impliedFee = Math.round((collectableAmount - goodsValue) * 100) / 100;
+      if (impliedFee > 0) {
+        return rawDeliveryCharge != null ? Math.max(rawDeliveryCharge, impliedFee) : impliedFee;
+      }
+    }
+    return rawDeliveryCharge;
+  }, [isPaidByCustomer, collectableAmount, goodsValue, rawDeliveryCharge]);
 
   /* ---- drawer sections ---- */
 
@@ -1638,7 +1672,7 @@ export default function ShipmentDetailDrawer({ open, shipmentId, onClose }) {
             },
             {
               label: "Weight",
-              value: shipment.weight != null ? `${shipment.weight} kg` : null,
+              value: effectiveWeight != null ? `${effectiveWeight} kg` : (shipment.weight != null ? `${shipment.weight} kg` : null),
             },
             {
               label: "Actual weight",
@@ -2029,19 +2063,26 @@ export default function ShipmentDetailDrawer({ open, shipmentId, onClose }) {
             },
             {
               label: "Weight charge",
-              show: Number(view.priceBreakdown.weight_charge ?? 0) > 0,
-              value: (
-                <Space direction="vertical" size={2}>
-                  <Text strong>
-                    {formatMoney(Number(view.priceBreakdown.weight_charge ?? 0))}
-                  </Text>
-                  {Number(view.priceBreakdown.weight_charge ?? 0) > 0 && view.parcelWeight != null && (
-                    <Text type="secondary" style={{ fontSize: 12 }}>
-                      +{Math.max(0, Math.round((Number(view.parcelWeight) - Number(view.priceBreakdown.included_weight_kg ?? 2.0)) * 100) / 100)} kg excess weight (Excluding {view.priceBreakdown.included_weight_kg ?? 2.0} kg included)
-                    </Text>
-                  )}
-                </Space>
-              ),
+              show: Number(view.priceBreakdown.weight_charge ?? 0) > 0 || ((deliveryCharge ?? 0) > (Number(view.priceBreakdown.route_base_rate ?? 0) + Number(view.priceBreakdown.delivery_extra_charge ?? 0))),
+              value: (() => {
+                const routeBase = Number(view.priceBreakdown.route_base_rate ?? 0);
+                const extraDist = Number(view.priceBreakdown.delivery_extra_charge ?? 0);
+                const computedWeightFee = (deliveryCharge ?? 0) > (routeBase + extraDist)
+                  ? Math.round(((deliveryCharge ?? 0) - (routeBase + extraDist)) * 100) / 100
+                  : Number(view.priceBreakdown.weight_charge ?? 0);
+                const incWeight = Number(view.priceBreakdown.included_weight_kg ?? 1.0);
+                const excessWeight = effectiveWeight != null ? Math.max(0, Math.round((effectiveWeight - incWeight) * 100) / 100) : null;
+                return (
+                  <Space direction="vertical" size={2}>
+                    <Text strong>{formatMoney(computedWeightFee)}</Text>
+                    {excessWeight != null && excessWeight > 0 && (
+                      <Text type="secondary" style={{ fontSize: 12 }}>
+                        +{excessWeight} kg excess weight (Excluding {incWeight} kg included)
+                      </Text>
+                    )}
+                  </Space>
+                );
+              })(),
             },
             {
               label: "Fragile fee",
@@ -2068,6 +2109,7 @@ export default function ShipmentDetailDrawer({ open, shipmentId, onClose }) {
                 <Text strong>
                   {formatMoney(
                     Number(
+                      deliveryCharge ??
                       view.priceBreakdown.final_price ??
                         shipment.delivery_charge ??
                         0,
@@ -2098,7 +2140,7 @@ export default function ShipmentDetailDrawer({ open, shipmentId, onClose }) {
               label: "Customer delivery fee",
               value: !isPaidByCustomer
                 ? `NPR 0.00 (${isFreeDeliveryByAdmin ? "Free - Marketplace Coupon" : isFreeDeliveryByStore ? "Free - Store Coupon" : isPaidByMerchant ? "Paid by Merchant" : "Paid by Admin"})`
-                : formatMoney(Number(shipment.delivery_charge ?? 0)),
+                : formatMoney(Number(deliveryCharge ?? shipment.delivery_charge ?? 0)),
             },
           ]}
         />
@@ -2144,9 +2186,11 @@ export default function ShipmentDetailDrawer({ open, shipmentId, onClose }) {
             {
               label: "Delivery charge",
               value:
-                view.feeFromShipment.delivery_charge != null
-                  ? formatMoney(view.feeFromShipment.delivery_charge)
-                  : null,
+                deliveryCharge != null
+                  ? formatMoney(deliveryCharge)
+                  : view.feeFromShipment.delivery_charge != null
+                    ? formatMoney(view.feeFromShipment.delivery_charge)
+                    : null,
             },
             {
               label: "Fee covered by",
@@ -2170,7 +2214,7 @@ export default function ShipmentDetailDrawer({ open, shipmentId, onClose }) {
               label: "Customer delivery fee",
               value: !isPaidByCustomer
                 ? `NPR 0.00 (${isFreeDeliveryByAdmin ? "Free - Marketplace Coupon" : isFreeDeliveryByStore ? "Free - Store Coupon" : isPaidByMerchant ? "Paid by Merchant" : "Paid by Admin"})`
-                : formatMoney(Number(shipment.delivery_charge ?? 0)),
+                : formatMoney(Number(deliveryCharge ?? shipment.delivery_charge ?? 0)),
             },
           ]}
         />

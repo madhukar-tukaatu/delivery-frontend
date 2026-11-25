@@ -662,6 +662,7 @@ export function CreatePickupRunModal({
           pickup_request_ids: selectedPickupIds,
           branch_id: targetBranch,
           ...createForm,
+          vehicle_type: createForm.vehicle_type || null,
         },
         targetBranch
       );

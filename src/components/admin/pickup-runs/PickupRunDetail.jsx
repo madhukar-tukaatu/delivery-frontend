@@ -984,7 +984,11 @@ export default function PickupRunDetail({ runId, branchId = null, onBack = null,
             message.warning("Select a rider.");
             return;
           }
-          const ok = await act("assign_rider", () => assignPickupRunRider(run.id, riderForm, branchId));
+          const payload = {
+            ...riderForm,
+            vehicle_type: riderForm.vehicle_type || null,
+          };
+          const ok = await act("assign_rider", () => assignPickupRunRider(run.id, payload, branchId));
           if (ok) setRiderModal(false);
         }}
       >
