@@ -58,6 +58,7 @@ import { usePermissions } from "@/hooks/usePermission";
 import api from "@/lib/api";
 import { formatMerchantLabel } from "@/lib/merchantLabel";
 import TransferDispatchModal, { splitByFinal, trHeadline } from "@/components/admin/transfers/TransferDispatchModal";
+import AssignTransferRouteModal from "@/components/admin/transfers/AssignTransferRouteModal";
 import TransferContainerBoard from "@/components/admin/transfers/TransferContainerBoard";
 import {
   getTransfers,
@@ -74,6 +75,7 @@ import {
   addContainerItems,
   openTrPrint,
   reconcileTransfers,
+  assignTransferRoute,
 } from "@/services/admin/transferService";
 import OpenTrManager from "@/components/admin/transfers/OpenTrManager";
 import NetworkFlowDashboard from "@/components/admin/transfers/NetworkFlowDashboard";
@@ -637,7 +639,7 @@ function FinalBreakdownChips({ items, max = 6, size = "default" }) {
 /**
  * Collapsible unmatched-parcels notice — softer when other hops already match.
  */
-function UnmatchedParcelsAlert({ unmatched, hasMatchedHops }) {
+function UnmatchedParcelsAlert({ unmatched, hasMatchedHops, onAssignRoute }) {
   const [open, setOpen] = useState(false);
   const list = Array.isArray(unmatched) ? unmatched : [];
   if (!list.length) return null;
@@ -652,19 +654,32 @@ function UnmatchedParcelsAlert({ unmatched, hasMatchedHops }) {
     ? `${list.length} ready parcel${list.length === 1 ? "" : "s"} need a transfer route`
     : `${list.length} ready parcel${list.length === 1 ? "" : "s"} have no matching active route`;
   const reason = hasMatchedHops
-    ? "These destinations/service types are not covered yet — other ready parcels already match a next hop and can be bagged normally."
+    ? "These destinations/service types are not covered yet — assign a route directly or configure new routes in Admin → Transfer Routes."
     : "No active transfer route matches their destination and service type, so they cannot be bagged yet.";
 
   return (
     <Alert
       type={alertType}
       showIcon
-      style={{ padding: "6px 10px", borderRadius: 8 }}
+      style={{ padding: "8px 12px", borderRadius: 8 }}
       message={
-        <Space wrap size={[8, 4]} style={{ width: "100%", justifyContent: "space-between" }}>
-          <Text strong style={{ fontSize: 13 }}>
-            {title}
-          </Text>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 8, width: "100%", justifyContent: "space-between", alignItems: "center" }}>
+          <Space size={8}>
+            <Text strong style={{ fontSize: 13 }}>
+              {title}
+            </Text>
+            {onAssignRoute && (
+              <Button
+                type="primary"
+                size="small"
+                icon={<CompassOutlined />}
+                onClick={() => onAssignRoute(list)}
+                style={{ backgroundColor: "#fa8c16", borderColor: "#fa8c16", fontWeight: 600 }}
+              >
+                Assign Route ({list.length})
+              </Button>
+            )}
+          </Space>
           <Button
             type="link"
             size="small"
@@ -673,11 +688,11 @@ function UnmatchedParcelsAlert({ unmatched, hasMatchedHops }) {
           >
             {open ? "Hide details" : "Show details"}
           </Button>
-        </Space>
+        </div>
       }
       description={
         open ? (
-          <Space direction="vertical" size={6} style={{ width: "100%" }}>
+          <Space direction="vertical" size={6} style={{ width: "100%", marginTop: 4 }}>
             <Text type="secondary" style={{ fontSize: 12 }}>
               {reason}
             </Text>
@@ -696,34 +711,32 @@ function UnmatchedParcelsAlert({ unmatched, hasMatchedHops }) {
                 </Space>
               </div>
             ) : null}
-            <div>
+            <Space size={10} style={{ marginTop: 4 }}>
+              {onAssignRoute && (
+                <Button
+                  type="primary"
+                  size="small"
+                  icon={<CompassOutlined />}
+                  onClick={() => onAssignRoute(list)}
+                >
+                  Assign Route
+                </Button>
+              )}
               <Link href="/admin/branch-transfer-routes">
-                <Button type="primary" size="small" ghost>
-                  Open Transfer Routes
+                <Button size="small">
+                  Configure Routes
                 </Button>
               </Link>
-              <Text type="secondary" style={{ fontSize: 11, marginLeft: 8 }}>
-                Admin → Transfer Routes — add an active route for each missing destination / service.
-              </Text>
-            </div>
+            </Space>
           </Space>
         ) : (
-          <span style={{ fontSize: 12 }}>
-            {hasMatchedHops
-              ? "Other parcels already match a next hop. "
-              : ""}
-            Create missing routes under{" "}
-            <Link href="/admin/branch-transfer-routes">Transfer Routes</Link>
-            {" — "}
-            <Button
-              type="link"
-              size="small"
-              style={{ padding: 0, height: "auto", fontSize: 12 }}
-              onClick={() => setOpen(true)}
-            >
-              list tracking #
-            </Button>
-          </span>
+          <div style={{ fontSize: 12, marginTop: 2, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <span>
+              {hasMatchedHops ? "Other parcels already match a next hop. " : ""}
+              Assign route directly or configure under{" "}
+              <Link href="/admin/branch-transfer-routes">Transfer Routes</Link>.
+            </span>
+          </div>
         )
       }
     />
@@ -740,6 +753,7 @@ function NextHopMasterDetail({
   selectedNextHopKey,
   onSelect,
   onDispatch,
+  onAssignRoute,
   loading,
   dispatching,
   canDispatch,
@@ -753,10 +767,39 @@ function NextHopMasterDetail({
   const [listPage, setListPage] = useState(1);
   // Default: hide empty hops. Only seed catalog empties when user toggles show.
   const [showEmptyHops, setShowEmptyHops] = useState(false);
-  const groups = useMemo(
+
+  const unroutedShipments = useMemo(
+    () => (shipments || []).filter((s) => !Number(resolveShipmentNextHop(s, routes)?.id || 0)),
+    [shipments, routes]
+  );
+
+  const baseGroups = useMemo(
     () => buildNextHopGroups(routes, shipments, { includeEmptyFromRoutes: showEmptyHops }),
     [routes, shipments, showEmptyHops]
   );
+
+  const groups = useMemo(() => {
+    if (!unroutedShipments.length) return baseGroups;
+    const unroutedGroup = {
+      key: "__unrouted__",
+      fromId: null,
+      fromName: null,
+      nextHopId: 0,
+      nextHopName: "Needs Route Assignment",
+      serviceType: "unrouted",
+      services: new Set(["unrouted"]),
+      lastMileCount: 0,
+      onwardCount: 0,
+      routes: [],
+      routeIds: new Set(),
+      finalCounts: new Map(),
+      count: unroutedShipments.length,
+      shipmentIds: unroutedShipments.map((s) => s.id),
+      isUnrouted: true,
+    };
+    return [unroutedGroup, ...baseGroups];
+  }, [baseGroups, unroutedShipments]);
+
   const emptyHopCount = useMemo(() => {
     if (showEmptyHops) return 0;
     const all = buildNextHopGroups(routes, shipments, { includeEmptyFromRoutes: true });
@@ -1070,7 +1113,9 @@ function NextHopMasterDetail({
             ) : (
               visibleGroups.map((g) => {
                 const isSelected = selectedNextHopKey === g.key;
-                const accent = hopAccent(g.nextHopId);
+                const accent = g.isUnrouted
+                  ? { border: "#fa8c16", badge: "#fa8c16", selectedBg: "rgba(250,140,22,0.12)", chip: "orange" }
+                  : hopAccent(g.nextHopId);
                 return (
                   <div
                     key={g.key}
@@ -1115,7 +1160,7 @@ function NextHopMasterDetail({
                             lineHeight: 1.1,
                             color: accent.badge,
                           }}
-                          title="Ready parcels to this next hop"
+                          title={g.isUnrouted ? "Parcels needing route assignment" : "Ready parcels to this next hop"}
                         >
                           {g.count}
                         </div>
@@ -1128,16 +1173,16 @@ function NextHopMasterDetail({
                           {g.fromName ? (
                             <Text strong style={{ fontSize: 13 }}>{g.fromName}</Text>
                           ) : null}
-                          <Text strong style={{ fontSize: 13 }}>
-                            → {g.nextHopName}
+                          <Text strong style={{ fontSize: 13, color: g.isUnrouted ? "#c2410c" : undefined }}>
+                            {g.isUnrouted ? "⚠️ Needs Route" : `→ ${g.nextHopName}`}
                           </Text>
                           <Tag
                             color={accent.chip}
                             style={{ margin: 0, fontSize: 11, lineHeight: "18px", padding: "0 6px" }}
                           >
-                            next
+                            {g.isUnrouted ? "unrouted" : "next"}
                           </Tag>
-                          <ServiceTypeTag value={g.serviceType} />
+                          {!g.isUnrouted && <ServiceTypeTag value={g.serviceType} />}
                         </Space>
                         {g.count > 0 ? (
                           <Text style={{ fontSize: 11, display: "block", marginBottom: 2 }}>
@@ -1224,6 +1269,48 @@ function NextHopMasterDetail({
           ) : (
             <>
               {(() => {
+                if (selected.isUnrouted) {
+                  return (
+                    <div
+                      style={{
+                        padding: "10px 14px",
+                        borderRadius: 8,
+                        borderLeft: "4px solid #fa8c16",
+                        background: "#fffaf0",
+                        border: "1px solid #fed7aa",
+                        display: "flex",
+                        justifyContent: "space-between",
+                        alignItems: "center",
+                        flexWrap: "wrap",
+                        gap: 10,
+                      }}
+                    >
+                      <Space direction="vertical" size={2}>
+                        <Space size={6} align="center">
+                          <CompassOutlined style={{ color: "#fa8c16", fontSize: 16 }} />
+                          <Text strong style={{ fontSize: 14, color: "#c2410c" }}>
+                            {selected.count} Ready Parcel(s) Need Transfer Route
+                          </Text>
+                          <Badge count={selected.count} style={{ backgroundColor: "#fa8c16" }} />
+                        </Space>
+                        <Text type="secondary" style={{ fontSize: 12 }}>
+                          No active transfer route currently resolves for these destinations. Assign a transfer route to enable dispatching.
+                        </Text>
+                      </Space>
+                      {canDispatch && (
+                        <Button
+                          type="primary"
+                          icon={<CompassOutlined />}
+                          style={{ backgroundColor: "#fa8c16", borderColor: "#fa8c16", fontWeight: 600 }}
+                          onClick={() => onAssignRoute?.(selectedInHop.length ? selectedInHop : detailShipments)}
+                        >
+                          Assign Route ({selectedInHop.length || selected.count})
+                        </Button>
+                      )}
+                    </div>
+                  );
+                }
+
                 const accent = hopAccent(selected.nextHopId);
                 return (
               <Space
@@ -1298,17 +1385,28 @@ function NextHopMasterDetail({
                         </Button>
                       </Space>
                     ) : null}
-                    <Button
-                      type="primary"
-                      size="small"
-                      icon={<SendOutlined />}
-                      disabled={!selected.count || !selectedInHop.length || dispatching}
-                      loading={dispatching}
-                      onClick={() => onDispatch?.(selected)}
-                      style={{ backgroundColor: accent.badge, borderColor: accent.badge }}
-                    >
-                      {openTr ? `Dispatch ${openTr.transfer_number} (${selectedInHop.length} + loaded)` : `Create TR (${selectedInHop.length})`}
-                    </Button>
+                    <Space size={6} wrap style={{ justifyContent: "flex-end" }}>
+                      <Button
+                        size="small"
+                        icon={<CompassOutlined />}
+                        disabled={!selectedInHop.length}
+                        onClick={() => onAssignRoute?.(selectedInHop)}
+                        title="Reassign or change route for selected parcels"
+                      >
+                        Change Route
+                      </Button>
+                      <Button
+                        type="primary"
+                        size="small"
+                        icon={<SendOutlined />}
+                        disabled={!selected.count || !selectedInHop.length || dispatching}
+                        loading={dispatching}
+                        onClick={() => onDispatch?.(selected)}
+                        style={{ backgroundColor: accent.badge, borderColor: accent.badge }}
+                      >
+                        {openTr ? `Dispatch ${openTr.transfer_number} (${selectedInHop.length} + loaded)` : `Create TR (${selectedInHop.length})`}
+                      </Button>
+                    </Space>
                   </Space>
                 ) : null}
               </Space>
@@ -1717,7 +1815,7 @@ function TimelineModal({ open, shipment, onClose }) {
  * Grouped Outbound View - Shows shipments grouped by origin-destination route
  * with expandable sections for each route group
  */
-function GroupedOutboundView({ rows, selectedRowKeys, onSelectionChange, loading, pagination, onDispatchGroup }) {
+function GroupedOutboundView({ rows, selectedRowKeys, onSelectionChange, loading, pagination, onDispatchGroup, onAssignRoute }) {
   // Group by route using the _routeGroup attached by the backend
   const groups = useMemo(() => {
     const routeGroups = {};
@@ -1836,15 +1934,28 @@ function GroupedOutboundView({ rows, selectedRowKeys, onSelectionChange, loading
                     {group.transitBranches.length > 0 && ` • Transit: ${group.transitBranches.map(t => t.name).join(' → ')}`}
                   </Text>
                   <Space>
-                    <Button
-                      type="primary"
-                      size="small"
-                      icon={<SendOutlined />}
-                      onClick={() => handleDispatchGroup(group)}
-                      disabled={loading}
-                    >
-                      Dispatch Group
-                    </Button>
+                    {group.route?.id ? (
+                      <Button
+                        type="primary"
+                        size="small"
+                        icon={<SendOutlined />}
+                        onClick={() => handleDispatchGroup(group)}
+                        disabled={loading}
+                      >
+                        Dispatch Group
+                      </Button>
+                    ) : (
+                      <Button
+                        type="primary"
+                        size="small"
+                        icon={<CompassOutlined />}
+                        style={{ backgroundColor: "#fa8c16", borderColor: "#fa8c16" }}
+                        onClick={() => onAssignRoute?.(group.shipments)}
+                        disabled={loading}
+                      >
+                        Assign Route ({group.count})
+                      </Button>
+                    )}
                   </Space>
                 </Space>
                 <Table
@@ -2029,6 +2140,7 @@ export default function TransfersPage() {
   // Open TR per next hop (from Outbound) + the open-TR editor.
   const [openTrByHop, setOpenTrByHop] = useState({});
   const [trManager, setTrManager] = useState({ open: false, id: null });
+  const [assignRouteModal, setAssignRouteModal] = useState({ open: false, shipments: [] });
   const [trReloadKey, setTrReloadKey] = useState(0);
   const [inboundView, setInboundView] = useState("tr");
   const [sentView, setSentView] = useState("tr");
@@ -2244,6 +2356,9 @@ export default function TransfersPage() {
     if (selectedNextHop && viewMode === "next_hop") {
       rows = rows.filter((s) => {
         const hop = resolveShipmentNextHop(s, availableRoutes);
+        if (selectedNextHop.isUnrouted) {
+          return !Number(hop?.id || 0);
+        }
         return (
           Number(hop.id) === Number(selectedNextHop.nextHopId) &&
           (!selectedNextHop.fromId || Number(hop.fromId) === Number(selectedNextHop.fromId))
@@ -2260,7 +2375,33 @@ export default function TransfersPage() {
     if (viewMode !== "next_hop" || activeParentTab !== "transferOut" || activeSubTab !== "process") return;
     // Shipment-driven groups only (no empty catalog seeds) so tab switches
     // cannot reselect / re-show empty hops.
-    const groups = buildNextHopGroups(availableRoutes, outboundRows);
+    const baseGroups = buildNextHopGroups(availableRoutes, outboundRows);
+    const unrouted = (outboundRows || []).filter(
+      (s) => !Number(resolveShipmentNextHop(s, availableRoutes)?.id || 0)
+    );
+    const groups = unrouted.length
+      ? [
+          {
+            key: "__unrouted__",
+            fromId: null,
+            fromName: null,
+            nextHopId: 0,
+            nextHopName: "Needs Route Assignment",
+            serviceType: "unrouted",
+            services: new Set(["unrouted"]),
+            lastMileCount: 0,
+            onwardCount: 0,
+            routes: [],
+            routeIds: new Set(),
+            finalCounts: new Map(),
+            count: unrouted.length,
+            shipmentIds: unrouted.map((s) => s.id),
+            isUnrouted: true,
+          },
+          ...baseGroups,
+        ]
+      : baseGroups;
+
     if (!groups.length) {
       if (selectedNextHopKey) {
         setSelectedNextHopKey(null);
@@ -2713,10 +2854,79 @@ export default function TransfersPage() {
     return skip === 0 ? `${base}.` : `${base}, ${skip} skipped.`;
   };
 
+  const parseErrorMessage = (err, fallback = "An error occurred") => {
+    if (!err) return fallback;
+    if (typeof err === "string") return err;
+    if (Array.isArray(err)) return parseErrorMessage(err[0], fallback);
+    if (typeof err === "object") {
+      const vals = Object.values(err);
+      if (vals.length) return parseErrorMessage(vals[0], fallback);
+    }
+    return fallback;
+  };
+
   const showDispatchError = (e, fallback) => {
-    const errors = e?.response?.data?.errors;
-    const firstError = errors ? Object.values(errors).flat()?.[0] : null;
-    message.error(firstError || e?.response?.data?.message || fallback);
+    const data = e?.response?.data;
+    const errors = data?.errors;
+    const skipped = errors?.skipped;
+
+    // If specific shipments were skipped (e.g. no next hop / route)
+    if (skipped && typeof skipped === "object" && Object.keys(skipped).length > 0) {
+      const skippedEntries = Object.entries(skipped);
+      Modal.error({
+        title: "Dispatch Blocked for Some Parcels",
+        width: 580,
+        content: (
+          <Space direction="vertical" size={8} style={{ width: "100%", marginTop: 8 }}>
+            <Text type="secondary">
+              {data?.message || "The following parcel(s) could not be dispatched:"}
+            </Text>
+            <div style={{ maxHeight: 220, overflowY: "auto", border: "1px solid #fed7aa", borderRadius: 8, padding: 8, background: "#fffaf0" }}>
+              {skippedEntries.map(([shipmentId, reason]) => {
+                const s = outboundRows.find((row) => String(row.id) === String(shipmentId));
+                const tracking = s?.tracking_number || `#${shipmentId}`;
+                const dest = routeLabel(s?.destination_branch, s?.destination_sub_branch, "Destination");
+                return (
+                  <div key={shipmentId} style={{ marginBottom: 6, paddingBottom: 6, borderBottom: "1px dashed #fde68a" }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                      <Text strong style={{ fontSize: 12 }}>{tracking}</Text>
+                      <Tag color="purple" style={{ margin: 0, fontSize: 10 }}>To: {dest}</Tag>
+                    </div>
+                    <Text type="danger" style={{ fontSize: 11 }}>
+                      {typeof reason === "string" ? reason : parseErrorMessage(reason)}
+                    </Text>
+                  </div>
+                );
+              })}
+            </div>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 4 }}>
+              <Text type="secondary" style={{ fontSize: 11 }}>
+                Tip: Assign an active transfer route to resolve next-hop routing.
+              </Text>
+              <Button
+                type="primary"
+                size="small"
+                icon={<CompassOutlined />}
+                onClick={() => {
+                  Modal.destroyAll();
+                  const targetShipments = outboundRows.filter((r) => Object.keys(skipped).includes(String(r.id)));
+                  setAssignRouteModal({
+                    open: true,
+                    shipments: targetShipments.length ? targetShipments : Object.keys(skipped).map((id) => ({ id: Number(id) })),
+                  });
+                }}
+              >
+                Assign Route Now
+              </Button>
+            </div>
+          </Space>
+        ),
+      });
+      return;
+    }
+
+    const firstError = errors ? parseErrorMessage(errors, null) : null;
+    message.error(firstError || data?.message || e?.message || fallback);
   };
 
   // After a TR leaves: offer the bag label + manifest sheet.
@@ -2882,9 +3092,23 @@ export default function TransfersPage() {
       shipments: parcels.length ? parcels : ids.map((id) => ({ id })),
     });
     if (!meta) return;
+
+    const shipmentRoutes = {};
+    parcels.forEach((s) => {
+      const hop = resolveShipmentNextHop(s, availableRoutes);
+      const rId = s.transfer_route_id || s.hop_meta?.transfer_route_id || hop?.route?.route_id || hop?.route?.id;
+      if (rId) {
+        shipmentRoutes[s.id] = Number(rId);
+      }
+    });
+
     setSubmitting(true);
     try {
-      const res = await dispatchToNextHop(ids, group.nextHopId, { ...meta, ...branchExtra });
+      const res = await dispatchToNextHop(ids, group.nextHopId, {
+        ...meta,
+        ...branchExtra,
+        shipment_routes: shipmentRoutes,
+      });
       message.success(dispatchedText(res, group.nextHopName));
       if (!meta.hold) promptPrint(res?.containers);
       setSelectedRowKeys([]);
@@ -2899,19 +3123,19 @@ export default function TransfersPage() {
     }
   };
 
-    // Dispatch a group of shipments by route (for grouped view)
+  // Dispatch a group of shipments by route (for grouped view)
   const handleDispatchGroup = async (group) => {
     if (!group || !group.shipments || group.shipments.length === 0) {
       message.warning("No shipments in this group to dispatch.");
       return;
     }
-    if (!group.route || !group.route.id) {
-      message.warning("No valid route for this group.");
+    const transferRouteId = group.route?.id || group.route?.route_id;
+    if (!transferRouteId) {
+      setAssignRouteModal({ open: true, shipments: group.shipments });
       return;
     }
     
     const shipmentIds = group.shipments.map(s => s.id);
-    const transferRouteId = group.route.id || group.route.route_id;
     const groupCost = await askDispatch({
       nextHopName: group.route.next_hop_name || "next hop",
       nextHopId: group.route.next_hop_branch_id,
@@ -3470,6 +3694,7 @@ export default function TransfersPage() {
                           hasMatchedHops={outboundRows.some((s) =>
                             Number(resolveShipmentNextHop(s, availableRoutes)?.id || 0) > 0
                           )}
+                          onAssignRoute={(items) => setAssignRouteModal({ open: true, shipments: items })}
                         />
                       )}
 
@@ -3509,6 +3734,7 @@ export default function TransfersPage() {
                           setSelectedRowKeys(group.shipmentIds || []);
                         }}
                         onDispatch={(group) => handleDispatchNextHop(group)}
+                        onAssignRoute={(items) => setAssignRouteModal({ open: true, shipments: items })}
                         openTrByHop={openTrByHop}
                         onAddToOpen={handleAddToOpen}
                         onManageOpen={(tr) => setTrManager({ open: true, id: tr.id })}
@@ -3565,6 +3791,7 @@ export default function TransfersPage() {
                         const ids = (group?.shipments || []).map((s) => s.id);
                         setSelectedRowKeys(ids);
                       }}
+                      onAssignRoute={(items) => setAssignRouteModal({ open: true, shipments: items })}
                     />
                   )}
                 </Card>
@@ -3918,6 +4145,19 @@ export default function TransfersPage() {
           </Space>
           <Space>
             <Button size="small" onClick={() => setSelectedRowKeys([])}>Clear</Button>
+            <Button
+              size="small"
+              icon={<CompassOutlined />}
+              onClick={() => {
+                const selected = outboundRows.filter((s) => selectedRowKeys.includes(s.id));
+                setAssignRouteModal({
+                  open: true,
+                  shipments: selected.length ? selected : selectedRowKeys.map((id) => ({ id })),
+                });
+              }}
+            >
+              Assign Route
+            </Button>
             {viewMode === "next_hop" ? (
               <Button
                 type="primary"
@@ -3997,6 +4237,19 @@ export default function TransfersPage() {
         onDispatch={(c) => {
           setTrManager({ open: false, id: null });
           if (c) handleDispatchOpenTr(c);
+        }}
+      />
+
+      <AssignTransferRouteModal
+        open={assignRouteModal.open}
+        shipments={assignRouteModal.shipments}
+        availableRoutes={availableRoutes}
+        branchId={selectedBranchId}
+        onCancel={() => setAssignRouteModal({ open: false, shipments: [] })}
+        onSuccess={async () => {
+          setSelectedRowKeys([]);
+          setTrReloadKey((k) => k + 1);
+          await refresh();
         }}
       />
 

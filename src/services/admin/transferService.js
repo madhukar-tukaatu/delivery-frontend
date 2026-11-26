@@ -282,6 +282,23 @@ export async function dispatchTransfersWithManifest(data) {
 }
 
 /**
+ * Assign a transfer route to one or more shipments.
+ * POST /admin/transfers/assign-route
+ * { shipment_ids: [1, 2], transfer_route_id: 12 }
+ */
+export async function assignTransferRoute(shipmentIds, transferRouteId = null, extra = {}) {
+  if (!Array.isArray(shipmentIds) || shipmentIds.length === 0) {
+    throw new Error("Select at least one shipment to assign a route.");
+  }
+  const response = await api.post("/admin/transfers/assign-route", {
+    shipment_ids: shipmentIds,
+    transfer_route_id: transferRouteId ? Number(transferRouteId) : null,
+    ...extra,
+  });
+  return unwrap(response);
+}
+
+/**
  * Hub bagging: dispatch many shipments that share the same NEXT hop
  * (even when they belong to different transfer routes / final destinations).
  *
