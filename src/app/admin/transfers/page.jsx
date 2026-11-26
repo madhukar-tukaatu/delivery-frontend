@@ -3136,7 +3136,6 @@ export default function TransfersPage() {
     }
     
     const shipmentIds = group.shipments.map(s => s.id);
-    const transferRouteId = group.route.id || group.route.route_id;
     const groupCost = await askDispatch({
       nextHopName: group.route.next_hop_name || "next hop",
       nextHopId: group.route.next_hop_branch_id,
