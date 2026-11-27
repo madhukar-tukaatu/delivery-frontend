@@ -1154,11 +1154,11 @@ export default function DeliveriesPage() {
           }}
           stops={mapRows.map((row) => {
             const shipment = row.shipment ?? {};
-            const isOnRun = !!row.delivery_run?.active;
+            const isOnRun = !!row.delivery_run?.active && !["failed", "delivered"].includes(row.status);
             const runNum = row.delivery_run?.run_number;
             const riderName = row.rider?.name || (isOnRun ? row.delivery_run?.rider?.name : "") || "";
             const isPlanned = row.status === "pending" && isOnRun;
-            const isAssigned = row.status === "assigned" || isPlanned;
+            const isAssigned = (row.status === "assigned" || isPlanned) && !["failed", "delivered"].includes(row.status);
 
             let statusLabel = statusMeta(row.status).label;
             let color = statusMeta(row.status).hex;
