@@ -731,7 +731,8 @@ export default function RunRouteMapInner({
     return `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(stop.address + ", " + stop.area)}`;
   };
 
-  const effectiveHeight = isFullscreen ? "calc(100vh - 56px)" : height;
+  const isPercentHeight = height === "100%";
+  const effectiveHeight = isFullscreen ? "calc(100vh - 56px)" : isPercentHeight ? "100%" : height;
 
   return (
     <div
@@ -749,6 +750,13 @@ export default function RunRouteMapInner({
               flexDirection: "column",
               height: "100vh",
               width: "100vw",
+            }
+          : isPercentHeight
+          ? {
+              height: "100%",
+              display: "flex",
+              flexDirection: "column",
+              width: "100%",
             }
           : undefined
       }
@@ -858,9 +866,9 @@ export default function RunRouteMapInner({
         </Space>
       </div>
 
-      <Row gutter={0} style={{ border: "1px solid #e2e8f0", borderTop: "none", borderRadius: isFullscreen ? 0 : "0 0 8px 8px", flex: isFullscreen ? 1 : undefined }}>
+      <Row gutter={0} style={{ border: "1px solid #e2e8f0", borderTop: "none", borderRadius: isFullscreen ? 0 : "0 0 8px 8px", flex: isFullscreen || isPercentHeight ? 1 : undefined, minHeight: 0, height: isPercentHeight ? "100%" : undefined }}>
         {/* Left Side: Sequenced Stops List */}
-        <Col xs={24} md={8} style={{ borderRight: "1px solid #e2e8f0", background: "#ffffff" }}>
+        <Col xs={24} md={8} style={{ borderRight: "1px solid #e2e8f0", background: "#ffffff", height: isPercentHeight ? "100%" : undefined }}>
           <div style={{ height: effectiveHeight, overflowY: "auto", padding: 12 }}>
             <div style={{ marginBottom: 12, padding: "8px 10px", background: "#f1f5f9", borderRadius: 6 }}>
               <Space>
@@ -1081,7 +1089,7 @@ export default function RunRouteMapInner({
         </Col>
 
         {/* Right Side: Leaflet Interactive Route Map */}
-        <Col xs={24} md={16}>
+        <Col xs={24} md={16} style={{ height: isPercentHeight ? "100%" : undefined }}>
           <div style={{ height: effectiveHeight, width: "100%", position: "relative" }}>
             <MapContainer
               center={[branchCoords.lat, branchCoords.lng]}

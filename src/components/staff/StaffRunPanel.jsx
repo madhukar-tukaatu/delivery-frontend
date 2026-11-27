@@ -206,8 +206,13 @@ export default function StaffRunPanel({
       message.success(res?.message || `${run.run_number} started.`);
       await load();
       onChanged?.();
-      // Auto-open mobile navigation mode
-      setMobileNavRun(run);
+      // Auto-open mobile navigation mode with fresh run data
+      const freshRun = res?.data?.run || res?.data || { ...run, status: "in_transit" };
+      if (Array.isArray(freshRun.items)) {
+        freshRun.items = freshRun.items.map((it) => (it.status === "bagged" ? { ...it, status: "out" } : it));
+      }
+      freshRun.status = "in_transit";
+      setMobileNavRun(freshRun);
       setCurrentStopIndex(0);
     } catch (e) {
       message.error(runErrorText(e, "Could not start the run."), 6);
@@ -430,22 +435,69 @@ export default function StaffRunPanel({
   };
 
   const openStop = (item, run = null) => {
-    if (run?.status === "assigned" || ["queued", "bagged"].includes(item.status)) {
-      message.info(
-        item.status === "bagged"
-          ? `${item.tracking_number || "Parcel"} is bagged. It opens here after you start the run.`
-          : `Find ${item.tracking_number || "this parcel"} in the warehouse and tap Bag (or scan it).`
-      );
-      return;
-    }
+    if (!item) return;
     const row = findRow(item);
     if (row) {
       onOpenDelivery?.(row);
-    } else if (item.status === "queued") {
-      message.info("Start the run first. The parcel opens here once it is out for delivery.");
-    } else {
-      message.info("Refresh deliveries to open this parcel.");
+      return;
     }
+    const synthRow = {
+      id: item.delivery_id || item.id,
+      shipment_id: item.shipment_id,
+      status: item.status === "bagged" ? "assigned" : (item.status || "out_for_delivery"),
+      tracking_number: item.tracking_number,
+      shipment: item.shipment || {
+        id: item.shipment_id,
+        tracking_number: item.tracking_number,
+        recipient_name: item.recipient_name || item.receiver_name,
+        recipient_phone: item.recipient_phone || item.phone,
+        delivery_address: item.address,
+        cod_amount: item.cod_amount,
+        payment_type: Number(item.cod_amount) > 0 ? "pod" : "prepaid",
+      },
+      cod_amount: item.cod_amount,
+      total_collectable_amount: item.cod_amount,
+      delivery_address: item.address,
+    };
+    onOpenDelivery?.(synthRow);
+  };
+
+  const handleDeliverStop = async (item) => {
+    if (!item) return;
+    const row = findRow(item) || {
+      id: item.delivery_id || item.id,
+      shipment_id: item.shipment_id,
+      status: "out_for_delivery",
+      arrived_at: new Date().toISOString(),
+      shipment: item.shipment || {
+        id: item.shipment_id,
+        tracking_number: item.tracking_number,
+        recipient_name: item.recipient_name || item.receiver_name,
+        recipient_phone: item.recipient_phone || item.phone,
+        delivery_address: item.address,
+        cod_amount: item.cod_amount,
+        payment_type: Number(item.cod_amount) > 0 ? "pod" : "prepaid",
+      },
+      cod_amount: item.cod_amount,
+      total_collectable_amount: item.cod_amount,
+      delivery_address: item.address,
+    };
+
+    if (mobileNavRun?.status === "assigned") {
+      Modal.confirm({
+        title: `Start ${mobileNavRun.run_number} now?`,
+        content: "This run is currently in assigned state. Start the run and proceed to complete delivery?",
+        okText: "Start Run & Deliver",
+        zIndex: 10060,
+        onOk: async () => {
+          await start(mobileNavRun);
+          onDeliveryAction?.(row, "complete");
+        },
+      });
+      return;
+    }
+
+    onDeliveryAction?.(row, "complete");
   };
 
   if (!runs.length) {
@@ -897,7 +949,7 @@ export default function StaffRunPanel({
               left: 0,
               right: 0,
               bottom: 0,
-              zIndex: 99999,
+              zIndex: 1000,
               background: "#0f172a",
               display: "flex",
               flexDirection: "column",
@@ -1095,7 +1147,7 @@ export default function StaffRunPanel({
                   </div>
                 )}
 
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1.4fr", gap: 8 }}>
+                <div style={{ display: "grid", gridTemplateColumns: mobileNavRun.status === "assigned" ? "1fr 1fr 1fr 1.3fr" : "1fr 1fr 1.4fr", gap: 8 }}>
                   <a
                     href={getGoogleMapsDirectionsUrl(activeNavStop)}
                     target="_blank"
@@ -1138,9 +1190,33 @@ export default function StaffRunPanel({
                     📞 Call
                   </a>
 
+                  {mobileNavRun.status === "assigned" && (
+                    <button
+                      type="button"
+                      disabled={starting === mobileNavRun.id}
+                      onClick={() => start(mobileNavRun)}
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        gap: 4,
+                        padding: "9px 6px",
+                        background: "#f59e0b",
+                        border: "none",
+                        borderRadius: 8,
+                        color: "#ffffff",
+                        fontWeight: 800,
+                        fontSize: 12,
+                        cursor: "pointer",
+                      }}
+                    >
+                      🚀 Start Run
+                    </button>
+                  )}
+
                   <button
                     type="button"
-                    onClick={() => openStop(activeNavStop, mobileNavRun)}
+                    onClick={() => handleDeliverStop(activeNavStop)}
                     style={{
                       display: "flex",
                       alignItems: "center",
@@ -1169,6 +1245,7 @@ export default function StaffRunPanel({
         title={`Route Map · ${mapRun?.run_number || "Delivery Run"}`}
         open={Boolean(mapRun)}
         width={920}
+        zIndex={10050}
         onCancel={() => setMapRun(null)}
         footer={[
           <Button key="close" type="primary" onClick={() => setMapRun(null)}>
@@ -1201,6 +1278,7 @@ export default function StaffRunPanel({
         title={missing ? `Report ${missing.item.tracking_number || "parcel"} missing` : "Report missing"}
         open={Boolean(missing)}
         onCancel={() => setMissing(null)}
+        zIndex={10050}
         okText="Report missing"
         okButtonProps={{ danger: true, loading: Boolean(missing) && bagBusy === `missing:${missing?.item?.item_id}` }}
         onOk={reportMissing}
