@@ -37,6 +37,7 @@ import {
   DownloadOutlined,
   UploadOutlined,
   RollbackOutlined,
+  StopOutlined,
 } from "@ant-design/icons";
 import { usePermissions } from "@/hooks/usePermission";
 import { useAdminRealtime, RealtimeStatusBadge } from "@/hooks/useAdminRealtime";
@@ -80,6 +81,7 @@ const STATUS_META = {
   out_for_delivery: { label: "Out for Delivery", color: "processing", hex: "#1677ff", icon: <CarOutlined /> },
   delivered: { label: "Delivered", color: "success", hex: "#389e0d", icon: <CheckCircleOutlined /> },
   failed: { label: "Failed", color: "error", hex: "#cf1322", icon: <CloseCircleOutlined /> },
+  cancelled: { label: "Cancelled", color: "default", hex: "#64748b", icon: <StopOutlined /> },
 };
 
 /**
@@ -96,6 +98,7 @@ const STATUS_TABS = [
   { key: "out_for_delivery", label: "Out for Delivery", statuses: ["out_for_delivery"] },
   { key: "delivered", label: "Delivered", statuses: ["delivered"] },
   { key: "failed", label: "Failed", statuses: ["failed"] },
+  { key: "cancelled", label: "Cancelled", statuses: ["cancelled"] },
   { key: "all", label: "All", statuses: [] },
 ];
 
@@ -1154,11 +1157,11 @@ export default function DeliveriesPage() {
           }}
           stops={mapRows.map((row) => {
             const shipment = row.shipment ?? {};
-            const isOnRun = !!row.delivery_run?.active;
+            const isOnRun = !!row.delivery_run?.active && !["failed", "delivered"].includes(row.status);
             const runNum = row.delivery_run?.run_number;
             const riderName = row.rider?.name || (isOnRun ? row.delivery_run?.rider?.name : "") || "";
             const isPlanned = row.status === "pending" && isOnRun;
-            const isAssigned = row.status === "assigned" || isPlanned;
+            const isAssigned = (row.status === "assigned" || isPlanned) && !["failed", "delivered"].includes(row.status);
 
             let statusLabel = statusMeta(row.status).label;
             let color = statusMeta(row.status).hex;
