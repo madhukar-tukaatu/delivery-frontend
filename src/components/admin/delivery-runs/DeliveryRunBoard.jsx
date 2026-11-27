@@ -890,14 +890,36 @@ export function DeliveryRunsBoard({ branchId = null, canManage = false, reloadKe
     <>
     <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 12 }}>{layoutSwitch}</div>
     <Row gutter={[16, 16]}>
-      {/* Left: Delivery Runs List (compact 15% width) */}
-      <Col xs={24} md={6} xl={4}>
-        <Card style={{ borderRadius: 10 }} styles={{ body: { padding: "10px 8px" } }}>
-          <Space direction="vertical" style={{ width: "100%" }} size={8}>
+      {/* Left: Delivery Runs List (compact, viewport-contained with pinned filters & pagination) */}
+      <Col xs={24} md={8} lg={7} xl={6}>
+        <Card
+          style={{
+            borderRadius: 10,
+            height: "calc(100vh - 210px)",
+            minHeight: "600px",
+            display: "flex",
+            flexDirection: "column",
+          }}
+          styles={{
+            body: {
+              padding: "10px 8px",
+              display: "flex",
+              flexDirection: "column",
+              height: "100%",
+              overflow: "hidden",
+            },
+          }}
+        >
+          {/* Pinned Search & Status Filter */}
+          <div style={{ marginBottom: 8 }}>
             <Space.Compact style={{ width: "100%" }}>
-              <Select style={{ width: "50%" }} size="small" value={status} options={RUN_STATUS_FILTERS} onChange={handleStatusChange} />
+              <Select style={{ width: "45%" }} size="small" value={status} options={RUN_STATUS_FILTERS} onChange={handleStatusChange} />
               <Input size="small" allowClear placeholder="DR, rider..." value={search} onChange={(e) => setSearch(e.target.value)} />
             </Space.Compact>
+          </div>
+
+          {/* Scrollable Runs List */}
+          <div style={{ flex: 1, minHeight: 0, overflowY: "auto", paddingRight: 4 }}>
             <Spin spinning={loading}>
               {!runs.length ? (
                 <Empty
@@ -917,54 +939,55 @@ export function DeliveryRunsBoard({ branchId = null, canManage = false, reloadKe
                 </Space>
               )}
             </Spin>
-            {total > PAGE_SIZE ? (
-              <Pagination size="small" current={page} pageSize={PAGE_SIZE} total={total} onChange={setPage} showSizeChanger={false} />
-            ) : null}
+          </div>
+
+          {/* Pinned Pagination & Total */}
+          <div style={{ paddingTop: 8, borderTop: "1px solid #f1f5f9", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <Text type="secondary" style={{ fontSize: 11 }}>
               {total} run{total === 1 ? "" : "s"}
             </Text>
-          </Space>
+            {total > PAGE_SIZE ? (
+              <Pagination size="small" current={page} pageSize={PAGE_SIZE} total={total} onChange={setPage} showSizeChanger={false} simple />
+            ) : null}
+          </div>
         </Card>
       </Col>
-      {/* Right: Route Map / Run Detail (expansive 85% width) */}
-      <Col xs={24} md={18} xl={20}>
+
+      {/* Right: Route Map / Run Detail (fills remaining space with matching height) */}
+      <Col xs={24} md={16} lg={17} xl={18}>
         {layout === "split" ? (
-          <Spin spinning={activeRunLoading}>
-            {activeRunData ? (
-              <Card
-                size="small"
-                style={{ borderRadius: 12 }}
-                title={
-                  <Space wrap>
-                    <Text strong style={{ fontSize: 15 }}>
-                      {activeRunData.run_number}
-                    </Text>
-                    <RunStatusTag status={activeRunData.status} />
-                    {activeRunData.rider?.name ? <Text type="secondary">({activeRunData.rider.name})</Text> : null}
-                  </Space>
-                }
-                extra={
-                  <Space>
-                    <Button size="small" icon={<EnvironmentOutlined />} onClick={() => openQuickMap(activeRunData)}>
-                      Fullscreen
-                    </Button>
-                    <Button size="small" type="primary" onClick={() => manageRun(activeRunData.id)}>
-                      Manage Stops &amp; Parcels
-                    </Button>
-                  </Space>
-                }
-                styles={{ body: { padding: 0 } }}
-              >
-                <RunRouteMap run={activeRunData} mode="delivery" onOpenDelivery={openParcel} height="600px" />
-              </Card>
-            ) : (
-              <Card style={{ borderRadius: 12 }}>
-                <Empty description="Select a run to view its route map." />
-              </Card>
-            )}
-          </Spin>
+          <div
+            style={{
+              height: "calc(100vh - 210px)",
+              minHeight: "600px",
+              borderRadius: 10,
+              overflow: "hidden",
+              display: "flex",
+              flexDirection: "column",
+              background: "#fff",
+              border: "1px solid #e2e8f0",
+            }}
+          >
+            <Spin spinning={activeRunLoading} style={{ height: "100%", width: "100%" }}>
+              {activeRunData ? (
+                <RunRouteMap
+                  run={activeRunData}
+                  mode="delivery"
+                  onOpenDelivery={openParcel}
+                  onManageRun={() => manageRun(activeRunData.id)}
+                  height="100%"
+                />
+              ) : (
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%" }}>
+                  <Empty description="Select a run to view its route map." />
+                </div>
+              )}
+            </Spin>
+          </div>
         ) : (
-          <DeliveryRunDetail runId={selectedRunId} branchId={branchId} canManage={canManage} onChanged={handleChanged} />
+          <div style={{ height: "calc(100vh - 210px)", minHeight: "600px", overflowY: "auto" }}>
+            <DeliveryRunDetail runId={selectedRunId} branchId={branchId} canManage={canManage} onChanged={handleChanged} />
+          </div>
         )}
       </Col>
     </Row>

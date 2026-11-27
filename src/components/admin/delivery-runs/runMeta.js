@@ -4,9 +4,9 @@ export const RUN_STATUS_META = {
   open: { label: "Open", color: "blue", hint: "No rider yet" },
   assigned: { label: "Collecting", color: "gold", hint: "Rider is collecting and bagging parcels" },
   out_for_delivery: { label: "Out for delivery", color: "cyan", hint: "With the rider" },
-  completed: { label: "Back - close it", color: "purple", hint: "All parcels done, cash not checked" },
-  closed: { label: "Closed", color: "green", hint: "Reconciled" },
-  cancelled: { label: "Cancelled", color: "default", hint: "Cancelled before the run started" },
+  completed: { label: "Completed", color: "green", hint: "All parcels delivered or returned to branch" },
+  closed: { label: "Closed", color: "default", hint: "Reconciled and closed" },
+  cancelled: { label: "Cancelled", color: "red", hint: "Cancelled before the run started" },
 };
 
 export const ITEM_STATUS_META = {
