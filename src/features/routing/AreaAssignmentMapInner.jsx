@@ -518,8 +518,20 @@ export default function AreaAssignmentMapInner({
                             onClick={() => { if (canAssign(stop)) toggle(stop.id); }}
                             actions={[
                               ...(isFailed && onRetry ? [
-                                <a key="retry" style={{ fontWeight: 600, color: '#0891b2' }} onClick={(e) => { e.stopPropagation(); onRetry(stop); }}>
-                                  Re-attempt
+                                <a
+                                  key="retry"
+                                  style={{
+                                    fontWeight: 600,
+                                    color: stop.retriesLeft === 0 ? '#94a3b8' : '#0891b2',
+                                    cursor: stop.retriesLeft === 0 ? 'not-allowed' : 'pointer',
+                                    pointerEvents: stop.retriesLeft === 0 ? 'none' : 'auto'
+                                  }}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    if (stop.retriesLeft !== 0) onRetry(stop);
+                                  }}
+                                >
+                                  Re-attempt {typeof stop.retriesLeft === 'number' ? `(${stop.retriesLeft})` : ''}
                                 </a>
                               ] : []),
                               ...(isFailed && onReturn ? [
@@ -615,8 +627,13 @@ export default function AreaAssignmentMapInner({
                         )}
                         <div style={{ display: 'flex', gap: 6, marginTop: 8, flexWrap: 'wrap' }}>
                           {onRetry && (
-                            <Button size="small" type="primary" onClick={() => onRetry(stop)}>
-                              Re-attempt
+                            <Button
+                              size="small"
+                              type="primary"
+                              disabled={stop.retriesLeft === 0}
+                              onClick={() => onRetry(stop)}
+                            >
+                              Re-attempt {typeof stop.retriesLeft === 'number' ? `(${stop.retriesLeft})` : ''}
                             </Button>
                           )}
                           {onReturn && (

@@ -289,7 +289,7 @@ export default function StaffPickupRunPanel({ onOpenPickup, onPickupAction, onCh
                     </Button>
                   </Popconfirm>
                 </span>
-              ) : ["in_progress", "completed"].includes(run.status) ? (
+              ) : run.status === "in_progress" ? (
                 <span onClick={(e) => e.stopPropagation()} role="presentation">
                   {openStops.length > 0 ? (
                     <Tooltip
@@ -309,6 +309,14 @@ export default function StaffPickupRunPanel({ onOpenPickup, onPickupAction, onCh
                     </Popconfirm>
                   )}
                 </span>
+              ) : run.status === "completed" ? (
+                <Tag color="purple" icon={<CheckCircleOutlined />}>
+                  Finished · Handover at branch
+                </Tag>
+              ) : run.status === "closed" ? (
+                <Tag color="green" icon={<CheckCircleOutlined />}>
+                  Closed
+                </Tag>
               ) : null,
             children: (
               <Space direction="vertical" style={{ width: "100%" }} size={8}>
@@ -485,7 +493,15 @@ export default function StaffPickupRunPanel({ onOpenPickup, onPickupAction, onCh
                     })}
 
                     {/* Prominent finish prompt when all stops are completed */}
-                    {openStops.length === 0 && items.length > 0 && run.status !== "closed" && (
+                    {run.status === "completed" ? (
+                      <Alert
+                        type="info"
+                        showIcon
+                        message="Run Finished — Awaiting Branch Reconciliation"
+                        description={`You have finished this pickup run with ${run.picked_up_count} picked up and ${run.failed_count || 0} failed. Hand over collected parcels at the branch counter to close.`}
+                        style={{ marginTop: 12 }}
+                      />
+                    ) : openStops.length === 0 && items.length > 0 && run.status === "in_progress" && (
                       <Alert
                         type="success"
                         showIcon

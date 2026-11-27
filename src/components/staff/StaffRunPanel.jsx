@@ -386,6 +386,7 @@ export default function StaffRunPanel({
     if (run.status === "assigned") return renderBagActions(run, item, context);
     if (!onDeliveryAction) return null;
     if (["delivered", "failed", "removed"].includes(item.status)) return null;
+    if (["completed", "closed", "cancelled"].includes(run.status)) return null;
     const row = findRow(item);
     if (!row) {
       if (context !== "list") return null;
@@ -604,7 +605,7 @@ export default function StaffRunPanel({
                     </Tooltip>
                   )}
                 </span>
-              ) : ["out_for_delivery", "completed"].includes(run.status) ? (
+              ) : run.status === "out_for_delivery" ? (
                 <span onClick={(e) => e.stopPropagation()} role="presentation">
                   {openStops.length > 0 ? (
                     <Tooltip
@@ -626,6 +627,14 @@ export default function StaffRunPanel({
                     </Popconfirm>
                   )}
                 </span>
+              ) : run.status === "completed" ? (
+                <Tag color="purple" icon={<CheckCircleOutlined />}>
+                  Finished · Handover at branch
+                </Tag>
+              ) : run.status === "closed" ? (
+                <Tag color="green" icon={<CheckCircleOutlined />}>
+                  Closed
+                </Tag>
               ) : null,
             children: (
               <Space direction="vertical" style={{ width: "100%" }} size={6}>
@@ -902,7 +911,17 @@ export default function StaffRunPanel({
                     })}
 
                     {/* Bottom finish prompt when all stops done */}
-                    {openStops.length === 0 && items.length > 0 && ["out_for_delivery", "completed"].includes(run.status) && (
+                    {run.status === "completed" ? (
+                      <Alert
+                        type="info"
+                        showIcon
+                        message="Run Finished — Awaiting Branch Reconciliation"
+                        description={`You have finished this run with ${run.delivered_count} delivered and ${run.failed_count} failed. Hand over collected cash ${rs(
+                          run.cod_collected
+                        )} and physical parcels at the branch counter to close.`}
+                        style={{ marginTop: 10 }}
+                      />
+                    ) : openStops.length === 0 && items.length > 0 && run.status === "out_for_delivery" && (
                       <Alert
                         type="success"
                         showIcon

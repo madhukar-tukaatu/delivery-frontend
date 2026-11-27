@@ -598,8 +598,10 @@ export default function DeliveriesPage() {
 
   const handleRetry = (delivery) => {
     const s = delivery.shipment || {};
+    const maxAttempts = Number(s.max_delivery_attempts || 3);
     const attempts = Number(delivery.attempt_no || s.failed_attempts || 1);
-    const retriesLeft = typeof s.retries_left === "number" ? s.retries_left : Math.max(0, 3 - attempts);
+    const retriesLeft = Math.max(0, maxAttempts - attempts);
+    const targetId = delivery.id || delivery.rawDelivery?.id || s.id;
     let note = "";
 
     Modal.confirm({
@@ -610,7 +612,7 @@ export default function DeliveriesPage() {
           <div>
             <strong>Tracking:</strong> {s.tracking_number}
             <br />
-            <strong>Attempts:</strong> {attempts} / {s.max_delivery_attempts || 3} ({retriesLeft} retries remaining)
+            <strong>Attempts:</strong> {attempts} / {maxAttempts} ({retriesLeft} retries remaining)
           </div>
           <Input.TextArea
             rows={2}
@@ -624,7 +626,7 @@ export default function DeliveriesPage() {
       okText: "Re-queue Delivery",
       onOk: async () => {
         try {
-          await retryDelivery(delivery.id, note);
+          await retryDelivery(targetId, note);
           message.success("Shipment re-queued for delivery.");
           refresh();
         } catch (e) {
@@ -637,6 +639,7 @@ export default function DeliveriesPage() {
 
   const handleReturn = (delivery) => {
     const s = delivery.shipment || {};
+    const targetId = delivery.id || delivery.rawDelivery?.id || s.id;
     let reason = "";
 
     Modal.confirm({
@@ -662,7 +665,7 @@ export default function DeliveriesPage() {
       okButtonProps: { style: { background: "#d97706", borderColor: "#d97706" } },
       onOk: async () => {
         try {
-          await returnDelivery(delivery.id, reason || "Return initiated from branch delivery board");
+          await returnDelivery(targetId, reason || "Return initiated from branch delivery board");
           message.success("Return to store initiated.");
           refresh();
         } catch (e) {
@@ -675,6 +678,7 @@ export default function DeliveriesPage() {
 
   const handleCancelDelivery = (delivery) => {
     const s = delivery.shipment || {};
+    const targetId = delivery.id || delivery.rawDelivery?.id || s.id;
     let reason = "";
 
     Modal.confirm({
@@ -702,7 +706,7 @@ export default function DeliveriesPage() {
           throw new Error("Reason required");
         }
         try {
-          await cancelDelivery(delivery.id, reason);
+          await cancelDelivery(targetId, reason);
           message.success("Shipment cancelled.");
           refresh();
         } catch (e) {
@@ -924,33 +928,39 @@ export default function DeliveriesPage() {
                     Fail
                   </Button>
                 )}
-              {r.status === "failed" && can?.("deliveries.assign") && (
-                <>
-                  <Button
-                    size="small"
-                    type="primary"
-                    icon={<ReloadOutlined />}
-                    disabled={r.shipment?.retries_left === 0}
-                    onClick={() => handleRetry(r)}
-                  >
-                    Re-attempt {typeof r.shipment?.retries_left === "number" ? `(${r.shipment.retries_left})` : ""}
-                  </Button>
-                  <Button
-                    size="small"
-                    icon={<RollbackOutlined />}
-                    onClick={() => handleReturn(r)}
-                  >
-                    Return
-                  </Button>
-                  <Button
-                    size="small"
-                    danger
-                    onClick={() => handleCancelDelivery(r)}
-                  >
-                    Cancel
-                  </Button>
-                </>
-              )}
+              {r.status === "failed" && can?.("deliveries.assign") && (() => {
+                const maxAttempts = Number(r.shipment?.max_delivery_attempts || 3);
+                const attempts = Number(r.attempt_no || r.shipment?.failed_attempts || 1);
+                const retriesLeft = typeof r.shipment?.retries_left === "number" ? r.shipment.retries_left : Math.max(0, maxAttempts - attempts);
+
+                return (
+                  <>
+                    <Button
+                      size="small"
+                      type="primary"
+                      icon={<ReloadOutlined />}
+                      disabled={retriesLeft <= 0}
+                      onClick={() => handleRetry(r)}
+                    >
+                      Re-attempt ({retriesLeft})
+                    </Button>
+                    <Button
+                      size="small"
+                      icon={<RollbackOutlined />}
+                      onClick={() => handleReturn(r)}
+                    >
+                      Return
+                    </Button>
+                    <Button
+                      size="small"
+                      danger
+                      onClick={() => handleCancelDelivery(r)}
+                    >
+                      Cancel
+                    </Button>
+                  </>
+                );
+              })()}
               {follow?.linkSettlements && (
                 <Button
                   size="small"
@@ -1161,6 +1171,10 @@ export default function DeliveriesPage() {
               color = "#722ed1";
             }
 
+            const maxAttempts = Number(shipment.max_delivery_attempts || 3);
+            const attempts = Number(row.attempt_no || shipment.failed_attempts || 1);
+            const retriesLeft = typeof shipment.retries_left === "number" ? shipment.retries_left : Math.max(0, maxAttempts - attempts);
+
             return {
               id: row.id,
               rawDelivery: row,
@@ -1187,7 +1201,7 @@ export default function DeliveriesPage() {
               isPlanned,
               canAssign: !isOnRun && !isAssigned && row.status === "pending",
               failureReason: row.failure_reason || shipment.failure_reason || row.notes || "",
-              retriesLeft: typeof shipment.retries_left === "number" ? shipment.retries_left : undefined,
+              retriesLeft,
             };
           })}
         />
