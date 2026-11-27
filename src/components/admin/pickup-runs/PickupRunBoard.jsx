@@ -71,6 +71,27 @@ export default function PickupRunBoard({ branchId = null, onOpenPickup = null })
   const [activeRunData, setActiveRunData] = useState(null);
   const [activeRunLoading, setActiveRunLoading] = useState(false);
 
+  // Restore run_status from URL on mount
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    const sf = params.get("run_status");
+    if (sf && ["active", "open", "assigned", "in_progress", "completed", "closed", "all"].includes(sf)) {
+      setStatusFilter(sf);
+    }
+  }, []);
+
+  const handleStatusFilterChange = (val) => {
+    setStatusFilter(val);
+    setPage(1);
+    if (typeof window !== "undefined") {
+      const url = new URL(window.location.href);
+      if (val === "active") url.searchParams.delete("run_status");
+      else url.searchParams.set("run_status", val);
+      window.history.replaceState(null, "", url.toString());
+    }
+  };
+
   // Quick Map Modal
   const [mapRun, setMapRun] = useState(null);
   const [mapLoading, setMapLoading] = useState(false);
@@ -229,10 +250,7 @@ export default function PickupRunBoard({ branchId = null, onOpenPickup = null })
           <Space wrap>
             <Radio.Group
               value={statusFilter}
-              onChange={(e) => {
-                setStatusFilter(e.target.value);
-                setPage(1);
-              }}
+              onChange={(e) => handleStatusFilterChange(e.target.value)}
               buttonStyle="solid"
             >
               <Radio.Button value="active">Active</Radio.Button>
@@ -294,128 +312,128 @@ export default function PickupRunBoard({ branchId = null, onOpenPickup = null })
           </Card>
         ) : boardLayout === "split" ? (
           <Row gutter={[16, 16]}>
-            {/* Left: Pickup Runs List */}
-            <Col xs={24} lg={9}>
-              <div style={{ maxHeight: "680px", overflowY: "auto", paddingRight: 4 }}>
-                <Space direction="vertical" style={{ width: "100%" }} size={8}>
-                  {runs.map((run) => {
-                    const isSelected = run.id === activeRunId;
-                    const statusTag = STATUS_TAGS[run.status] || { label: run.status, color: "default" };
-                    const percent = run.expected_count > 0 ? Math.round((run.picked_up_count / run.expected_count) * 100) : 0;
-                    return (
-                      <Card
-                        key={run.id}
-                        size="small"
-                        hoverable
-                        onClick={() => setActiveRunId(run.id)}
-                        style={{
-                          borderRadius: 8,
-                          border: isSelected ? "2px solid #0891b2" : "1px solid #e2e8f0",
-                          background: isSelected ? "#f0fdfa" : "#fff",
-                          cursor: "pointer",
-                        }}
-                        styles={{ body: { padding: "10px 12px" } }}
-                      >
-                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                          <Text strong style={{ fontSize: 14 }}>{run.run_number}</Text>
-                          <Space size={4}>
-                            <Tag color={statusTag.color}>{statusTag.label}</Tag>
-                            {(() => {
-                              const rStatus = computeRiderStatus({
-                                runStatus: run.status,
-                                riderLocation: run.rider_location,
-                                branchCoords: run.branch ? { lat: run.branch.latitude, lng: run.branch.longitude, name: run.branch.name } : null,
-                                stops: run.items || [],
-                              });
-                              if (!rStatus || rStatus.type === "none") return null;
-                              return (
-                                <Tag
-                                  color={rStatus.tagColor}
-                                  style={{
-                                    margin: 0,
-                                    fontSize: 10,
-                                    padding: "0 6px",
-                                    fontWeight: 700,
-                                    borderColor: rStatus.dotColor,
-                                  }}
-                                >
-                                  {rStatus.shortLabel}
-                                </Tag>
-                              );
-                            })()}
-                          </Space>
-                        </div>
-                        <div style={{ marginTop: 4, display: "flex", justifyContent: "space-between", fontSize: 12 }}>
-                          <Text type="secondary">Rider:</Text>
-                          <Text strong>{run.rider?.name || <Text type="warning">Unassigned</Text>}</Text>
-                        </div>
-                        {run.vehicle_type && (
-                          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: "#64748b" }}>
-                            <span>Vehicle:</span>
-                            <span>{vehicleText(run.vehicle_type, run.vehicle_number)}</span>
+            {/* Left: Pickup Runs List (compact, viewport-contained) */}
+            <Col xs={24} md={8} lg={7} xl={6}>
+              <Card
+                style={{
+                  borderRadius: 10,
+                  height: "calc(100vh - 210px)",
+                  minHeight: "600px",
+                  display: "flex",
+                  flexDirection: "column",
+                }}
+                styles={{
+                  body: {
+                    padding: "10px 8px",
+                    display: "flex",
+                    flexDirection: "column",
+                    height: "100%",
+                    overflow: "hidden",
+                  },
+                }}
+              >
+                <div style={{ flex: 1, minHeight: 0, overflowY: "auto", paddingRight: 4 }}>
+                  <Space direction="vertical" style={{ width: "100%" }} size={6}>
+                    {runs.map((run) => {
+                      const isSelected = run.id === activeRunId;
+                      const statusTag = STATUS_TAGS[run.status] || { label: run.status, color: "default" };
+                      const percent = run.expected_count > 0 ? Math.round((run.picked_up_count / run.expected_count) * 100) : 0;
+                      return (
+                        <Card
+                          key={run.id}
+                          size="small"
+                          hoverable
+                          onClick={() => setActiveRunId(run.id)}
+                          style={{
+                            borderRadius: 6,
+                            border: isSelected ? "2px solid #0891b2" : "1px solid #e2e8f0",
+                            background: isSelected ? "#f0fdfa" : "#fff",
+                            cursor: "pointer",
+                            transition: "all 0.15s ease",
+                          }}
+                          styles={{ body: { padding: "8px 10px" } }}
+                        >
+                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                            <Text strong style={{ fontSize: 13, color: isSelected ? "#0891b2" : "inherit" }}>
+                              {run.run_number}
+                            </Text>
+                            <Tag
+                              color={statusTag.color}
+                              style={{ margin: 0, fontSize: 10, lineHeight: "17px", padding: "0 4px" }}
+                            >
+                              {statusTag.label}
+                            </Tag>
                           </div>
-                        )}
-                        <div style={{ marginTop: 4, display: "flex", justifyContent: "space-between", fontSize: 11, color: "#64748b" }}>
-                          <span>Pickups:</span>
-                          <span style={{ fontWeight: 600 }}>{run.picked_up_count}/{run.expected_count} collected</span>
-                        </div>
-                        <Progress percent={percent} size="small" style={{ margin: "4px 0" }} />
-                        <div style={{ marginTop: 6, display: "flex", justifyContent: "flex-end" }}>
-                          <Button
-                            size="small"
-                            type="primary"
-                            ghost
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setSelectedRunId(run.id);
+                          <div
+                            style={{
+                              marginTop: 3,
+                              fontSize: 11,
+                              color: "#475569",
+                              whiteSpace: "nowrap",
+                              overflow: "hidden",
+                              textOverflow: "ellipsis",
                             }}
+                            title={run.rider?.name || "Unassigned"}
                           >
-                            Manage Run
-                          </Button>
-                        </div>
-                      </Card>
-                    );
-                  })}
-                </Space>
-              </div>
+                            👤 {run.rider?.name || <Text type="warning" style={{ fontSize: 11 }}>Unassigned</Text>}
+                          </div>
+                          <div style={{ marginTop: 2, display: "flex", justifyContent: "space-between", fontSize: 10, color: "#64748b" }}>
+                            <span>{run.picked_up_count}/{run.expected_count} stops</span>
+                            <span>{percent}%</span>
+                          </div>
+                          <Progress
+                            percent={percent}
+                            size="small"
+                            showInfo={false}
+                            strokeColor="#0891b2"
+                            style={{ margin: "2px 0 0 0" }}
+                          />
+                        </Card>
+                      );
+                    })}
+                  </Space>
+                </div>
+                <div style={{ paddingTop: 8, borderTop: "1px solid #f1f5f9", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <Text type="secondary" style={{ fontSize: 11 }}>
+                    {runs.length} run{runs.length === 1 ? "" : "s"}
+                  </Text>
+                </div>
+              </Card>
             </Col>
 
-            {/* Right: Route Map of active run */}
-            <Col xs={24} lg={15}>
-              <Spin spinning={activeRunLoading}>
-                {activeRunData ? (
-                  <Card
-                    size="small"
-                    style={{ borderRadius: 8 }}
-                    title={
-                      <Space>
-                        <Text strong style={{ fontSize: 15 }}>{activeRunData.run_number}</Text>
-                        <Tag color={STATUS_TAGS[activeRunData.status]?.color || "default"}>
-                          {STATUS_TAGS[activeRunData.status]?.label || activeRunData.status}
-                        </Tag>
-                        {activeRunData.rider?.name && <Text type="secondary">({activeRunData.rider.name})</Text>}
-                      </Space>
-                    }
-                    extra={
-                      <Button
-                        type="primary"
-                        size="small"
-                        style={{ background: "#0891b2", borderColor: "#0891b2" }}
-                        onClick={() => setSelectedRunId(activeRunData.id)}
-                      >
-                        Manage Stops & Pickups
-                      </Button>
-                    }
-                    styles={{ body: { padding: 0 } }}
-                  >
-                    <RunRouteMap run={activeRunData} mode="pickup" onOpenPickup={onOpenPickup} height="600px" />
-                  </Card>
+            {/* Right: Route Map of active run (expansive, matching height) */}
+            <Col xs={24} md={16} lg={17} xl={18}>
+              <div
+                style={{
+                  height: "calc(100vh - 210px)",
+                  minHeight: "600px",
+                  borderRadius: 10,
+                  overflow: "hidden",
+                  display: "flex",
+                  flexDirection: "column",
+                  background: "#fff",
+                  border: "1px solid #e2e8f0",
+                  position: "relative",
+                }}
+              >
+                {activeRunLoading ? (
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%", minHeight: "560px" }}>
+                    <Spin size="large" tip="Loading map route..." />
+                  </div>
+                ) : activeRunData ? (
+                  <RunRouteMap
+                    run={activeRunData}
+                    mode="pickup"
+                    onOpenPickup={onOpenPickup}
+                    onManageRun={() => setSelectedRunId(activeRunData.id)}
+                    height="calc(100vh - 265px)"
+                  />
                 ) : (
-                  <Card style={{ borderRadius: 8 }}>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%" }}>
                     <Empty description="Select a run to view its map route." />
-                  </Card>
+                  </div>
                 )}
-              </Spin>
+              </div>
             </Col>
           </Row>
         ) : (

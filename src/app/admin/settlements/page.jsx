@@ -3,10 +3,14 @@
 import {
   AccountBookOutlined,
   BankOutlined,
+  CarOutlined,
   CheckCircleOutlined,
   ClockCircleOutlined,
+  EyeOutlined,
   MoreOutlined,
   ReloadOutlined,
+  ShopOutlined,
+  UserOutlined,
   WalletOutlined,
   DownloadOutlined,
   UploadOutlined,
@@ -27,14 +31,17 @@ import {
   Input,
   InputNumber,
   Modal,
+  Popconfirm,
   Radio,
   Row,
+  Segmented,
   Select,
   Skeleton,
   Space,
   Table,
   Tabs,
   Tag,
+  Tooltip,
   Typography,
   message,
 } from "antd";
@@ -120,17 +127,54 @@ export default function SettlementsPage() {
   const [loadingList, setLoadingList] = useState(false);
 
   // cash to deposit
+  const [cashViewMode, setCashViewMode] = useState("runs"); // "runs" | "parcels"
   const [pendingDeposit, setPendingDeposit] = useState([]);
+  const [pendingRuns, setPendingRuns] = useState([]);
+  const [depositingRunId, setDepositingRunId] = useState(null);
+  const [runParcelsModal, setRunParcelsModal] = useState(null);
   const [counts, setCounts] = useState(null);
   const [hint, setHint] = useState("");
   const [selectedIds, setSelectedIds] = useState([]);
   const [loadingCash, setLoadingCash] = useState(false);
   const [depositing, setDepositing] = useState(false);
+  const [actionLoadingId, setActionLoadingId] = useState(null);
 
   const [detail, setDetail] = useState(null);
   const [payTarget, setPayTarget] = useState(null);
   const [hamro, setHamro] = useState(null);
   const [generateOpen, setGenerateOpen] = useState(false);
+
+  // Restore active tab and cash view mode from URL on mount
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    const urlTab = params.get("tab");
+    if (urlTab && ["payouts", "cash"].includes(urlTab)) {
+      setTab(urlTab);
+    }
+    const urlView = params.get("view");
+    if (urlView && ["runs", "parcels"].includes(urlView)) {
+      setCashViewMode(urlView);
+    }
+  }, []);
+
+  const handleTabChange = (newTab) => {
+    setTab(newTab);
+    if (typeof window !== "undefined") {
+      const url = new URL(window.location.href);
+      url.searchParams.set("tab", newTab);
+      window.history.replaceState(null, "", url.toString());
+    }
+  };
+
+  const handleCashViewModeChange = (newMode) => {
+    setCashViewMode(newMode);
+    if (typeof window !== "undefined") {
+      const url = new URL(window.location.href);
+      url.searchParams.set("view", newMode);
+      window.history.replaceState(null, "", url.toString());
+    }
+  };
 
   useEffect(() => {
     Promise.all([
@@ -178,6 +222,7 @@ export default function SettlementsPage() {
       const r = await api.get("/admin/settlements/pending-cash", { params: { ...scope, per_page: 100 } });
       const d = unwrap(r);
       setPendingDeposit(Array.isArray(d?.pending_deposit) ? d.pending_deposit : []);
+      setPendingRuns(Array.isArray(d?.pending_runs) ? d.pending_runs : []);
       setCounts(d?.counts || null);
       setHint(d?.hint || "");
       setSelectedIds([]);
@@ -230,6 +275,26 @@ export default function SettlementsPage() {
       message.error(apiError(e, "Deposit failed"));
     } finally {
       setDepositing(false);
+    }
+  }
+
+  async function depositRun(run) {
+    if (!run?.pod_record_ids?.length) {
+      message.warning("No depositable cash records in this run.");
+      return;
+    }
+    setDepositingRunId(run.key);
+    try {
+      await api.post("/admin/pod/deposit", {
+        pod_record_ids: run.pod_record_ids,
+        remarks: `Cash handover for ${run.run_number}${run.rider_name ? ` (${run.rider_name})` : ""}`,
+      });
+      message.success(`Deposited ${formatRs(run.total_collected_amount)} for ${run.run_number}. Shipments are now ready to settle with stores.`);
+      refreshAll();
+    } catch (e) {
+      message.error(apiError(e, "Run deposit failed"));
+    } finally {
+      setDepositingRunId(null);
     }
   }
 
@@ -365,6 +430,176 @@ export default function SettlementsPage() {
           </Dropdown>
         </Space>
       ),
+    },
+  ];
+
+  const runColumns = [
+    {
+      title: "Delivery Run",
+      key: "run",
+      render: (_, r) => (
+        <Space direction="vertical" size={2}>
+          {r.delivery_run_id ? (
+            <Link href={`/admin/delivery-runs?search=${r.run_number}`} style={{ fontWeight: 600, color: "#0891b2" }}>
+              {r.run_number}
+            </Link>
+          ) : (
+            <Tag color="purple" style={{ fontWeight: 600 }}>{r.run_number}</Tag>
+          )}
+          {r.run_status ? (
+            <Tag color={r.run_status === "completed" || r.run_status === "closed" ? "green" : "blue"} style={{ fontSize: 11, margin: 0 }}>
+              {r.run_status.toUpperCase()}
+            </Tag>
+          ) : null}
+        </Space>
+      ),
+    },
+    {
+      title: "Rider",
+      key: "rider",
+      render: (_, r) => (
+        <Space direction="vertical" size={0}>
+          <Space size={4}>
+            <UserOutlined style={{ color: "#64748b" }} />
+            <Text strong>{r.rider_name || "-"}</Text>
+          </Space>
+          {r.rider_phone ? (
+            <Text type="secondary" style={{ fontSize: 12 }}>
+              {r.rider_phone}
+            </Text>
+          ) : null}
+          {r.rider_id ? (
+            <Text type="secondary" style={{ fontSize: 11 }}>
+              ID: #{r.rider_id}
+            </Text>
+          ) : null}
+        </Space>
+      ),
+    },
+    {
+      title: "Parcels",
+      key: "parcels",
+      align: "center",
+      width: 170,
+      render: (_, r) => (
+        <Space direction="vertical" size={2} align="center">
+          <Space size={4} wrap style={{ justifyContent: "center" }}>
+            {typeof r.delivered_count === "number" && r.delivered_count > 0 ? (
+              <Tag color="green" style={{ margin: 0, fontSize: 11, fontWeight: 600 }}>
+                {r.delivered_count} delivered
+              </Tag>
+            ) : null}
+            {typeof r.failed_count === "number" && r.failed_count > 0 ? (
+              <Tag color="red" style={{ margin: 0, fontSize: 11, fontWeight: 600 }}>
+                {r.failed_count} failed
+              </Tag>
+            ) : null}
+            {typeof r.returned_count === "number" && r.returned_count > 0 ? (
+              <Tag color="orange" style={{ margin: 0, fontSize: 11, fontWeight: 600 }}>
+                {r.returned_count} returned
+              </Tag>
+            ) : null}
+            {!r.delivered_count && !r.failed_count ? (
+              <Badge count={`${r.parcel_count} parcels`} overflowCount={999} style={{ backgroundColor: "#0284c7" }} />
+            ) : null}
+          </Space>
+          <Button type="link" size="small" style={{ fontSize: 12, padding: 0 }} onClick={() => setRunParcelsModal(r)}>
+            View parcel list
+          </Button>
+        </Space>
+      ),
+    },
+    {
+      title: "COD Cash Collected",
+      dataIndex: "total_collected_amount",
+      align: "right",
+      render: (v) => (
+        <Text strong style={{ fontSize: 15, color: "#d97706" }}>
+          {formatRs(v)}
+        </Text>
+      ),
+    },
+    {
+      title: "Action",
+      key: "action",
+      align: "right",
+      width: 240,
+      render: (_, r) => (
+        <Space size={6}>
+          {can("pod.deposit") && r.pod_record_ids?.length ? (
+            <Popconfirm
+              title={`Deposit ${formatRs(r.total_collected_amount)}?`}
+              description={`Confirm cash handover from ${r.rider_name || "rider"} for ${r.run_number}. This deposits cash for delivered parcels and marks them ready to pay stores.`}
+              onConfirm={() => depositRun(r)}
+              okText="Deposit Cash"
+              cancelText="Cancel"
+              disabled={depositingRunId === r.key}
+            >
+              <Button
+                type="primary"
+                size="small"
+                loading={depositingRunId === r.key}
+                style={{ backgroundColor: "#16a34a", borderColor: "#16a34a" }}
+              >
+                Deposit Run Cash
+              </Button>
+            </Popconfirm>
+          ) : r.failed_count > 0 && !r.pod_record_ids?.length ? (
+            <Button
+              size="small"
+              danger
+              onClick={() => setRunParcelsModal(r)}
+              style={{ fontWeight: 600 }}
+            >
+              Reconcile Returns ({r.failed_count})
+            </Button>
+          ) : null}
+          <Button size="small" icon={<EyeOutlined />} onClick={() => setRunParcelsModal(r)}>
+            Parcels
+          </Button>
+        </Space>
+      ),
+    },
+  ];
+
+  const parcelColumns = [
+    {
+      title: "Tracking",
+      render: (_, r) => (
+        <Space direction="vertical" size={0}>
+          <Text strong copyable={{ text: r.tracking_number || r.shipment_id }}>
+            {r.tracking_number || r.shipment_id}
+          </Text>
+          {r.delivery_run_number ? (
+            <Link href={`/admin/delivery-runs?search=${r.delivery_run_number}`} style={{ fontSize: 11, color: "#0891b2" }}>
+              Run: {r.delivery_run_number}
+            </Link>
+          ) : (
+            <Text type="secondary" style={{ fontSize: 11 }}>Direct delivery</Text>
+          )}
+        </Space>
+      ),
+    },
+    { title: "Store", render: (_, r) => formatMerchantLabel(r) },
+    { title: "Marketplace", render: (_, r) => marketplaceLabel(r) },
+    {
+      title: "Rider",
+      render: (_, r) => (
+        <Space direction="vertical" size={0}>
+          <span>{r.collector_name || (r.collected_by ? `Rider #${r.collected_by}` : "-")}</span>
+          {r.collector_phone ? (
+            <Text type="secondary" style={{ fontSize: 11 }}>
+              {r.collector_phone}
+            </Text>
+          ) : null}
+        </Space>
+      ),
+    },
+    { title: "POD cash", dataIndex: "collected_amount", align: "right", render: (v) => <Text strong>{formatRs(v)}</Text> },
+    {
+      title: "Status",
+      dataIndex: "status",
+      render: (v, r) => <Tag color={r.can_deposit ? "orange" : "red"}>{String(v || "-").replace(/_/g, " ")}</Tag>,
     },
   ];
 
@@ -504,7 +739,7 @@ export default function SettlementsPage() {
       <Card size="small" styles={{ body: { paddingTop: 0 } }}>
         <Tabs
           activeKey={tab}
-          onChange={setTab}
+          onChange={handleTabChange}
           items={[
             {
               key: "payouts",
@@ -569,57 +804,88 @@ export default function SettlementsPage() {
               key: "cash",
               label: (
                 <Badge count={pendingDeposit.length} size="small" offset={[8, -2]} color="#fa8c16">
-                  Cash to deposit
+                  Cash to deposit ({pendingRuns.length} runs)
                 </Badge>
               ),
               children: (
                 <>
-                  {selectedIds.length ? (
-                    <Alert
-                      type="warning"
-                      showIcon
-                      style={{ marginBottom: 8 }}
-                      message={`${selectedIds.length} selected · ${formatRs(selectedAmount)}`}
-                      action={
-                        <Button size="small" type="primary" loading={depositing} onClick={depositSelected}>
-                          Deposit selected
-                        </Button>
-                      }
+                  <Alert
+                    type="info"
+                    showIcon
+                    style={{ marginBottom: 12 }}
+                    message="Cash Reconciliation & Settlement Workflow"
+                    description={
+                      <div style={{ fontSize: 12 }}>
+                        <div><strong>1. Rider Cash Handover:</strong> Reconcile and deposit cash per <strong>Delivery Run</strong> below. One click deposits all cash from that rider trip.</div>
+                        <div><strong>2. Store Payouts:</strong> Once cash is deposited, go to <strong>Payouts to stores</strong> tab to transfer POD money to each merchant/store.</div>
+                        <div><strong>3. Delivery Charges:</strong> Shipping fees are billed separately per store on <Link href="/admin/invoices">Invoices</Link>.</div>
+                      </div>
+                    }
+                  />
+
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12, flexWrap: "wrap", gap: 8 }}>
+                    <Segmented
+                      value={cashViewMode}
+                      onChange={handleCashViewModeChange}
+                      options={[
+                        { label: `By Delivery Run (${pendingRuns.length})`, value: "runs", icon: <CarOutlined /> },
+                        { label: `All Parcels (${pendingDeposit.length})`, value: "parcels", icon: <ShopOutlined /> },
+                      ]}
+                    />
+
+                    {cashViewMode === "parcels" && selectedIds.length ? (
+                      <Alert
+                        type="warning"
+                        showIcon
+                        style={{ margin: 0, padding: "4px 12px" }}
+                        message={`${selectedIds.length} selected · ${formatRs(selectedAmount)}`}
+                        action={
+                          <Button size="small" type="primary" loading={depositing} onClick={depositSelected}>
+                            Deposit selected
+                          </Button>
+                        }
+                      />
+                    ) : null}
+                  </div>
+
+                  {cashViewMode === "runs" ? (
+                    <Table
+                      size="small"
+                      rowKey="key"
+                      loading={loadingCash}
+                      dataSource={pendingRuns}
+                      pagination={{ pageSize: 15, size: "small" }}
+                      locale={{
+                        emptyText: (
+                          <EmptyState
+                            title="No delivery runs awaiting deposit"
+                            hint="All collected POD cash from completed delivery runs has been deposited."
+                          />
+                        ),
+                      }}
+                      columns={runColumns}
                     />
                   ) : (
-                    <Paragraph type="secondary" style={{ marginBottom: 8 }}>
-                      Tick the POD cash your branch has received from riders and deposit it. Deposited cash becomes ready to settle with the store.
-                    </Paragraph>
+                    <Table
+                      size="small"
+                      rowKey={(r) => r.pod_record_id || r.id}
+                      loading={loadingCash}
+                      dataSource={pendingDeposit}
+                      rowSelection={
+                        can("pod.deposit")
+                          ? {
+                              selectedRowKeys: selectedIds,
+                              onChange: setSelectedIds,
+                              getCheckboxProps: (r) => ({ disabled: !r.can_deposit || !r.pod_record_id }),
+                            }
+                          : undefined
+                      }
+                      pagination={{ pageSize: 20, size: "small" }}
+                      locale={{ emptyText: <EmptyState title="No cash waiting" hint="All collected POD cash has been deposited." /> }}
+                      columns={parcelColumns}
+                    />
                   )}
-                  <Table
-                    size="small"
-                    rowKey={(r) => r.pod_record_id || r.id}
-                    loading={loadingCash}
-                    dataSource={pendingDeposit}
-                    rowSelection={
-                      can("pod.deposit")
-                        ? {
-                            selectedRowKeys: selectedIds,
-                            onChange: setSelectedIds,
-                            getCheckboxProps: (r) => ({ disabled: !r.can_deposit || !r.pod_record_id }),
-                          }
-                        : undefined
-                    }
-                    pagination={{ pageSize: 20, size: "small" }}
-                    locale={{ emptyText: <EmptyState title="No cash waiting" hint="All collected POD cash has been deposited." /> }}
-                    columns={[
-                      { title: "Tracking", render: (_, r) => r.tracking_number || r.shipment_id },
-                      { title: "Store", render: (_, r) => formatMerchantLabel(r) },
-                      { title: "Marketplace", render: (_, r) => marketplaceLabel(r) },
-                      { title: "Rider", dataIndex: "collected_by", render: (v) => v || "-" },
-                      { title: "POD cash", dataIndex: "collected_amount", align: "right", render: (v) => formatRs(v) },
-                      {
-                        title: "Status",
-                        dataIndex: "status",
-                        render: (v, r) => <Tag color={r.can_deposit ? "orange" : "red"}>{String(v || "-").replace(/_/g, " ")}</Tag>,
-                      },
-                    ]}
-                  />
+
                   {hint ? (
                     <Text type="secondary" style={{ display: "block", marginTop: 8 }}>
                       {hint}
@@ -691,6 +957,174 @@ export default function SettlementsPage() {
           refreshAll();
         }}
       />
+
+      <Modal
+        open={Boolean(runParcelsModal)}
+        title={`Parcels & Returns: ${runParcelsModal?.run_number || "Delivery Run"}`}
+        width={850}
+        onCancel={() => setRunParcelsModal(null)}
+        footer={
+          <Space>
+            <Button onClick={() => setRunParcelsModal(null)}>Close</Button>
+            {can("pod.deposit") && runParcelsModal?.pod_record_ids?.length ? (
+              <Button
+                type="primary"
+                style={{ backgroundColor: "#16a34a", borderColor: "#16a34a" }}
+                loading={depositingRunId === runParcelsModal.key}
+                onClick={() => {
+                  depositRun(runParcelsModal);
+                  setRunParcelsModal(null);
+                }}
+              >
+                Deposit Run Cash ({formatRs(runParcelsModal.total_collected_amount)})
+              </Button>
+            ) : null}
+          </Space>
+        }
+      >
+        {runParcelsModal ? (
+          <>
+            <Descriptions size="small" bordered column={{ xs: 1, sm: 3 }} style={{ marginBottom: 16 }}>
+              <Descriptions.Item label="Delivery Run">{runParcelsModal.run_number}</Descriptions.Item>
+              <Descriptions.Item label="Rider">
+                <Text strong>{runParcelsModal.rider_name}</Text>
+                {runParcelsModal.rider_phone ? ` (${runParcelsModal.rider_phone})` : ""}
+              </Descriptions.Item>
+              <Descriptions.Item label="Status">
+                <Tag color={runParcelsModal.run_status === "completed" ? "green" : "blue"}>
+                  {String(runParcelsModal.run_status || "ACTIVE").toUpperCase()}
+                </Tag>
+              </Descriptions.Item>
+              <Descriptions.Item label="Delivered Parcels">
+                <Text strong style={{ color: "#16a34a" }}>
+                  {runParcelsModal.delivered_count ?? runParcelsModal.parcel_count} shipments
+                </Text>
+              </Descriptions.Item>
+              <Descriptions.Item label="Failed / Returned">
+                <Text strong style={{ color: (runParcelsModal.failed_count || 0) > 0 ? "#dc2626" : "inherit" }}>
+                  {(runParcelsModal.failed_count || 0) + (runParcelsModal.returned_count || 0)} shipments
+                </Text>
+              </Descriptions.Item>
+              <Descriptions.Item label="Total COD Collected">
+                <Text strong style={{ fontSize: 16, color: "#d97706" }}>
+                  {formatRs(runParcelsModal.total_collected_amount)}
+                </Text>
+              </Descriptions.Item>
+            </Descriptions>
+            <Table
+              size="small"
+              pagination={{ pageSize: 10, size: "small" }}
+              dataSource={runParcelsModal.shipments || []}
+              rowKey="id"
+              columns={[
+                {
+                  title: "Tracking",
+                  render: (_, r) => (
+                    <Space direction="vertical" size={0}>
+                      <Text strong copyable={{ text: r.tracking_number || r.shipment_id }}>
+                        {r.tracking_number || r.shipment_id}
+                      </Text>
+                      <Text type="secondary" style={{ fontSize: 11 }}>
+                        ID #{r.shipment_id}
+                      </Text>
+                    </Space>
+                  ),
+                },
+                { title: "Store", dataIndex: "merchant_name" },
+                {
+                  title: "POD Cash",
+                  dataIndex: "collected_amount",
+                  align: "right",
+                  render: (v, r) =>
+                    r.is_failed || r.status === "failed" ? (
+                      <Text type="secondary">Rs 0 (Failed)</Text>
+                    ) : (
+                      <Text strong>{formatRs(v)}</Text>
+                    ),
+                },
+                {
+                  title: "Outcome / Status",
+                  dataIndex: "status",
+                  render: (v, r) => (
+                    <Space direction="vertical" size={2}>
+                      <Tag
+                        color={
+                          r.is_failed || r.status === "failed"
+                            ? "red"
+                            : r.is_delivered || r.status === "delivered" || r.can_deposit
+                            ? "green"
+                            : "blue"
+                        }
+                      >
+                        {String(v || "-").toUpperCase()}
+                      </Tag>
+                      {r.failure_reason ? (
+                        <div style={{ fontSize: 11, color: "#dc2626", maxWidth: 180 }}>
+                          {r.failure_reason}
+                        </div>
+                      ) : null}
+                    </Space>
+                  ),
+                },
+                {
+                  title: "Action",
+                  key: "action",
+                  align: "right",
+                  render: (_, r) => {
+                    const isFailed = r.is_failed || r.status === "failed" || r.status === "cancelled";
+                    if (!isFailed) return <Text type="secondary" style={{ fontSize: 12 }}>Delivered</Text>;
+                    return (
+                      <Space size={4}>
+                        <Button
+                          size="small"
+                          type="link"
+                          loading={actionLoadingId === r.shipment_id + "-retry"}
+                          onClick={async () => {
+                            setActionLoadingId(r.shipment_id + "-retry");
+                            try {
+                              await api.post(`/admin/deliveries/${r.shipment_id}/retry`);
+                              message.success(`Reattempt scheduled for #${r.shipment_id}!`);
+                              refreshAll();
+                              setRunParcelsModal(null);
+                            } catch (e) {
+                              message.error(apiError(e, "Reattempt failed"));
+                            } finally {
+                              setActionLoadingId(null);
+                            }
+                          }}
+                        >
+                          Reattempt
+                        </Button>
+                        <Button
+                          size="small"
+                          type="link"
+                          danger
+                          loading={actionLoadingId === r.shipment_id + "-return"}
+                          onClick={async () => {
+                            setActionLoadingId(r.shipment_id + "-return");
+                            try {
+                              await api.post(`/admin/deliveries/${r.shipment_id}/return-to-store`);
+                              message.success(`Return to store initiated for #${r.shipment_id}!`);
+                              refreshAll();
+                              setRunParcelsModal(null);
+                            } catch (e) {
+                              message.error(apiError(e, "Return failed"));
+                            } finally {
+                              setActionLoadingId(null);
+                            }
+                          }}
+                        >
+                          RTO
+                        </Button>
+                      </Space>
+                    );
+                  },
+                },
+              ]}
+            />
+          </>
+        ) : null}
+      </Modal>
 
       <DataImportModal
         open={importOpen}

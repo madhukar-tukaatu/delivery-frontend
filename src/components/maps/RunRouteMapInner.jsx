@@ -20,6 +20,7 @@ import {
 } from "@ant-design/icons";
 import { MapContainer, Marker, Polyline, Popup, TileLayer, Tooltip as LeafletTooltip, useMap } from "react-leaflet";
 import L from "leaflet";
+import "leaflet/dist/leaflet.css";
 import { getEcho } from "@/lib/echo";
 import { getDeliveryRun, sequenceRun } from "@/services/admin/deliveryRunService";
 import { sequencePickupRun } from "@/services/admin/pickupRunService";
@@ -396,6 +397,7 @@ export default function RunRouteMapInner({
   onStopAction = null,
   onOpenPickup = null,
   onOpenDelivery = null,
+  onManageRun = null,
   // (stop, context: "list" | "popup") => ReactNode — status-aware workflow
   // buttons supplied by the rider panels (Accept / Start / Arrive / Collect ...).
   renderStopActions = null,
@@ -731,7 +733,11 @@ export default function RunRouteMapInner({
     return `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(stop.address + ", " + stop.area)}`;
   };
 
-  const effectiveHeight = isFullscreen ? "calc(100vh - 56px)" : height;
+  const effectiveHeight = isFullscreen
+    ? "calc(100vh - 56px)"
+    : height && height !== "100%"
+    ? height
+    : "calc(100vh - 265px)";
 
   return (
     <div
@@ -750,7 +756,13 @@ export default function RunRouteMapInner({
               height: "100vh",
               width: "100vw",
             }
-          : undefined
+          : {
+              height: "100%",
+              minHeight: "560px",
+              display: "flex",
+              flexDirection: "column",
+              width: "100%",
+            }
       }
     >
       {/* Route Header Stats */}
@@ -760,17 +772,32 @@ export default function RunRouteMapInner({
           justifyContent: "space-between",
           alignItems: "center",
           flexWrap: "wrap",
-          padding: "10px 14px",
+          padding: "8px 12px",
           background: "#f8fafc",
           border: "1px solid #e2e8f0",
           borderRadius: isFullscreen ? 0 : "8px 8px 0 0",
           gap: 8,
+          flexShrink: 0,
         }}
       >
-        <Space wrap>
-          <Tag color="cyan" style={{ fontSize: 13, padding: "3px 8px" }}>
+        <Space wrap size={6}>
+          <Tag color="cyan" style={{ fontSize: 13, padding: "2px 8px", margin: 0 }}>
             <CarOutlined /> {run?.run_number}
           </Tag>
+          {run?.status && (
+            <Tag
+              color={
+                ["delivered", "picked_up", "completed"].includes(run.status)
+                  ? "green"
+                  : ["out_for_delivery", "in_progress"].includes(run.status)
+                  ? "blue"
+                  : "default"
+              }
+              style={{ margin: 0, textTransform: "capitalize", fontWeight: 600 }}
+            >
+              {run.status.replace(/_/g, " ")}
+            </Tag>
+          )}
           {effectiveRiderPos && (isRunOut || riderFreshness.isRecent) ? (
             <Space size={6}>
               <Tag
@@ -807,7 +834,7 @@ export default function RunRouteMapInner({
             </Space>
           ) : run?.rider?.name ? (
             <Space size={6}>
-              <Tag color="geekblue">
+              <Tag color="geekblue" style={{ margin: 0 }}>
                 <UserOutlined /> Rider: {run.rider.name}
               </Tag>
               {isRunOut && (
@@ -817,23 +844,23 @@ export default function RunRouteMapInner({
               )}
             </Space>
           ) : null}
-          <Text strong>{stops.length} Stops</Text>
+          <Text strong style={{ fontSize: 12 }}>{stops.length} Stops</Text>
           {stops.some((s) => !s.point) ? (
-            <Tag color="orange" style={{ margin: 0 }}>
-              <ExclamationCircleOutlined /> {stops.filter((s) => !s.point).length} without location (not on map)
+            <Tag color="orange" style={{ margin: 0, fontSize: 11 }}>
+              <ExclamationCircleOutlined /> {stops.filter((s) => !s.point).length} without location
             </Tag>
           ) : null}
         </Space>
 
-        <Space wrap>
+        <Space wrap size={6}>
           {routeData ? (
-            <Text type="secondary" style={{ fontSize: 13 }}>
-              🛣️ {routeData.isRoad ? "Road distance: " : "Straight line: "}
+            <Text type="secondary" style={{ fontSize: 12 }}>
+              🛣️ {routeData.isRoad ? "Road: " : "Direct: "}
               <Text strong>{routeData.distanceKm ? `${routeData.distanceKm} km` : `${stops.length} stops`}</Text>
-              {routeData.durationMin ? ` · ~${routeData.durationMin} mins drive` : ""}
+              {routeData.durationMin ? ` · ~${routeData.durationMin} mins` : ""}
             </Text>
           ) : loadingRoute ? (
-            <Text type="secondary">Calculating route path...</Text>
+            <Text type="secondary" style={{ fontSize: 12 }}>Calculating route...</Text>
           ) : null}
           {stops.length > 1 && (
             <Button
@@ -844,7 +871,7 @@ export default function RunRouteMapInner({
               style={{ borderColor: "#0284c7", color: "#0284c7", fontWeight: 600 }}
               title="Automatically reorder stops along the shortest road route"
             >
-              ⚡ Optimize Stops
+              Optimize
             </Button>
           )}
           <Button
@@ -853,21 +880,63 @@ export default function RunRouteMapInner({
             onClick={() => setIsFullscreen((v) => !v)}
             style={isFullscreen ? { background: "#0284c7", color: "#fff", borderColor: "#0284c7" } : undefined}
           >
-            {isFullscreen ? "Exit Fullscreen" : "Fullscreen Map"}
+            {isFullscreen ? "Exit Fullscreen" : "Fullscreen"}
           </Button>
+          {onManageRun && (
+            <Button
+              size="small"
+              type="primary"
+              style={{ background: "#0891b2", borderColor: "#0891b2" }}
+              onClick={onManageRun}
+            >
+              Manage Stops &amp; {mode === "pickup" ? "Pickups" : "Parcels"}
+            </Button>
+          )}
         </Space>
       </div>
 
-      <Row gutter={0} style={{ border: "1px solid #e2e8f0", borderTop: "none", borderRadius: isFullscreen ? 0 : "0 0 8px 8px", flex: isFullscreen ? 1 : undefined }}>
+      <Row
+        gutter={0}
+        style={{
+          border: "1px solid #e2e8f0",
+          borderTop: "none",
+          borderRadius: isFullscreen ? 0 : "0 0 8px 8px",
+          height: effectiveHeight,
+          minHeight: "520px",
+          display: "flex",
+          flexWrap: "nowrap",
+          overflow: "hidden",
+        }}
+      >
         {/* Left Side: Sequenced Stops List */}
-        <Col xs={24} md={8} style={{ borderRight: "1px solid #e2e8f0", background: "#ffffff" }}>
-          <div style={{ height: effectiveHeight, overflowY: "auto", padding: 12 }}>
-            <div style={{ marginBottom: 12, padding: "8px 10px", background: "#f1f5f9", borderRadius: 6 }}>
-              <Space>
-                <HomeOutlined style={{ color: "#1e1b4b", fontSize: 16 }} />
+        <Col
+          xs={24}
+          md={9}
+          lg={8}
+          xl={7}
+          style={{
+            borderRight: "1px solid #e2e8f0",
+            background: "#f8fafc",
+            height: "100%",
+            display: "flex",
+            flexDirection: "column",
+            overflow: "hidden",
+          }}
+        >
+          <div
+            style={{
+              height: "100%",
+              overflowY: "auto",
+              padding: 10,
+              flex: 1,
+            }}
+          >
+            <div style={{ marginBottom: 10, padding: "8px 10px", background: "#ffffff", borderRadius: 8, border: "1px solid #e2e8f0", boxShadow: "0 1px 2px rgba(0,0,0,0.03)" }}>
+              <Space align="start">
+                <HomeOutlined style={{ color: "#0891b2", fontSize: 16, marginTop: 2 }} />
                 <div>
-                  <Text strong style={{ fontSize: 13 }}>Start: {branchCoords.name}</Text>
-                  <div style={{ fontSize: 11, color: "#64748b" }}>
+                  <Text strong style={{ fontSize: 12, color: "#0f172a" }}>Start: {branchCoords.name}</Text>
+                  <div style={{ fontSize: 11, color: "#64748b", marginTop: 1 }}>
                     {branchCoords.address}
                     {branchCoords.approx ? " (branch has no map pin – approximate start)" : ""}
                   </div>
@@ -1081,12 +1150,25 @@ export default function RunRouteMapInner({
         </Col>
 
         {/* Right Side: Leaflet Interactive Route Map */}
-        <Col xs={24} md={16}>
-          <div style={{ height: effectiveHeight, width: "100%", position: "relative" }}>
+        <Col
+          xs={24}
+          md={15}
+          lg={16}
+          xl={17}
+          style={{
+            height: "100%",
+            minHeight: "520px",
+            display: "flex",
+            flexDirection: "column",
+            overflow: "hidden",
+            position: "relative",
+          }}
+        >
+          <div style={{ height: "100%", width: "100%", position: "relative", flex: 1, minHeight: "520px" }}>
             <MapContainer
               center={[branchCoords.lat, branchCoords.lng]}
               zoom={13}
-              style={{ height: "100%", width: "100%" }}
+              style={{ height: "100%", width: "100%", minHeight: "520px" }}
               scrollWheelZoom
             >
               <TileLayer

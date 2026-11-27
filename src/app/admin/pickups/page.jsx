@@ -636,11 +636,14 @@ export default function AdminPickupsPage() {
     [activeTab, debouncedSearch, dateFrom, dateTo, merchantFilter],
   );
 
-  // Deep link ?status=assigned; default Requested. Lists wait for this so the
-  // first request is already the right status.
+  // Deep link ?status=assigned and ?view=runs; default Requested. Lists wait for this so the
+  // first request is already the right status and tab.
   useEffect(() => {
-    const fromUrl = new URLSearchParams(window.location.search).get("status");
+    const params = new URLSearchParams(window.location.search);
+    const fromUrl = params.get("status");
     if (fromUrl && TABS.some((t) => t.key === fromUrl)) setActiveTab(fromUrl);
+    const fromView = params.get("view");
+    if (fromView && ["runs", "map", "list"].includes(fromView)) setViewMode(fromView);
     setUrlReady(true);
   }, []);
 
@@ -649,8 +652,11 @@ export default function AdminPickupsPage() {
     const url = new URL(window.location.href);
     if (activeTab === DEFAULT_TAB) url.searchParams.delete("status");
     else url.searchParams.set("status", activeTab);
+    if (viewMode === "runs") url.searchParams.set("view", "runs");
+    else if (viewMode === "list") url.searchParams.set("view", "list");
+    else url.searchParams.delete("view");
     window.history.replaceState(null, "", url.toString());
-  }, [urlReady, activeTab]);
+  }, [urlReady, activeTab, viewMode]);
 
   useEffect(() => {
     if (!urlReady) return;

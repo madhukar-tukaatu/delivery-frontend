@@ -39,6 +39,7 @@ import {
   UserSwitchOutlined,
 } from "@ant-design/icons";
 import { useShipmentDrawer } from "@/components/admin/shipments/ShipmentDrawerProvider";
+import { refreshMenuBadges } from "@/hooks/useMenuBadges";
 import RunRouteMap from "@/components/maps/RunRouteMap";
 import {
   addRunItems,
@@ -207,6 +208,9 @@ export default function DeliveryRunDetail({ runId, branchId = null, canManage = 
       if (fresh?.id) setRun(fresh);
       if (msg) message.success(msg);
       onChanged?.(fresh);
+      try {
+        refreshMenuBadges();
+      } catch {}
     },
     [onChanged]
   );
@@ -270,7 +274,22 @@ export default function DeliveryRunDetail({ runId, branchId = null, canManage = 
   const openCloseModal = () => {
     const choices = {};
     openItems.forEach((i) => {
-      choices[i.item_id] = { action: "reattempt", reason: "" };
+      const reasonLower = (i.reason || "").toLowerCase();
+      const attempts = Number(i.attempts || i.attempt_no || (i.shipment?.failed_attempts || 0) + 1);
+      const retries = typeof i.retries_left === "number" ? i.retries_left : Math.max(0, 3 - attempts);
+
+      let defaultAct = "reattempt";
+      if (retries <= 0) {
+        defaultAct = "return";
+      } else if (reasonLower.includes("refus") || reasonLower.includes("reject") || reasonLower.includes("wrong item")) {
+        defaultAct = "return";
+      } else if (reasonLower.includes("cancel")) {
+        defaultAct = "cancel";
+      } else {
+        defaultAct = "reattempt";
+      }
+
+      choices[i.item_id] = { action: defaultAct, reason: i.reason || "" };
     });
     setCloseForm({ cash_received: Number(run?.cod_collected || 0), deposit_cash: true, notes: "", items: choices });
     setCloseModal(true);
@@ -844,46 +863,67 @@ export default function DeliveryRunDetail({ runId, branchId = null, canManage = 
           {openItems.length ? (
             <Card size="small" title={`Not delivered (${openItems.length})`}>
               <Text type="secondary" style={{ fontSize: 12 }}>
-                Parcels still on the road are marked failed and come back to the branch. Choose what happens next.
+                Parcels still on the road are marked failed and return to branch custody. Select the branch disposition based on rider remarks.
               </Text>
               {openItems.map((i) => {
                 const choice = closeForm.items[i.item_id] || { action: "reattempt", reason: "" };
+                const attempts = Number(i.attempts || i.attempt_no || (i.shipment?.failed_attempts || 0) + 1);
+                const retries = typeof i.retries_left === "number" ? i.retries_left : Math.max(0, 3 - attempts);
+
                 return (
-                  <Row key={i.item_id} gutter={8} align="middle" style={{ marginTop: 8 }}>
-                    <Col xs={24} md={8}>
-                      <Text strong style={{ fontFamily: "monospace" }}>
-                        {i.tracking_number}
-                      </Text>
-                      <div style={{ fontSize: 11 }}>
-                        <ItemStatusTags item={i} />
+                  <div key={i.item_id} style={{ marginTop: 12, paddingBottom: 10, borderBottom: "1px solid #f1f5f9" }}>
+                    <Row gutter={8} align="middle">
+                      <Col xs={24} md={8}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                          <Text strong style={{ fontFamily: "monospace", fontSize: 13 }}>
+                            {i.tracking_number}
+                          </Text>
+                          <Tag color={retries === 0 ? "error" : retries === 1 ? "warning" : "processing"} style={{ fontSize: 11 }}>
+                            {attempts}/3 ({retries} left)
+                          </Tag>
+                        </div>
+                        <div style={{ fontSize: 11, marginTop: 2 }}>
+                          <ItemStatusTags item={i} />
+                        </div>
+                        {i.reason && (
+                          <div style={{ fontSize: 11, color: "#64748b", marginTop: 2, fontStyle: "italic" }}>
+                            Rider note: {i.reason}
+                          </div>
+                        )}
+                      </Col>
+                      <Col xs={12} md={6}>
+                        <Select
+                          style={{ width: "100%" }}
+                          value={choice.action}
+                          onChange={(v) =>
+                            setCloseForm((f) => ({ ...f, items: { ...f.items, [i.item_id]: { ...choice, action: v } } }))
+                          }
+                          options={[
+                            { value: "reattempt", label: "🔁 Re-deliver", disabled: retries === 0 },
+                            { value: "return", label: "↩️ Return to Store" },
+                            { value: "cancel", label: "🚫 Full Cancel" },
+                          ]}
+                        />
+                      </Col>
+                      <Col xs={12} md={10}>
+                        <Input
+                          placeholder={i.reason || "Reconciliation note (optional)"}
+                          value={choice.reason}
+                          onChange={(e) =>
+                            setCloseForm((f) => ({
+                              ...f,
+                              items: { ...f.items, [i.item_id]: { ...choice, reason: e.target.value } },
+                            }))
+                          }
+                        />
+                      </Col>
+                    </Row>
+                    {retries === 0 && choice.action === "reattempt" && (
+                      <div style={{ color: "#ef4444", fontSize: 11, marginTop: 4 }}>
+                        ⚠️ Maximum 3 delivery attempts exhausted. Return to store or cancel is required.
                       </div>
-                    </Col>
-                    <Col xs={12} md={6}>
-                      <Select
-                        style={{ width: "100%" }}
-                        value={choice.action}
-                        onChange={(v) =>
-                          setCloseForm((f) => ({ ...f, items: { ...f.items, [i.item_id]: { ...choice, action: v } } }))
-                        }
-                        options={[
-                          { value: "reattempt", label: "Re-deliver" },
-                          { value: "return", label: "Return to merchant" },
-                        ]}
-                      />
-                    </Col>
-                    <Col xs={12} md={10}>
-                      <Input
-                        placeholder={i.reason || "Reason (optional)"}
-                        value={choice.reason}
-                        onChange={(e) =>
-                          setCloseForm((f) => ({
-                            ...f,
-                            items: { ...f.items, [i.item_id]: { ...choice, reason: e.target.value } },
-                          }))
-                        }
-                      />
-                    </Col>
-                  </Row>
+                    )}
+                  </div>
                 );
               })}
             </Card>

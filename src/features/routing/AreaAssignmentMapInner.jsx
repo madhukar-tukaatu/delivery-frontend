@@ -155,6 +155,9 @@ export default function AreaAssignmentMapInner({
   selectedIds = [],
   onSelectedIdsChange,
   onOpen,
+  onRetry = null,
+  onReturn = null,
+  onCancelDelivery = null,
   riders = [],
   ridersLoading = false,
   onLoadRiders,
@@ -500,41 +503,71 @@ export default function AreaAssignmentMapInner({
                     <List
                       size="small"
                       dataSource={areaStops}
-                      renderItem={(stop) => (
-                        <List.Item
-                          style={{
-                            cursor: canAssign(stop) ? 'pointer' : 'not-allowed',
-                            opacity: canAssign(stop) ? 1 : 0.55,
-                            background: canAssign(stop) && selected.has(stop.id) ? '#fff7e6' : 'transparent',
-                          }}
-                          onClick={() => { if (canAssign(stop)) toggle(stop.id); }}
-                          actions={onOpen ? [<a key="open" onClick={(e) => { e.stopPropagation(); onOpen(stop.id); }}>Open</a>] : []}
-                        >
-                          <List.Item.Meta
-                            title={
-                              <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-                                <span style={{ fontSize: 13, fontWeight: 600 }}>{stop.title}</span>
-                                {stop.merchantName ? (
-                                  <Tag color="cyan" style={{ margin: 0, fontSize: 10, lineHeight: '18px', padding: '0 5px', fontWeight: 600 }}>
-                                    🏬 {stop.merchantName}
-                                  </Tag>
-                                ) : null}
-                              </div>
-                            }
-                            description={
-                              <span style={{ fontSize: 11 }}>
-                                {stop.statusLabel ? stop.statusLabel + " · " : ""}
-                                {stop.subtitle ? stop.subtitle + " · " : ""}
-                                {stop.address || "No address"}
-                                {vehicleKind(stop) === "bike" ? " · bike" : ""}
-                                {vehicleKind(stop) === "van" ? " · van" : ""}
-                                {stop.point?.guessed ? " · area pin" : ""}
-                                {!stop.point ? " · no map location" : ""}
-                              </span>
-                            }
-                          />
-                        </List.Item>
-                      )}
+                      renderItem={(stop) => {
+                        const isFailed = stop.status === 'failed';
+                        return (
+                          <List.Item
+                            style={{
+                              cursor: canAssign(stop) ? 'pointer' : isFailed ? 'default' : 'not-allowed',
+                              opacity: canAssign(stop) || isFailed ? 1 : 0.55,
+                              background: canAssign(stop) && selected.has(stop.id) ? '#fff7e6' : isFailed ? '#fef2f2' : 'transparent',
+                              borderLeft: isFailed ? '3px solid #ef4444' : 'none',
+                              paddingLeft: isFailed ? 8 : undefined,
+                              borderRadius: 4,
+                            }}
+                            onClick={() => { if (canAssign(stop)) toggle(stop.id); }}
+                            actions={[
+                              ...(isFailed && onRetry ? [
+                                <a key="retry" style={{ fontWeight: 600, color: '#0891b2' }} onClick={(e) => { e.stopPropagation(); onRetry(stop); }}>
+                                  Re-attempt
+                                </a>
+                              ] : []),
+                              ...(isFailed && onReturn ? [
+                                <a key="return" style={{ fontWeight: 600, color: '#dc2626' }} onClick={(e) => { e.stopPropagation(); onReturn(stop); }}>
+                                  Return
+                                </a>
+                              ] : []),
+                              ...(onOpen ? [
+                                <a key="open" onClick={(e) => { e.stopPropagation(); onOpen(stop.id); }}>Open</a>
+                              ] : []),
+                            ]}
+                          >
+                            <List.Item.Meta
+                              title={
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                                  <span style={{ fontSize: 13, fontWeight: 600 }}>{stop.title}</span>
+                                  {isFailed && (
+                                    <Tag color="red" style={{ margin: 0, fontSize: 10, lineHeight: '18px', padding: '0 5px', fontWeight: 700 }}>
+                                      FAILED
+                                    </Tag>
+                                  )}
+                                  {stop.merchantName ? (
+                                    <Tag color="cyan" style={{ margin: 0, fontSize: 10, lineHeight: '18px', padding: '0 5px', fontWeight: 600 }}>
+                                      🏬 {stop.merchantName}
+                                    </Tag>
+                                  ) : null}
+                                </div>
+                              }
+                              description={
+                                <span style={{ fontSize: 11 }}>
+                                  {isFailed && stop.failureReason ? (
+                                    <span style={{ color: '#dc2626', fontWeight: 600, display: 'block' }}>
+                                      Reason: {stop.failureReason}
+                                    </span>
+                                  ) : null}
+                                  {stop.statusLabel && !isFailed ? stop.statusLabel + " · " : ""}
+                                  {stop.subtitle ? stop.subtitle + " · " : ""}
+                                  {stop.address || "No address"}
+                                  {vehicleKind(stop) === "bike" ? " · bike" : ""}
+                                  {vehicleKind(stop) === "van" ? " · van" : ""}
+                                  {stop.point?.guessed ? " · area pin" : ""}
+                                  {!stop.point ? " · no map location" : ""}
+                                </span>
+                              }
+                            />
+                          </List.Item>
+                        );
+                      }}
                     />
                   </div>
                 ))
@@ -567,9 +600,47 @@ export default function AreaAssignmentMapInner({
                     {stop.subtitle && <div style={{ fontSize: 12, color: "#334" }}>👤 {stop.subtitle}</div>}
                     <div>📍 {stop.area}</div>
                     <div style={{ fontSize: 11, color: "#666" }}>{stop.address}</div>
-                    {!canAssign(stop) && (
+                    {stop.status === 'failed' ? (
+                      <div style={{ marginTop: 6, background: '#fef2f2', border: '1px solid #fecaca', padding: '6px 8px', borderRadius: 6 }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <Tag color="red" style={{ margin: 0, fontWeight: 700 }}>FAILED DELIVERY</Tag>
+                          {typeof stop.retriesLeft === 'number' && (
+                            <span style={{ fontSize: 11, color: '#991b1b', fontWeight: 600 }}>{stop.retriesLeft} retries left</span>
+                          )}
+                        </div>
+                        {stop.failureReason && (
+                          <div style={{ fontSize: 11, color: '#991b1b', marginTop: 3 }}>
+                            <strong>Reason:</strong> {stop.failureReason}
+                          </div>
+                        )}
+                        <div style={{ display: 'flex', gap: 6, marginTop: 8, flexWrap: 'wrap' }}>
+                          {onRetry && (
+                            <Button size="small" type="primary" onClick={() => onRetry(stop)}>
+                              Re-attempt
+                            </Button>
+                          )}
+                          {onReturn && (
+                            <Button size="small" danger onClick={() => onReturn(stop)}>
+                              Return to Store (RTO)
+                            </Button>
+                          )}
+                          {onCancelDelivery && (
+                            <Button size="small" onClick={() => onCancelDelivery(stop)}>
+                              Cancel
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+                    ) : !canAssign(stop) ? (
                       <div style={{ color: "#722ed1", fontWeight: 600, marginTop: 4 }}>
                         {stop.runNumber ? `On ${stop.runNumber}` : stop.statusLabel || "Already assigned"}
+                      </div>
+                    ) : null}
+                    {onOpen && (
+                      <div style={{ marginTop: 6, borderTop: '1px solid #f0f0f0', paddingTop: 4 }}>
+                        <a onClick={() => onOpen(stop.id)} style={{ fontSize: 12, fontWeight: 600 }}>
+                          Open shipment details &rarr;
+                        </a>
                       </div>
                     )}
                   </Popup>

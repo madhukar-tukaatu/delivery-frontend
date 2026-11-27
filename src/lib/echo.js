@@ -169,12 +169,16 @@ export function getEcho() {
         );
     }
 
-    console.info("[Reverb] Configuration", {
-        apiOrigin,
-        host,
-        port,
-        scheme,
-    });
+    const isDev = typeof window !== "undefined" && (process.env.NODE_ENV === "development" || window.__DEBUG_ECHO__);
+
+    if (isDev) {
+        console.info("[Reverb] Configuration", {
+            apiOrigin,
+            host,
+            port,
+            scheme,
+        });
+    }
 
     echoInstance = new Echo({
         broadcaster: "reverb",
@@ -207,17 +211,19 @@ export function getEcho() {
                     const authUrl =
                         `${apiOrigin}/api/broadcasting/auth`;
 
-                    console.info(
-                        "[Reverb] Authorizing channel",
-                        {
-                            url: authUrl,
-                            channel:
-                                channel.name,
-                            socketId,
-                            hasToken:
-                                Boolean(token),
-                        }
-                    );
+                    if (isDev) {
+                        console.info(
+                            "[Reverb] Authorizing channel",
+                            {
+                                url: authUrl,
+                                channel:
+                                    channel.name,
+                                socketId,
+                                hasToken:
+                                    Boolean(token),
+                            }
+                        );
+                    }
 
                     const response =
                         await fetch(
@@ -307,30 +313,34 @@ export function getEcho() {
             previous,
             current,
         }) => {
-            console.info(
-                "[Reverb] State changed",
-                {
-                    previous,
-                    current,
-                }
-            );
+            if (isDev) {
+                console.info(
+                    "[Reverb] State changed",
+                    {
+                        previous,
+                        current,
+                    }
+                );
+            }
         }
     );
 
     connection?.bind(
         "connected",
         () => {
-            console.info(
-                "[Reverb] Connected",
-                {
-                    socketId:
-                        connection.socket_id,
+            if (isDev) {
+                console.info(
+                    "[Reverb] Connected",
+                    {
+                        socketId:
+                            connection.socket_id,
 
-                    host,
-                    port,
-                    scheme,
-                }
-            );
+                        host,
+                        port,
+                        scheme,
+                    }
+                );
+            }
         }
     );
 
