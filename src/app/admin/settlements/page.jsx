@@ -1066,60 +1066,6 @@ export default function SettlementsPage() {
                     </Space>
                   ),
                 },
-                {
-                  title: "Action",
-                  key: "action",
-                  align: "right",
-                  render: (_, r) => {
-                    const isFailed = r.is_failed || r.status === "failed" || r.status === "cancelled";
-                    if (!isFailed) return <Text type="secondary" style={{ fontSize: 12 }}>Delivered</Text>;
-                    return (
-                      <Space size={4}>
-                        <Button
-                          size="small"
-                          type="link"
-                          loading={actionLoadingId === r.shipment_id + "-retry"}
-                          onClick={async () => {
-                            setActionLoadingId(r.shipment_id + "-retry");
-                            try {
-                              await api.post(`/admin/deliveries/${r.shipment_id}/retry`);
-                              message.success(`Reattempt scheduled for #${r.shipment_id}!`);
-                              refreshAll();
-                              setRunParcelsModal(null);
-                            } catch (e) {
-                              message.error(apiError(e, "Reattempt failed"));
-                            } finally {
-                              setActionLoadingId(null);
-                            }
-                          }}
-                        >
-                          Reattempt
-                        </Button>
-                        <Button
-                          size="small"
-                          type="link"
-                          danger
-                          loading={actionLoadingId === r.shipment_id + "-return"}
-                          onClick={async () => {
-                            setActionLoadingId(r.shipment_id + "-return");
-                            try {
-                              await api.post(`/admin/deliveries/${r.shipment_id}/return-to-store`);
-                              message.success(`Return to store initiated for #${r.shipment_id}!`);
-                              refreshAll();
-                              setRunParcelsModal(null);
-                            } catch (e) {
-                              message.error(apiError(e, "Return failed"));
-                            } finally {
-                              setActionLoadingId(null);
-                            }
-                          }}
-                        >
-                          RTO
-                        </Button>
-                      </Space>
-                    );
-                  },
-                },
               ]}
             />
           </>

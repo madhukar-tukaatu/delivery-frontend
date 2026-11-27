@@ -13,6 +13,7 @@ import {
   CustomerServiceOutlined, ReloadOutlined, CheckSquareOutlined,
   EnvironmentOutlined, MenuFoldOutlined, MenuUnfoldOutlined,
   GlobalOutlined, SearchOutlined, LockOutlined, CloseOutlined,
+  RollbackOutlined, StopOutlined,
 } from "@ant-design/icons";
 import { usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
@@ -67,6 +68,10 @@ const iconMap = {
   refresh: <ReloadOutlined />,
   checklist: <CheckSquareOutlined />,
   location: <EnvironmentOutlined />,
+  returns: <RollbackOutlined />,
+  return: <RollbackOutlined />,
+  cancellations: <StopOutlined />,
+  cancellation: <StopOutlined />,
 };
 
 
@@ -103,6 +108,53 @@ function withMarketplaceMenu(menus) {
   if (merchantIndex >= 0) children.splice(merchantIndex + 1, 0, item);
   else children.push(item);
   list[networkIndex] = { ...network, children };
+  return list;
+}
+
+/** Keep Returns and Cancellations in the sidebar right below Deliveries. */
+function withReturnAndCancellationMenu(menus) {
+  if (!Array.isArray(menus)) return menus || [];
+  const list = [...menus];
+  const opsIndex = list.findIndex(
+    (row) => String(row?.label || "").toLowerCase() === "operations" && !row?.path
+  );
+  if (opsIndex === -1) return list;
+
+  const ops = list[opsIndex];
+  const children = Array.isArray(ops.children) ? [...ops.children] : [];
+
+  const hasReturns = children.some((c) => c?.path === "/admin/returns");
+  const hasCancellations = children.some((c) => c?.path === "/admin/cancellations");
+
+  if (hasReturns && hasCancellations) return list;
+
+  const deliveriesIndex = children.findIndex((c) => c?.path === "/admin/deliveries");
+  const insertIndex = deliveriesIndex >= 0 ? deliveriesIndex + 1 : children.length;
+
+  const returnsItem = {
+    id: "returns",
+    key: "returns.view",
+    label: "Returns",
+    path: "/admin/returns",
+    icon: "returns",
+    permission: "deliveries.view",
+  };
+
+  const cancellationsItem = {
+    id: "cancellations",
+    key: "cancellations.view",
+    label: "Cancellations",
+    path: "/admin/cancellations",
+    icon: "cancellations",
+    permission: "deliveries.view",
+  };
+
+  const toInsert = [];
+  if (!hasReturns) toInsert.push(returnsItem);
+  if (!hasCancellations) toInsert.push(cancellationsItem);
+
+  children.splice(insertIndex, 0, ...toInsert);
+  list[opsIndex] = { ...ops, children };
   return list;
 }
 
@@ -322,7 +374,7 @@ export default function DashboardLayout({ section: propsSection = "admin", child
       try {
         setLoadingMenus(true);
         const data = await getMyMenus(section);
-        if (active) setMenus(withMarketplaceMenu(Array.isArray(data) ? data : []));
+        if (active) setMenus(withReturnAndCancellationMenu(withMarketplaceMenu(Array.isArray(data) ? data : [])));
       } catch {
         if (active) setMenus([]);
       } finally {
