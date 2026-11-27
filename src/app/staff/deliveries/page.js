@@ -2238,28 +2238,88 @@ function StaffDeliveriesContent() {
         open={!!failedRow}
         onCancel={() => setFailedRow(null)}
         onOk={() => form.validateFields().then((values) => run(() => staffMarkFailed(failedRow.id, values.reason)))}
-        width={600}
+        width={620}
       >
-        <div style={{ marginBottom: "16px" }}>
-          <strong>Tracking:</strong> {failedRow?.shipment?.tracking_number}
-          <br />
-          <strong>Customer:</strong> {failedRow?.shipment?.receiver_name}
-          <br />
-          <strong>Address:</strong>{" "}
-          {failedRow?.shipment?.delivery_address || failedRow?.shipment?.receiver_address}
-        </div>
-        <Form form={form} layout="vertical">
-          <Form.Item
-            name="reason"
-            label="Reason for Failure"
-            rules={[
-              { required: true, message: "Please provide a reason" },
-              { min: 10, message: "Please provide a detailed reason (minimum 10 characters)" },
-            ]}
-          >
-            <Input.TextArea rows={4} placeholder="e.g., Customer not available, address not found, etc." />
-          </Form.Item>
-        </Form>
+        {failedRow && (() => {
+          const currentAttempt = Number(failedRow?.attempt_no || (failedRow?.shipment?.failed_attempts || 0) + 1);
+          const maxAttempts = Number(failedRow?.shipment?.max_delivery_attempts || 3);
+          const retriesAfter = Math.max(0, maxAttempts - currentAttempt);
+
+          const presets = [
+            { label: "📵 Out of Contact", reason: "Customer Out of Contact: Phone unreachable or switched off after multiple attempts" },
+            { label: "📅 Rescheduled", reason: "Customer Requested Reschedule: Customer not available at address today" },
+            { label: "📍 Address Incomplete", reason: "Incomplete Address: Cannot locate delivery address with provided details" },
+            { label: "🚫 Customer Refused", reason: "Customer Refused: Customer rejected order at delivery" },
+            { label: "💵 Cash Not Ready", reason: "Cash Not Ready: Customer does not have COD cash ready today" },
+          ];
+
+          return (
+            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+              <div style={{ background: "#f8fafc", padding: "10px 14px", borderRadius: 8, border: "1px solid #e2e8f0" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+                  <strong style={{ fontFamily: "monospace", fontSize: 13 }}>{failedRow?.shipment?.tracking_number}</strong>
+                  <Tag color={retriesAfter === 0 ? "error" : "warning"}>
+                    Attempt {currentAttempt} of {maxAttempts}
+                  </Tag>
+                </div>
+                <div style={{ fontSize: 12, color: "#475569" }}>
+                  <strong>Customer:</strong> {failedRow?.shipment?.receiver_name} ({failedRow?.shipment?.receiver_phone})
+                  <br />
+                  <strong>Address:</strong> {failedRow?.shipment?.delivery_address || failedRow?.shipment?.receiver_address}
+                </div>
+              </div>
+
+              <div>
+                <div style={{ fontSize: 12, fontWeight: 600, color: "#334155", marginBottom: 6 }}>
+                  Quick Select Reason:
+                </div>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                  {presets.map((p) => (
+                    <Tag.CheckableTag
+                      key={p.label}
+                      checked={form.getFieldValue("reason")?.startsWith(p.reason.slice(0, 20))}
+                      onChange={() => form.setFieldsValue({ reason: p.reason })}
+                      style={{ padding: "4px 8px", fontSize: 12, borderRadius: 6, cursor: "pointer" }}
+                    >
+                      {p.label}
+                    </Tag.CheckableTag>
+                  ))}
+                </div>
+              </div>
+
+              <Form form={form} layout="vertical" style={{ marginTop: 4 }}>
+                <Form.Item
+                  name="reason"
+                  label="Detailed Reason & Remarks"
+                  rules={[
+                    { required: true, message: "Please select or enter a failure reason" },
+                    { min: 10, message: "Please provide a detailed reason (minimum 10 characters)" },
+                  ]}
+                  style={{ marginBottom: 8 }}
+                >
+                  <Input.TextArea
+                    rows={3}
+                    placeholder="Select a reason above or type specific delivery notes..."
+                  />
+                </Form.Item>
+              </Form>
+
+              {retriesAfter === 0 ? (
+                <Alert
+                  type="warning"
+                  showIcon
+                  message="Final attempt failed: No retries left. At branch reconciliation, this shipment will be marked for Return to Store (RTO) or Cancel."
+                />
+              ) : (
+                <Alert
+                  type="info"
+                  showIcon
+                  message={`After this failure, parcel returns to branch custody with ${retriesAfter} retry remaining for re-attempt.`}
+                />
+              )}
+            </div>
+          );
+        })()}
       </Modal>
     </>
   );

@@ -126,3 +126,43 @@ export async function failDelivery(deliveryId, reason) {
   });
   return unwrap(response);
 }
+
+/**
+ * Re-queue a failed delivery for another attempt (admin / branch manager).
+ *
+ * POST /admin/deliveries/{id}/retry  { reason?, force? }
+ */
+export async function retryDelivery(deliveryId, reason = null, force = false) {
+  if (!deliveryId) throw new Error("Delivery ID is required.");
+  const response = await api.post(`/admin/deliveries/${deliveryId}/retry`, {
+    reason,
+    force,
+  });
+  return withMessage(response);
+}
+
+/**
+ * Initiate return to merchant store for a failed delivery.
+ *
+ * POST /admin/deliveries/{id}/return-to-store  { reason? }
+ */
+export async function returnDelivery(deliveryId, reason = null) {
+  if (!deliveryId) throw new Error("Delivery ID is required.");
+  const response = await api.post(`/admin/deliveries/${deliveryId}/return-to-store`, {
+    reason,
+  });
+  return withMessage(response);
+}
+
+/**
+ * Cancel a failed delivery.
+ *
+ * POST /admin/deliveries/{id}/cancel  { reason? }
+ */
+export async function cancelDelivery(deliveryId, reason = null) {
+  if (!deliveryId) throw new Error("Delivery ID is required.");
+  const response = await api.post(`/admin/deliveries/${deliveryId}/cancel`, {
+    reason,
+  });
+  return withMessage(response);
+}

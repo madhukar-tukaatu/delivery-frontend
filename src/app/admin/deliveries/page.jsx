@@ -36,6 +36,7 @@ import {
   UnorderedListOutlined,
   DownloadOutlined,
   UploadOutlined,
+  RollbackOutlined,
 } from "@ant-design/icons";
 import { usePermissions } from "@/hooks/usePermission";
 import { useAdminRealtime, RealtimeStatusBadge } from "@/hooks/useAdminRealtime";
@@ -46,6 +47,9 @@ import {
   assignDeliveryRider,
   bulkAssignDeliveries,
   failDelivery,
+  retryDelivery,
+  returnDelivery,
+  cancelDelivery,
 } from "@/services/admin/deliveryService";
 
 import api from "@/lib/api";
@@ -586,6 +590,123 @@ export default function DeliveriesPage() {
     });
   };
 
+  const handleRetry = (delivery) => {
+    const s = delivery.shipment || {};
+    const attempts = Number(delivery.attempt_no || s.failed_attempts || 1);
+    const retriesLeft = typeof s.retries_left === "number" ? s.retries_left : Math.max(0, 3 - attempts);
+    let note = "";
+
+    Modal.confirm({
+      title: "Queue for Re-delivery",
+      icon: <ReloadOutlined style={{ color: "#1677ff" }} />,
+      content: (
+        <Space direction="vertical" style={{ width: "100%", marginTop: 8 }}>
+          <div>
+            <strong>Tracking:</strong> {s.tracking_number}
+            <br />
+            <strong>Attempts:</strong> {attempts} / {s.max_delivery_attempts || 3} ({retriesLeft} retries remaining)
+          </div>
+          <Input.TextArea
+            rows={2}
+            placeholder="Re-delivery note (optional, e.g. Customer requested evening delivery)"
+            onChange={(e) => {
+              note = e.target.value;
+            }}
+          />
+        </Space>
+      ),
+      okText: "Re-queue Delivery",
+      onOk: async () => {
+        try {
+          await retryDelivery(delivery.id, note);
+          message.success("Shipment re-queued for delivery.");
+          refresh();
+        } catch (e) {
+          message.error(e?.response?.data?.message || e.message || "Failed to retry delivery.");
+          throw e;
+        }
+      },
+    });
+  };
+
+  const handleReturn = (delivery) => {
+    const s = delivery.shipment || {};
+    let reason = "";
+
+    Modal.confirm({
+      title: "Return to Store (RTO)",
+      icon: <RollbackOutlined style={{ color: "#d97706" }} />,
+      content: (
+        <Space direction="vertical" style={{ width: "100%", marginTop: 8 }}>
+          <div>
+            <strong>Tracking:</strong> {s.tracking_number}
+            <br />
+            <strong>Merchant:</strong> {formatMerchantLabel(s.merchant || s)}
+          </div>
+          <Input.TextArea
+            rows={2}
+            placeholder="Return reason (customer refused, out of reach...)"
+            onChange={(e) => {
+              reason = e.target.value;
+            }}
+          />
+        </Space>
+      ),
+      okText: "Initiate Return",
+      okButtonProps: { style: { background: "#d97706", borderColor: "#d97706" } },
+      onOk: async () => {
+        try {
+          await returnDelivery(delivery.id, reason || "Return initiated from branch delivery board");
+          message.success("Return to store initiated.");
+          refresh();
+        } catch (e) {
+          message.error(e?.response?.data?.message || e.message || "Failed to initiate return.");
+          throw e;
+        }
+      },
+    });
+  };
+
+  const handleCancelDelivery = (delivery) => {
+    const s = delivery.shipment || {};
+    let reason = "";
+
+    Modal.confirm({
+      title: "Cancel Delivery & Shipment",
+      icon: <CloseCircleOutlined style={{ color: "#cf1322" }} />,
+      content: (
+        <Space direction="vertical" style={{ width: "100%", marginTop: 8 }}>
+          <div>
+            <strong>Tracking:</strong> {s.tracking_number}
+          </div>
+          <Input.TextArea
+            rows={2}
+            placeholder="Cancellation reason (required)"
+            onChange={(e) => {
+              reason = e.target.value;
+            }}
+          />
+        </Space>
+      ),
+      okText: "Cancel Shipment",
+      okButtonProps: { danger: true },
+      onOk: async () => {
+        if (!reason.trim()) {
+          message.error("Cancellation reason is required.");
+          throw new Error("Reason required");
+        }
+        try {
+          await cancelDelivery(delivery.id, reason);
+          message.success("Shipment cancelled.");
+          refresh();
+        } catch (e) {
+          message.error(e?.response?.data?.message || e.message || "Failed to cancel shipment.");
+          throw e;
+        }
+      },
+    });
+  };
+
   const columns = useMemo(
     () => [
       {
@@ -741,6 +862,14 @@ export default function DeliveriesPage() {
                 </Space>
               </Tag>
             </Tooltip>
+          ) : v === "failed" ? (
+            <Tooltip
+              title={`Attempt ${r.shipment?.failed_attempts || 1} of ${r.shipment?.max_delivery_attempts || 3} failed. Retries left: ${r.shipment?.retries_left ?? Math.max(0, 3 - (r.shipment?.failed_attempts || 1))}`}
+            >
+              <Tag color="error" style={{ borderRadius: 999, margin: 0 }}>
+                Failed ({r.shipment?.failed_attempts || 1}/{r.shipment?.max_delivery_attempts || 3})
+              </Tag>
+            </Tooltip>
           ) : (
             <StatusPill status={v} />
           ),
@@ -789,6 +918,33 @@ export default function DeliveriesPage() {
                     Fail
                   </Button>
                 )}
+              {r.status === "failed" && can?.("deliveries.assign") && (
+                <>
+                  <Button
+                    size="small"
+                    type="primary"
+                    icon={<ReloadOutlined />}
+                    disabled={r.shipment?.retries_left === 0}
+                    onClick={() => handleRetry(r)}
+                  >
+                    Re-attempt {typeof r.shipment?.retries_left === "number" ? `(${r.shipment.retries_left})` : ""}
+                  </Button>
+                  <Button
+                    size="small"
+                    icon={<RollbackOutlined />}
+                    onClick={() => handleReturn(r)}
+                  >
+                    Return
+                  </Button>
+                  <Button
+                    size="small"
+                    danger
+                    onClick={() => handleCancelDelivery(r)}
+                  >
+                    Cancel
+                  </Button>
+                </>
+              )}
               {follow?.linkSettlements && (
                 <Button
                   size="small"
@@ -805,7 +961,7 @@ export default function DeliveriesPage() {
       },
     ],
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [can, openAssign, openRun],
+    [can, openAssign, openRun, handleRetry, handleReturn, handleCancelDelivery, handleFail],
   );
 
   const canAssign = can?.("deliveries.assign");
