@@ -71,6 +71,27 @@ export default function PickupRunBoard({ branchId = null, onOpenPickup = null })
   const [activeRunData, setActiveRunData] = useState(null);
   const [activeRunLoading, setActiveRunLoading] = useState(false);
 
+  // Restore run_status from URL on mount
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    const sf = params.get("run_status");
+    if (sf && ["active", "open", "assigned", "in_progress", "completed", "closed", "all"].includes(sf)) {
+      setStatusFilter(sf);
+    }
+  }, []);
+
+  const handleStatusFilterChange = (val) => {
+    setStatusFilter(val);
+    setPage(1);
+    if (typeof window !== "undefined") {
+      const url = new URL(window.location.href);
+      if (val === "active") url.searchParams.delete("run_status");
+      else url.searchParams.set("run_status", val);
+      window.history.replaceState(null, "", url.toString());
+    }
+  };
+
   // Quick Map Modal
   const [mapRun, setMapRun] = useState(null);
   const [mapLoading, setMapLoading] = useState(false);
@@ -229,10 +250,7 @@ export default function PickupRunBoard({ branchId = null, onOpenPickup = null })
           <Space wrap>
             <Radio.Group
               value={statusFilter}
-              onChange={(e) => {
-                setStatusFilter(e.target.value);
-                setPage(1);
-              }}
+              onChange={(e) => handleStatusFilterChange(e.target.value)}
               buttonStyle="solid"
             >
               <Radio.Button value="active">Active</Radio.Button>
@@ -294,10 +312,10 @@ export default function PickupRunBoard({ branchId = null, onOpenPickup = null })
           </Card>
         ) : boardLayout === "split" ? (
           <Row gutter={[16, 16]}>
-            {/* Left: Pickup Runs List */}
-            <Col xs={24} lg={9}>
-              <div style={{ maxHeight: "680px", overflowY: "auto", paddingRight: 4 }}>
-                <Space direction="vertical" style={{ width: "100%" }} size={8}>
+            {/* Left: Pickup Runs List (compact 15% width) */}
+            <Col xs={24} md={6} xl={4}>
+              <div style={{ maxHeight: "720px", overflowY: "auto", paddingRight: 4 }}>
+                <Space direction="vertical" style={{ width: "100%" }} size={6}>
                   {runs.map((run) => {
                     const isSelected = run.id === activeRunId;
                     const statusTag = STATUS_TAGS[run.status] || { label: run.status, color: "default" };
@@ -309,70 +327,49 @@ export default function PickupRunBoard({ branchId = null, onOpenPickup = null })
                         hoverable
                         onClick={() => setActiveRunId(run.id)}
                         style={{
-                          borderRadius: 8,
+                          borderRadius: 6,
                           border: isSelected ? "2px solid #0891b2" : "1px solid #e2e8f0",
                           background: isSelected ? "#f0fdfa" : "#fff",
                           cursor: "pointer",
+                          transition: "all 0.15s ease",
                         }}
-                        styles={{ body: { padding: "10px 12px" } }}
+                        styles={{ body: { padding: "8px 10px" } }}
                       >
                         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                          <Text strong style={{ fontSize: 14 }}>{run.run_number}</Text>
-                          <Space size={4}>
-                            <Tag color={statusTag.color}>{statusTag.label}</Tag>
-                            {(() => {
-                              const rStatus = computeRiderStatus({
-                                runStatus: run.status,
-                                riderLocation: run.rider_location,
-                                branchCoords: run.branch ? { lat: run.branch.latitude, lng: run.branch.longitude, name: run.branch.name } : null,
-                                stops: run.items || [],
-                              });
-                              if (!rStatus || rStatus.type === "none") return null;
-                              return (
-                                <Tag
-                                  color={rStatus.tagColor}
-                                  style={{
-                                    margin: 0,
-                                    fontSize: 10,
-                                    padding: "0 6px",
-                                    fontWeight: 700,
-                                    borderColor: rStatus.dotColor,
-                                  }}
-                                >
-                                  {rStatus.shortLabel}
-                                </Tag>
-                              );
-                            })()}
-                          </Space>
-                        </div>
-                        <div style={{ marginTop: 4, display: "flex", justifyContent: "space-between", fontSize: 12 }}>
-                          <Text type="secondary">Rider:</Text>
-                          <Text strong>{run.rider?.name || <Text type="warning">Unassigned</Text>}</Text>
-                        </div>
-                        {run.vehicle_type && (
-                          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: "#64748b" }}>
-                            <span>Vehicle:</span>
-                            <span>{vehicleText(run.vehicle_type, run.vehicle_number)}</span>
-                          </div>
-                        )}
-                        <div style={{ marginTop: 4, display: "flex", justifyContent: "space-between", fontSize: 11, color: "#64748b" }}>
-                          <span>Pickups:</span>
-                          <span style={{ fontWeight: 600 }}>{run.picked_up_count}/{run.expected_count} collected</span>
-                        </div>
-                        <Progress percent={percent} size="small" style={{ margin: "4px 0" }} />
-                        <div style={{ marginTop: 6, display: "flex", justifyContent: "flex-end" }}>
-                          <Button
-                            size="small"
-                            type="primary"
-                            ghost
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setSelectedRunId(run.id);
-                            }}
+                          <Text strong style={{ fontSize: 13, color: isSelected ? "#0891b2" : "inherit" }}>
+                            {run.run_number}
+                          </Text>
+                          <Tag
+                            color={statusTag.color}
+                            style={{ margin: 0, fontSize: 10, lineHeight: "17px", padding: "0 4px" }}
                           >
-                            Manage Run
-                          </Button>
+                            {statusTag.label}
+                          </Tag>
                         </div>
+                        <div
+                          style={{
+                            marginTop: 3,
+                            fontSize: 11,
+                            color: "#475569",
+                            whiteSpace: "nowrap",
+                            overflow: "hidden",
+                            textOverflow: "ellipsis",
+                          }}
+                          title={run.rider?.name || "Unassigned"}
+                        >
+                          👤 {run.rider?.name || <Text type="warning" style={{ fontSize: 11 }}>Unassigned</Text>}
+                        </div>
+                        <div style={{ marginTop: 2, display: "flex", justifyContent: "space-between", fontSize: 10, color: "#64748b" }}>
+                          <span>{run.picked_up_count}/{run.expected_count} stops</span>
+                          <span>{percent}%</span>
+                        </div>
+                        <Progress
+                          percent={percent}
+                          size="small"
+                          showInfo={false}
+                          strokeColor="#0891b2"
+                          style={{ margin: "2px 0 0 0" }}
+                        />
                       </Card>
                     );
                   })}
@@ -380,8 +377,8 @@ export default function PickupRunBoard({ branchId = null, onOpenPickup = null })
               </div>
             </Col>
 
-            {/* Right: Route Map of active run */}
-            <Col xs={24} lg={15}>
+            {/* Right: Route Map of active run (expansive 85% width) */}
+            <Col xs={24} md={18} xl={20}>
               <Spin spinning={activeRunLoading}>
                 {activeRunData ? (
                   <Card

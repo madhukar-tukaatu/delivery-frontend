@@ -137,11 +137,44 @@ export default function SettlementsPage() {
   const [selectedIds, setSelectedIds] = useState([]);
   const [loadingCash, setLoadingCash] = useState(false);
   const [depositing, setDepositing] = useState(false);
+  const [actionLoadingId, setActionLoadingId] = useState(null);
 
   const [detail, setDetail] = useState(null);
   const [payTarget, setPayTarget] = useState(null);
   const [hamro, setHamro] = useState(null);
   const [generateOpen, setGenerateOpen] = useState(false);
+
+  // Restore active tab and cash view mode from URL on mount
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    const urlTab = params.get("tab");
+    if (urlTab && ["payouts", "cash"].includes(urlTab)) {
+      setTab(urlTab);
+    }
+    const urlView = params.get("view");
+    if (urlView && ["runs", "parcels"].includes(urlView)) {
+      setCashViewMode(urlView);
+    }
+  }, []);
+
+  const handleTabChange = (newTab) => {
+    setTab(newTab);
+    if (typeof window !== "undefined") {
+      const url = new URL(window.location.href);
+      url.searchParams.set("tab", newTab);
+      window.history.replaceState(null, "", url.toString());
+    }
+  };
+
+  const handleCashViewModeChange = (newMode) => {
+    setCashViewMode(newMode);
+    if (typeof window !== "undefined") {
+      const url = new URL(window.location.href);
+      url.searchParams.set("view", newMode);
+      window.history.replaceState(null, "", url.toString());
+    }
+  };
 
   useEffect(() => {
     Promise.all([
@@ -447,10 +480,29 @@ export default function SettlementsPage() {
       title: "Parcels",
       key: "parcels",
       align: "center",
-      width: 140,
+      width: 170,
       render: (_, r) => (
         <Space direction="vertical" size={2} align="center">
-          <Badge count={`${r.parcel_count} parcels`} overflowCount={999} style={{ backgroundColor: "#0284c7" }} />
+          <Space size={4} wrap style={{ justifyContent: "center" }}>
+            {typeof r.delivered_count === "number" && r.delivered_count > 0 ? (
+              <Tag color="green" style={{ margin: 0, fontSize: 11, fontWeight: 600 }}>
+                {r.delivered_count} delivered
+              </Tag>
+            ) : null}
+            {typeof r.failed_count === "number" && r.failed_count > 0 ? (
+              <Tag color="red" style={{ margin: 0, fontSize: 11, fontWeight: 600 }}>
+                {r.failed_count} failed
+              </Tag>
+            ) : null}
+            {typeof r.returned_count === "number" && r.returned_count > 0 ? (
+              <Tag color="orange" style={{ margin: 0, fontSize: 11, fontWeight: 600 }}>
+                {r.returned_count} returned
+              </Tag>
+            ) : null}
+            {!r.delivered_count && !r.failed_count ? (
+              <Badge count={`${r.parcel_count} parcels`} overflowCount={999} style={{ backgroundColor: "#0284c7" }} />
+            ) : null}
+          </Space>
           <Button type="link" size="small" style={{ fontSize: 12, padding: 0 }} onClick={() => setRunParcelsModal(r)}>
             View parcel list
           </Button>
@@ -471,28 +523,36 @@ export default function SettlementsPage() {
       title: "Action",
       key: "action",
       align: "right",
-      width: 220,
+      width: 240,
       render: (_, r) => (
         <Space size={6}>
-          {can("pod.deposit") ? (
+          {can("pod.deposit") && r.pod_record_ids?.length ? (
             <Popconfirm
               title={`Deposit ${formatRs(r.total_collected_amount)}?`}
-              description={`Confirm cash handover from ${r.rider_name || "rider"} for ${r.run_number}. This deposits all ${r.parcel_count} parcels and marks them ready to pay stores.`}
+              description={`Confirm cash handover from ${r.rider_name || "rider"} for ${r.run_number}. This deposits cash for delivered parcels and marks them ready to pay stores.`}
               onConfirm={() => depositRun(r)}
               okText="Deposit Cash"
               cancelText="Cancel"
-              disabled={!r.pod_record_ids?.length || depositingRunId === r.key}
+              disabled={depositingRunId === r.key}
             >
               <Button
                 type="primary"
                 size="small"
                 loading={depositingRunId === r.key}
-                disabled={!r.pod_record_ids?.length}
                 style={{ backgroundColor: "#16a34a", borderColor: "#16a34a" }}
               >
                 Deposit Run Cash
               </Button>
             </Popconfirm>
+          ) : r.failed_count > 0 && !r.pod_record_ids?.length ? (
+            <Button
+              size="small"
+              danger
+              onClick={() => setRunParcelsModal(r)}
+              style={{ fontWeight: 600 }}
+            >
+              Reconcile Returns ({r.failed_count})
+            </Button>
           ) : null}
           <Button size="small" icon={<EyeOutlined />} onClick={() => setRunParcelsModal(r)}>
             Parcels
@@ -679,7 +739,7 @@ export default function SettlementsPage() {
       <Card size="small" styles={{ body: { paddingTop: 0 } }}>
         <Tabs
           activeKey={tab}
-          onChange={setTab}
+          onChange={handleTabChange}
           items={[
             {
               key: "payouts",
@@ -766,7 +826,7 @@ export default function SettlementsPage() {
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12, flexWrap: "wrap", gap: 8 }}>
                     <Segmented
                       value={cashViewMode}
-                      onChange={setCashViewMode}
+                      onChange={handleCashViewModeChange}
                       options={[
                         { label: `By Delivery Run (${pendingRuns.length})`, value: "runs", icon: <CarOutlined /> },
                         { label: `All Parcels (${pendingDeposit.length})`, value: "parcels", icon: <ShopOutlined /> },
@@ -900,8 +960,8 @@ export default function SettlementsPage() {
 
       <Modal
         open={Boolean(runParcelsModal)}
-        title={`Parcels in ${runParcelsModal?.run_number || "Delivery Run"}`}
-        width={760}
+        title={`Parcels & Returns: ${runParcelsModal?.run_number || "Delivery Run"}`}
+        width={850}
         onCancel={() => setRunParcelsModal(null)}
         footer={
           <Space>
@@ -924,13 +984,27 @@ export default function SettlementsPage() {
       >
         {runParcelsModal ? (
           <>
-            <Descriptions size="small" bordered column={{ xs: 1, sm: 2 }} style={{ marginBottom: 16 }}>
+            <Descriptions size="small" bordered column={{ xs: 1, sm: 3 }} style={{ marginBottom: 16 }}>
               <Descriptions.Item label="Delivery Run">{runParcelsModal.run_number}</Descriptions.Item>
               <Descriptions.Item label="Rider">
                 <Text strong>{runParcelsModal.rider_name}</Text>
                 {runParcelsModal.rider_phone ? ` (${runParcelsModal.rider_phone})` : ""}
               </Descriptions.Item>
-              <Descriptions.Item label="Delivered Parcels">{runParcelsModal.parcel_count} shipments</Descriptions.Item>
+              <Descriptions.Item label="Status">
+                <Tag color={runParcelsModal.run_status === "completed" ? "green" : "blue"}>
+                  {String(runParcelsModal.run_status || "ACTIVE").toUpperCase()}
+                </Tag>
+              </Descriptions.Item>
+              <Descriptions.Item label="Delivered Parcels">
+                <Text strong style={{ color: "#16a34a" }}>
+                  {runParcelsModal.delivered_count ?? runParcelsModal.parcel_count} shipments
+                </Text>
+              </Descriptions.Item>
+              <Descriptions.Item label="Failed / Returned">
+                <Text strong style={{ color: (runParcelsModal.failed_count || 0) > 0 ? "#dc2626" : "inherit" }}>
+                  {(runParcelsModal.failed_count || 0) + (runParcelsModal.returned_count || 0)} shipments
+                </Text>
+              </Descriptions.Item>
               <Descriptions.Item label="Total COD Collected">
                 <Text strong style={{ fontSize: 16, color: "#d97706" }}>
                   {formatRs(runParcelsModal.total_collected_amount)}
@@ -943,13 +1017,108 @@ export default function SettlementsPage() {
               dataSource={runParcelsModal.shipments || []}
               rowKey="id"
               columns={[
-                { title: "Tracking", dataIndex: "tracking_number" },
-                { title: "Store", dataIndex: "merchant_name" },
-                { title: "POD Cash", dataIndex: "collected_amount", align: "right", render: (v) => formatRs(v) },
                 {
-                  title: "Status",
+                  title: "Tracking",
+                  render: (_, r) => (
+                    <Space direction="vertical" size={0}>
+                      <Text strong copyable={{ text: r.tracking_number || r.shipment_id }}>
+                        {r.tracking_number || r.shipment_id}
+                      </Text>
+                      <Text type="secondary" style={{ fontSize: 11 }}>
+                        ID #{r.shipment_id}
+                      </Text>
+                    </Space>
+                  ),
+                },
+                { title: "Store", dataIndex: "merchant_name" },
+                {
+                  title: "POD Cash",
+                  dataIndex: "collected_amount",
+                  align: "right",
+                  render: (v, r) =>
+                    r.is_failed || r.status === "failed" ? (
+                      <Text type="secondary">Rs 0 (Failed)</Text>
+                    ) : (
+                      <Text strong>{formatRs(v)}</Text>
+                    ),
+                },
+                {
+                  title: "Outcome / Status",
                   dataIndex: "status",
-                  render: (v, r) => <Tag color={r.can_deposit ? "orange" : "red"}>{v}</Tag>,
+                  render: (v, r) => (
+                    <Space direction="vertical" size={2}>
+                      <Tag
+                        color={
+                          r.is_failed || r.status === "failed"
+                            ? "red"
+                            : r.is_delivered || r.status === "delivered" || r.can_deposit
+                            ? "green"
+                            : "blue"
+                        }
+                      >
+                        {String(v || "-").toUpperCase()}
+                      </Tag>
+                      {r.failure_reason ? (
+                        <div style={{ fontSize: 11, color: "#dc2626", maxWidth: 180 }}>
+                          {r.failure_reason}
+                        </div>
+                      ) : null}
+                    </Space>
+                  ),
+                },
+                {
+                  title: "Action",
+                  key: "action",
+                  align: "right",
+                  render: (_, r) => {
+                    const isFailed = r.is_failed || r.status === "failed" || r.status === "cancelled";
+                    if (!isFailed) return <Text type="secondary" style={{ fontSize: 12 }}>Delivered</Text>;
+                    return (
+                      <Space size={4}>
+                        <Button
+                          size="small"
+                          type="link"
+                          loading={actionLoadingId === r.shipment_id + "-retry"}
+                          onClick={async () => {
+                            setActionLoadingId(r.shipment_id + "-retry");
+                            try {
+                              await api.post(`/admin/deliveries/${r.shipment_id}/retry`);
+                              message.success(`Reattempt scheduled for #${r.shipment_id}!`);
+                              refreshAll();
+                              setRunParcelsModal(null);
+                            } catch (e) {
+                              message.error(apiError(e, "Reattempt failed"));
+                            } finally {
+                              setActionLoadingId(null);
+                            }
+                          }}
+                        >
+                          Reattempt
+                        </Button>
+                        <Button
+                          size="small"
+                          type="link"
+                          danger
+                          loading={actionLoadingId === r.shipment_id + "-return"}
+                          onClick={async () => {
+                            setActionLoadingId(r.shipment_id + "-return");
+                            try {
+                              await api.post(`/admin/deliveries/${r.shipment_id}/return-to-store`);
+                              message.success(`Return to store initiated for #${r.shipment_id}!`);
+                              refreshAll();
+                              setRunParcelsModal(null);
+                            } catch (e) {
+                              message.error(apiError(e, "Return failed"));
+                            } finally {
+                              setActionLoadingId(null);
+                            }
+                          }}
+                        >
+                          RTO
+                        </Button>
+                      </Space>
+                    );
+                  },
                 },
               ]}
             />

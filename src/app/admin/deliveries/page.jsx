@@ -334,10 +334,13 @@ export default function DeliveriesPage() {
     return () => clearTimeout(t);
   }, [search]);
 
-  // Deep link: ?status=assigned (legacy ?tab= still understood). Default Ready to Assign.
+  // Deep link: ?status=assigned and ?view=runs (legacy ?tab= still understood). Default Ready to Assign.
   useEffect(() => {
     const fromUrl = readStatusFromUrl();
     if (fromUrl) setStatusTab(fromUrl);
+    const params = new URLSearchParams(window.location.search);
+    const fromView = params.get("view");
+    if (fromView && ["runs", "map", "list"].includes(fromView)) setViewMode(fromView);
     setUrlReady(true);
   }, []);
 
@@ -348,8 +351,11 @@ export default function DeliveriesPage() {
     url.searchParams.delete("run");
     if (statusTab === DEFAULT_STATUS) url.searchParams.delete("status");
     else url.searchParams.set("status", statusTab);
+    if (viewMode === "runs") url.searchParams.set("view", "runs");
+    else if (viewMode === "list") url.searchParams.set("view", "list");
+    else url.searchParams.delete("view");
     window.history.replaceState(null, "", url.toString());
-  }, [urlReady, statusTab]);
+  }, [urlReady, statusTab, viewMode]);
 
   const baseParams = useMemo(() => {
     const statuses = STATUS_TABS.find((t) => t.key === statusTab)?.statuses ?? [];
@@ -1128,6 +1134,14 @@ export default function DeliveriesPage() {
             setCreateRunRiderId(riderId || null);
             setCreateRunOpen(true);
           }}
+          onRetry={(stop) => handleRetry(stop.rawDelivery || stop)}
+          onReturn={(stop) => handleReturn(stop.rawDelivery || stop)}
+          onCancelDelivery={(stop) => handleCancelDelivery(stop.rawDelivery || stop)}
+          onOpen={(id) => {
+            const row = mapRows.find((r) => r.id === id);
+            if (row?.delivery_run?.id) openRun(row.delivery_run.id);
+            else if (row && ["pending", "assigned"].includes(row.status)) openAssign(row);
+          }}
           stops={mapRows.map((row) => {
             const shipment = row.shipment ?? {};
             const isOnRun = !!row.delivery_run?.active;
@@ -1149,6 +1163,7 @@ export default function DeliveriesPage() {
 
             return {
               id: row.id,
+              rawDelivery: row,
               title: shipment.tracking_number || `#${row.shipment_id}`,
               merchantName: shipment.merchant?.name || row.merchant?.name || "",
               merchantPhone: shipment.merchant?.phone || row.merchant?.phone || "",
@@ -1171,6 +1186,8 @@ export default function DeliveriesPage() {
               isOnRun,
               isPlanned,
               canAssign: !isOnRun && !isAssigned && row.status === "pending",
+              failureReason: row.failure_reason || shipment.failure_reason || row.notes || "",
+              retriesLeft: typeof shipment.retries_left === "number" ? shipment.retries_left : undefined,
             };
           })}
         />

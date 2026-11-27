@@ -1,17 +1,29 @@
 import api from "@/lib/api";
 
 export async function getMerchants(params = {}) {
-  const response = await api.get(
-    "/admin/merchants",
-    {
-      params,
-    },
-  );
+  try {
+    const response = await api.get(
+      "/admin/merchants",
+      {
+        params,
+      },
+    );
 
-  return normalizeMerchantResponse(
-    response,
-    params,
-  );
+    return normalizeMerchantResponse(
+      response,
+      params,
+    );
+  } catch (error) {
+    if (error?.response?.status === 403) {
+      return {
+        list: [],
+        currentPage: 1,
+        pageSize: params.per_page || 15,
+        total: 0,
+      };
+    }
+    throw error;
+  }
 }
 
 export async function getMerchant(id) {

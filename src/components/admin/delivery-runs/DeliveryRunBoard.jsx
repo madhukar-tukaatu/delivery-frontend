@@ -78,103 +78,58 @@ function RunCard({ run, selected, onClick }) {
       }}
       style={{
         cursor: "pointer",
-        borderRadius: 8,
-        borderTop: `1px solid ${selected ? accent : "#f0f0f0"}`,
-        borderRight: `1px solid ${selected ? accent : "#f0f0f0"}`,
-        borderBottom: `1px solid ${selected ? accent : "#f0f0f0"}`,
+        borderRadius: 6,
+        borderTop: `1px solid ${selected ? accent : "#e2e8f0"}`,
+        borderRight: `1px solid ${selected ? accent : "#e2e8f0"}`,
+        borderBottom: `1px solid ${selected ? accent : "#e2e8f0"}`,
         borderLeft: `4px solid ${accent}`,
         background: selected ? `${accent}14` : "#fff",
-        padding: "8px 10px",
+        padding: "6px 8px",
         outline: "none",
+        transition: "all 0.15s ease",
       }}
     >
-      <div style={{ display: "flex", gap: 10 }}>
-        <div style={{ textAlign: "center", minWidth: 36 }}>
-          <div style={{ fontSize: 22, fontWeight: 700, lineHeight: 1.1, color: accent }}>{run.expected_count}</div>
-          <Text type="secondary" style={{ fontSize: 10 }}>
-            parcels
-          </Text>
-        </div>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <Space size={4} wrap>
-            <Text strong style={{ fontSize: 13 }}>
-              {run.run_number}
-            </Text>
-            <RunStatusTag status={run.status} />
-            {(() => {
-              const rStatus = computeRiderStatus({
-                runStatus: run.status,
-                riderLocation: run.rider_location,
-                branchCoords: run.branch ? { lat: run.branch.latitude, lng: run.branch.longitude, name: run.branch.name } : null,
-                stops: run.items || [],
-              });
-              if (!rStatus || rStatus.type === "none") return null;
-              return (
-                <Tag
-                  color={rStatus.tagColor}
-                  style={{
-                    margin: 0,
-                    fontSize: 10,
-                    padding: "0 6px",
-                    fontWeight: 700,
-                    borderColor: rStatus.dotColor,
-                  }}
-                >
-                  {rStatus.shortLabel}
-                </Tag>
-              );
-            })()}
-          </Space>
-          <div style={{ fontSize: 12 }}>
-            {run.rider ? <Text>{run.rider.name}</Text> : <Text type="warning">No rider</Text>}
-            {vehicle ? (
-              <Text type="secondary" style={{ fontSize: 11 }}>
-                {" "}
-                · <CarOutlined /> {vehicle}
-              </Text>
-            ) : null}
-            {run.branch?.name ? (
-              <Text type="secondary" style={{ fontSize: 11 }}>
-                {" "}
-                · {run.branch.name}
-              </Text>
-            ) : null}
-          </div>
-          <Space size={2} wrap style={{ marginTop: 2 }}>
-            {run.delivered_count ? (
-              <Tag color="green" style={{ margin: 0, fontSize: 11 }}>
-                {run.delivered_count} delivered
-              </Tag>
-            ) : null}
-            {run.failed_count ? (
-              <Tag color="red" style={{ margin: 0, fontSize: 11 }}>
-                {run.failed_count} failed
-              </Tag>
-            ) : null}
-            {run.status === "assigned" ? (
-              <Tag color={run.can_start ? "green" : "geekblue"} style={{ margin: 0, fontSize: 11 }}>
-                Bagged {run.bagged_count ?? 0}/{(run.bagged_count ?? 0) + (run.to_bag_count ?? 0) || run.expected_count}
-              </Tag>
-            ) : null}
-            {run.status === "out_for_delivery" && run.pending_count ? (
-              <Tag color="cyan" style={{ margin: 0, fontSize: 11 }}>
-                {run.pending_count} on road
-              </Tag>
-            ) : null}
-          </Space>
-          <Text type="secondary" style={{ fontSize: 11, display: "block", marginTop: 2 }}>
-            COD {rs(run.cod_expected)}
-            {Number(run.cod_collected) ? ` · cash ${rs(run.cod_collected)}` : ""}
-          </Text>
-          <Text type="secondary" style={{ fontSize: 10, display: "block" }}>
-            {run.closed_at
-              ? `Closed ${fmtDate(run.closed_at)}`
-              : run.dispatched_at
-                ? `Out ${fmtDate(run.dispatched_at)}`
-                : `Created ${fmtDate(run.created_at)}`}
-          </Text>
-        </div>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <Text strong style={{ fontSize: 13, color: selected ? accent : "inherit" }}>
+          {run.run_number}
+        </Text>
+        <RunStatusTag status={run.status} />
       </div>
+      <div
+        style={{
+          marginTop: 2,
+          fontSize: 11,
+          color: "#475569",
+          whiteSpace: "nowrap",
+          overflow: "hidden",
+          textOverflow: "ellipsis",
+        }}
+        title={run.rider?.name || "No rider"}
+      >
+        👤 {run.rider ? run.rider.name : <Text type="warning" style={{ fontSize: 11 }}>No rider</Text>}
+      </div>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 2, flexWrap: "wrap", gap: 2 }}>
+        <span style={{ fontSize: 11, fontWeight: 600, color: accent }}>
+          {run.expected_count} parcels
+        </span>
+        <Space size={2} wrap>
+          {typeof run.delivered_count === "number" && run.delivered_count > 0 ? (
+            <Tag color="green" style={{ margin: 0, fontSize: 10, lineHeight: "16px", padding: "0 3px" }}>
+              {run.delivered_count} del
+            </Tag>
+          ) : null}
+          {typeof run.failed_count === "number" && run.failed_count > 0 ? (
+            <Tag color="red" style={{ margin: 0, fontSize: 10, lineHeight: "16px", padding: "0 3px" }}>
+              {run.failed_count} fail
+            </Tag>
+          ) : null}
+        </Space>
+      </div>
+      {Number(run.cod_expected) > 0 ? (
+        <div style={{ fontSize: 10, color: "#64748b", marginTop: 2 }}>
+          COD {rs(run.cod_expected)}{Number(run.cod_collected) ? ` · cash ${rs(run.cod_collected)}` : ""}
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -722,6 +677,27 @@ export function DeliveryRunsBoard({ branchId = null, canManage = false, reloadKe
   const [search, setSearch] = useState("");
   const [debounced, setDebounced] = useState("");
 
+  // Restore run_status from URL on mount
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    const rs = params.get("run_status");
+    if (rs && RUN_STATUS_FILTERS.some((f) => f.value === rs)) {
+      setStatus(rs);
+    }
+  }, []);
+
+  const handleStatusChange = (val) => {
+    setStatus(val);
+    setPage(1);
+    if (typeof window !== "undefined") {
+      const url = new URL(window.location.href);
+      if (val === "active") url.searchParams.delete("run_status");
+      else url.searchParams.set("run_status", val);
+      window.history.replaceState(null, "", url.toString());
+    }
+  };
+
   useEffect(() => {
     if (propSelectedRunId !== null && propSelectedRunId !== undefined) {
       setInternalSelectedRunId(propSelectedRunId);
@@ -914,18 +890,19 @@ export function DeliveryRunsBoard({ branchId = null, canManage = false, reloadKe
     <>
     <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 12 }}>{layoutSwitch}</div>
     <Row gutter={[16, 16]}>
-      <Col xs={24} lg={9}>
-        <Card style={{ borderRadius: 12 }} styles={{ body: { padding: 12 } }}>
+      {/* Left: Delivery Runs List (compact 15% width) */}
+      <Col xs={24} md={6} xl={4}>
+        <Card style={{ borderRadius: 10 }} styles={{ body: { padding: "10px 8px" } }}>
           <Space direction="vertical" style={{ width: "100%" }} size={8}>
             <Space.Compact style={{ width: "100%" }}>
-              <Select style={{ width: "45%" }} value={status} options={RUN_STATUS_FILTERS} onChange={setStatus} />
-              <Input allowClear placeholder="DR, rider or tracking" value={search} onChange={(e) => setSearch(e.target.value)} />
+              <Select style={{ width: "50%" }} size="small" value={status} options={RUN_STATUS_FILTERS} onChange={handleStatusChange} />
+              <Input size="small" allowClear placeholder="DR, rider..." value={search} onChange={(e) => setSearch(e.target.value)} />
             </Space.Compact>
             <Spin spinning={loading}>
               {!runs.length ? (
                 <Empty
                   image={Empty.PRESENTED_IMAGE_SIMPLE}
-                  description={status === "active" && !debounced ? "No active delivery runs. Create one from Ready for delivery." : "No delivery runs match"}
+                  description={status === "active" && !debounced ? "No active delivery runs." : "No runs match"}
                 />
               ) : (
                 <Space direction="vertical" style={{ width: "100%" }} size={6} role="listbox">
@@ -949,7 +926,8 @@ export function DeliveryRunsBoard({ branchId = null, canManage = false, reloadKe
           </Space>
         </Card>
       </Col>
-      <Col xs={24} lg={15}>
+      {/* Right: Route Map / Run Detail (expansive 85% width) */}
+      <Col xs={24} md={18} xl={20}>
         {layout === "split" ? (
           <Spin spinning={activeRunLoading}>
             {activeRunData ? (
