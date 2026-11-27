@@ -133,21 +133,31 @@ function pillText(count) {
 
 /** Menu label with work-waiting pills (e.g. Transfers: 2 TRs to receive, 5 to send). */
 function labelWithBadges(label, list) {
-  const shown = (list || []).filter((b) => Number(b?.count) > 0).slice(0, 3);
+  const shown = (list || []).filter((b) => Number(b?.count) > 0).slice(0, 4);
   if (!shown.length) return label;
-  const title = shown.map((b) => `${b.count} ${b.label || ""}`.trim()).join(" · ");
   return (
     <span style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 6, width: "100%" }}>
       <span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>{label}</span>
-      <Tooltip title={title} placement="right" mouseEnterDelay={0.1}>
-        <span aria-label={title} style={{ display: "inline-flex", gap: 3, flexShrink: 0 }}>
-          {shown.map((b) => (
-            <span key={b.key || b.label} style={{ ...PILL_STYLE, background: b.color || "#1677ff" }}>
+      <span style={{ display: "inline-flex", gap: 3, flexShrink: 0 }}>
+        {shown.map((b) => (
+          <Tooltip
+            key={b.key || b.label}
+            title={`${b.count} ${b.label || b.key}`}
+            placement="top"
+            mouseEnterDelay={0.05}
+          >
+            <span
+              style={{
+                ...PILL_STYLE,
+                background: b.color || "#1677ff",
+                cursor: "pointer",
+              }}
+            >
               {pillText(Number(b.count))}
             </span>
-          ))}
-        </span>
-      </Tooltip>
+          </Tooltip>
+        ))}
+      </span>
     </span>
   );
 }

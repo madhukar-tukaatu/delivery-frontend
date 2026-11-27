@@ -413,23 +413,26 @@ export default function PickupRunBoard({ branchId = null, onOpenPickup = null })
                   flexDirection: "column",
                   background: "#fff",
                   border: "1px solid #e2e8f0",
+                  position: "relative",
                 }}
               >
-                <Spin spinning={activeRunLoading} style={{ height: "100%", width: "100%" }}>
-                  {activeRunData ? (
-                    <RunRouteMap
-                      run={activeRunData}
-                      mode="pickup"
-                      onOpenPickup={onOpenPickup}
-                      onManageRun={() => setSelectedRunId(activeRunData.id)}
-                      height="100%"
-                    />
-                  ) : (
-                    <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%" }}>
-                      <Empty description="Select a run to view its map route." />
-                    </div>
-                  )}
-                </Spin>
+                {activeRunLoading ? (
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%", minHeight: "560px" }}>
+                    <Spin size="large" tip="Loading map route..." />
+                  </div>
+                ) : activeRunData ? (
+                  <RunRouteMap
+                    run={activeRunData}
+                    mode="pickup"
+                    onOpenPickup={onOpenPickup}
+                    onManageRun={() => setSelectedRunId(activeRunData.id)}
+                    height="calc(100vh - 265px)"
+                  />
+                ) : (
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%" }}>
+                    <Empty description="Select a run to view its map route." />
+                  </div>
+                )}
               </div>
             </Col>
           </Row>

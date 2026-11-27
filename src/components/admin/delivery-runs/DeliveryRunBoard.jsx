@@ -966,23 +966,26 @@ export function DeliveryRunsBoard({ branchId = null, canManage = false, reloadKe
               flexDirection: "column",
               background: "#fff",
               border: "1px solid #e2e8f0",
+              position: "relative",
             }}
           >
-            <Spin spinning={activeRunLoading} style={{ height: "100%", width: "100%" }}>
-              {activeRunData ? (
-                <RunRouteMap
-                  run={activeRunData}
-                  mode="delivery"
-                  onOpenDelivery={openParcel}
-                  onManageRun={() => manageRun(activeRunData.id)}
-                  height="100%"
-                />
-              ) : (
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%" }}>
-                  <Empty description="Select a run to view its route map." />
-                </div>
-              )}
-            </Spin>
+            {activeRunLoading ? (
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%", minHeight: "560px" }}>
+                <Spin size="large" tip="Loading route map..." />
+              </div>
+            ) : activeRunData ? (
+              <RunRouteMap
+                run={activeRunData}
+                mode="delivery"
+                onOpenDelivery={openParcel}
+                onManageRun={() => manageRun(activeRunData.id)}
+                height="calc(100vh - 265px)"
+              />
+            ) : (
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%" }}>
+                <Empty description="Select a run to view its route map." />
+              </div>
+            )}
           </div>
         ) : (
           <div style={{ height: "calc(100vh - 210px)", minHeight: "600px", overflowY: "auto" }}>

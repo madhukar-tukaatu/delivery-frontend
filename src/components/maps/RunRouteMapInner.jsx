@@ -20,6 +20,7 @@ import {
 } from "@ant-design/icons";
 import { MapContainer, Marker, Polyline, Popup, TileLayer, Tooltip as LeafletTooltip, useMap } from "react-leaflet";
 import L from "leaflet";
+import "leaflet/dist/leaflet.css";
 import { getEcho } from "@/lib/echo";
 import { getDeliveryRun, sequenceRun } from "@/services/admin/deliveryRunService";
 import { sequencePickupRun } from "@/services/admin/pickupRunService";
@@ -732,8 +733,11 @@ export default function RunRouteMapInner({
     return `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(stop.address + ", " + stop.area)}`;
   };
 
-  const isPercentHeight = height === "100%";
-  const effectiveHeight = isFullscreen ? "calc(100vh - 56px)" : isPercentHeight ? "100%" : height;
+  const effectiveHeight = isFullscreen
+    ? "calc(100vh - 56px)"
+    : height && height !== "100%"
+    ? height
+    : "calc(100vh - 265px)";
 
   return (
     <div
@@ -752,14 +756,13 @@ export default function RunRouteMapInner({
               height: "100vh",
               width: "100vw",
             }
-          : isPercentHeight
-          ? {
+          : {
               height: "100%",
+              minHeight: "560px",
               display: "flex",
               flexDirection: "column",
               width: "100%",
             }
-          : undefined
       }
     >
       {/* Route Header Stats */}
@@ -898,9 +901,10 @@ export default function RunRouteMapInner({
           border: "1px solid #e2e8f0",
           borderTop: "none",
           borderRadius: isFullscreen ? 0 : "0 0 8px 8px",
-          flex: isFullscreen || isPercentHeight ? 1 : undefined,
-          minHeight: 0,
-          height: isPercentHeight ? "100%" : undefined,
+          height: effectiveHeight,
+          minHeight: "520px",
+          display: "flex",
+          flexWrap: "nowrap",
           overflow: "hidden",
         }}
       >
@@ -913,20 +917,18 @@ export default function RunRouteMapInner({
           style={{
             borderRight: "1px solid #e2e8f0",
             background: "#f8fafc",
-            height: isPercentHeight ? "100%" : undefined,
+            height: "100%",
             display: "flex",
             flexDirection: "column",
-            minHeight: 0,
+            overflow: "hidden",
           }}
         >
           <div
             style={{
-              height: effectiveHeight,
-              maxHeight: isPercentHeight ? "100%" : effectiveHeight,
+              height: "100%",
               overflowY: "auto",
               padding: 10,
               flex: 1,
-              minHeight: 0,
             }}
           >
             <div style={{ marginBottom: 10, padding: "8px 10px", background: "#ffffff", borderRadius: 8, border: "1px solid #e2e8f0", boxShadow: "0 1px 2px rgba(0,0,0,0.03)" }}>
@@ -1154,17 +1156,19 @@ export default function RunRouteMapInner({
           lg={16}
           xl={17}
           style={{
-            height: isPercentHeight ? "100%" : undefined,
-            minHeight: 0,
+            height: "100%",
+            minHeight: "520px",
             display: "flex",
             flexDirection: "column",
+            overflow: "hidden",
+            position: "relative",
           }}
         >
-          <div style={{ height: effectiveHeight, width: "100%", position: "relative", flex: 1, minHeight: 0 }}>
+          <div style={{ height: "100%", width: "100%", position: "relative", flex: 1, minHeight: "520px" }}>
             <MapContainer
               center={[branchCoords.lat, branchCoords.lng]}
               zoom={13}
-              style={{ height: "100%", width: "100%" }}
+              style={{ height: "100%", width: "100%", minHeight: "520px" }}
               scrollWheelZoom
             >
               <TileLayer
