@@ -39,6 +39,7 @@ import {
   UserSwitchOutlined,
 } from "@ant-design/icons";
 import { useShipmentDrawer } from "@/components/admin/shipments/ShipmentDrawerProvider";
+import { refreshMenuBadges } from "@/hooks/useMenuBadges";
 import RunRouteMap from "@/components/maps/RunRouteMap";
 import {
   addRunItems,
@@ -207,6 +208,9 @@ export default function DeliveryRunDetail({ runId, branchId = null, canManage = 
       if (fresh?.id) setRun(fresh);
       if (msg) message.success(msg);
       onChanged?.(fresh);
+      try {
+        refreshMenuBadges();
+      } catch {}
     },
     [onChanged]
   );

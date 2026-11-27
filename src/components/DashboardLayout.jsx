@@ -139,13 +139,15 @@ function labelWithBadges(label, list) {
   return (
     <span style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 6, width: "100%" }}>
       <span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>{label}</span>
-      <span title={title} aria-label={title} style={{ display: "inline-flex", gap: 3, flexShrink: 0 }}>
-        {shown.map((b) => (
-          <span key={b.key || b.label} style={{ ...PILL_STYLE, background: b.color || "#1677ff" }}>
-            {pillText(Number(b.count))}
-          </span>
-        ))}
-      </span>
+      <Tooltip title={title} placement="right" mouseEnterDelay={0.1}>
+        <span aria-label={title} style={{ display: "inline-flex", gap: 3, flexShrink: 0 }}>
+          {shown.map((b) => (
+            <span key={b.key || b.label} style={{ ...PILL_STYLE, background: b.color || "#1677ff" }}>
+              {pillText(Number(b.count))}
+            </span>
+          ))}
+        </span>
+      </Tooltip>
     </span>
   );
 }
